@@ -16,9 +16,9 @@ struct MenuBarContent: View {
         }
         .help("Select a screen region with ⌃⌥R")
 
-        Text(model.lastSelection == nil
-             ? "Select a region. Capture and speech are not connected yet."
-             : "Region selected. Capture is the next implementation step.")
+        Text(model.lastCaptureSize == nil
+             ? "Select a region to capture locally. Speech is not available yet."
+             : "Region captured locally. No image was saved.")
             .font(.caption)
             .foregroundStyle(.secondary)
 

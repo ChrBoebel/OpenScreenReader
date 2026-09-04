@@ -7,6 +7,21 @@ struct ScreenRegionSelection: Equatable, Sendable {
     let rectInBackingPixels: CGRect
     let backingScaleFactor: CGFloat
     var displayGeometry: DisplaySelectionGeometry? = nil
+    var topologyRevision: UInt64? = nil
+}
+
+@MainActor
+final class DisplayTopology: NSObject {
+    static let shared = DisplayTopology()
+    private(set) var revision: UInt64 = 0
+
+    private override init() {
+        super.init()
+        NotificationCenter.default.addObserver(self, selector: #selector(screenTopologyDidChange),
+            name: NSApplication.didChangeScreenParametersNotification, object: nil)
+    }
+
+    @objc private func screenTopologyDidChange() { revision += 1 }
 }
 
 struct DisplaySelectionGeometry: Equatable, Sendable {
@@ -64,6 +79,9 @@ final class RegionSelectionOverlayController: NSObject, RegionSelectionControlli
     private var onSelection: ((ScreenRegionSelection) -> Void)?
     private var onCancel: (() -> Void)?
     private var cursorIsPushed = false
+    private var topologyRevision: UInt64 = 0
+
+    isolated deinit { cancel() }
 
     func start(
         onSelection: @escaping (ScreenRegionSelection) -> Void,
@@ -72,6 +90,7 @@ final class RegionSelectionOverlayController: NSObject, RegionSelectionControlli
         cancel()
         self.onSelection = onSelection
         self.onCancel = onCancel
+        topologyRevision = DisplayTopology.shared.revision
 
         NotificationCenter.default.addObserver(
             self,
@@ -108,6 +127,12 @@ final class RegionSelectionOverlayController: NSObject, RegionSelectionControlli
     }
 
     private func finish(with selection: ScreenRegionSelection) {
+        guard topologyRevision == DisplayTopology.shared.revision else {
+            finishAsCancelled()
+            return
+        }
+        var selection = selection
+        selection.topologyRevision = topologyRevision
         let completion = onSelection
         teardown()
         onSelection = nil

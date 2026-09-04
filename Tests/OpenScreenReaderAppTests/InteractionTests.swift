@@ -15,7 +15,8 @@ struct InteractionTests {
     func appRegistersTheHotkeyAndStartsSelection() async {
         let hotkey = HotkeyManagerFake(registrationResult: .registered)
         let selection = RegionSelectionControllerFake()
-        let model = AppModel(hotkeyManager: hotkey, selectionController: selection)
+        let model = AppModel(hotkeyManager: hotkey, selectionController: selection,
+                             captureService: CaptureFake(), escapeMonitor: EscapeFake())
 
         #expect(hotkey.registeredShortcut == .readScreenRegion)
         #expect(model.hotkeyRegistration == .registered)
@@ -31,7 +32,8 @@ struct InteractionTests {
     func repeatedReadRequestCancelsTheActiveSelection() async {
         let hotkey = HotkeyManagerFake(registrationResult: .registered)
         let selection = RegionSelectionControllerFake()
-        let model = AppModel(hotkeyManager: hotkey, selectionController: selection)
+        let model = AppModel(hotkeyManager: hotkey, selectionController: selection,
+                             captureService: CaptureFake(), escapeMonitor: EscapeFake())
 
         await model.handleReadRequest()
         await model.handleReadRequest()
@@ -48,7 +50,7 @@ struct InteractionTests {
         let selection = RegionSelectionControllerFake()
         let model = AppModel(
             hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
-            selectionController: selection
+            selectionController: selection, captureService: CaptureFake(), escapeMonitor: EscapeFake()
         )
         let region = ScreenRegionSelection(
             displayID: 7,
@@ -60,6 +62,7 @@ struct InteractionTests {
         await model.handleReadRequest()
         selection.complete(region)
         await model.waitForInteractionToSettle()
+        await model.waitForCaptureToSettle()
 
         let snapshot = await model.pipelineCoordinator.snapshot()
         #expect(model.lastSelection == region)
@@ -79,6 +82,65 @@ struct InteractionTests {
         #expect(model.hotkeyRegistration == .conflict)
         #expect(model.status == .error)
         #expect(selection.startCount == 0)
+    }
+
+    @Test
+    func cancelledCaptureCannotPublishIntoANewerSelection() async throws {
+        let selection = RegionSelectionControllerFake()
+        let capture = CaptureFake()
+        capture.suspend = true
+        let escape = EscapeFake()
+        let model = AppModel(hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+                             selectionController: selection, captureService: capture, escapeMonitor: escape)
+        await model.handleReadRequest()
+        let region = ScreenRegionSelection(displayID: 1,
+            rectInScreenPoints: CGRect(x: 0, y: 0, width: 20, height: 20),
+            rectInBackingPixels: CGRect(x: 0, y: 0, width: 20, height: 20), backingScaleFactor: 1)
+        selection.complete(region)
+        await model.waitForInteractionToSettle()
+        await capture.waitUntilStarted()
+        #expect(model.status == .capturing)
+        escape.onEscape?()
+        await model.waitForInteractionToSettle()
+        #expect(model.status == .stopped)
+        #expect(!escape.isActive)
+        await model.handleReadRequest()
+        capture.resume()
+        await model.waitForCaptureToSettle()
+        #expect(model.status == .selecting)
+        #expect(model.lastCaptureSize == nil)
+    }
+
+    @Test
+    func missingEscapeAccessPreventsCaptureAndExplainsRemediation() async {
+        let selection = RegionSelectionControllerFake()
+        let capture = CaptureFake()
+        let escape = EscapeFake()
+        escape.shouldFail = true
+        let model = AppModel(hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+                             selectionController: selection, captureService: capture, escapeMonitor: escape)
+        await model.handleReadRequest()
+        selection.complete(ScreenRegionSelection(displayID: 1,
+            rectInScreenPoints: CGRect(x: 0, y: 0, width: 20, height: 20),
+            rectInBackingPixels: CGRect(x: 0, y: 0, width: 20, height: 20), backingScaleFactor: 1))
+        await model.waitForInteractionToSettle()
+        #expect(model.status == .error)
+        #expect(model.errorMessage?.contains("Input Monitoring") == true)
+        #expect(capture.calls == 0)
+        #expect(!escape.isActive)
+    }
+
+    @Test
+    func rapidReadRequestsAreProcessedInOrder() async {
+        let model = AppModel(hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+                             selectionController: RegionSelectionControllerFake(),
+                             captureService: CaptureFake(), escapeMonitor: EscapeFake())
+        for _ in 0..<100 { model.enqueueReadRequest() }
+        await model.waitForInteractionToSettle()
+        let snapshot = await model.pipelineCoordinator.snapshot()
+        #expect(model.status == .stopped)
+        #expect(snapshot.activeContext == nil)
+        #expect(snapshot.pendingCancellation == nil)
     }
 
     @Test
@@ -118,6 +180,41 @@ struct InteractionTests {
         #expect(clipped?.rectInScreenPoints == CGRect(x: 900, y: 600, width: 100, height: 100))
         #expect(geometry.selection(from: CGPoint(x: 10, y: 10), to: CGPoint(x: 11, y: 11)) == nil)
     }
+}
+
+@MainActor
+private final class EscapeFake: EscapeMonitoring {
+    var onEscape: (() -> Void)?
+    var isActive = false
+    var shouldFail = false
+    func start(onEscape: @escaping () -> Void, onUnavailable: @escaping () -> Void) throws {
+        if shouldFail { throw EscapeMonitorFailure.permissionRequired }
+        self.onEscape = onEscape
+        isActive = true
+    }
+    func stop() { isActive = false; onEscape = nil }
+}
+
+@MainActor
+private final class CaptureFake: ScreenCapturing {
+    var suspend = false
+    var calls = 0
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var started: CheckedContinuation<Void, Never>?
+    func capture(_ selection: ScreenRegionSelection) async throws -> CGImage {
+        calls += 1
+        if suspend {
+            await withCheckedContinuation { continuation = $0; started?.resume(); started = nil }
+        }
+        // Deliberately ignore cancellation to model Apple's one-shot callback.
+        return CGContext(data: nil, width: 20, height: 20, bitsPerComponent: 8, bytesPerRow: 80,
+                         space: CGColorSpaceCreateDeviceRGB(),
+                         bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!.makeImage()!
+    }
+    func waitUntilStarted() async {
+        if continuation == nil { await withCheckedContinuation { started = $0 } }
+    }
+    func resume() { continuation?.resume(); continuation = nil }
 }
 
 @MainActor

@@ -1,6 +1,7 @@
 enum AppStatus: String, CaseIterable, Equatable, Sendable {
     case ready
     case selecting
+    case capturing
     case recognizing
     case speaking
     case stopped
@@ -12,6 +13,8 @@ enum AppStatus: String, CaseIterable, Equatable, Sendable {
             "Ready"
         case .selecting:
             "Selecting"
+        case .capturing:
+            "Capturing"
         case .recognizing:
             "Recognizing"
         case .speaking:
@@ -29,6 +32,8 @@ enum AppStatus: String, CaseIterable, Equatable, Sendable {
             "waveform"
         case .selecting:
             "viewfinder"
+        case .capturing:
+            "camera.viewfinder"
         case .recognizing:
             "text.viewfinder"
         case .speaking:

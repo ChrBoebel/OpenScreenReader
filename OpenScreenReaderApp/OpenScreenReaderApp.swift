@@ -14,7 +14,7 @@ struct OpenScreenReaderApp: App {
         .menuBarExtraStyle(.menu)
 
         Settings {
-            SettingsView()
+            SettingsView(model: model)
         }
     }
 }

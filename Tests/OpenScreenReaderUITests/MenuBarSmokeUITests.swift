@@ -29,7 +29,7 @@ final class MenuBarSmokeUITests: XCTestCase {
 
         XCTAssertTrue(
             app.menuItems[
-                "Select a region. Capture and speech are not connected yet."
+                "Select a region to capture locally. Speech is not available yet."
             ].exists
         )
         XCTAssertTrue(app.menuItems["Settings…"].exists)
@@ -52,7 +52,7 @@ final class MenuBarSmokeUITests: XCTestCase {
     }
 
     @MainActor
-    func testDraggingARegionCompletesTheSelection() {
+    func testDraggingARegionReportsCaptureOrActionablePermissionFailure() {
         let app = XCUIApplication()
         app.launch()
         defer { app.terminate() }
@@ -70,17 +70,33 @@ final class MenuBarSmokeUITests: XCTestCase {
         let end = overlay.coordinate(withNormalizedOffset: CGVector(dx: 0.65, dy: 0.55))
         start.press(forDuration: 0.1, thenDragTo: end)
 
-        let readyStatus = app.descendants(matching: .statusItem)
-            .matching(NSPredicate(format: "title == 'OpenScreenReader, Ready'"))
+        let finishedStatus = app.descendants(matching: .statusItem)
+            .matching(NSPredicate(format: "title IN {'OpenScreenReader, Ready', 'OpenScreenReader, Error'}"))
             .firstMatch
-        XCTAssertTrue(readyStatus.waitForExistence(timeout: 2))
+        XCTAssertTrue(finishedStatus.waitForExistence(timeout: 12))
+        let failed = finishedStatus.title == "OpenScreenReader, Error"
+        finishedStatus.click()
+        if failed {
+            let permissionError = app.menuItems.matching(NSPredicate(
+                format: "title CONTAINS 'Allow Input Monitoring' OR title CONTAINS 'Allow Screen Recording'"
+            )).firstMatch
+            XCTAssertTrue(permissionError.waitForExistence(timeout: 2), app.debugDescription)
+        } else {
+            XCTAssertTrue(app.menuItems["Region captured locally. No image was saved."].waitForExistence(timeout: 2))
+        }
+    }
 
-        readyStatus.click()
-        XCTAssertTrue(
-            app.menuItems[
-                "Region selected. Capture is the next implementation step."
-            ].waitForExistence(timeout: 2)
-        )
+    @MainActor
+    func testSettingsExplainCapturePrivacyAndPermissionActions() {
+        let app = XCUIApplication()
+        app.launch()
+        openMenu(in: app, status: "Ready")
+        app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
+        XCTAssertTrue(app.buttons["Allow Screen Recording…"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Allow Input Monitoring…"].exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(
+            format: "value CONTAINS 'Only the selected region'"
+        )).firstMatch.exists)
     }
 
     @MainActor

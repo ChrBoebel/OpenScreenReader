@@ -9,6 +9,7 @@ struct AppStatusTests {
         #expect(AppStatus.allCases.map(\.title) == [
             "Ready",
             "Selecting",
+            "Capturing",
             "Recognizing",
             "Speaking",
             "Stopped",

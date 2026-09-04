@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		B00000000000000000000003 = {isa = PBXBuildFile; fileRef = B00000000000000000000004; };
+		B00000000000000000000005 = {isa = PBXBuildFile; fileRef = B00000000000000000000006; };
 		B00000000000000000000001 /* CaptureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000002; };
 		A00000000000000000000020 /* OpenScreenReaderApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000010 /* OpenScreenReaderApp.swift */; };
 		A00000000000000000000021 /* AppStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000015 /* AppStatusTests.swift */; };
@@ -41,6 +42,7 @@
 
 /* Begin PBXFileReference section */
 		B00000000000000000000004 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCaptureService.swift; sourceTree = "<group>"; };
+		B00000000000000000000006 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EscapeMonitor.swift; sourceTree = "<group>"; };
 		B00000000000000000000002 /* CaptureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureTests.swift; sourceTree = "<group>"; };
 		A00000000000000000000006 /* OpenScreenReader.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OpenScreenReader.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A00000000000000000000007 /* OpenScreenReaderAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OpenScreenReaderAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -113,6 +115,7 @@
 				A00000000000000000000019 /* GlobalHotkeyManager.swift */,
 				A0000000000000000000001A /* RegionSelectionController.swift */,
 				B00000000000000000000004 /* ScreenCaptureService.swift */,
+				B00000000000000000000006 /* EscapeMonitor.swift */,
 				A00000000000000000000013 /* MenuBarContent.swift */,
 				A00000000000000000000016 /* SettingsView.swift */,
 				A00000000000000000000014 /* Info.plist */,
@@ -281,6 +284,7 @@
 				A00000000000000000000028 /* GlobalHotkeyManager.swift in Sources */,
 				A00000000000000000000029 /* RegionSelectionController.swift in Sources */,
 				B00000000000000000000003 /* ScreenCaptureService.swift in Sources */,
+				B00000000000000000000005 /* EscapeMonitor.swift in Sources */,
 				A00000000000000000000024 /* MenuBarContent.swift in Sources */,
 				A00000000000000000000025 /* SettingsView.swift in Sources */,
 			);

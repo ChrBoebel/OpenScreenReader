@@ -77,18 +77,20 @@ protocol ScreenCapturing: AnyObject {
 final class ScreenCaptureService: ScreenCapturing {
     func capture(_ selection: ScreenRegionSelection) async throws -> CGImage {
         try Task.checkCancellation()
-        guard CGPreflightScreenCaptureAccess() else {
-            throw ScreenCaptureFailure.permissionRequired
-        }
+        let revision = DisplayTopology.shared.revision
         let topology = Self.currentDisplays()
-        guard let display = topology.first(where: { $0.displayID == selection.displayID }) else {
+        guard selection.topologyRevision == revision,
+              let display = topology.first(where: { $0.displayID == selection.displayID }) else {
             throw ScreenCaptureFailure.displayChanged
         }
         let request = try RegionCaptureRequest(selection: selection, currentDisplay: display)
+        guard CGPreflightScreenCaptureAccess() else {
+            throw ScreenCaptureFailure.permissionRequired
+        }
         do {
             let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
             try Task.checkCancellation()
-            guard topology == Self.currentDisplays(),
+            guard revision == DisplayTopology.shared.revision, topology == Self.currentDisplays(),
                   let target = content.displays.first(where: { $0.displayID == selection.displayID }) else {
                 throw ScreenCaptureFailure.displayChanged
             }
@@ -100,7 +102,9 @@ final class ScreenCaptureService: ScreenCapturing {
             )
             // Apple's one-shot API cannot be interrupted. Never deliver a late frame.
             try Task.checkCancellation()
-            guard topology == Self.currentDisplays() else { throw ScreenCaptureFailure.displayChanged }
+            guard revision == DisplayTopology.shared.revision, topology == Self.currentDisplays() else {
+                throw ScreenCaptureFailure.displayChanged
+            }
             guard image.width == request.pixelWidth, image.height == request.pixelHeight else {
                 throw ScreenCaptureFailure.failed
             }
