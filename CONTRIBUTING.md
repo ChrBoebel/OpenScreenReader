@@ -31,6 +31,8 @@ Run the Apple test target, current behavior checks, and production build with:
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcrun swift test
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcrun swift run OpenScreenReaderCoreBehaviorChecks
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcrun swift build -c release --target OpenScreenReaderCore
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test -project OpenScreenReader.xcodeproj -scheme OpenScreenReader -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild build -project OpenScreenReader.xcodeproj -scheme OpenScreenReader -configuration Release -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO
 ```
 
 The executable behavior-check target predates the full Xcode installation and remains temporarily as a migration safety net. Move each case into `OpenScreenReaderCoreTests`, then remove the executable target once equivalent Apple tests pass. The active global `xcode-select` still points to standalone Command Line Tools, so keep using the explicit `DEVELOPER_DIR` prefix until the owner chooses otherwise.
