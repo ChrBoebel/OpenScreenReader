@@ -107,18 +107,21 @@ struct InteractionTests {
     }
 
     @Test
-    func captureAutomaticallyRecognizesTextAndRetainsOnlyCounts() async {
+    func captureAutomaticallyReadsTextAndRetainsOnlyCountsAfterPlayback() async {
         let selection = RegionSelectionControllerFake()
         let ocr = OCRFake()
         let escape = EscapeFake()
+        let speech = SpeechFake()
         let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             selectionController: selection, captureService: CaptureFake(), escapeMonitor: escape,
-            ocrService: ocr)
+            ocrService: ocr, speechService: speech)
         await model.handleReadRequest()
         selection.complete(Self.ocrRegion)
         await model.waitForInteractionToSettle()
         await model.waitForCaptureToSettle()
+        await model.waitForSpeechToSettle()
         #expect(ocr.calls == 1)
+        #expect(speech.receivedText == "Hello world")
         #expect(model.status == .ready)
         #expect(model.lastOCRSummary == OCRSummary(characterCount: 11, lineCount: 1))
         #expect(model.captureFeedback.contains("11 characters"))
@@ -132,17 +135,96 @@ struct InteractionTests {
     func blankOCRHasActionableFeedbackWithoutSpeech() async {
         let selection = RegionSelectionControllerFake()
         let ocr = OCRFake()
+        let speech = SpeechFake()
         ocr.result = OCRResult(lines: [])
         let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             selectionController: selection, captureService: CaptureFake(), escapeMonitor: EscapeFake(),
-            ocrService: ocr)
+            ocrService: ocr, speechService: speech)
         await model.handleReadRequest()
         selection.complete(Self.ocrRegion)
         await model.waitForInteractionToSettle()
         await model.waitForCaptureToSettle()
         #expect(model.status == .ready)
+        #expect(speech.receivedText == nil)
         #expect(model.lastOCRSummary?.characterCount == 0)
         #expect(model.captureFeedback == "No readable text found. Select a clearer region.")
+    }
+
+    @Test(arguments: [false, true])
+    func speechRemainsCancellableAndLateCompletionCannotAffectNewSelection(repeatedShortcut: Bool) async {
+        let selection = RegionSelectionControllerFake()
+        let escape = EscapeFake()
+        let speech = SpeechFake()
+        speech.suspend = true
+        let model = AppModel(shortcutStore: MemoryShortcutStore(),
+            hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+            selectionController: selection, captureService: CaptureFake(), escapeMonitor: escape,
+            ocrService: OCRFake(), speechService: speech)
+        await model.handleReadRequest()
+        selection.complete(Self.ocrRegion)
+        await model.waitForInteractionToSettle()
+        await model.waitForCaptureToSettle()
+        await speech.waitUntilStarted()
+        await model.waitForInteractionToSettle()
+        #expect(model.status == .speaking)
+        #expect(escape.isActive)
+        #expect(!model.canChangeShortcut)
+        #expect(await model.pipelineCoordinator.snapshot().phase == .speaking)
+        if repeatedShortcut { await model.handleReadRequest() }
+        else { escape.onEscape?(); await model.waitForInteractionToSettle() }
+        #expect(speech.stopped)
+        #expect(model.status == .stopped)
+        #expect(!escape.isActive)
+        await model.handleReadRequest()
+        speech.resume()
+        await model.waitForSpeechToSettle()
+        #expect(model.status == .selecting)
+        #expect(model.lastOCRSummary == nil)
+    }
+
+    @Test
+    func speechFailureIsGenericAndDoesNotFallBack() async {
+        let selection = RegionSelectionControllerFake()
+        let speech = SpeechFake()
+        speech.shouldFail = true
+        let model = AppModel(shortcutStore: MemoryShortcutStore(),
+            hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+            selectionController: selection, captureService: CaptureFake(), escapeMonitor: EscapeFake(),
+            ocrService: OCRFake(), speechService: speech)
+        await model.handleReadRequest()
+        selection.complete(Self.ocrRegion)
+        await model.waitForInteractionToSettle()
+        await model.waitForCaptureToSettle()
+        await model.waitForSpeechToSettle()
+        #expect(model.status == .error)
+        #expect(model.errorMessage == SpeechFailure.failed.localizedDescription)
+        #expect(speech.stopped)
+    }
+
+    @Test(arguments: [false, true])
+    func modelLoadingCanBeCancelledOrTimedOutWithoutWaitingForWorker(timeout: Bool) async {
+        let selection = RegionSelectionControllerFake()
+        let speech = SpeechFake()
+        speech.suspend = true
+        speech.emitPlayback = false
+        let model = AppModel(shortcutStore: MemoryShortcutStore(),
+            hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+            selectionController: selection, captureService: CaptureFake(), escapeMonitor: EscapeFake(),
+            ocrService: OCRFake(), speechService: speech,
+            speechStartupTimeout: timeout ? .milliseconds(80) : .seconds(90))
+        await model.handleReadRequest()
+        selection.complete(Self.ocrRegion)
+        await model.waitForInteractionToSettle()
+        await model.waitForCaptureToSettle()
+        await speech.waitUntilStarted()
+        #expect(model.status == .synthesizing)
+        if timeout { await model.waitForTimeoutToSettle() }
+        else { await model.handleReadRequest() }
+        #expect(model.status == (timeout ? .error : .stopped))
+        #expect(speech.stopped)
+        speech.resume()
+        await model.waitForSpeechToSettle()
+        #expect(model.status == (timeout ? .error : .stopped))
     }
 
     @Test(arguments: [false, true])
@@ -484,6 +566,32 @@ private final class OCRFake: TextRecognizing {
         // Deliberately ignore cancellation to exercise stale-result rejection.
         return result
     }
+    func waitUntilStarted() async {
+        if continuation == nil { await withCheckedContinuation { started = $0 } }
+    }
+    func resume() { continuation?.resume(); continuation = nil }
+}
+
+@MainActor
+private final class SpeechFake: SpeechReading {
+    var receivedText: String?
+    var suspend = false
+    var stopped = false
+    var shouldFail = false
+    var emitPlayback = true
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var started: CheckedContinuation<Void, Never>?
+
+    func read(_ text: String, onPlayback: @escaping @MainActor () -> Void) async throws {
+        receivedText = text
+        if shouldFail { throw NSError(domain: "private synthetic speech diagnostic", code: 1) }
+        if emitPlayback { onPlayback() }
+        if suspend {
+            await withCheckedContinuation { continuation = $0; started?.resume(); started = nil }
+        }
+        // Deliberately non-cooperative: AppModel must reject a stale completion.
+    }
+    func stop() { stopped = true }
     func waitUntilStarted() async {
         if continuation == nil { await withCheckedContinuation { started = $0 } }
     }

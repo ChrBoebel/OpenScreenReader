@@ -3,6 +3,7 @@ enum AppStatus: String, CaseIterable, Equatable, Sendable {
     case selecting
     case capturing
     case recognizing
+    case synthesizing
     case speaking
     case stopped
     case error
@@ -19,6 +20,8 @@ enum AppStatus: String, CaseIterable, Equatable, Sendable {
             "Recognizing"
         case .speaking:
             "Speaking"
+        case .synthesizing:
+            "Preparing voice"
         case .stopped:
             "Stopped"
         case .error:
@@ -38,6 +41,8 @@ enum AppStatus: String, CaseIterable, Equatable, Sendable {
             "text.viewfinder"
         case .speaking:
             "speaker.wave.2"
+        case .synthesizing:
+            "waveform.badge.magnifyingglass"
         case .error:
             "exclamationmark.triangle"
         }

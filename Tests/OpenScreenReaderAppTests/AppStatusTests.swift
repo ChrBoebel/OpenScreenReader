@@ -17,6 +17,7 @@ struct AppStatusTests {
             "Selecting",
             "Capturing",
             "Recognizing",
+            "Preparing voice",
             "Speaking",
             "Stopped",
             "Error",

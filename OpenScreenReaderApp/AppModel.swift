@@ -20,12 +20,16 @@ final class AppModel: ObservableObject {
     private let captureService: any ScreenCapturing
     private let escapeMonitor: any EscapeMonitoring
     private let ocrService: any TextRecognizing
+    private let speechService: any SpeechReading
     private let operationTimeout: Duration
+    private let speechStartupTimeout: Duration
     private var activeContext: PipelineOperationContext?
     private var interactionTask: Task<Void, Never>?
     private var captureTask: Task<Void, Never>?
     private var recognitionTask: Task<Void, Never>?
+    private var speechTask: Task<Void, Never>?
     private var timeoutTask: Task<Void, Never>?
+    private var speechTimeoutGeneration: UInt64 = 0
 
     isolated deinit {
         stopResources()
@@ -40,7 +44,9 @@ final class AppModel: ObservableObject {
         captureService: any ScreenCapturing = ScreenCaptureService(),
         escapeMonitor: any EscapeMonitoring = EscapeMonitor(),
         ocrService: any TextRecognizing = VisionOCRService(),
-        operationTimeout: Duration = .seconds(15)
+        speechService: any SpeechReading = LocalSpeechService(),
+        operationTimeout: Duration = .seconds(15),
+        speechStartupTimeout: Duration = .seconds(90)
     ) {
         self.pipelineCoordinator = pipelineCoordinator
         self.shortcutStore = shortcutStore
@@ -50,7 +56,9 @@ final class AppModel: ObservableObject {
         self.captureService = captureService
         self.escapeMonitor = escapeMonitor
         self.ocrService = ocrService
+        self.speechService = speechService
         self.operationTimeout = operationTimeout
+        self.speechStartupTimeout = speechStartupTimeout
         hotkeyManager.onPress = { [weak self] in self?.enqueueReadRequest() }
         hotkeyRegistration = hotkeyManager.register(shortcutConfiguration.resolvedShortcut())
         if hotkeyRegistration != .registered {
@@ -93,11 +101,13 @@ final class AppModel: ObservableObject {
     var captureFeedback: String {
         if status == .capturing { return "Capturing selected region locally…" }
         if status == .recognizing { return "Recognizing German and English text locally…" }
+        if status == .synthesizing { return "Preparing the local Qwen voice…" }
+        if status == .speaking { return "Reading locally. Press Escape or the shortcut to stop." }
         guard let summary = lastOCRSummary else {
-            return "Select a region to recognize text locally. Speech is not available yet."
+            return "Select a region to recognize and read text locally."
         }
         if summary.characterCount == 0 { return "No readable text found. Select a clearer region." }
-        return "Recognized \(summary.characterCount) characters in \(summary.lineCount) lines locally. Speech is not available yet."
+        return "Recognized \(summary.characterCount) characters in \(summary.lineCount) lines locally."
     }
 
     // Serialize only short control transitions. Never queue cancellation behind capture.
@@ -128,6 +138,11 @@ final class AppModel: ObservableObject {
         await captureTask?.value
         await interactionTask?.value
         await recognitionTask?.value
+        await interactionTask?.value
+    }
+
+    func waitForSpeechToSettle() async {
+        await speechTask?.value
         await interactionTask?.value
     }
 
@@ -204,7 +219,10 @@ final class AppModel: ObservableObject {
         let timeout = operationTimeout
         timeoutTask = Task { @MainActor [weak self] in
             do { try await Task.sleep(for: timeout) } catch { return }
-            self?.enqueue { await $0.fail(context: context, message: "Capture or text recognition timed out. Please try a smaller region.") }
+            self?.enqueue {
+                guard $0.status == .capturing || $0.status == .recognizing else { return }
+                await $0.fail(context: context, message: "Capture or text recognition timed out. Please try a smaller region.")
+            }
         }
     }
 
@@ -219,10 +237,7 @@ final class AppModel: ObservableObject {
             do {
                 let result = try await service.recognize(image)
                 try Task.checkCancellation()
-                // Only counts cross into observable UI state. Until speech is wired in,
-                // discard the recognized content at the end of this operation.
-                let summary = OCRSummary(characterCount: result.characterCount, lineCount: result.lineCount)
-                self?.enqueue { await $0.finishRecognition(summary: summary, size: size, context: context) }
+                self?.enqueue { await $0.finishRecognition(result: result, size: size, context: context) }
             } catch is CancellationError {
                 self?.enqueue { await $0.cancel(context: context) }
             } catch {
@@ -234,18 +249,68 @@ final class AppModel: ObservableObject {
     }
 
     private func finishRecognition(
-        summary: OCRSummary, size: CGSize, context: PipelineOperationContext
+        result: OCRResult, size: CGSize, context: PipelineOperationContext
     ) async {
+        guard context == activeContext else { return }
+        timeoutTask?.cancel()
+        timeoutTask = nil
+        lastCaptureSize = size
+        lastOCRSummary = OCRSummary(characterCount: result.characterCount, lineCount: result.lineCount)
+        guard !result.text.isEmpty else { await finishSpeech(context: context); return }
+        guard await pipelineCoordinator.accept(.synthesizing, for: context) else { return }
+        status = .synthesizing
+        armSpeechTimeout(speechStartupTimeout, context: context)
+        let service = speechService
+        let text = result.text
+        speechTask = Task { @MainActor [weak self] in
+            do {
+                try Task.checkCancellation()
+                try await service.read(text) { [weak self] in
+                    self?.enqueue { await $0.speechPlaybackStarted(context: context) }
+                }
+                try Task.checkCancellation()
+                self?.enqueue { await $0.finishSpeech(context: context) }
+            } catch is CancellationError {
+                self?.enqueue { await $0.cancel(context: context) }
+            } catch {
+                let message = (error as? SpeechFailure)?.localizedDescription ?? SpeechFailure.failed.localizedDescription
+                self?.enqueue { await $0.fail(context: context, message: message) }
+            }
+        }
+    }
+
+    private func speechPlaybackStarted(context: PipelineOperationContext) async {
+        guard context == activeContext else { return }
+        if status == .synthesizing {
+            guard await pipelineCoordinator.accept(.speaking, for: context) else { return }
+            status = .speaking
+        }
+        armSpeechTimeout(.seconds(30), context: context)
+    }
+
+    private func armSpeechTimeout(_ duration: Duration, context: PipelineOperationContext) {
+        timeoutTask?.cancel()
+        speechTimeoutGeneration &+= 1
+        let timerGeneration = speechTimeoutGeneration
+        timeoutTask = Task { @MainActor [weak self] in
+            do { try await Task.sleep(for: duration) } catch { return }
+            self?.enqueue {
+                guard $0.speechTimeoutGeneration == timerGeneration else { return }
+                await $0.fail(context: context, message: "Local speech timed out. Please try a smaller region.")
+            }
+        }
+    }
+
+    private func finishSpeech(context: PipelineOperationContext) async {
         guard context == activeContext, await pipelineCoordinator.complete(context) else { return }
         stopResources()
         activeContext = nil
-        lastCaptureSize = size
-        lastOCRSummary = summary
         status = .ready
     }
 
     private func fail(context: PipelineOperationContext, message: String) async {
         guard context == activeContext else { return }
+        speechService.stop()
         _ = await pipelineCoordinator.fail(context)
         activeContext = nil
         stopResources()
@@ -255,6 +320,7 @@ final class AppModel: ObservableObject {
 
     private func cancel(context: PipelineOperationContext) async {
         guard context == activeContext else { return }
+        speechService.stop()
         let directive = await pipelineCoordinator.cancel()
         activeContext = nil
         stopResources()
@@ -263,6 +329,8 @@ final class AppModel: ObservableObject {
     }
 
     private func stopResources() {
+        speechService.stop()
+        speechTask?.cancel()
         captureTask?.cancel()
         recognitionTask?.cancel()
         timeoutTask?.cancel()

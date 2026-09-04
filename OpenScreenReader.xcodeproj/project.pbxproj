@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		E00000000000000000000001 = {isa = PBXBuildFile; fileRef = E00000000000000000000002; };
 		D00000000000000000000003 /* VisionOCRService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D00000000000000000000004; };
 		D00000000000000000000001 /* OCRTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D00000000000000000000002; };
 		C00000000000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000002; };
@@ -44,6 +45,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		E00000000000000000000002 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalSpeechService.swift; sourceTree = "<group>"; };
 		D00000000000000000000004 /* VisionOCRService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisionOCRService.swift; sourceTree = "<group>"; };
 		D00000000000000000000002 /* OCRTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRTests.swift; sourceTree = "<group>"; };
 		C00000000000000000000002 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -120,6 +122,7 @@
 				A00000000000000000000011 /* AppStatus.swift */,
 				A00000000000000000000012 /* AppModel.swift */,
 				D00000000000000000000004 /* VisionOCRService.swift */,
+				E00000000000000000000002 /* LocalSpeechService.swift */,
 				A00000000000000000000019 /* GlobalHotkeyManager.swift */,
 				A0000000000000000000001A /* RegionSelectionController.swift */,
 				B00000000000000000000004 /* ScreenCaptureService.swift */,
@@ -292,6 +295,7 @@
 				A00000000000000000000022 /* AppStatus.swift in Sources */,
 				A00000000000000000000023 /* AppModel.swift in Sources */,
 				D00000000000000000000003 /* VisionOCRService.swift in Sources */,
+				E00000000000000000000001 /* LocalSpeechService.swift in Sources */,
 				A00000000000000000000028 /* GlobalHotkeyManager.swift in Sources */,
 				A00000000000000000000029 /* RegionSelectionController.swift in Sources */,
 				B00000000000000000000003 /* ScreenCaptureService.swift in Sources */,
