@@ -13,6 +13,7 @@
 		A00000000000000000000023 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000012 /* AppModel.swift */; };
 		A00000000000000000000024 /* MenuBarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000013 /* MenuBarContent.swift */; };
 		A00000000000000000000025 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000016 /* SettingsView.swift */; };
+		A00000000000000000000026 /* MenuBarSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000017 /* MenuBarSmokeUITests.swift */; };
 		A00000000000000000000082 /* OpenScreenReaderCore in Frameworks */ = {isa = PBXBuildFile; productRef = A00000000000000000000081 /* OpenScreenReaderCore */; };
 /* End PBXBuildFile section */
 
@@ -24,11 +25,19 @@
 			remoteGlobalIDString = A00000000000000000000040;
 			remoteInfo = OpenScreenReader;
 		};
+		A00000000000000000000072 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A00000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A00000000000000000000040;
+			remoteInfo = OpenScreenReader;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		A00000000000000000000006 /* OpenScreenReader.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OpenScreenReader.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A00000000000000000000007 /* OpenScreenReaderAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OpenScreenReaderAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A00000000000000000000008 /* OpenScreenReaderUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OpenScreenReaderUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A00000000000000000000010 /* OpenScreenReaderApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenScreenReaderApp.swift; sourceTree = "<group>"; };
 		A00000000000000000000011 /* AppStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStatus.swift; sourceTree = "<group>"; };
 		A00000000000000000000012 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
@@ -36,6 +45,7 @@
 		A00000000000000000000014 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A00000000000000000000015 /* AppStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStatusTests.swift; sourceTree = "<group>"; };
 		A00000000000000000000016 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		A00000000000000000000017 /* MenuBarSmokeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarSmokeUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -54,6 +64,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A00000000000000000000036 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -62,6 +79,7 @@
 			children = (
 				A00000000000000000000004 /* OpenScreenReaderApp */,
 				A00000000000000000000005 /* OpenScreenReaderAppTests */,
+				A00000000000000000000009 /* OpenScreenReaderUITests */,
 				A00000000000000000000003 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -71,6 +89,7 @@
 			children = (
 				A00000000000000000000006 /* OpenScreenReader.app */,
 				A00000000000000000000007 /* OpenScreenReaderAppTests.xctest */,
+				A00000000000000000000008 /* OpenScreenReaderUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -95,6 +114,15 @@
 			);
 			name = OpenScreenReaderAppTests;
 			path = Tests/OpenScreenReaderAppTests;
+			sourceTree = "<group>";
+		};
+		A00000000000000000000009 /* OpenScreenReaderUITests */ = {
+			isa = PBXGroup;
+			children = (
+				A00000000000000000000017 /* MenuBarSmokeUITests.swift */,
+			);
+			name = OpenScreenReaderUITests;
+			path = Tests/OpenScreenReaderUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -138,6 +166,24 @@
 			productReference = A00000000000000000000007 /* OpenScreenReaderAppTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		A00000000000000000000042 /* OpenScreenReaderUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A00000000000000000000063 /* Build configuration list for PBXNativeTarget "OpenScreenReaderUITests" */;
+			buildPhases = (
+				A00000000000000000000038 /* Sources */,
+				A00000000000000000000036 /* Frameworks */,
+				A00000000000000000000037 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A00000000000000000000073 /* PBXTargetDependency */,
+			);
+			name = OpenScreenReaderUITests;
+			productName = OpenScreenReaderUITests;
+			productReference = A00000000000000000000008 /* OpenScreenReaderUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -152,6 +198,10 @@
 						CreatedOnToolsVersion = 26.0;
 					};
 					A00000000000000000000041 = {
+						CreatedOnToolsVersion = 26.0;
+						TestTargetID = A00000000000000000000040;
+					};
+					A00000000000000000000042 = {
 						CreatedOnToolsVersion = 26.0;
 						TestTargetID = A00000000000000000000040;
 					};
@@ -176,6 +226,7 @@
 			targets = (
 				A00000000000000000000040 /* OpenScreenReader */,
 				A00000000000000000000041 /* OpenScreenReaderAppTests */,
+				A00000000000000000000042 /* OpenScreenReaderUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -189,6 +240,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		A00000000000000000000033 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A00000000000000000000037 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -218,6 +276,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A00000000000000000000038 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A00000000000000000000026 /* MenuBarSmokeUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -225,6 +291,11 @@
 			isa = PBXTargetDependency;
 			target = A00000000000000000000040 /* OpenScreenReader */;
 			targetProxy = A00000000000000000000071 /* PBXContainerItemProxy */;
+		};
+		A00000000000000000000073 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A00000000000000000000040 /* OpenScreenReader */;
+			targetProxy = A00000000000000000000072 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -347,6 +418,38 @@
 			};
 			name = Release;
 		};
+		A00000000000000000000056 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.christopherbobel.OpenScreenReaderUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TEST_TARGET_NAME = OpenScreenReader;
+			};
+			name = Debug;
+		};
+		A00000000000000000000057 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.christopherbobel.OpenScreenReaderUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TEST_TARGET_NAME = OpenScreenReader;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -373,6 +476,15 @@
 			buildConfigurations = (
 				A00000000000000000000054 /* Debug */,
 				A00000000000000000000055 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A00000000000000000000063 /* Build configuration list for PBXNativeTarget "OpenScreenReaderUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A00000000000000000000056 /* Debug */,
+				A00000000000000000000057 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

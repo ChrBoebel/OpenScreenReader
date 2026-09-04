@@ -38,6 +38,15 @@
                ReferencedContainer = "container:OpenScreenReader.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "A00000000000000000000042"
+               BuildableName = "OpenScreenReaderUITests.xctest"
+               BlueprintName = "OpenScreenReaderUITests"
+               ReferencedContainer = "container:OpenScreenReader.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction
