@@ -73,22 +73,30 @@ public struct PipelineCancellationDirective: Equatable, Sendable {
     }
 }
 
+public enum PipelineStartResult: Equatable, Sendable {
+    case started(PipelineOperationContext)
+    case cleanupRequired(PipelineCancellationDirective)
+}
+
 public struct PipelineSnapshot: Equatable, Sendable {
     public let activeContext: PipelineOperationContext?
     public let phase: PipelinePhase
     public let lastTerminal: PipelineTerminal?
     public let workerEpoch: WorkerEpoch
+    public let pendingCancellation: PipelineCancellationDirective?
 
     public init(
         activeContext: PipelineOperationContext?,
         phase: PipelinePhase,
         lastTerminal: PipelineTerminal?,
-        workerEpoch: WorkerEpoch
+        workerEpoch: WorkerEpoch,
+        pendingCancellation: PipelineCancellationDirective?
     ) {
         self.activeContext = activeContext
         self.phase = phase
         self.lastTerminal = lastTerminal
         self.workerEpoch = workerEpoch
+        self.pendingCancellation = pendingCancellation
     }
 }
 
@@ -107,13 +115,20 @@ public actor PipelineCoordinator {
     private var activeContext: PipelineOperationContext?
     private var phase = PipelinePhase.idle
     private var lastTerminal: PipelineTerminal?
+    private var pendingCancellation: PipelineCancellationDirective?
 
     public init() {}
 
-    @discardableResult
-    public func start() -> PipelineOperationContext {
+    public func start() -> PipelineStartResult {
+        if let pendingCancellation {
+            return .cleanupRequired(pendingCancellation)
+        }
+
         if let activeContext {
             revoke(activeContext, reason: .superseded)
+            let directive = cancellationDirective(for: activeContext)
+            pendingCancellation = directive
+            return .cleanupRequired(directive)
         }
 
         precondition(generation.rawValue < UInt64.max, "Pipeline generation exhausted")
@@ -125,7 +140,7 @@ public actor PipelineCoordinator {
         )
         activeContext = context
         phase = .selecting
-        return context
+        return .started(context)
     }
 
     public func snapshot() -> PipelineSnapshot {
@@ -133,7 +148,8 @@ public actor PipelineCoordinator {
             activeContext: activeContext,
             phase: phase,
             lastTerminal: lastTerminal,
-            workerEpoch: workerEpoch
+            workerEpoch: workerEpoch,
+            pendingCancellation: pendingCancellation
         )
     }
 
@@ -157,20 +173,39 @@ public actor PipelineCoordinator {
         }
 
         revoke(context, reason: .stopped)
-        return cancellationDirective(for: context)
+        let directive = cancellationDirective(for: context)
+        pendingCancellation = directive
+        return directive
+    }
+
+    @discardableResult
+    public func finishCleanup(for context: PipelineOperationContext) -> Bool {
+        guard pendingCancellation?.context == context else {
+            return false
+        }
+
+        pendingCancellation = nil
+        return true
     }
 
     @discardableResult
     public func replaceWorker() -> PipelineCancellationDirective? {
+        if let pendingCancellation {
+            return pendingCancellation
+        }
+
+        precondition(workerEpoch.rawValue < UInt64.max, "Worker epoch exhausted")
+
         let directive: PipelineCancellationDirective?
         if let context = activeContext {
             revoke(context, reason: .workerReplaced)
-            directive = cancellationDirective(for: context)
+            let cancellationDirective = cancellationDirective(for: context)
+            pendingCancellation = cancellationDirective
+            directive = cancellationDirective
         } else {
             directive = nil
         }
 
-        precondition(workerEpoch.rawValue < UInt64.max, "Worker epoch exhausted")
         workerEpoch = WorkerEpoch(rawValue: workerEpoch.rawValue + 1)
         return directive
     }

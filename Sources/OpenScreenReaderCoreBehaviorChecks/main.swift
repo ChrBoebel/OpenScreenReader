@@ -37,10 +37,21 @@ struct OpenScreenReaderCoreBehaviorChecks {
         print("PASS: \(name)")
     }
 
+    private static func startContext(
+        _ coordinator: PipelineCoordinator
+    ) async throws -> PipelineOperationContext {
+        switch await coordinator.start() {
+        case let .started(context):
+            context
+        case .cleanupRequired:
+            throw CheckFailure(description: "expected a new context, but cleanup is still required")
+        }
+    }
+
     private static func startCreatesSelectingGeneration() async throws {
         let coordinator = PipelineCoordinator()
 
-        let context = await coordinator.start()
+        let context = try await startContext(coordinator)
         let snapshot = await coordinator.snapshot()
 
         try expect(context.generation.rawValue == 1, "first generation must be 1")
@@ -48,13 +59,15 @@ struct OpenScreenReaderCoreBehaviorChecks {
         try expect(snapshot.activeContext == context, "started context must be active")
         try expect(snapshot.phase == .selecting, "pipeline must begin in selecting")
         try expect(snapshot.lastTerminal == nil, "fresh coordinator must not have a terminal state")
+        try expect(snapshot.pendingCancellation == nil, "fresh coordinator must not require cleanup")
     }
 
     private static func cancelRevokesGeneration() async throws {
         let coordinator = PipelineCoordinator()
-        let context = await coordinator.start()
+        let context = try await startContext(coordinator)
 
         let directive = await coordinator.cancel()
+        let blockedStart = await coordinator.start()
         let snapshot = await coordinator.snapshot()
         let accepted = await coordinator.accept(.capturing, for: context)
 
@@ -71,28 +84,75 @@ struct OpenScreenReaderCoreBehaviorChecks {
         )
         try expect(snapshot.activeContext == nil, "cancellation must revoke the active context")
         try expect(snapshot.phase == .idle, "cancellation must return to idle")
+        try expect(snapshot.pendingCancellation == directive, "cancellation must publish its cleanup barrier")
         try expect(
             snapshot.lastTerminal == PipelineTerminal(context: context, reason: .stopped),
             "cancellation must record a stopped terminal state"
         )
         try expect(!accepted, "results arriving after cancellation must be rejected")
+        try expect(
+            blockedStart == .cleanupRequired(directive!),
+            "a new start must wait until cancellation cleanup completes"
+        )
     }
 
     private static func newStartSupersedesActiveGeneration() async throws {
         let coordinator = PipelineCoordinator()
-        let first = await coordinator.start()
+        let first = try await startContext(coordinator)
 
-        let second = await coordinator.start()
+        let supersession = await coordinator.start()
+        let repeatedStartBeforeCleanup = await coordinator.start()
+        let supersededSnapshot = await coordinator.snapshot()
         let oldAccepted = await coordinator.accept(.capturing, for: first)
+        guard case let .cleanupRequired(cleanup) = supersession else {
+            throw CheckFailure(description: "supersession must require cleanup before starting")
+        }
+        let unrelatedContext = PipelineOperationContext(
+            generation: PipelineGeneration(rawValue: 999),
+            workerEpoch: first.workerEpoch
+        )
+        let unrelatedCleanupAcknowledged = await coordinator.finishCleanup(for: unrelatedContext)
+        let stillBlockedAfterUnrelatedCleanup = await coordinator.start()
+        let cleanupAcknowledged = await coordinator.finishCleanup(for: cleanup.context)
+        let second = try await startContext(coordinator)
         let newAccepted = await coordinator.accept(.capturing, for: second)
         let snapshot = await coordinator.snapshot()
 
+        try expect(cleanup.context == first, "cleanup must target the superseded context")
+        try expect(
+            cleanup.steps == [
+                .silenceAudio,
+                .dismissOverlay,
+                .cancelLocalTasks,
+                .requestWorkerCancellation,
+                .awaitWorkerAcknowledgement,
+                .terminateUnresponsiveWorker,
+            ],
+            "supersession cleanup order must be deterministic"
+        )
+        try expect(
+            repeatedStartBeforeCleanup == .cleanupRequired(cleanup),
+            "repeated starts must not bypass the cleanup barrier"
+        )
+        try expect(supersededSnapshot.activeContext == nil, "supersession must revoke before cleanup")
+        try expect(supersededSnapshot.phase == .idle, "supersession must become idle before cleanup")
+        try expect(
+            supersededSnapshot.pendingCancellation == cleanup,
+            "snapshot must expose the pending supersession cleanup"
+        )
+        try expect(!unrelatedCleanupAcknowledged, "unrelated cleanup must not release the barrier")
+        try expect(
+            stillBlockedAfterUnrelatedCleanup == .cleanupRequired(cleanup),
+            "a rejected cleanup acknowledgement must leave the barrier active"
+        )
+        try expect(cleanupAcknowledged, "matching cleanup completion must release the start barrier")
         try expect(second.generation.rawValue == 2, "a repeated start must create a new generation")
         try expect(second.workerEpoch == first.workerEpoch, "start must not replace the worker")
         try expect(!oldAccepted, "superseded results must be rejected")
         try expect(newAccepted, "current generation results must be accepted")
         try expect(snapshot.activeContext == second, "second context must remain active")
         try expect(snapshot.phase == .capturing, "accepted transition must update the phase")
+        try expect(snapshot.pendingCancellation == nil, "completed cleanup must clear the barrier")
         try expect(
             snapshot.lastTerminal == PipelineTerminal(context: first, reason: .superseded),
             "repeated start must record supersession"
@@ -101,15 +161,24 @@ struct OpenScreenReaderCoreBehaviorChecks {
 
     private static func workerReplacementRejectsOldEpoch() async throws {
         let coordinator = PipelineCoordinator()
-        let oldContext = await coordinator.start()
+        let oldContext = try await startContext(coordinator)
 
         let directive = await coordinator.replaceWorker()
         let oldAccepted = await coordinator.accept(.capturing, for: oldContext)
-        let newContext = await coordinator.start()
+        let blockedStart = await coordinator.start()
+        guard let directive else {
+            throw CheckFailure(description: "active worker replacement must return cleanup")
+        }
+        let cleanupAcknowledged = await coordinator.finishCleanup(for: directive.context)
+        let newContext = try await startContext(coordinator)
         let snapshot = await coordinator.snapshot()
 
-        try expect(directive != nil, "replacing an active worker must produce cancellation work")
         try expect(!oldAccepted, "old worker epoch results must be rejected")
+        try expect(
+            blockedStart == .cleanupRequired(directive),
+            "replacement cleanup must finish before new work starts"
+        )
+        try expect(cleanupAcknowledged, "worker cleanup must release the start barrier")
         try expect(newContext.generation.rawValue == 2, "new start must advance generation")
         try expect(newContext.workerEpoch.rawValue == 2, "worker replacement must advance epoch")
         try expect(snapshot.workerEpoch.rawValue == 2, "snapshot must expose current worker epoch")
@@ -121,7 +190,7 @@ struct OpenScreenReaderCoreBehaviorChecks {
 
     private static func onlyLegalTransitionsAreAccepted() async throws {
         let coordinator = PipelineCoordinator()
-        let context = await coordinator.start()
+        let context = try await startContext(coordinator)
 
         let skippedCapture = await coordinator.accept(.recognizing, for: context)
         let captured = await coordinator.accept(.capturing, for: context)
@@ -142,7 +211,7 @@ struct OpenScreenReaderCoreBehaviorChecks {
 
     private static func completionEmitsOneTerminalState() async throws {
         let coordinator = PipelineCoordinator()
-        let context = await coordinator.start()
+        let context = try await startContext(coordinator)
 
         let firstCompletion = await coordinator.complete(context)
         let secondCompletion = await coordinator.complete(context)
@@ -161,7 +230,7 @@ struct OpenScreenReaderCoreBehaviorChecks {
 
     private static func failureEmitsOneTerminalState() async throws {
         let coordinator = PipelineCoordinator()
-        let context = await coordinator.start()
+        let context = try await startContext(coordinator)
         _ = await coordinator.accept(.capturing, for: context)
 
         let firstFailure = await coordinator.fail(context)
