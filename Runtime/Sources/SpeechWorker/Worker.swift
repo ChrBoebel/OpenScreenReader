@@ -8,7 +8,6 @@ import NaturalLanguage
 
 @main
 struct SpeechWorker {
-    struct Request: Decodable { let text: String }
     struct Packet: Encodable {
         let kind: String
         var sampleRate: Int? = nil
@@ -41,16 +40,16 @@ struct SpeechWorker {
             guard arguments[1] == "--model", let line = readLine(), line.utf8.count <= 64_000 else {
                 throw WorkerFailure.invalid
             }
-            let request = try JSONDecoder().decode(Request.self, from: Data(line.utf8))
+            let request = try JSONDecoder().decode(SpeechWorkerRequest.self, from: Data(line.utf8))
             guard !request.text.isEmpty, request.text.count <= 8_000 else { throw WorkerFailure.invalid }
             let model = try await Qwen3TTSModel.fromModelDirectory(directory)
+            if let seed = request.seed { MLXRandom.seed(seed) }
             try send(Packet(kind: "ready", sampleRate: model.sampleRate), to: output)
             for segment in segments(request.text) {
-                let language = NLLanguageRecognizer.dominantLanguage(for: segment)
-                let languageName = language == .german ? "German" : language == .english ? "English" : "auto"
+                let languageName = request.resolvedLanguage(for: segment)
                 var tokenCount = 0
                 for try await event in model.generateStream(
-                    text: segment, voice: "Serena", refAudio: nil, refText: nil, language: languageName,
+                    text: segment, voice: request.selectedVoice, refAudio: nil, refText: nil, language: languageName,
                     generationParameters: GenerateParameters(maxTokens: 1024, temperature: 0.9,
                         topP: 1.0, repetitionPenalty: 1.05), streamingInterval: 0.32
                 ) {
