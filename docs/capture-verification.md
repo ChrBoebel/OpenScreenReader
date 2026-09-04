@@ -87,3 +87,18 @@ The new manual-check scheme built successfully. Its 22:48:09 live run failed bef
 The 22:49:32 normal-suite run excluded the interactive check as intended: 20 tests passed, two permission-dependent live tests skipped, and the existing Finder-hotkey test failed while expecting the initial overlay. This is not a clean regression run; the previously observed intermittent hotkey behavior still needs investigation. The new test and both scheme files compiled/parsed successfully; no production app-source changes, permission changes, or signing-key creation were made in this follow-up.
 
 The isolated 22:51:00 Finder-hotkey rerun passed without rebuilding (35.228 seconds). This confirms a successful individual run but does not resolve the full-suite failure.
+
+### Self-signed Debug launch correction on 2026-09-04
+
+With the owner's approval, a local self-signed Code Signing identity was created in the login keychain. The private key was not exported and no certificate-trust or system-wide security settings were changed. The first explicitly certificate-signed build passed code-signature verification but failed at launch: the 23:10:58 UI run encountered a DYLD rejection of `OpenScreenReader.debug.dylib`. Hardened Runtime's library validation requires an Apple Team ID, which this local identity does not have. The blocked test run was interrupted; it was not a successful UI check.
+
+The correction disables Hardened Runtime **only in the app's Debug configuration**. Release remains enabled. The optional repeatable signing commands are in [CONTRIBUTING.md](../CONTRIBUTING.md#optional-stable-local-debug-signing); the repository defaults remain ad-hoc and no personal signing identity is committed.
+
+- Debug `build-for-testing` succeeded with the approved local certificate. `codesign --verify --strict` succeeded with normal login-keychain access (the sandboxed check could not resolve trust). The app now has a certificate-based designated requirement and signature flags `0x0`, without the runtime flag.
+- The focused 23:21:24 UI run passed launch, menu actions, selection-overlay appearance, and local Escape cancellation (one test, 8.563 seconds). This is the successful regression check for the startup failure.
+- The 23:21:58 full run passed 17 app-unit tests and three UI tests, failed the already-observed Finder-hotkey test, and skipped both live system tests because neither permission was effective for the newly signed test host. The drag UI test passed through permission-error guidance, **not actual capture**.
+- The isolated 23:23:30 Finder-hotkey run passed start and repeated-shortcut cancellation (36.982 seconds). Full-suite intermittency remains unresolved.
+- The ARM64 Release build succeeded; its actual signature still has the hardened-runtime flag (`0x10002`, ad-hoc plus runtime).
+- Direct Computer Use attachment to the windowless Debug app again timed out. Computer Use could inspect the Screen Recording settings and confirmed an enabled OpenScreenReader entry despite the failed live preflight. No permission switches or file-picker contents were changed/read during this correction.
+
+Next, the owner must grant access to the exact newly signed Debug app and relaunch it, then rerun the permission-dependent tests without rebuilding. Permission persistence across genuine rebuilds and global Escape delivery after selection remain unverified. The correction does not implement OCR/TTS, establish public distribution signing, or pass Gate E.
