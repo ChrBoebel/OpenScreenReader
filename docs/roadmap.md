@@ -17,8 +17,8 @@
 - [ ] Multi-monitor region-selection overlay.
 - [ ] Selected-region capture with ScreenCaptureKit/CoreGraphics.
 - [x] Basic Apple Vision OCR for German and English ([verification and remaining layout checks](ocr-verification.md)).
-- [ ] Local Qwen MLX worker with streamed first chunk.
-- [ ] Cancellation from `Esc` through the complete pipeline.
+- [x] Development-only native Qwen MLX worker with streamed first chunk ([pinned runtime and real checks](research/swift-runtime-evaluation.md)); warm performance and release packaging remain open.
+- [x] Cancellation from `Esc` and the repeated shortcut through real OCR/speech on the development Mac; broader device/layout stress coverage remains open.
 - [ ] Packaged worker and bundled-model signing/notarization experiment.
 - [ ] Offline and temporary-file privacy verification.
 
@@ -26,7 +26,7 @@ Each spike needs a small reproducible test or benchmark and a written decision b
 
 ## Phase 2 — MVP
 
-- [ ] Integrate hotkey → overlay → screenshot → OCR → TTS → playback.
+- [ ] Production-ready hotkey → overlay → screenshot → OCR → TTS → playback (development integration works; distribution, broader reliability, and performance gates remain).
 - [ ] Add sentence segmentation and text normalization.
 - [x] Add menu bar settings for the hotkey, including restore-default and conflict feedback.
 - [ ] Add settings for voice, speed, and model lifecycle.

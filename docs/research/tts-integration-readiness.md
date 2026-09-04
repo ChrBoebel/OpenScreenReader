@@ -1,6 +1,6 @@
 # Speech integration readiness — 2026-09-05
 
-The owner requested automatic reading after OCR. Qwen3-TTS 0.6B CustomVoice 4-bit remains the intended provider; system speech has not been substituted. The initial investigation downloaded nothing; the owner subsequently approved the development model download described below. The production OCR flow is unchanged and no inference runtime has been installed.
+The owner requested automatic reading after OCR. Qwen3-TTS 0.6B CustomVoice 4-bit remains the intended provider; system speech has not been substituted. This document records the initial investigation and data-only download. **Subsequent progress:** the owner-approved native runtime is now installed and integrated with OCR/playback on the development Mac. Its pins, dependency/license boundary, real inference and UI results are recorded in [Native Qwen development runtime](swift-runtime-evaluation.md). Statements below about missing integration/runtime describe the earlier baseline, not the current state.
 
 ## Repository findings
 

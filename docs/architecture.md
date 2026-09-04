@@ -2,7 +2,7 @@
 
 > Diese Architektur ist eine begründete Ausgangshypothese. Die Prozessgrenzen und Packaging-Strategie werden durch technische Spikes validiert, bevor der vollständige MVP entsteht.
 
-Aktueller Integrationsstand und noch ausstehende Freigaben für die Vorlesefunktion: [TTS integration readiness](research/tts-integration-readiness.md). Die dort untersuchte native Swift-Alternative ist noch keine festgelegte Runtime.
+Aktueller Entwicklungsstand: Ein gepinnter nativer Swift/MLX-Worker ist lokal installiert und an OCR sowie AVAudioEngine angeschlossen. Reale Synthese, Wiedergabe und globale Abbrüche wurden geprüft; siehe [Runtime-Evaluation](research/swift-runtime-evaluation.md). Dies legt die Produktions-Runtime und Release-Verpackung noch nicht fest. Die [ursprüngliche Integrationsprüfung](research/tts-integration-readiness.md) dokumentiert die Voraussetzungen und den Modell-Download.
 
 ## Systemübersicht
 
@@ -53,7 +53,9 @@ Geplanter Stack:
 
 ## TTS-Prozess
 
-Der bislang getestete Qwen-Prototyp läuft über MLX/Python. Für den ersten technischen Spike ist ein langlebiger lokaler Worker-Prozess der risikoärmste Weg:
+Der aktuelle Entwicklungsspike verwendet einen nativen Swift/MLX-Prozess pro Vorleseauftrag, ohne Python. `SpeechReading` trennt die Auftragssteuerung vom konkreten `LocalSpeechService`. Text und PCM laufen über anonyme Pipes, die Wiedergabe erfolgt im App-Prozess. Der Worker darf im Entwicklungsprofil weder Netzwerkverbindungen aufbauen noch Dateien schreiben (ausgenommen `/dev/null`). Abbruch stoppt zuerst den Audioplayer und beendet anschließend den eigenen Worker; Generationen verwerfen verspätete Ergebnisse. Das Modell bleibt zwischen Sätzen geladen, aber nicht zwischen Aufträgen. Dieses Verhalten ist implementiert und kein Nachweis für den warmen Latenzzielwert.
+
+Die frühere Hypothese eines langlebigen Python-/MLX-Workers bleibt eine Vergleichsoption. Eine mögliche Warmhaltevariante hätte folgende Eigenschaften:
 
 - App startet den Worker kontrolliert;
 - Modell wird einmal geladen und zeitlich begrenzt warm gehalten;
@@ -119,7 +121,7 @@ Der Standardpfad darf Screenshot, OCR-Text und generiertes Audio nicht dauerhaft
 
 1. Minimaler Multi-Monitor-Auswahlrahmen mit ScreenCaptureKit.
 2. OCR-Lesereihenfolge für Fließtext und zwei Spalten.
-3. Swift ↔ lokaler MLX-Worker mit erstem Audio-Chunk und Abbruch.
+3. Native Swift/MLX-Integration: erste Audioblöcke und Abbruch lokal bestanden; Warmstart, Speicherbedarf und Langläufe noch offen.
 4. Code Signing und Notarisierung eines Worker-Bundles.
 5. Netzwerkfreiheit der vollständig installierten Release-App nachweisen.
 6. Energie- und RAM-Warmhaltepolitik bestimmen.

@@ -46,6 +46,8 @@ Updateprüfungen sind später nur transparent und abschaltbar zulässig. Eine fe
 
 ## Überprüfbarkeit
 
+Der aktuelle Entwicklungspfad überträgt OCR-Text über eine anonyme Pipe an den lokalen Qwen-Worker, nicht als Kommandozeilenargument oder Datei. PCM wird im Speicher abgespielt. Ein zusätzliches Entwicklungsprofil verweigert dem Worker Netzwerkzugriffe und Dateischreibzugriffe außer auf `/dev/null`; echte Synthese unter diesem Profil sowie verweigerte Verbindungs- und Schreibversuche wurden geprüft. Wiedergabe- und Abbruchtests prüfen außerdem, dass die Zwischenablage unverändert bleibt. Dies ersetzt nicht die noch offene Prüfung des vollständig gebündelten Release-Artefakts. Details und Grenzen: [Runtime-Evaluation](research/swift-runtime-evaluation.md).
+
 Das Repository soll dokumentieren, wie Nutzer die Datenschutzversprechen selbst prüfen können:
 
 1. Offline-Funktionstest unmittelbar nach Installation des vollständigen Release-Artefakts;

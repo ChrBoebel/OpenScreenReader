@@ -8,7 +8,7 @@
 
 OpenScreenReader is a planned open-source macOS menu bar app that reads any visible text aloud with natural, fully local AI voices.
 
-> Status: native macOS menu bar app with a configurable global hotkey, region selection, in-memory ScreenCaptureKit capture, and local German/English OCR using Apple Vision. The menu reports recognized character/line counts or an empty result; image and text content are discarded after recognition. Speech is not implemented. Capture, OCR fixtures, and a manual global Escape-delivery probe have passed on the development Mac. The integration remains experimental: the Finder-hotkey UI test has been intermittent, and the broader permission/display/layout matrix is not yet verified. No application has been released yet.
+> Status: experimental native macOS menu bar app with a configurable global hotkey, region selection, in-memory ScreenCaptureKit capture, local German/English Apple Vision OCR, and automatic local Qwen speech. The pinned development worker and model are installed separately; they are not yet bundled for distribution. Real OCR → speech UI tests and global Escape/repeated-shortcut cancellation have passed on the development Mac. Cold speech startup measured about five seconds. Finder-hotkey start tests have been intermittent, and the broader permission/display/layout matrix remains open. No application has been released yet.
 
 ## Product promise
 
@@ -17,6 +17,8 @@ Default shortcut: **⌘⇧Y (Command + Shift + Y)** starts region selection; pre
 Supported keys are A–Z, 0–9, and Space, combined with Command, Option, or Control; Shift is optional. Failed registration leaves the previous shortcut active and does not save the rejected choice. System-wide registrations are checked through Carbon, but ordinary app commands and services cannot all be detected: Command-only choices require confirmation, and the default overlaps macOS’s “Make Sticky” service. Keys are resolved from the current keyboard layout when registered; restart the app or apply the shortcut again after changing layouts.
 
 Implementation checks and remaining limitations are recorded in [Shortcut verification](docs/shortcut-verification.md).
+
+With the development runtime installed, selecting text starts speech automatically. The menu shows **Preparing voice**, then **Speaking**; Escape, the repeated shortcut, or **Stop Reading** cancels. Settings shows the local runtime's availability. The current evaluation voice is Serena, selections are limited to 8,000 characters, and no cloud or system voice is substituted on failure. See [runtime installation and verification](docs/research/swift-runtime-evaluation.md). Screenshots are released after OCR; text and audio are retained only for the active reading, without history or automatic clipboard writes.
 
 - Press a global keyboard shortcut.
 - Drag a rectangle over any visible text.
