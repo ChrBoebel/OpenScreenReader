@@ -7,7 +7,7 @@ final class MenuBarSmokeUITests: XCTestCase {
 
     @MainActor
     func testMenuBarShellExposesCurrentStatusAndActions() {
-        let app = XCUIApplication()
+        let app = makeApplication()
         app.launch()
         defer { app.terminate() }
 
@@ -53,7 +53,7 @@ final class MenuBarSmokeUITests: XCTestCase {
 
     @MainActor
     func testDraggingARegionReportsCaptureOrActionablePermissionFailure() {
-        let app = XCUIApplication()
+        let app = makeApplication()
         app.launch()
         defer { app.terminate() }
 
@@ -91,8 +91,9 @@ final class MenuBarSmokeUITests: XCTestCase {
 
     @MainActor
     func testSettingsExplainCapturePrivacyAndPermissionActions() {
-        let app = XCUIApplication()
+        let app = makeApplication()
         app.launch()
+        defer { app.terminate() }
         openMenu(in: app, status: "Ready")
         app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
         XCTAssertTrue(app.buttons["Allow Screen Recording…"].waitForExistence(timeout: 3))
@@ -103,8 +104,69 @@ final class MenuBarSmokeUITests: XCTestCase {
     }
 
     @MainActor
-    func testGlobalHotkeyStartsAndRepeatedHotkeyCancelsFromFinder() {
+    func testCustomShortcutPersistsAndStartsAndCancelsFromFinder() {
+        let app = makeApplication()
+        app.launch()
+        defer { app.terminate() }
+        openMenu(in: app, status: "Ready")
+        app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
+        let key = app.popUpButtons["shortcutKey"]
+        XCTAssertTrue(key.waitForExistence(timeout: 3))
+        key.click()
+        app.menuItems["J"].click()
+        app.buttons["applyShortcut"].click()
+        XCTAssertTrue(app.staticTexts["Shortcut ⌘⇧J is active and saved."].waitForExistence(timeout: 3))
+        app.terminate()
+        app.launch()
+        openMenu(in: app, status: "Ready")
+        app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
+        XCTAssertTrue(app.popUpButtons["shortcutKey"].waitForExistence(timeout: 3))
+        XCTAssertEqual(app.popUpButtons["shortcutKey"].value as? String, "J")
+
+        let finder = XCUIApplication(bundleIdentifier: "com.apple.finder")
+        finder.activate()
+        finder.typeKey("j", modifierFlags: [.command, .shift])
+        XCTAssertTrue(app.groups["Screen region selection"].firstMatch.waitForExistence(timeout: 3))
+        finder.activate()
+        finder.typeKey("j", modifierFlags: [.command, .shift])
+        openMenu(in: app, status: "Stopped")
+        app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
+        app.buttons["Restore Default"].click()
+        XCTAssertTrue(app.staticTexts["Shortcut ⌘⇧Y is active and saved."].waitForExistence(timeout: 3))
+    }
+
+    @MainActor
+    func testShortcutValidationAndCommonCommandWarning() {
+        let app = makeApplication()
+        app.launch()
+        defer { app.terminate() }
+        openMenu(in: app, status: "Ready")
+        app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
+        XCTAssertTrue(app.checkBoxes["Command ⌘"].waitForExistence(timeout: 3))
+        app.checkBoxes["Command ⌘"].click()
+        XCTAssertFalse(app.buttons["applyShortcut"].isEnabled)
+        app.checkBoxes["Command ⌘"].click()
+        app.checkBoxes["Shift ⇧"].click()
+        app.buttons["applyShortcut"].click()
+        XCTAssertTrue(app.buttons["Use Shortcut"].waitForExistence(timeout: 3))
+        app.sheets.buttons["Cancel"].click()
+        XCTAssertFalse(app.staticTexts["Shortcut ⌘Y is active and saved."].exists)
+        app.buttons["Restore Default"].click()
+        XCTAssertTrue(app.staticTexts["Shortcut ⌘⇧Y is active and saved."].waitForExistence(timeout: 3))
+    }
+
+    @MainActor
+    private func makeApplication() -> XCUIApplication {
+        let suite = "com.christopherbobel.OpenScreenReader.uitests.\(UUID().uuidString)"
         let app = XCUIApplication()
+        app.launchEnvironment["OSR_SHORTCUT_TEST_SUITE"] = suite
+        addTeardownBlock { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
+        return app
+    }
+
+    @MainActor
+    func testGlobalHotkeyStartsAndRepeatedHotkeyCancelsFromFinder() {
+        let app = makeApplication()
         app.launch()
         defer { app.terminate() }
 
