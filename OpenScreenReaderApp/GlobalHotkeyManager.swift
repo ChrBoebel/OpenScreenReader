@@ -1,15 +1,47 @@
 import Carbon.HIToolbox
 
 struct HotkeyShortcut: Equatable, Sendable {
-    let keyCode: UInt32
+    let keyCode: UInt32?
     let carbonModifiers: UInt32
     let displayName: String
 
-    static let readScreenRegion = HotkeyShortcut(
-        keyCode: UInt32(kVK_ANSI_R),
-        carbonModifiers: UInt32(controlKey | optionKey),
-        displayName: "⌃⌥R"
-    )
+    @MainActor
+    static var readScreenRegion: HotkeyShortcut {
+        let modifiers = UInt32(cmdKey | shiftKey)
+        return HotkeyShortcut(keyCode: keyCode(for: "Y", modifiers: modifiers),
+                              carbonModifiers: modifiers, displayName: "⌘⇧Y")
+    }
+
+    // Carbon registers physical key codes. Resolve the requested character using
+    // the layout at registration, including Command mappings (e.g. Dvorak-QWERTY).
+    // No keyboard events are observed or synthesized by this lookup.
+    @MainActor
+    static func keyCode(
+        for character: String, modifiers: UInt32, source: TISInputSource? = nil
+    ) -> UInt32? {
+        let source = source ?? TISCopyCurrentKeyboardLayoutInputSource().takeRetainedValue()
+        guard let property = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData) else { return nil }
+        let data = Unmanaged<CFData>.fromOpaque(property).takeUnretainedValue()
+        guard let bytes = CFDataGetBytePtr(data) else { return nil }
+        return withExtendedLifetime(data) {
+            let layout = UnsafeRawPointer(bytes).assumingMemoryBound(to: UCKeyboardLayout.self)
+            for code in UInt16(0)..<128 {
+                var deadKeyState: UInt32 = 0
+                var length = 0
+                var characters = [UniChar](repeating: 0, count: 8)
+                let status = UCKeyTranslate(layout, code, UInt16(kUCKeyActionDown),
+                    (modifiers >> 8) & 0xFF, UInt32(LMGetKbdType()),
+                    OptionBits(kUCKeyTranslateNoDeadKeysMask), &deadKeyState,
+                    characters.count, &length, &characters)
+                // Command layouts can return lowercase even when Shift is present.
+                if status == noErr,
+                   String(utf16CodeUnits: characters, count: length).lowercased() == character.lowercased() {
+                    return UInt32(code)
+                }
+            }
+            return nil
+        }
+    }
 }
 
 enum HotkeyRegistration: Equatable, Sendable {
@@ -46,13 +78,15 @@ final class GlobalHotkeyManager: HotkeyManaging {
     func register(_ shortcut: HotkeyShortcut) -> HotkeyRegistration {
         unregister()
 
+        guard let keyCode = shortcut.keyCode else { return .failed(OSStatus(paramErr)) }
+
         guard installEventHandlerIfNeeded() == noErr else {
             return .failed(OSStatus(eventInternalErr))
         }
 
         let hotkeyID = EventHotKeyID(signature: Self.signature, id: 1)
         let status = RegisterEventHotKey(
-            shortcut.keyCode,
+            keyCode,
             shortcut.carbonModifiers,
             hotkeyID,
             GetApplicationEventTarget(),

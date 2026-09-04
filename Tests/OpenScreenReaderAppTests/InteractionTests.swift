@@ -1,4 +1,5 @@
 import CoreGraphics
+import Carbon.HIToolbox
 import Foundation
 import Testing
 @testable import OpenScreenReader
@@ -124,8 +125,28 @@ struct InteractionTests {
 
     @Test
     func defaultShortcutIsExplicitAndReadable() {
-        #expect(HotkeyShortcut.readScreenRegion.keyCode == 15)
-        #expect(HotkeyShortcut.readScreenRegion.displayName == "⌃⌥R")
+        #expect(HotkeyShortcut.readScreenRegion.carbonModifiers == UInt32(cmdKey | shiftKey))
+        #expect(HotkeyShortcut.readScreenRegion.displayName == "⌘⇧Y")
+    }
+
+    @Test(arguments: [("com.apple.keylayout.German", UInt32(kVK_ANSI_Z)),
+                      ("com.apple.keylayout.US", UInt32(kVK_ANSI_Y))])
+    func shortcutResolvesYForGermanAndUSLayouts(layout: (String, UInt32)) throws {
+        let sources = TISCreateInputSourceList(
+            [kTISPropertyInputSourceID: layout.0] as CFDictionary, true
+        ).takeRetainedValue()
+        #expect(CFArrayGetCount(sources) > 0)
+        guard CFArrayGetCount(sources) > 0 else { return }
+        let source = Unmanaged<TISInputSource>.fromOpaque(CFArrayGetValueAtIndex(sources, 0)).takeUnretainedValue()
+        #expect(HotkeyShortcut.keyCode(for: "Y", modifiers: UInt32(cmdKey | shiftKey), source: source) == layout.1)
+        #expect(HotkeyShortcut.keyCode(for: "🦉", modifiers: UInt32(cmdKey | shiftKey), source: source) == nil)
+    }
+
+    @Test
+    func missingLayoutKeyCannotRegisterAnUnrelatedFallback() {
+        let manager = GlobalHotkeyManager()
+        #expect(manager.register(HotkeyShortcut(keyCode: nil,
+            carbonModifiers: UInt32(cmdKey | shiftKey), displayName: "⌘⇧Y")) == .failed(OSStatus(paramErr)))
     }
 
     @Test
@@ -198,6 +219,7 @@ struct InteractionTests {
 
         #expect(model.hotkeyRegistration == .conflict)
         #expect(model.status == .error)
+        #expect(model.errorMessage == "The shortcut ⌘⇧Y is already in use.")
         #expect(selection.startCount == 0)
     }
 

@@ -239,7 +239,7 @@ final class AppModel: ObservableObject {
     private static func registrationErrorMessage(for registration: HotkeyRegistration) -> String? {
         switch registration {
         case .inactive, .registered: nil
-        case .conflict: "The shortcut ⌃⌥R is already in use."
+        case .conflict: "The shortcut \(HotkeyShortcut.readScreenRegion.displayName) is already in use."
         case let .failed(status): "The global shortcut could not be registered (error \(status))."
         }
     }

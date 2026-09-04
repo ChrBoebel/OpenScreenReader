@@ -14,7 +14,7 @@ struct MenuBarContent: View {
         Button(model.readActionTitle) {
             model.enqueueReadRequest()
         }
-        .help("Select a screen region with ⌃⌥R")
+        .help("Select a screen region with \(HotkeyShortcut.readScreenRegion.displayName)")
 
         Text(model.captureFeedback)
             .font(.caption)

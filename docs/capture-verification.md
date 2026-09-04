@@ -2,7 +2,9 @@
 
 ## Implemented behavior
 
-`⌃⌥R` or the menu action starts selection. A repeated shortcut or Escape closes the overlay. The borderless overlay panels can activate and accept the first mouse event so the first drag is not lost to window activation. A valid drag dismisses all overlay panels before capture starts. The image is passed to [local Vision OCR](ocr-verification.md), then the app returns to Ready with character/line counts or an empty-result message. It does not yet speak text.
+`⌘⇧Y` or the menu action starts selection. A repeated shortcut or Escape closes the overlay. The borderless overlay panels can activate and accept the first mouse event so the first drag is not lost to window activation. A valid drag dismisses all overlay panels before capture starts. The image is passed to [local Vision OCR](ocr-verification.md), then the app returns to Ready with character/line counts or an empty-result message. It does not yet speak text.
+
+The owner explicitly chose Command-Shift-Y after being informed of the overlap with the “Make Sticky” macOS service. No system shortcut setting is changed. Carbon key codes are resolved from the current keyboard layout at app startup, so German Y (physical ANSI Z) and US Y both work. Restart after changing keyboard layouts; live reconfiguration is not implemented. Earlier evidence below used the previous Control-Option-R shortcut.
 
 The selection records display identity, its AppKit point rectangle, backing scale, display geometry, and a topology revision. ScreenCaptureKit receives a display-local **top-left-origin rectangle in logical points**, plus separately calculated output pixel dimensions. Topology changes invalidate selection and pending capture, including changes that restore the same display frames.
 

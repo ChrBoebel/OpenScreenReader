@@ -2,7 +2,7 @@
 
 ## Implemented slice
 
-`⌃⌥R` → drag one display-local region → in-memory ScreenCaptureKit image → Apple Vision → Ready with character/line counts. A blank result reports “No readable text found. Select a clearer region.” There is no speech provider, preview/history window, automatic clipboard write, or runtime download. The app deliberately retains only counts, not recognized content, until the speech integration is implemented.
+`⌘⇧Y` → drag one display-local region → in-memory ScreenCaptureKit image → Apple Vision → Ready with character/line counts. A blank result reports “No readable text found. Select a clearer region.” There is no speech provider, preview/history window, automatic clipboard write, or runtime download. The app deliberately retains only counts, not recognized content, until the speech integration is implemented.
 
 `VisionOCRService` conforms to an injectable `TextRecognizing` interface. It uses [`VNRecognizeTextRequest`](https://developer.apple.com/documentation/vision/vnrecognizetextrequest) revision 3, accurate recognition, and explicit `de-DE`/`en-US` languages after checking system support. Language correction and automatic language detection are disabled to avoid extra rewriting of identifiers and amounts. OCR itself can still make recognition errors; this is not a guarantee of verbatim fidelity.
 

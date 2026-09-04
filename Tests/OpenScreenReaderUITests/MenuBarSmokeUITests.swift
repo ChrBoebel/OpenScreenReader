@@ -115,7 +115,7 @@ final class MenuBarSmokeUITests: XCTestCase {
 
         let finder = XCUIApplication(bundleIdentifier: "com.apple.finder")
         finder.activate()
-        finder.typeKey("r", modifierFlags: [.control, .option])
+        finder.typeKey("y", modifierFlags: [.command, .shift])
 
         let overlay = app.groups["Screen region selection"].firstMatch
         XCTAssertTrue(
@@ -124,7 +124,7 @@ final class MenuBarSmokeUITests: XCTestCase {
         )
 
         finder.activate()
-        finder.typeKey("r", modifierFlags: [.control, .option])
+        finder.typeKey("y", modifierFlags: [.command, .shift])
 
         let stoppedStatus = app.descendants(matching: .statusItem)
             .matching(NSPredicate(format: "title == 'OpenScreenReader, Stopped'"))

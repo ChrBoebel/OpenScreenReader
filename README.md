@@ -12,6 +12,8 @@ OpenScreenReader is a planned open-source macOS menu bar app that reads any visi
 
 ## Product promise
 
+Current shortcut: **⌘⇧Y (Command + Shift + Y)** starts region selection; pressing it again or Escape cancels. This owner-selected shortcut overlaps macOS's “Make Sticky” service while OpenScreenReader is running. The Y key is resolved from the keyboard layout when the app starts; restart the app after changing layouts.
+
 - Press a global keyboard shortcut.
 - Drag a rectangle over any visible text.
 - Recognize it locally with Apple Vision.
