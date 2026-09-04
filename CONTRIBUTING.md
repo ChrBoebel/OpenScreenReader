@@ -23,16 +23,17 @@ Read:
 
 ## Development workflow
 
-The project is currently in its foundation phase. A platform-neutral Swift package contains the first cancellable-pipeline contracts while the native application target waits for a full Xcode installation.
+The project is currently in its foundation phase. A platform-neutral Swift package contains the first cancellable-pipeline contracts. Xcode 26.6 is installed locally and is selected per command so other development processes keep their own toolchain choice.
 
-Run the current behavior checks and production build with:
+Run the Apple test target, current behavior checks, and production build with:
 
 ```sh
-swift run OpenScreenReaderCoreBehaviorChecks
-swift build -c release --target OpenScreenReaderCore
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcrun swift test
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcrun swift run OpenScreenReaderCoreBehaviorChecks
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcrun swift build -c release --target OpenScreenReaderCore
 ```
 
-The currently selected standalone Command Line Tools installation does not expose `XCTest` or `Swift Testing` to SwiftPM. The executable behavior-check target is a temporary, dependency-free test harness for this bootstrap phase. Move these cases into the Xcode unit-test target when the application project is created; do not treat the harness as a replacement for unit and UI tests.
+The executable behavior-check target predates the full Xcode installation and remains temporarily as a migration safety net. Move each case into `OpenScreenReaderCoreTests`, then remove the executable target once equivalent Apple tests pass. The active global `xcode-select` still points to standalone Command Line Tools, so keep using the explicit `DEVELOPER_DIR` prefix until the owner chooses otherwise.
 
 Until then:
 

@@ -25,5 +25,9 @@ let package = Package(
             name: "OpenScreenReaderCoreBehaviorChecks",
             dependencies: ["OpenScreenReaderCore"]
         ),
+        .testTarget(
+            name: "OpenScreenReaderCoreTests",
+            dependencies: ["OpenScreenReaderCore"]
+        ),
     ]
 )
