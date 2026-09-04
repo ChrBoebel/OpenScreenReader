@@ -11,13 +11,22 @@ struct MenuBarContent: View {
 
         Divider()
 
-        Button("Read Screen Region…") {}
-            .disabled(true)
-            .help("Region capture is not connected yet")
+        Button(model.readActionTitle) {
+            model.enqueueReadRequest()
+        }
+        .help("Select a screen region with ⌃⌥R")
 
-        Text("Capture is coming in the next implementation step.")
+        Text(model.lastSelection == nil
+             ? "Select a region. Capture and speech are not connected yet."
+             : "Region selected. Capture is the next implementation step.")
             .font(.caption)
             .foregroundStyle(.secondary)
+
+        if let errorMessage = model.errorMessage {
+            Text(errorMessage)
+                .font(.caption)
+                .foregroundStyle(.red)
+        }
 
         Divider()
 

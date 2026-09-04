@@ -8,7 +8,7 @@
 
 OpenScreenReader is a planned open-source macOS menu bar app that reads any visible text aloud with natural, fully local AI voices.
 
-> Status: tested native macOS menu bar shell under active development. The reading flow is not implemented and no application has been released yet.
+> Status: tested native macOS menu bar shell with an initial global-hotkey and region-selection slice. Capture, OCR, speech, configurable shortcuts, and complete global cancellation are not implemented, and no application has been released yet.
 
 ## Product promise
 

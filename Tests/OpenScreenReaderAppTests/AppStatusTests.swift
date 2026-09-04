@@ -19,7 +19,7 @@ struct AppStatusTests {
     @Test
     @MainActor
     func appModelStartsReadyWithAnIdleCoordinator() async {
-        let model = AppModel()
+        let model = AppModel(hotkeyManager: RegisteredHotkeyManagerFake())
         let snapshot = await model.pipelineCoordinator.snapshot()
 
         #expect(model.status == .ready)
@@ -31,4 +31,15 @@ struct AppStatusTests {
     func appBundleIsConfiguredAsMenuBarOnly() {
         #expect(Bundle.main.object(forInfoDictionaryKey: "LSUIElement") as? Bool == true)
     }
+}
+
+@MainActor
+private final class RegisteredHotkeyManagerFake: HotkeyManaging {
+    var onPress: (() -> Void)?
+
+    func register(_ shortcut: HotkeyShortcut) -> HotkeyRegistration {
+        .registered
+    }
+
+    func unregister() {}
 }

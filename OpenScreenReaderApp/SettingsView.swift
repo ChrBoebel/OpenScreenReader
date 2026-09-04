@@ -5,7 +5,7 @@ struct SettingsView: View {
         Form {
             Section("General") {
                 LabeledContent("Status", value: "Ready")
-                LabeledContent("Global shortcut", value: "Not configured yet")
+                LabeledContent("Global shortcut", value: HotkeyShortcut.readScreenRegion.displayName)
                 LabeledContent("Speech model", value: "Not packaged yet")
             }
 

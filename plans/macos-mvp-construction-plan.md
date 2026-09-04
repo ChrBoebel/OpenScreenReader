@@ -10,7 +10,9 @@ Execution mode: direct local changes; no commits, pushes, releases, or model dow
 - 2026-09-04: SwiftPM foundation created with `OpenScreenReaderCore` and a dependency-free behavior-check executable.
 - 2026-09-04: the coordinator foundation passed eleven behavior checks and a production build. It covers generation and worker-epoch validity, legal forward transitions, cancellation from every active phase, 500 repeated cancellation cycles, atomic revocation, deterministic cleanup instructions, a cleanup barrier before replacement starts, atomic publication of replacement epochs, supersession, and exactly-once terminal acceptance. Adapter-level task and resource cancellation remains for the corresponding integration gates.
 - 2026-09-04: Xcode 26.6 and its license were validated without changing the global developer directory. A native macOS 14 menu-bar-only app target, shared scheme, local `OpenScreenReaderCore` dependency, settings scene, and hosted Swift Testing target now build. App tests verify the status contract, idle coordinator, and `LSUIElement` bundle policy.
-- Current gap: the Debug app launches successfully as a process and as the Xcode test host, but automated visual menu interaction was blocked because Computer Use was not approved for OpenScreenReader. Step 1 remains open until the menu and settings are manually exercised and a minimal UI smoke test is added.
+- 2026-09-04: the native menu-bar shell passed an XCUITest smoke test covering its accessible status item, menu, settings entry, and cancellation entry point. Step 1 is complete.
+- 2026-09-04: the first Step 3 slice added a fixed global `⌃⌥R` hotkey, conflict reporting, one overlay panel per active display, display-local drag selection, Retina/global-coordinate conversion, invalid-rectangle rejection, display-change cancellation, and stale-callback protection. Native UI tests exercise menu invocation, drag completion, local `Esc`, and repeated-hotkey cancellation from Finder.
+- Current gap: Step 3 remains open. Shortcut reconfiguration, rotated-display coverage, the bare-global-`Esc` permission spike after the overlay closes, VoiceOver review, and the physical multi-monitor/secure-input permission matrix are still pending. Computer Use can inspect ordinary app windows, but its current bridge cannot attach to this intentionally windowless `LSUIElement` menu-bar surface; native XCUITests provide the automated interaction evidence for this slice.
 
 ## Outcome
 
@@ -477,7 +479,7 @@ When evidence changes the plan:
 
 ## Known early risks
 
-- Full Xcode is not currently selected, so no macOS application build can run yet.
+- The global developer directory still points at Command Line Tools; native build and test commands must explicitly select the installed Xcode toolchain unless the owner changes that system setting.
 - Bundling roughly 1.69 GB of model data increases download size, notarization work, and potentially update bandwidth.
 - The model page reports Apache-2.0, but the conversion provenance, default-voice rights, exact-revision license files, and complete runtime/tokenizer dependency chain still require verification.
 - A Python worker may require complex nested signing and runtime entitlements.

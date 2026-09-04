@@ -14,6 +14,9 @@
 		A00000000000000000000024 /* MenuBarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000013 /* MenuBarContent.swift */; };
 		A00000000000000000000025 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000016 /* SettingsView.swift */; };
 		A00000000000000000000026 /* MenuBarSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000017 /* MenuBarSmokeUITests.swift */; };
+		A00000000000000000000027 /* InteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000018 /* InteractionTests.swift */; };
+		A00000000000000000000028 /* GlobalHotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000019 /* GlobalHotkeyManager.swift */; };
+		A00000000000000000000029 /* RegionSelectionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001A /* RegionSelectionController.swift */; };
 		A00000000000000000000082 /* OpenScreenReaderCore in Frameworks */ = {isa = PBXBuildFile; productRef = A00000000000000000000081 /* OpenScreenReaderCore */; };
 /* End PBXBuildFile section */
 
@@ -46,6 +49,9 @@
 		A00000000000000000000015 /* AppStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStatusTests.swift; sourceTree = "<group>"; };
 		A00000000000000000000016 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A00000000000000000000017 /* MenuBarSmokeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarSmokeUITests.swift; sourceTree = "<group>"; };
+		A00000000000000000000018 /* InteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractionTests.swift; sourceTree = "<group>"; };
+		A00000000000000000000019 /* GlobalHotkeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalHotkeyManager.swift; sourceTree = "<group>"; };
+		A0000000000000000000001A /* RegionSelectionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegionSelectionController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -100,6 +106,8 @@
 				A00000000000000000000010 /* OpenScreenReaderApp.swift */,
 				A00000000000000000000011 /* AppStatus.swift */,
 				A00000000000000000000012 /* AppModel.swift */,
+				A00000000000000000000019 /* GlobalHotkeyManager.swift */,
+				A0000000000000000000001A /* RegionSelectionController.swift */,
 				A00000000000000000000013 /* MenuBarContent.swift */,
 				A00000000000000000000016 /* SettingsView.swift */,
 				A00000000000000000000014 /* Info.plist */,
@@ -111,6 +119,7 @@
 			isa = PBXGroup;
 			children = (
 				A00000000000000000000015 /* AppStatusTests.swift */,
+				A00000000000000000000018 /* InteractionTests.swift */,
 			);
 			name = OpenScreenReaderAppTests;
 			path = Tests/OpenScreenReaderAppTests;
@@ -263,6 +272,8 @@
 				A00000000000000000000020 /* OpenScreenReaderApp.swift in Sources */,
 				A00000000000000000000022 /* AppStatus.swift in Sources */,
 				A00000000000000000000023 /* AppModel.swift in Sources */,
+				A00000000000000000000028 /* GlobalHotkeyManager.swift in Sources */,
+				A00000000000000000000029 /* RegionSelectionController.swift in Sources */,
 				A00000000000000000000024 /* MenuBarContent.swift in Sources */,
 				A00000000000000000000025 /* SettingsView.swift in Sources */,
 			);
@@ -273,6 +284,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A00000000000000000000021 /* AppStatusTests.swift in Sources */,
+				A00000000000000000000027 /* InteractionTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
