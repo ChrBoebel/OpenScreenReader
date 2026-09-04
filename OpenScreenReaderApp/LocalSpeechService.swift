@@ -23,18 +23,17 @@ enum SpeechFailure: Error, LocalizedError {
 
 @MainActor
 final class LocalSpeechService: SpeechReading {
+    private let playback = SpeechAudioPlayer()
+    var playbackDiagnostics: SpeechAudioPlayer.Diagnostics { playback.diagnostics }
     private struct Packet: Decodable {
         let kind: String
         let sampleRate: Int?
         let pcm: Data?
     }
     private struct Request: Encodable { let text: String }
-    private let engine = AVAudioEngine()
-    private let player = AVAudioPlayerNode()
     private var process: Process?
     private var input: FileHandle?
     private var output: FileHandle?
-    private var playbackContinuation: CheckedContinuation<Void, Error>?
     private var generation: UInt64 = 0
 
     static var developmentRoot: URL {
@@ -50,12 +49,12 @@ final class LocalSpeechService: SpeechReading {
             ? "Installed for local development" : "Not installed"
     }
 
-    init() { engine.attach(player) }
     isolated deinit { stop() }
 
     func read(_ text: String, onPlayback: @escaping @MainActor () -> Void) async throws {
         guard text.count <= 8_000, text.utf8.count <= 48_000 else { throw SpeechFailure.tooLong }
         stop()
+        playback.reset()
         let current = generation
         try await withTaskCancellationHandler {
             try await run(text, generation: current, onPlayback: onPlayback)
@@ -105,19 +104,13 @@ final class LocalSpeechService: SpeechReading {
             let writer = requestPipe.fileHandleForWriting
             guard fcntl(writer.fileDescriptor, F_SETNOSIGPIPE, 1) != -1 else { throw SpeechFailure.failed }
             try await Task.detached { try writer.write(contentsOf: request) }.value
-            var line = Data()
+            let reader = SpeechPacketReader(handle: audioPipe.fileHandleForReading)
             var receivedAudio = false
             var ready = false
-            for try await byte in audioPipe.fileHandleForReading.bytes {
+            while let line = try await reader.nextLine() {
                 try Task.checkCancellation()
                 guard generation == current else { throw CancellationError() }
-                if byte != 10 {
-                    guard line.count < 140_000 else { throw SpeechFailure.failed }
-                    line.append(byte)
-                    continue
-                }
                 let packet = try JSONDecoder().decode(Packet.self, from: line)
-                line.removeAll(keepingCapacity: true)
                 switch packet.kind {
                 case "ready":
                     guard !ready, packet.sampleRate == 24_000 else { throw SpeechFailure.failed }
@@ -127,13 +120,16 @@ final class LocalSpeechService: SpeechReading {
                           !data.isEmpty, data.count <= 96_000, data.count % 4 == 0 else {
                         throw SpeechFailure.failed
                     }
-                    try await play(data, onPlayback: onPlayback)
+                    try await playback.enqueue(data, onPlayback: onPlayback)
                     try Task.checkCancellation()
                     guard generation == current else { throw CancellationError() }
                     receivedAudio = true
                     try writer.write(contentsOf: Data("next\n".utf8))
                 case "end":
                     guard ready, receivedAudio else { throw SpeechFailure.failed }
+                    try await playback.finish(onPlayback: onPlayback)
+                    try Task.checkCancellation()
+                    guard generation == current else { throw CancellationError() }
                     stop()
                     return
                 default: throw SpeechFailure.failed
@@ -141,13 +137,101 @@ final class LocalSpeechService: SpeechReading {
             }
             throw SpeechFailure.failed
         } catch {
+            let cancelled = generation != current || error is CancellationError || Task.isCancelled
             if generation == current { stop() }
-            if error is CancellationError { throw CancellationError() }
+            if cancelled { throw CancellationError() }
             throw SpeechFailure.failed
         }
     }
 
-    private func play(_ data: Data, onPlayback: @escaping @MainActor () -> Void) async throws {
+    func stop() {
+        generation &+= 1
+        playback.stop()
+        // One disposable worker per operation: hard termination is deliberate
+        // until a warm-worker acknowledgement protocol has been validated.
+        if let process, process.isRunning { kill(process.processIdentifier, SIGKILL) }
+        process = nil
+        try? input?.close()
+        try? output?.close()
+        input = nil
+        output = nil
+    }
+}
+
+/// Framing runs away from the main actor, in bounded blocks rather than an
+/// actor hop for every byte of base64 audio. Killing the owned worker unblocks
+/// a pending pipe read. Only one consumer calls nextLine at a time.
+actor SpeechPacketReader {
+    private let handle: FileHandle
+    private var pending = Data()
+    init(handle: FileHandle) { self.handle = handle }
+
+    func nextLine() throws -> Data? {
+        while true {
+            if let newline = pending.firstIndex(of: 10) {
+                guard pending.distance(from: pending.startIndex, to: newline) <= 140_000 else {
+                    throw SpeechFailure.failed
+                }
+                let line = Data(pending[..<newline])
+                pending.removeSubrange(...newline)
+                return line
+            }
+            guard pending.count <= 140_000 else { throw SpeechFailure.failed }
+            // FileHandle.read(upToCount:) may try to fill the requested length.
+            // A short ready packet must return immediately: the peer can be
+            // waiting for our acknowledgement before producing more bytes.
+            var block = [UInt8](repeating: 0, count: 16_384)
+            let count = Darwin.read(handle.fileDescriptor, &block, block.count)
+            if count < 0, errno == EINTR { continue }
+            guard count >= 0 else { throw SpeechFailure.failed }
+            guard count > 0 else {
+                guard pending.isEmpty else { throw SpeechFailure.failed }
+                return nil
+            }
+            pending.append(contentsOf: block.prefix(count))
+        }
+    }
+}
+
+/// A bounded look-ahead queue: request the next packet after scheduling, not
+/// after playing. A short pre-roll absorbs transport/generation jitter.
+@MainActor
+final class SpeechAudioPlayer {
+    struct Diagnostics {
+        var frames = 0
+        var underruns = 0
+        var missingFrames = 0
+        var maximumQueuedFrames = 0
+    }
+    private(set) var diagnostics = Diagnostics()
+    private(set) var queuedFrames = 0
+    static let prebufferFrames = 24_000
+    static let capacityFrames = 96_000
+    private let engine = AVAudioEngine()
+    private let player = AVAudioPlayerNode()
+    private var scheduledEnd: AVAudioFramePosition = 0
+    private var generation: UInt64 = 0
+    private var waiter: CheckedContinuation<Void, Error>?
+    private var draining = false
+
+    init() { engine.attach(player) }
+    isolated deinit { stop() }
+
+    func reset() {
+        stop()
+        diagnostics = Diagnostics()
+        scheduledEnd = 0
+    }
+
+    func enqueue(_ data: Data, onPlayback: @escaping @MainActor () -> Void) async throws {
+        guard !data.isEmpty, data.count <= 96_000, data.count % 4 == 0 else { throw SpeechFailure.failed }
+        let current = generation
+        let frameCount = data.count / 4
+        while queuedFrames + frameCount > Self.capacityFrames {
+            try await waitForProgress()
+            guard generation == current else { throw CancellationError() }
+        }
+        try Task.checkCancellation()
         guard let format = AVAudioFormat(standardFormatWithSampleRate: 24_000, channels: 1),
               let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(data.count / 4)),
               let samples = buffer.floatChannelData?[0] else { throw SpeechFailure.failed }
@@ -162,37 +246,57 @@ final class LocalSpeechService: SpeechReading {
         if !engine.isRunning {
             engine.connect(player, to: engine.mainMixerNode, format: format)
             try engine.start()
-            player.play()
         }
-        let current = generation
-        try await withCheckedThrowingContinuation { continuation in
-            playbackContinuation = continuation
-            player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
-                Task { @MainActor in
-                    guard let self, self.generation == current else { return }
-                    let completion = self.playbackContinuation
-                    self.playbackContinuation = nil
+        let rendered = player.lastRenderTime.flatMap { player.playerTime(forNodeTime: $0) }?.sampleTime ?? 0
+        if scheduledEnd > 0, rendered > scheduledEnd + 480 {
+            diagnostics.underruns += 1
+            diagnostics.missingFrames += Int(rendered - scheduledEnd)
+        }
+        scheduledEnd = max(scheduledEnd, rendered) + AVAudioFramePosition(buffer.frameLength)
+        diagnostics.frames += frameCount
+        queuedFrames += frameCount
+        diagnostics.maximumQueuedFrames = max(diagnostics.maximumQueuedFrames, queuedFrames)
+        player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.generation == current else { return }
+                self.queuedFrames -= frameCount
+                if !self.draining || self.queuedFrames == 0 {
+                    let completion = self.waiter
+                    self.waiter = nil
                     completion?.resume()
                 }
             }
+        }
+        if !player.isPlaying, queuedFrames >= Self.prebufferFrames { player.play() }
+        if player.isPlaying { onPlayback() }
+    }
+
+    func finish(onPlayback: @escaping @MainActor () -> Void) async throws {
+        try Task.checkCancellation()
+        let current = generation
+        if queuedFrames > 0, !player.isPlaying {
+            player.play()
             onPlayback()
         }
+        guard generation == current else { throw CancellationError() }
+        draining = true
+        defer { if generation == current { draining = false } }
+        if queuedFrames > 0 { try await waitForProgress() }
+        guard generation == current else { throw CancellationError() }
+    }
+
+    private func waitForProgress() async throws {
+        try await withCheckedThrowingContinuation { waiter = $0 }
     }
 
     func stop() {
         generation &+= 1
         player.stop()
         engine.stop()
-        let completion = playbackContinuation
-        playbackContinuation = nil
+        queuedFrames = 0
+        draining = false
+        let completion = waiter
+        waiter = nil
         completion?.resume(throwing: CancellationError())
-        // One disposable worker per operation: hard termination is deliberate
-        // until a warm-worker acknowledgement protocol has been validated.
-        if let process, process.isRunning { kill(process.processIdentifier, SIGKILL) }
-        process = nil
-        try? input?.close()
-        try? output?.close()
-        input = nil
-        output = nil
     }
 }

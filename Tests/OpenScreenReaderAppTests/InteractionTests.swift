@@ -4,6 +4,103 @@ import Foundation
 import Testing
 @testable import OpenScreenReader
 
+@Suite("Speech transport and buffering", .serialized)
+@MainActor
+struct SpeechBufferingTests {
+    @Test
+    func shortPacketReturnsBeforeWriterCloses() async throws {
+        let pipe = Pipe()
+        defer { try? pipe.fileHandleForReading.close(); try? pipe.fileHandleForWriting.close() }
+        let reader = SpeechPacketReader(handle: pipe.fileHandleForReading)
+        try pipe.fileHandleForWriting.write(contentsOf: Data("ready\n".utf8))
+        var hadToCloseWriter = false
+        let deadline = Task { @MainActor in
+            try await Task.sleep(for: .seconds(1))
+            hadToCloseWriter = true
+            try? pipe.fileHandleForWriting.close()
+        }
+        defer { deadline.cancel() }
+        let line = try await reader.nextLine()
+        #expect(line == Data("ready".utf8))
+        #expect(!hadToCloseWriter)
+    }
+
+    @Test
+    func framingPreservesMultiplePacketsAndRejectsTruncatedTail() async throws {
+        let pipe = Pipe()
+        defer { try? pipe.fileHandleForReading.close() }
+        let reader = SpeechPacketReader(handle: pipe.fileHandleForReading)
+        try pipe.fileHandleForWriting.write(contentsOf: Data("first\nsecond\ntail".utf8))
+        try pipe.fileHandleForWriting.close()
+        #expect(try await reader.nextLine() == Data("first".utf8))
+        #expect(try await reader.nextLine() == Data("second".utf8))
+        do { _ = try await reader.nextLine(); Issue.record("Truncated packet accepted") }
+        catch { #expect(error is SpeechFailure) }
+    }
+
+    @Test
+    func oversizedPacketIsRejected() async throws {
+        let pipe = Pipe()
+        defer { try? pipe.fileHandleForReading.close() }
+        let reader = SpeechPacketReader(handle: pipe.fileHandleForReading)
+        let writer = Task.detached {
+            try pipe.fileHandleForWriting.write(contentsOf: Data(repeating: 65, count: 140_001))
+            try pipe.fileHandleForWriting.close()
+        }
+        do { _ = try await reader.nextLine(); Issue.record("Oversized packet accepted") }
+        catch { #expect(error is SpeechFailure) }
+        try await writer.value
+    }
+
+    @Test
+    func prebufferQueuesAheadAndShortTailStillDrains() async throws {
+        let player = SpeechAudioPlayer()
+        defer { player.stop() }
+        var started = false
+        for _ in 0..<3 {
+            try await player.enqueue(Data(repeating: 0, count: 28_800)) { started = true }
+        }
+        #expect(!started)
+        #expect(player.queuedFrames == 21_600)
+        try await player.enqueue(Data(repeating: 0, count: 28_800)) { started = true }
+        #expect(started)
+        #expect(player.queuedFrames == 28_800)
+        try await player.finish { started = true }
+        #expect(player.queuedFrames == 0)
+        #expect(player.diagnostics.underruns == 0)
+        player.reset()
+        started = false
+        try await player.enqueue(Data(repeating: 0, count: 9_600)) { started = true }
+        #expect(!started)
+        try await player.finish { started = true }
+        #expect(started)
+        #expect(player.queuedFrames == 0)
+        #expect(player.diagnostics.frames == 2_400)
+    }
+
+    @Test
+    func fullQueueBlocksProducerAndCancellationReleasesIt() async throws {
+        let player = SpeechAudioPlayer()
+        defer { player.stop() }
+        let producer = Task { @MainActor in
+            for _ in 0..<20 { try await player.enqueue(Data(repeating: 0, count: 96_000)) {} }
+        }
+        let deadline = ContinuousClock.now.advanced(by: .seconds(3))
+        while player.queuedFrames < SpeechAudioPlayer.capacityFrames, .now < deadline { await Task.yield() }
+        #expect(player.queuedFrames == SpeechAudioPlayer.capacityFrames)
+        #expect(player.diagnostics.maximumQueuedFrames <= SpeechAudioPlayer.capacityFrames)
+        player.stop()
+        do { try await producer.value; Issue.record("Cancelled producer completed successfully") }
+        catch { #expect(error is CancellationError) }
+        #expect(player.queuedFrames == 0)
+        player.reset()
+        try await player.enqueue(Data(repeating: 0, count: 9_600)) {}
+        try await player.finish {}
+        #expect(player.queuedFrames == 0)
+        #expect(player.diagnostics.frames == 2_400)
+    }
+}
+
 @Suite("Primary interaction")
 @MainActor
 struct InteractionTests {

@@ -61,7 +61,8 @@ struct SpeechWorker {
                         let samples = chunk.asArray(Float.self)
                         guard samples.allSatisfy({ $0.isFinite }) else { throw WorkerFailure.invalid }
                         // At most one PCM packet in flight: parent acknowledges
-                        // after playback. Pipes carry content, never argv/files.
+                        // after accepting it into its bounded playback queue.
+                        // Pipes carry content, never argv/files.
                         for offset in stride(from: 0, to: samples.count, by: 24_000) {
                             let part = Array(samples[offset..<min(samples.count, offset + 24_000)])
                             let pcm = part.withUnsafeBytes { Data($0) }
