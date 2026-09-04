@@ -1,0 +1,27 @@
+{
+  "purpose": "Owner-requested local fixed-text listening experiment only; not an app provider or release approval",
+  "repository": "Supertone/supertonic-3",
+  "revision": "3cadd1ee6394adea1bd021217a0e650ede09a323",
+  "license": "BigScience Open RAIL-M, August 18 2022; applies to model and voice styles",
+  "files": [
+    {"path": "LICENSE", "bytes": 15007, "git_blob": "1e2cbe6cef94c8cdf3ed1fcebc0f5317ca7ad5a1"},
+    {"path": "README.md", "bytes": 9189, "git_blob": "6f4f5c5d7afbe9d45bc107ebc9c6629c3ea5c135"},
+    {"path": "onnx/duration_predictor.onnx", "bytes": 3700147, "sha256": "c3eb91414d5ff8a7a239b7fe9e34e7e2bf8a8140d8375ffb14718b1c639325db"},
+    {"path": "onnx/text_encoder.onnx", "bytes": 36416150, "sha256": "c7befd5ea8c3119769e8a6c1486c4edc6a3bc8365c67621c881bbb774b9902ff"},
+    {"path": "onnx/vector_estimator.onnx", "bytes": 256534781, "sha256": "883ac868ea0275ef0e991524dc64f16b3c0376efd7c320af6b53f5b780d7c61c"},
+    {"path": "onnx/vocoder.onnx", "bytes": 101424195, "sha256": "085de76dd8e8d5836d6ca66826601f615939218f90e519f70ee8a36ed2a4c4ba"},
+    {"path": "onnx/tts.json", "bytes": 8253, "git_blob": "28575b0793c92607a0f0a292550df9bd17709a79"},
+    {"path": "onnx/unicode_indexer.json", "bytes": 277676, "git_blob": "3aaf4d33024aff0be455633c24b3636b3a810150"},
+    {"path": "voice_styles/F1.json", "bytes": 292046, "git_blob": "421365f307ed1535d8da16845031d0e9fa3e60c5"},
+    {"path": "voice_styles/M1.json", "bytes": 291748, "git_blob": "bddfff85a7c4c140c11620bd7005d86681dccdac"}
+  ],
+  "runtime_source": {
+    "repository": "https://github.com/supertone-inc/supertonic",
+    "revision": "7e2804f96016a7028cb1ed627353c61c1e9dd281",
+    "file": "py/helper.py",
+    "bytes": 15027,
+    "sha256": "b14b1da8a018aa4db6ca8cbb927c32590bfc889b49116ea344c56e8351d94279",
+    "license": "MIT, Copyright (c) 2025 Supertone Inc.",
+    "maintenance": "Upstream July 23 2026 notice announces no further development or official support"
+  }
+}
