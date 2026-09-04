@@ -89,4 +89,4 @@ Before shipping, reconstruct the selected PNG as auditable vector geometry and l
 4. export set and asset-catalog entries for the actual app target;
 5. documented clear space, minimum sizes, colour tokens, and export procedure.
 
-No app target or `AppIcon.appiconset` currently exists in the repository, so the selected logo is documented and canonicalised here but is not yet wired into an application bundle.
+The native app target now includes `OpenScreenReaderApp/Assets.xcassets/AppIcon.appiconset`. Run `sh scripts/export-app-icon.sh` to reproduce its raster sizes from the canonical approved PNG. These are size exports only; the original geometry, colours, and padding are preserved. The app bundle uses `AppIcon`. Layered Icon Composer artwork, appearance variants, the monochrome menu-bar derivative, and the complete production appearance/accessibility matrix remain pending.
