@@ -23,3 +23,11 @@ Checks cover default compatibility, all three selected voices, explicit German f
 The generated sample manifest records duration, peak amplitude, worker hash, and each WAV hash. Finite, non-silent PCM and successful worker completion are checked before each export. These checks do not judge accent, pronunciation, word fidelity, or listener preference; the owner chooses after listening.
 
 Actual comparison completed: Serena 17.76 s, Ryan 21.52 s, Aiden 14.32 s. All three WAV files passed `afinfo` inspection (24 kHz, mono, PCM16) and their manifest hash checks. All 44 installed runtime receipt entries still matched, confirming the comparison build was not installed over the app's worker. No app/UI regression run is claimed: this turn changed only the separately built development worker and comparison tooling, not app sources or the running installation.
+
+## Lower-temperature repeat
+
+After hearing unwanted non-speech sounds, the owner requested all three voices again at a lower temperature. The comparison tool now accepts an optional third argument, e.g. `ruby scripts/compare-german-voices.rb WORKER MODEL_DIRECTORY 0.5`. The request validates finite temperatures in `[0, 1]` and retains `0.9` when omitted. This repeat changes only temperature to `0.5`; the fixture text, explicit German, seed 42, top-p, repetition penalty, segmentation, and decoder remain unchanged. The temperature is recorded with each sample in the temporary manifest.
+
+Tests passed for the old default, explicit `0.5`, and invalid values; Ruby syntax and invalid-CLI-value rejection passed, and the native Release worker build passed. No installed app/runtime settings were changed. Reduced unwanted sounds are a listening hypothesis, not a result established by successful synthesis or file checks.
+
+The repeat completed for all three voices: Serena 12.00 s, Ryan 14.64 s, Aiden 16.72 s. Each manifest entry records temperature `0.5`; all WAV files passed `afinfo` and SHA-256 checks. Installed runtime receipt hashes still matched. The previous comparison files were preserved for listening alongside the new ones.

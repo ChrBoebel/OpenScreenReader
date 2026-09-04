@@ -6,13 +6,26 @@ import NaturalLanguage
 struct SpeechWorkerRequest: Decodable {
     enum Voice: String, Decodable { case serena = "Serena", ryan = "Ryan", aiden = "Aiden" }
     enum Language: String, Decodable { case german = "German", english = "English", auto }
+    struct Temperature: Decodable {
+        let value: Float
+        init(from decoder: any Decoder) throws {
+            let container = try decoder.singleValueContainer()
+            let value = try container.decode(Float.self)
+            guard value.isFinite, (0...1).contains(value) else {
+                throw DecodingError.dataCorruptedError(in: container, debugDescription: "Temperature must be between zero and one")
+            }
+            self.value = value
+        }
+    }
 
     let text: String
     let voice: Voice?
     let language: Language?
     let seed: UInt64?
+    let temperature: Temperature?
 
     var selectedVoice: String { (voice ?? .serena).rawValue }
+    var selectedTemperature: Float { temperature?.value ?? 0.9 }
 
     func resolvedLanguage(for segment: String) -> String {
         if let language { return language.rawValue }

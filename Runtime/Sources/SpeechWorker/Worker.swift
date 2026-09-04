@@ -50,7 +50,7 @@ struct SpeechWorker {
                 var tokenCount = 0
                 for try await event in model.generateStream(
                     text: segment, voice: request.selectedVoice, refAudio: nil, refText: nil, language: languageName,
-                    generationParameters: GenerateParameters(maxTokens: 1024, temperature: 0.9,
+                    generationParameters: GenerateParameters(maxTokens: 1024, temperature: request.selectedTemperature,
                         topP: 1.0, repetitionPenalty: 1.05), streamingInterval: 0.32
                 ) {
                     switch event {

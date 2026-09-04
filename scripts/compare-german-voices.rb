@@ -8,8 +8,14 @@ require 'timeout'
 require 'tmpdir'
 require 'digest'
 
-abort 'Usage: ruby scripts/compare-german-voices.rb WORKER MODEL_DIRECTORY' unless ARGV.length == 2
-worker, model = ARGV.map { |path| File.expand_path(path) }
+abort 'Usage: ruby scripts/compare-german-voices.rb WORKER MODEL_DIRECTORY [TEMPERATURE]' unless (2..3).cover?(ARGV.length)
+worker, model = ARGV.first(2).map { |path| File.expand_path(path) }
+begin
+  temperature = Float(ARGV[2] || '0.9')
+rescue ArgumentError
+  abort 'Temperature must be a number between zero and one'
+end
+abort 'Temperature must be between zero and one' unless temperature.finite? && (0.0..1.0).cover?(temperature)
 abort 'Missing local worker or model' unless File.executable?(worker) && File.file?(File.join(model, 'tokenizer.json'))
 abort 'Pinned model verification failed' unless system('/bin/bash', File.join(__dir__, 'download-qwen.sh'), model, '--verify-only')
 abort 'Unexpected prepared tokenizer' unless Digest::SHA256.file(File.join(model, 'tokenizer.json')).hexdigest ==
@@ -22,7 +28,7 @@ $stdout.sync = true
 puts "Temporary comparison directory: #{directory}"
 
 %w[Serena Ryan Aiden].each do |voice|
-  puts "Generating #{voice}, explicit German, seed 42…"
+  puts "Generating #{voice}, explicit German, seed 42, temperature #{temperature}…"
   pcm16 = ''.b
   peak = 0.0
   complete = false
@@ -31,7 +37,7 @@ puts "Temporary comparison directory: #{directory}"
                '/usr/bin/sandbox-exec', '-p', profile, worker, '--model', model,
                err: File::NULL) do |input, output, process|
     begin
-      input.puts(JSON.generate(text: phrase, voice: voice, language: 'German', seed: 42))
+      input.puts(JSON.generate(text: phrase, voice: voice, language: 'German', seed: 42, temperature: temperature))
       input.flush
       Timeout.timeout(120) do
         while (line = output.gets(140_002))
@@ -75,7 +81,7 @@ puts "Temporary comparison directory: #{directory}"
     file.write(header)
     file.write(pcm16)
   end
-  result = { voice: voice, language: 'German', seed: 42, file: filename,
+  result = { voice: voice, language: 'German', seed: 42, temperature: temperature, file: filename,
              audio_seconds: (pcm16.bytesize / 48_000.0).round(3), peak: peak.round(4),
              sha256: Digest::SHA256.file(File.join(directory, filename)).hexdigest }
   results << result
