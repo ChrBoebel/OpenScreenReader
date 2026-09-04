@@ -29,7 +29,7 @@ final class MenuBarSmokeUITests: XCTestCase {
 
         XCTAssertTrue(
             app.menuItems[
-                "Select a region to recognize text locally. Speech is not available yet."
+                "Select a region to recognize and read text locally."
             ].exists
         )
         XCTAssertTrue(app.menuItems["Settings…"].exists)
@@ -71,14 +71,18 @@ final class MenuBarSmokeUITests: XCTestCase {
         start.press(forDuration: 0.1, thenDragTo: end)
 
         let finishedStatus = app.descendants(matching: .statusItem)
-            .matching(NSPredicate(format: "title IN {'OpenScreenReader, Ready', 'OpenScreenReader, Error'}"))
+            .matching(NSPredicate(format: "title IN {'OpenScreenReader, Ready', 'OpenScreenReader, Error', 'OpenScreenReader, Preparing voice', 'OpenScreenReader, Speaking'}"))
             .firstMatch
         XCTAssertTrue(finishedStatus.waitForExistence(timeout: 17), statusDescription(in: app))
         let failed = finishedStatus.title == "OpenScreenReader, Error"
+        let reading = finishedStatus.title == "OpenScreenReader, Preparing voice" || finishedStatus.title == "OpenScreenReader, Speaking"
         finishedStatus.click()
-        if failed {
+        if reading {
+            XCTAssertTrue(app.menuItems["Stop Reading"].exists)
+            app.menuItems["Stop Reading"].click()
+        } else if failed {
             let permissionError = app.menuItems.matching(NSPredicate(
-                format: "title CONTAINS 'Allow Input Monitoring' OR title CONTAINS 'Allow Screen Recording'"
+                format: "title CONTAINS 'Allow Input Monitoring' OR title CONTAINS 'Allow Screen Recording' OR title CONTAINS 'local Qwen development runtime is not installed'"
             )).firstMatch
             XCTAssertTrue(permissionError.waitForExistence(timeout: 2), statusDescription(in: app))
         } else {
@@ -101,8 +105,60 @@ final class MenuBarSmokeUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Select. Listen. Stay private."].exists)
         XCTAssertTrue(app.buttons["Allow Input Monitoring…"].exists)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(
-            format: "value CONTAINS 'Only the selected region'"
+            format: "value CONTAINS 'Images, text, and audio are not saved'"
         )).firstMatch.exists)
+    }
+
+    @MainActor
+    func testLocalQwenReadsFixtureAndEscapeStopsIt() throws {
+        try verifyLocalQwen(cancelWithShortcut: false)
+    }
+
+    @MainActor
+    func testLocalQwenReadsFixtureAndRepeatedShortcutStopsIt() throws {
+        try verifyLocalQwen(cancelWithShortcut: true)
+    }
+
+    @MainActor
+    private func verifyLocalQwen(cancelWithShortcut: Bool) throws {
+        let app = makeApplication()
+        app.launch()
+        defer { app.terminate() }
+        openMenu(in: app, status: "Ready")
+        app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
+        XCTAssertTrue(app.staticTexts["Select. Listen. Stay private."].waitForExistence(timeout: 5))
+        try XCTSkipUnless(app.staticTexts["Installed for local development"].exists,
+                          "Install the pinned development runtime for this real Qwen test.")
+        let repository = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let fixture = XCUIApplication(url: repository.appendingPathComponent(".build/SpeechFixture.app"))
+        fixture.launch()
+        defer { fixture.terminate() }
+        let fixtureText = fixture.staticTexts["speechFixtureText"]
+        XCTAssertTrue(fixtureText.waitForExistence(timeout: 5))
+        let region = fixtureText.frame.insetBy(dx: -5, dy: -4)
+        XCTAssertTrue(region.width > 0 && region.height > 0 && region.minX.isFinite && region.minY.isFinite)
+        // Start through the menu so this test isolates OCR/speech and its
+        // global stop paths from the separate hotkey-start delivery checks.
+        openMenu(in: app, status: "Ready")
+        app.menuItems["Read Screen Region…"].click()
+        let overlay = app.groups["Screen region selection"].firstMatch
+        XCTAssertTrue(overlay.waitForExistence(timeout: 5), statusDescription(in: app))
+        let origin = overlay.coordinate(withNormalizedOffset: .zero)
+        let frame = overlay.frame
+        let start = origin.withOffset(CGVector(dx: region.minX - frame.minX, dy: region.minY - frame.minY))
+        let end = origin.withOffset(CGVector(dx: region.maxX - frame.minX, dy: region.maxY - frame.minY))
+        start.press(forDuration: 0.1, thenDragTo: end)
+        let speaking = app.descendants(matching: .statusItem)
+            .matching(NSPredicate(format: "title == 'OpenScreenReader, Speaking'")).firstMatch
+        XCTAssertTrue(speaking.waitForExistence(timeout: 90), statusDescription(in: app))
+        let finder = XCUIApplication(bundleIdentifier: "com.apple.finder")
+        finder.activate()
+        if cancelWithShortcut { finder.typeKey("y", modifierFlags: [.command, .shift]) }
+        else { finder.typeKey(.escape, modifierFlags: []) }
+        let stopped = app.descendants(matching: .statusItem)
+            .matching(NSPredicate(format: "title == 'OpenScreenReader, Stopped'")).firstMatch
+        XCTAssertTrue(stopped.waitForExistence(timeout: 3), statusDescription(in: app))
     }
 
     @MainActor
