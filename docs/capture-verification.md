@@ -2,7 +2,7 @@
 
 ## Implemented behavior
 
-`⌃⌥R` or the menu action starts selection. A repeated shortcut or Escape closes the overlay. A valid drag dismisses all overlay panels before capture starts. The current spike returns to Ready after verifying the image dimensions and releasing the image; it does not yet recognize or speak text.
+`⌃⌥R` or the menu action starts selection. A repeated shortcut or Escape closes the overlay. The borderless overlay panels can activate and accept the first mouse event so the first drag is not lost to window activation. A valid drag dismisses all overlay panels before capture starts. The current spike returns to Ready after verifying the image dimensions and releasing the image; it does not yet recognize or speak text.
 
 The selection records display identity, its AppKit point rectangle, backing scale, display geometry, and a topology revision. ScreenCaptureKit receives a display-local **top-left-origin rectangle in logical points**, plus separately calculated output pixel dimensions. Topology changes invalidate selection and pending capture, including changes that restore the same display frames.
 
@@ -39,9 +39,20 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild \
 
 ## Evidence on 2026-09-04
 
-- On macOS 26.6.2, the final app-unit run passed 17 tests with zero failures; two live system tests were skipped because the test host lacked Screen Recording and Input Monitoring.
-- The three interaction UI tests passed. The new Settings test initially failed because two menu entries shared its title; after scoping it to the status item, its focused rerun passed.
-- The ARM64 Release build passed with a compiled `AppIcon.icns` and the correct bundle icon metadata.
-- Computer Use observed the live selection overlay. Attaching to a windowless app remained unreliable. It opened macOS permission settings, but changing the permission list required the owner's password confirmation. Actual permission-enabled capture remains unverified until that interaction completes.
+All times below are local (Europe/Berlin), on macOS 26.6.2, ARM64. Results are in Xcode's local `Logs/Test` directory; no captured image was attached by the live capture test.
+
+- After the owner granted both permissions, Computer Use confirmed the Input Monitoring switch was on. The 22:27:04 run passed both real system tests: ScreenCaptureKit returned the expected dimensions without changing the clipboard, and the Escape tap could start, stop, and restart. This verifies tap availability, **not delivery of a global Escape event**.
+- The 22:27:36 full run passed 21 tests and failed two UI tests. The drag failure reproduced twice in isolation; narrowed diagnostics showed the app stayed in Selecting. Replacing the nonactivating panel with a borderless activating panel and accepting the first mouse event resolved that reproduction. The 22:32:06 focused drag run passed through its explicit permission-error branch, not successful capture.
+- The global-hotkey test failed intermittently during full runs. Its isolated 22:34:15 rerun passed both start and repeated-hotkey cancellation from Finder. Do not interpret an isolated pass as a completed stability or latency assessment; XCUITest took roughly 35 seconds for this test.
+- The final 22:35:23 full run succeeded: 17 app-unit tests and all four UI tests passed, with the two live system tests explicitly skipped because the rebuilt binary lacked effective permissions. The UI drag test passed via denial guidance. Earlier failures remain relevant evidence, not erased by this green run.
+- The corrected ARM64 Release build passed. The compiled app icon remains the approved Owl Frame asset.
+- SwiftPM's one core test and all 11 executable behavior checks passed.
+- Computer Use could inspect macOS permission settings, but attaching directly to the windowless menu-bar app still timed out. Native XCUITest supplied the interaction checks. Test assertion diagnostics are now limited to app-owned status items instead of dumping the Apple menu's private Recent Items.
+
+### Development signing caveat
+
+The Debug app is ad-hoc signed. Its observed designated requirement is tied to a code hash (`codesign -d -r-`), not a stable developer certificate. After the overlay code was rebuilt, both system permission preflights returned false again. A visible Settings switch alone is therefore not evidence that a rebuilt binary has effective access. The post-fix live tests explicitly skipped and the UI capture test exercised denial guidance.
+
+Re-grant permissions to the final Debug app and relaunch it before repeating `LiveCaptureTests` and the successful UI capture path. Do not change the binary between the grant and the test. A sandboxed signing-identity check found no valid code-signing identities; configuring stable development signing remains a separate setup task. No TCC database edits or permission resets are performed by the app or normal test suite.
 
 No model weights were downloaded and no OCR or TTS fallback was added.
