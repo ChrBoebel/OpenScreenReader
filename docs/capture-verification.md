@@ -37,6 +37,26 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild \
 - `LiveCaptureTests` invokes the actual ScreenCaptureKit adapter and checks dimensions and clipboard revision when Screen Recording is allowed. Without permission, it checks denial behavior and explicitly skips the successful-capture path. No captured image is attached to the report.
 - The live Escape test verifies tap creation and cleanup when Input Monitoring is allowed; it explicitly skips otherwise. It does not prove delivery of a global Escape key event.
 
+### Opt-in global Escape delivery check
+
+The separate `OpenScreenReaderManualChecks` scheme selects only `testGlobalEscapeDeliveryWhileAnotherAppIsActive` and enables it explicitly. The ordinary scheme excludes this interactive test; direct invocation without the opt-in environment flag also skips it. Normal tests never wait for manual keyboard input.
+
+Build the test first, then grant Input Monitoring to that exact Debug app if necessary:
+
+```sh
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild \
+  -project OpenScreenReader.xcodeproj -scheme OpenScreenReaderManualChecks \
+  -destination 'platform=macOS,arch=arm64' build-for-testing
+
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild \
+  -project OpenScreenReader.xcodeproj -scheme OpenScreenReaderManualChecks \
+  -destination 'platform=macOS,arch=arm64' test-without-building
+```
+
+After `ESCAPE CHECK READY`, focus another app with no sensitive dialog open and press Escape within 45 seconds. The test uses the real `EscapeMonitor`, requires another process to be foreground when its callback runs, and tears the monitor down on delivery, error, or timeout. Missing permission or an unavailable tap is a failure in this deliberately requested check, not a successful skip. It logs no keyboard content, screenshot, or foreground app identity.
+
+This is a monitor-delivery probe, not a measurement of end-to-end cancellation latency and not an OCR/TTS integration test. Keep the deterministic cancelled-capture/stale-result tests as separate evidence.
+
 ## Evidence on 2026-09-04
 
 All times below are local (Europe/Berlin), on macOS 26.6.2, ARM64. Results are in Xcode's local `Logs/Test` directory; no captured image was attached by the live capture test.
@@ -59,3 +79,11 @@ In this development session, toggling the existing entries off/on was insufficie
 For a permission-enabled rerun, grant access to the exact final Debug app and relaunch it, then use `test-without-building` in place of `test` in the command above. Do not change the binary between the grant and the test. If an ad-hoc rebuild leaves enabled but ineffective entries, removing and re-adding only those entries is a manual recovery step, not an automatic test action. A sandboxed signing-identity check found no valid code-signing identities; configuring stable development signing remains a separate setup task. No TCC database edits or permission resets are performed by the app or normal test suite.
 
 No model weights were downloaded and no OCR or TTS fallback was added.
+
+### Follow-up input probe on 2026-09-04
+
+The new manual-check scheme built successfully. Its 22:48:09 live run failed before receiving keyboard input because the rebuilt app lacked effective Input Monitoring. The rebuild changed the designated code hash from `4f8a97d3ebc14cfa44cb8166f2f6a7f481c26ecd` to `48dfd90464680d4a048bc8ac48487d1a0c8b3ed7`, despite no app-source edits. An unsandboxed read-only signing-identity check also found zero valid identities. Global Escape delivery remains unverified; stable local development signing requires an owner-approved setup before further permission-enabled iterations.
+
+The 22:49:32 normal-suite run excluded the interactive check as intended: 20 tests passed, two permission-dependent live tests skipped, and the existing Finder-hotkey test failed while expecting the initial overlay. This is not a clean regression run; the previously observed intermittent hotkey behavior still needs investigation. The new test and both scheme files compiled/parsed successfully; no production app-source changes, permission changes, or signing-key creation were made in this follow-up.
+
+The isolated 22:51:00 Finder-hotkey rerun passed without rebuilding (35.228 seconds). This confirms a successful individual run but does not resolve the full-suite failure.

@@ -37,6 +37,9 @@
                BlueprintName = "OpenScreenReaderAppTests"
                ReferencedContainer = "container:OpenScreenReader.xcodeproj">
             </BuildableReference>
+            <SkippedTests>
+               <Test Identifier="LiveCaptureTests/testGlobalEscapeDeliveryWhileAnotherAppIsActive()"/>
+            </SkippedTests>
          </TestableReference>
          <TestableReference skipped = "NO">
             <BuildableReference

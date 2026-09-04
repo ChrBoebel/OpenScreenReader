@@ -73,6 +73,39 @@ struct CaptureTests {
 }
 
 final class LiveCaptureTests: XCTestCase {
+    /// Opt-in because this requires an Escape key event in another foreground app.
+    @MainActor
+    func testGlobalEscapeDeliveryWhileAnotherAppIsActive() async throws {
+        guard ProcessInfo.processInfo.environment["OSR_INTERACTIVE_ESCAPE_CHECK"] == "1" else {
+            throw XCTSkip("Opt-in live input check: use the OpenScreenReaderManualChecks scheme.")
+        }
+        // An explicitly requested live check must fail, not silently skip, without access.
+        XCTAssertTrue(CGPreflightListenEventAccess(), "Grant Input Monitoring to the exact Debug app first.")
+        let monitor = EscapeMonitor()
+        defer { monitor.stop() }
+        let received = expectation(description: "Escape received while another app is foreground")
+        var completed = false
+        try monitor.start(onEscape: {
+            guard !completed else { return }
+            completed = true
+            let foreground = NSWorkspace.shared.frontmostApplication
+            XCTAssertNotNil(foreground)
+            XCTAssertNotEqual(foreground?.processIdentifier, ProcessInfo.processInfo.processIdentifier,
+                              "This must be a global event, not local input to OpenScreenReader.")
+            monitor.stop()
+            received.fulfill()
+        }, onUnavailable: {
+            guard !completed else { return }
+            completed = true
+            monitor.stop()
+            XCTFail("The live Escape monitor became unavailable during the check.")
+            received.fulfill()
+        })
+        print("ESCAPE CHECK READY: press Escape with another app in the foreground within 45 seconds.")
+        await fulfillment(of: [received], timeout: 45)
+        // No screenshot, key content, or foreground app identity is logged.
+    }
+
     @MainActor
     func testActualScreenCaptureOrExplicitPermissionDenial() async throws {
         let displays = ScreenCaptureService.currentDisplays()

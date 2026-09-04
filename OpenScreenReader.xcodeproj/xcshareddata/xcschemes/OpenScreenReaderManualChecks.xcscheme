@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Scheme LastUpgradeVersion="2600" version="1.7">
+   <BuildAction parallelizeBuildables="YES" buildImplicitDependencies="YES">
+      <BuildActionEntries>
+         <BuildActionEntry buildForTesting="YES" buildForRunning="NO" buildForProfiling="NO" buildForArchiving="NO" buildForAnalyzing="YES">
+            <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="A00000000000000000000040" BuildableName="OpenScreenReader.app" BlueprintName="OpenScreenReader" ReferencedContainer="container:OpenScreenReader.xcodeproj"/>
+         </BuildActionEntry>
+      </BuildActionEntries>
+   </BuildAction>
+   <TestAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.DebuggerFoundation.Launcher.LLDB" shouldUseLaunchSchemeArgsEnv="NO">
+      <Testables>
+         <TestableReference skipped="NO">
+            <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="A00000000000000000000041" BuildableName="OpenScreenReaderAppTests.xctest" BlueprintName="OpenScreenReaderAppTests" ReferencedContainer="container:OpenScreenReader.xcodeproj"/>
+            <SelectedTests>
+               <Test Identifier="LiveCaptureTests/testGlobalEscapeDeliveryWhileAnotherAppIsActive()"/>
+            </SelectedTests>
+         </TestableReference>
+      </Testables>
+      <EnvironmentVariables>
+         <EnvironmentVariable key="OSR_INTERACTIVE_ESCAPE_CHECK" value="1" isEnabled="YES"/>
+      </EnvironmentVariables>
+   </TestAction>
+</Scheme>
