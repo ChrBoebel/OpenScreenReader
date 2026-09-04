@@ -1,0 +1,41 @@
+# macOS / Xcode
+.DS_Store
+DerivedData/
+build/
+*.xcuserstate
+xcuserdata/
+*.xccheckout
+*.moved-aside
+
+# Swift Package Manager
+.build/
+.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
+
+# Python / local TTS worker
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local models and generated media
+Models/
+models/
+*.gguf
+*.safetensors
+*.onnx
+*.wav
+*.m4a
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Local tools
+.idea/
+.vscode/

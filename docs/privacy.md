@@ -1,0 +1,66 @@
+# Privacy principles and requirements
+
+## Grundsatz
+
+OpenScreenReader verarbeitet möglicherweise hochsensible Bildschirmdaten. Datenschutz ist deshalb keine Marketingoption, sondern eine technische Invariante.
+
+## Verbindliche Standardwerte
+
+- Der offizielle MVP enthält sein Standardmodell; OCR und TTS laufen nach der Installation vollständig lokal.
+- Kein Konto und keine Anmeldung.
+- Keine Telemetrie im offiziellen Build.
+- Keine Cloud-Synchronisation.
+- Kein automatisches Schreiben in die Zwischenablage.
+- Keine dauerhafte Speicherung von Screenshots, OCR-Text oder Audio.
+- Keine stillen Netzwerk-Fallbacks, wenn ein lokales Modell fehlschlägt.
+- Berechtigungen werden erst angefragt, wenn die dazugehörige Funktion verwendet wird.
+
+## Netzwerkzugriffe
+
+Der MVP-Runtimepfad darf keine Netzwerkverbindung benötigen oder selbstständig aufbauen. Das Standardmodell wird mit dem signierten Release-Artefakt von der Projektwebsite ausgeliefert. Vor dem Website-Download werden mindestens angezeigt:
+
+- Modellname und Version;
+- Quelle;
+- erwartete Größe;
+- Lizenz;
+- installierte Größe und Systemanforderungen;
+- Integritätsprüfung beziehungsweise SHA-256-Hash.
+
+Updateprüfungen sind später nur transparent und abschaltbar zulässig. Eine fehlende Verbindung darf den lokalen Betrieb nicht blockieren.
+
+## Speicher- und Lebenszyklus
+
+- Screenshots bleiben im Prozessspeicher und werden nach OCR freigegeben.
+- OCR-Text bleibt nur so lange erhalten, wie Auftrag und Wiedergabe laufen.
+- Audiopuffer werden nach Wiedergabe oder Abbruch verworfen.
+- Gebündelte Modell- und Runtime-Dateien sind dauerhafte Programmbestandteile, enthalten aber keine nutzerspezifischen Bildschirm- oder Sprachinhalte.
+- Absturzberichte dürfen keine Screenshots, OCR-Texte oder Audioinhalte enthalten.
+- Diagnoseexporte sind opt-in und zeigen vor dem Schreiben eine Vorschau.
+
+## macOS-Berechtigungen
+
+- Bildschirmaufnahme ist für die Bereichserfassung erforderlich und muss verständlich begründet werden.
+- Accessibility beziehungsweise Input Monitoring wird nur angefragt, wenn der gewählte globale Hotkey oder die Abbruchsteuerung es technisch benötigt.
+- Die App darf keine weitergehenden Berechtigungen aus Bequemlichkeit anfordern.
+
+## Überprüfbarkeit
+
+Das Repository soll dokumentieren, wie Nutzer die Datenschutzversprechen selbst prüfen können:
+
+1. Offline-Funktionstest unmittelbar nach Installation des vollständigen Release-Artefakts;
+2. Netzwerkbeobachtung während OCR und TTS;
+3. Kontrolle temporärer Dateien;
+4. Kontrolle der Zwischenablage;
+5. reproduzierbare beziehungsweise nachvollziehbare Release-Builds;
+6. vollständige Third-Party- und Modell-Lizenzübersicht.
+
+## Produktkommunikation
+
+Zulässige Aussagen sind beispielsweise:
+
+- „No text or screenshots are uploaded.“
+- „Works offline after installation.“
+- „No account required.“
+- „No telemetry in the official build.“
+
+Nicht verwendet werden sollen absolute, nicht beweisbare Aussagen wie „100 % sicher“.
