@@ -22,11 +22,15 @@ struct OpenScreenReaderCoreBehaviorChecks {
         try await run("cancel revokes generation and rejects late result", cancelRevokesGeneration)
         try await run("new start supersedes active generation", newStartSupersedesActiveGeneration)
         try await run("worker replacement rejects old epoch", workerReplacementRejectsOldEpoch)
+        try await run(
+            "pending cancellation records worker replacement",
+            pendingCancellationRecordsWorkerReplacement
+        )
         try await run("only legal forward transitions are accepted", onlyLegalTransitionsAreAccepted)
         try await run("completion emits one terminal state", completionEmitsOneTerminalState)
         try await run("failure emits one terminal state", failureEmitsOneTerminalState)
         try await run("inactive cancellation does nothing", inactiveCancellationDoesNothing)
-        print("All 8 OpenScreenReaderCore behavior checks passed.")
+        print("All 9 OpenScreenReaderCore behavior checks passed.")
     }
 
     private static func run(
@@ -186,6 +190,49 @@ struct OpenScreenReaderCoreBehaviorChecks {
             snapshot.lastTerminal == PipelineTerminal(context: oldContext, reason: .workerReplaced),
             "worker replacement must record its terminal reason"
         )
+    }
+
+    private static func pendingCancellationRecordsWorkerReplacement() async throws {
+        let coordinator = PipelineCoordinator()
+        let cancelledContext = try await startContext(coordinator)
+
+        guard let cancellation = await coordinator.cancel() else {
+            throw CheckFailure(description: "active cancellation must return cleanup")
+        }
+        let firstReplacementRequest = await coordinator.replaceWorker()
+        let repeatedReplacementRequest = await coordinator.replaceWorker()
+        let beforeCleanup = await coordinator.snapshot()
+        let cleanupAcknowledged = await coordinator.finishCleanup(for: cancellation.context)
+        let afterCleanup = await coordinator.snapshot()
+        let replacementContext = try await startContext(coordinator)
+        let staleAccepted = await coordinator.accept(.capturing, for: cancelledContext)
+
+        try expect(
+            firstReplacementRequest == cancellation,
+            "worker replacement during cleanup must preserve the cancellation directive"
+        )
+        try expect(
+            repeatedReplacementRequest == cancellation,
+            "repeated worker replacement requests must be idempotent"
+        )
+        try expect(
+            beforeCleanup.workerEpoch == cancelledContext.workerEpoch,
+            "pending replacement must not publish its epoch before cleanup completes"
+        )
+        try expect(cleanupAcknowledged, "matching cleanup must release the barrier")
+        try expect(
+            afterCleanup.workerEpoch.rawValue == cancelledContext.workerEpoch.rawValue + 1,
+            "replacement epoch must be visible when the cleanup barrier is released"
+        )
+        try expect(
+            afterCleanup.pendingCancellation == nil,
+            "epoch publication and barrier release must occur together"
+        )
+        try expect(
+            replacementContext.workerEpoch.rawValue == cancelledContext.workerEpoch.rawValue + 1,
+            "cleanup completion must atomically publish the replacement epoch"
+        )
+        try expect(!staleAccepted, "output from the replaced worker epoch must remain stale")
     }
 
     private static func onlyLegalTransitionsAreAccepted() async throws {

@@ -101,6 +101,11 @@ public struct PipelineSnapshot: Equatable, Sendable {
 }
 
 public actor PipelineCoordinator {
+    private struct PendingCancellation: Sendable {
+        let directive: PipelineCancellationDirective
+        var replacesWorker: Bool
+    }
+
     private static let cancellationSteps: [PipelineCancellationStep] = [
         .silenceAudio,
         .dismissOverlay,
@@ -115,19 +120,22 @@ public actor PipelineCoordinator {
     private var activeContext: PipelineOperationContext?
     private var phase = PipelinePhase.idle
     private var lastTerminal: PipelineTerminal?
-    private var pendingCancellation: PipelineCancellationDirective?
+    private var pendingCancellation: PendingCancellation?
 
     public init() {}
 
     public func start() -> PipelineStartResult {
         if let pendingCancellation {
-            return .cleanupRequired(pendingCancellation)
+            return .cleanupRequired(pendingCancellation.directive)
         }
 
         if let activeContext {
             revoke(activeContext, reason: .superseded)
             let directive = cancellationDirective(for: activeContext)
-            pendingCancellation = directive
+            pendingCancellation = PendingCancellation(
+                directive: directive,
+                replacesWorker: false
+            )
             return .cleanupRequired(directive)
         }
 
@@ -149,7 +157,7 @@ public actor PipelineCoordinator {
             phase: phase,
             lastTerminal: lastTerminal,
             workerEpoch: workerEpoch,
-            pendingCancellation: pendingCancellation
+            pendingCancellation: pendingCancellation?.directive
         )
     }
 
@@ -174,24 +182,34 @@ public actor PipelineCoordinator {
 
         revoke(context, reason: .stopped)
         let directive = cancellationDirective(for: context)
-        pendingCancellation = directive
+        pendingCancellation = PendingCancellation(
+            directive: directive,
+            replacesWorker: false
+        )
         return directive
     }
 
     @discardableResult
     public func finishCleanup(for context: PipelineOperationContext) -> Bool {
-        guard pendingCancellation?.context == context else {
+        guard let pendingCancellation,
+              pendingCancellation.directive.context == context else {
             return false
         }
 
-        pendingCancellation = nil
+        if pendingCancellation.replacesWorker {
+            advanceWorkerEpoch()
+        }
+        self.pendingCancellation = nil
         return true
     }
 
     @discardableResult
     public func replaceWorker() -> PipelineCancellationDirective? {
-        if let pendingCancellation {
-            return pendingCancellation
+        if var pendingCancellation {
+            precondition(workerEpoch.rawValue < UInt64.max, "Worker epoch exhausted")
+            pendingCancellation.replacesWorker = true
+            self.pendingCancellation = pendingCancellation
+            return pendingCancellation.directive
         }
 
         precondition(workerEpoch.rawValue < UInt64.max, "Worker epoch exhausted")
@@ -200,13 +218,16 @@ public actor PipelineCoordinator {
         if let context = activeContext {
             revoke(context, reason: .workerReplaced)
             let cancellationDirective = cancellationDirective(for: context)
-            pendingCancellation = cancellationDirective
+            pendingCancellation = PendingCancellation(
+                directive: cancellationDirective,
+                replacesWorker: true
+            )
             directive = cancellationDirective
         } else {
             directive = nil
+            advanceWorkerEpoch()
         }
 
-        workerEpoch = WorkerEpoch(rawValue: workerEpoch.rawValue + 1)
         return directive
     }
 
@@ -248,6 +269,11 @@ public actor PipelineCoordinator {
             context: context,
             steps: Self.cancellationSteps
         )
+    }
+
+    private func advanceWorkerEpoch() {
+        precondition(workerEpoch.rawValue < UInt64.max, "Worker epoch exhausted")
+        workerEpoch = WorkerEpoch(rawValue: workerEpoch.rawValue + 1)
     }
 
     private func legalSuccessor(of phase: PipelinePhase) -> PipelinePhase? {
