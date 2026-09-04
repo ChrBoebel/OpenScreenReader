@@ -12,7 +12,7 @@
 
 ## Phase 1 — Technical spikes
 
-- [ ] Native menu bar shell.
+- [x] Native menu bar shell with an automated UI smoke test.
 - [ ] Global hotkey registration and conflict handling.
 - [ ] Multi-monitor region-selection overlay.
 - [ ] Selected-region capture with ScreenCaptureKit/CoreGraphics.
