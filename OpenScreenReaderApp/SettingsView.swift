@@ -10,6 +10,23 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            Section {
+                HStack(spacing: 14) {
+                    Image(nsImage: NSApplication.shared.applicationIconImage)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 64, height: 64)
+                        .accessibilityLabel("OpenScreenReader Owl Frame app logo")
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("OpenScreenReader").font(.title2.weight(.semibold))
+                        Text("Select. Listen. Stay private.")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                        Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—")")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
             Section("General") {
                 LabeledContent("Status", value: model.status.title)
                 LabeledContent("Global shortcut", value: model.shortcutConfiguration.displayName)

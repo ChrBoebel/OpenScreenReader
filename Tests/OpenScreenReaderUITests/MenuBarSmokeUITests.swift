@@ -97,6 +97,8 @@ final class MenuBarSmokeUITests: XCTestCase {
         openMenu(in: app, status: "Ready")
         app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
         XCTAssertTrue(app.buttons["Allow Screen Recording…"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.images["OpenScreenReader Owl Frame app logo"].exists)
+        XCTAssertTrue(app.staticTexts["Select. Listen. Stay private."].exists)
         XCTAssertTrue(app.buttons["Allow Input Monitoring…"].exists)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(
             format: "value CONTAINS 'Only the selected region'"

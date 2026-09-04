@@ -2,6 +2,10 @@
   "schemaVersion": 1,
   "status": "approved",
   "decisionDate": "2026-09-04",
+  "product": {
+    "name": "OpenScreenReader",
+    "currentTagline": "Select. Listen. Stay private."
+  },
   "appLogo": {
     "name": "Owl Frame",
     "canonicalRaster": "open-screen-reader-app-icon.png",

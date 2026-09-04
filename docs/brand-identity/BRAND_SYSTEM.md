@@ -12,6 +12,8 @@ The selected mark is a clearly recognisable owl built from the product's region-
 
 ## Source of truth
 
+- **Product name:** `OpenScreenReader` (no approved rename).
+- **Current concise claim:** `Select. Listen. Stay private.` as used in the README. Alternative lines in the brandbook remain proposals.
 - **Canonical approved raster:** `docs/brand-identity/assets/open-screen-reader-app-icon.png`
 - **Machine-readable tokens:** `docs/brand-identity/assets/brand-tokens.json`
 - **Original concept file:** `docs/brand-identity/animal-concepts/01-owl-frame.png`
@@ -90,3 +92,9 @@ Before shipping, reconstruct the selected PNG as auditable vector geometry and l
 5. documented clear space, minimum sizes, colour tokens, and export procedure.
 
 The native app target now includes `OpenScreenReaderApp/Assets.xcassets/AppIcon.appiconset`. Run `sh scripts/export-app-icon.sh` to reproduce its raster sizes from the canonical approved PNG. These are size exports only; the original geometry, colours, and padding are preserved. The app bundle uses `AppIcon`. Layered Icon Composer artwork, appearance variants, the monochrome menu-bar derivative, and the complete production appearance/accessibility matrix remain pending.
+
+The Settings header displays the installed app icon, product name, current concise claim, and version. `CFBundleName` and `CFBundleDisplayName` both use the existing `OpenScreenReader` product name. The bundle identifier is unchanged so this branding adjustment does not create a new app identity for macOS permissions. The menu bar continues using semantic status symbols until a separate approved monochrome mark is available; the full-colour raster is not used as a tiny menu-bar glyph.
+
+### Implementation verification, 2026-09-05
+
+The new bundle-identity test first failed because `CFBundleDisplayName` was absent and passed after adding it. The 00:18:04 full run passed all 37 app-unit tests, both live permission tests, and the native Settings test, including the named logo image and claim. Three other UI tests failed: the two Finder shortcut checks did not see the overlay, and the drag check encountered an XCTest non-finite-coordinate exception. The total was 42 passed, three failed, zero skipped; it is not a clean full regression result. Release build and plist validation passed. Computer Use attachment to the exact Debug app timed out, so no additional live screenshot inspection is claimed.

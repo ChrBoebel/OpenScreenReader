@@ -5,6 +5,12 @@ import Testing
 @Suite("App status")
 struct AppStatusTests {
     @Test
+    func appBundleUsesApprovedProductNameAndIcon() {
+        #expect(Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String == "OpenScreenReader")
+        #expect(Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String == "OpenScreenReader")
+        #expect(Bundle.main.object(forInfoDictionaryKey: "CFBundleIconName") as? String == "AppIcon")
+    }
+    @Test
     func userFacingTitlesCoverEveryPipelineState() {
         #expect(AppStatus.allCases.map(\.title) == [
             "Ready",
