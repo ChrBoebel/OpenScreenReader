@@ -2,21 +2,21 @@
 
 ## Implemented behavior
 
-`⌃⌥R` or the menu action starts selection. A repeated shortcut or Escape closes the overlay. The borderless overlay panels can activate and accept the first mouse event so the first drag is not lost to window activation. A valid drag dismisses all overlay panels before capture starts. The current spike returns to Ready after verifying the image dimensions and releasing the image; it does not yet recognize or speak text.
+`⌃⌥R` or the menu action starts selection. A repeated shortcut or Escape closes the overlay. The borderless overlay panels can activate and accept the first mouse event so the first drag is not lost to window activation. A valid drag dismisses all overlay panels before capture starts. The image is passed to [local Vision OCR](ocr-verification.md), then the app returns to Ready with character/line counts or an empty-result message. It does not yet speak text.
 
 The selection records display identity, its AppKit point rectangle, backing scale, display geometry, and a topology revision. ScreenCaptureKit receives a display-local **top-left-origin rectangle in logical points**, plus separately calculated output pixel dimensions. Topology changes invalidate selection and pending capture, including changes that restore the same display frames.
 
 The native capture adapter uses Apple's [`SCScreenshotManager.captureImage`](https://developer.apple.com/documentation/screencapturekit/scscreenshotmanager). It explicitly excludes the current application's windows, disables the cursor and audio, and requests sRGB output. No screenshot file, clipboard write, or network operation is part of this code path. The returned image stays in task-local memory; only its dimensions are published. Actual filesystem/network observation remains a release gate.
 
-Control transitions are serialized independently of the asynchronous capture task. Cancellation revokes the operation and cancels its task. Apple's one-shot capture API may finish later, but cancelled or stale results cannot publish status or dimensions. A ten-second timeout releases the application's active operation even if the system callback is slow.
+Control transitions are serialized independently of the asynchronous capture and recognition tasks. Cancellation revokes the operation and cancels both tasks. Apple's one-shot capture API may finish later, but cancelled or stale results cannot publish status, dimensions, or OCR counts. A fifteen-second timeout covers capture plus OCR, releasing the application's active operation even if a system callback is slow.
 
 ## Escape and permissions
 
-The selection overlay handles Escape without additional keyboard permissions. After a valid selection, a listen-only event tap is installed only for the active capture. Its callback checks for Escape and retains no keyboard content. It is removed on success, failure, cancellation, or teardown. A health check stops the operation if the tap is disabled, permission disappears, or Secure Input becomes active.
+The selection overlay handles Escape without additional keyboard permissions. After a valid selection, a listen-only event tap is installed for capture and remains active through OCR. Its callback checks for Escape and retains no keyboard content. It is removed on success, failure, cancellation, or teardown. A health check stops the operation if the tap is disabled, permission disappears, or Secure Input becomes active.
 
 Capture fails with a visible explanation if Input Monitoring or Screen Recording permission is unavailable. The Settings window explains both permissions and offers separate explicit request actions. Merely launching the app or selecting a region does not automatically request a permission.
 
-This is a fail-closed technical spike, **not a passed Gate E**. Minimum/current macOS, Secure Input, permission revocation, sleep/wake, real events with another app focused, physical multi-monitor setups, and end-to-end latency still need validation. OCR, synthesis and playback do not exist yet, so their cancellation behavior cannot be claimed.
+This is a fail-closed technical spike, **not a passed Gate E**. Minimum/current macOS, Secure Input, permission revocation, sleep/wake, physical multi-monitor setups, and end-to-end latency still need broader validation. A manual global Escape-delivery probe passed with another app focused (see below); this is not an end-to-end latency measurement. OCR cancellation has deterministic integration coverage; synthesis and playback do not exist yet.
 
 ## Reproduce checks
 
@@ -102,3 +102,9 @@ The correction disables Hardened Runtime **only in the app's Debug configuration
 - Direct Computer Use attachment to the windowless Debug app again timed out. Computer Use could inspect the Screen Recording settings and confirmed an enabled OpenScreenReader entry despite the failed live preflight. No permission switches or file-picker contents were changed/read during this correction.
 
 Next, the owner must grant access to the exact newly signed Debug app and relaunch it, then rerun the permission-dependent tests without rebuilding. Permission persistence across genuine rebuilds and global Escape delivery after selection remain unverified. The correction does not implement OCR/TTS, establish public distribution signing, or pass Gate E.
+
+### Permission recovery and physical Escape follow-up
+
+After the owner re-added the certificate-signed Debug app, the 23:28:31 run passed both live system tests with no skips. The 23:28:51 UI run passed the actual successful drag-to-capture branch. The 23:29:19 and 23:31:59 manual Escape probes timed out while coordinating the user's input; they do not establish a functional failure without a confirmed key event during the test window.
+
+The 23:37:52 manual probe then **passed**: the owner pressed Escape while another app was foreground, and the real `EscapeMonitor` delivered the event. The test's 12.157-second duration includes waiting for human input; it is not cancellation latency. Subsequent OCR builds retained the same certificate-based designated requirement and passed both live permission tests without another grant. This is evidence on this Mac with this identity, not a guarantee across OS upgrades, certificate replacement, or other machines. See [OCR verification](ocr-verification.md) for the updated pipeline.

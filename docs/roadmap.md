@@ -16,7 +16,7 @@
 - [ ] Global hotkey registration and conflict handling.
 - [ ] Multi-monitor region-selection overlay.
 - [ ] Selected-region capture with ScreenCaptureKit/CoreGraphics.
-- [ ] Apple Vision OCR for German and English.
+- [x] Basic Apple Vision OCR for German and English ([verification and remaining layout checks](ocr-verification.md)).
 - [ ] Local Qwen MLX worker with streamed first chunk.
 - [ ] Cancellation from `Esc` through the complete pipeline.
 - [ ] Packaged worker and bundled-model signing/notarization experiment.

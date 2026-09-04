@@ -8,7 +8,7 @@
 
 OpenScreenReader is a planned open-source macOS menu bar app that reads any visible text aloud with natural, fully local AI voices.
 
-> Status: native macOS menu bar app with a global hotkey, region selection, an in-memory ScreenCaptureKit adapter, permission guidance, and the approved Owl Frame app icon. Permission-enabled capture and Escape-monitor setup have been tested on the development Mac. The integration remains experimental: global Escape delivery and the broader permission/display matrix are not yet verified. OCR, speech, and configurable shortcuts are not implemented. No application has been released yet.
+> Status: native macOS menu bar app with a global hotkey, region selection, in-memory ScreenCaptureKit capture, and local German/English OCR using Apple Vision. The menu reports recognized character/line counts or an empty result; image and text content are discarded after recognition. Speech and configurable shortcuts are not implemented. Capture, OCR fixtures, and a manual global Escape-delivery probe have passed on the development Mac. The integration remains experimental: the Finder-hotkey UI test is intermittent, and the broader permission/display/layout matrix is not yet verified. No application has been released yet.
 
 ## Product promise
 
@@ -51,6 +51,7 @@ The implementation architecture is provisional and must be validated with focuse
 - [Roadmap](docs/roadmap.md)
 - [Architecture decisions](docs/decisions/)
 - [Capture implementation and verification](docs/capture-verification.md)
+- [Local OCR implementation and verification](docs/ocr-verification.md)
 - [Approved brand system](docs/brand-identity/BRAND_SYSTEM.md)
 - [Contributing](CONTRIBUTING.md)
 
