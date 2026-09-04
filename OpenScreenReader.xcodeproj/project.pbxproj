@@ -374,7 +374,8 @@
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_HARDENED_RUNTIME = YES;
+				/* Local self-signed identities have no Apple Team ID for library validation. */
+				ENABLE_HARDENED_RUNTIME = NO;
 				ENABLE_TESTABILITY = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				GENERATE_INFOPLIST_FILE = NO;
