@@ -2,6 +2,8 @@
 
 > Diese Architektur ist eine begründete Ausgangshypothese. Die Prozessgrenzen und Packaging-Strategie werden durch technische Spikes validiert, bevor der vollständige MVP entsteht.
 
+Aktueller Integrationsstand und noch ausstehende Freigaben für die Vorlesefunktion: [TTS integration readiness](research/tts-integration-readiness.md). Die dort untersuchte native Swift-Alternative ist noch keine festgelegte Runtime.
+
 ## Systemübersicht
 
 ```text
