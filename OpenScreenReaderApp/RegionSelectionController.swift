@@ -179,7 +179,7 @@ private final class SelectionOverlayPanel: NSPanel {
     ) {
         super.init(
             contentRect: screen.frame,
-            styleMask: [.borderless, .nonactivatingPanel],
+            styleMask: [.borderless],
             backing: .buffered,
             defer: false
         )
@@ -213,6 +213,8 @@ private final class SelectionOverlayView: NSView {
     private var selectionRect = CGRect.zero
 
     override var acceptsFirstResponder: Bool { true }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     init(
         screen: NSScreen,
