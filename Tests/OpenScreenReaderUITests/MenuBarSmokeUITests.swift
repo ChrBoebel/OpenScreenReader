@@ -17,7 +17,7 @@ final class MenuBarSmokeUITests: XCTestCase {
 
         XCTAssertTrue(
             statusItem.waitForExistence(timeout: 5),
-            "Expected the OpenScreenReader menu bar item to be accessible.\n\(app.debugDescription)"
+            "Expected the OpenScreenReader menu bar item to be accessible."
         )
         statusItem.click()
 
@@ -40,7 +40,7 @@ final class MenuBarSmokeUITests: XCTestCase {
         let overlay = app.groups["Screen region selection"].firstMatch
         XCTAssertTrue(
             overlay.waitForExistence(timeout: 2),
-            "The global shortcut did not expose the selection overlay.\n\(app.debugDescription)"
+            "The menu action did not expose the selection overlay.\n\(statusDescription(in: app))"
         )
 
         app.typeKey(.escape, modifierFlags: [])
@@ -63,7 +63,7 @@ final class MenuBarSmokeUITests: XCTestCase {
         let overlay = app.groups["Screen region selection"].firstMatch
         XCTAssertTrue(
             overlay.waitForExistence(timeout: 2),
-            "Expected an accessible selection overlay.\n\(app.debugDescription)"
+            "Expected an accessible selection overlay.\n\(statusDescription(in: app))"
         )
 
         let start = overlay.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.25))
@@ -73,14 +73,14 @@ final class MenuBarSmokeUITests: XCTestCase {
         let finishedStatus = app.descendants(matching: .statusItem)
             .matching(NSPredicate(format: "title IN {'OpenScreenReader, Ready', 'OpenScreenReader, Error'}"))
             .firstMatch
-        XCTAssertTrue(finishedStatus.waitForExistence(timeout: 12))
+        XCTAssertTrue(finishedStatus.waitForExistence(timeout: 12), statusDescription(in: app))
         let failed = finishedStatus.title == "OpenScreenReader, Error"
         finishedStatus.click()
         if failed {
             let permissionError = app.menuItems.matching(NSPredicate(
                 format: "title CONTAINS 'Allow Input Monitoring' OR title CONTAINS 'Allow Screen Recording'"
             )).firstMatch
-            XCTAssertTrue(permissionError.waitForExistence(timeout: 2), app.debugDescription)
+            XCTAssertTrue(permissionError.waitForExistence(timeout: 2), statusDescription(in: app))
         } else {
             XCTAssertTrue(app.menuItems["Region captured locally. No image was saved."].waitForExistence(timeout: 2))
         }
@@ -117,7 +117,7 @@ final class MenuBarSmokeUITests: XCTestCase {
         let overlay = app.groups["Screen region selection"].firstMatch
         XCTAssertTrue(
             overlay.waitForExistence(timeout: 2),
-            "Expected the global hotkey to expose the selection overlay.\n\(app.debugDescription)"
+            "Expected the global hotkey to expose the selection overlay.\n\(statusDescription(in: app))"
         )
 
         finder.activate()
@@ -127,6 +127,12 @@ final class MenuBarSmokeUITests: XCTestCase {
             .matching(NSPredicate(format: "title == 'OpenScreenReader, Stopped'"))
             .firstMatch
         XCTAssertTrue(stoppedStatus.waitForExistence(timeout: 2))
+    }
+
+    @MainActor
+    private func statusDescription(in app: XCUIApplication) -> String {
+        // Do not include the application's Apple menu and private Recent Items.
+        app.descendants(matching: .statusItem).debugDescription
     }
 
     @MainActor
