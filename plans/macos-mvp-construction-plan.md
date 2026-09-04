@@ -8,7 +8,7 @@ Execution mode: direct local changes; no commits, pushes, releases, or model dow
 
 - 2026-09-04: source-of-truth documents and ADRs were reconciled with the native Swift, bundled-model, no-runtime-network, macOS 14, Apple Silicon, and single-display-drag decisions.
 - 2026-09-04: SwiftPM foundation created with `OpenScreenReaderCore` and a dependency-free behavior-check executable.
-- 2026-09-04: the first coordinator slice passed nine behavior checks and a production build. It covers generation and worker-epoch validity, legal forward transitions, atomic revocation, deterministic cleanup instructions, a cleanup barrier before replacement starts, atomic publication of replacement epochs, supersession, and exactly-once terminal acceptance.
+- 2026-09-04: the coordinator foundation passed eleven behavior checks and a production build. It covers generation and worker-epoch validity, legal forward transitions, cancellation from every active phase, 500 repeated cancellation cycles, atomic revocation, deterministic cleanup instructions, a cleanup barrier before replacement starts, atomic publication of replacement epochs, supersession, and exactly-once terminal acceptance. Adapter-level task and resource cancellation remains for the corresponding integration gates.
 - Current blocker: full Xcode is not installed or selected. The active Command Line Tools installation can compile Swift 6.2, but cannot provide the native app/UI targets or expose Apple test frameworks through SwiftPM. Step 0 remains open, and Steps 1-3 must not be reported complete until Xcode tests and real macOS interaction checks run.
 
 ## Outcome

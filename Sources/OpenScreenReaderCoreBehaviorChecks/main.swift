@@ -30,7 +30,9 @@ struct OpenScreenReaderCoreBehaviorChecks {
         try await run("completion emits one terminal state", completionEmitsOneTerminalState)
         try await run("failure emits one terminal state", failureEmitsOneTerminalState)
         try await run("inactive cancellation does nothing", inactiveCancellationDoesNothing)
-        print("All 9 OpenScreenReaderCore behavior checks passed.")
+        try await run("every active phase cancels completely", everyActivePhaseCancelsCompletely)
+        try await run("cancellation storm remains reusable", cancellationStormRemainsReusable)
+        print("All 11 OpenScreenReaderCore behavior checks passed.")
     }
 
     private static func run(
@@ -302,5 +304,81 @@ struct OpenScreenReaderCoreBehaviorChecks {
         try expect(snapshot.phase == .idle, "inactive coordinator must remain idle")
         try expect(snapshot.activeContext == nil, "inactive coordinator must have no context")
         try expect(snapshot.lastTerminal == nil, "inactive cancellation must not add history")
+    }
+
+    private static func everyActivePhaseCancelsCompletely() async throws {
+        let cases: [(phase: PipelinePhase, transitions: [PipelinePhase])] = [
+            (.selecting, []),
+            (.capturing, [.capturing]),
+            (.recognizing, [.capturing, .recognizing]),
+            (.synthesizing, [.capturing, .recognizing, .synthesizing]),
+            (.speaking, [.capturing, .recognizing, .synthesizing, .speaking]),
+        ]
+
+        for testCase in cases {
+            let coordinator = PipelineCoordinator()
+            let context = try await startContext(coordinator)
+
+            for transition in testCase.transitions {
+                let accepted = await coordinator.accept(transition, for: context)
+                try expect(accepted, "setup transition to \(transition) must be accepted")
+            }
+
+            let beforeCancel = await coordinator.snapshot()
+            let directive = await coordinator.cancel()
+            let afterCancel = await coordinator.snapshot()
+            let lateCompletion = await coordinator.complete(context)
+
+            try expect(beforeCancel.phase == testCase.phase, "test must reach \(testCase.phase)")
+            try expect(directive?.context == context, "cancel must target the active context")
+            try expect(afterCancel.activeContext == nil, "cancel from \(testCase.phase) must revoke")
+            try expect(afterCancel.phase == .idle, "cancel from \(testCase.phase) must become idle")
+            try expect(
+                afterCancel.lastTerminal == PipelineTerminal(context: context, reason: .stopped),
+                "cancel from \(testCase.phase) must record stopped"
+            )
+            try expect(afterCancel.pendingCancellation == directive, "cleanup must remain required")
+            try expect(!lateCompletion, "cancelled \(testCase.phase) must reject late completion")
+        }
+    }
+
+    private static func cancellationStormRemainsReusable() async throws {
+        let coordinator = PipelineCoordinator()
+        let iterations: UInt64 = 500
+        var latestContext: PipelineOperationContext?
+
+        for _ in 0..<iterations {
+            let context = try await startContext(coordinator)
+            latestContext = context
+
+            guard let cleanup = await coordinator.cancel() else {
+                throw CheckFailure(description: "active storm generation must be cancellable")
+            }
+            let duplicateCancel = await coordinator.cancel()
+            let blockedStart = await coordinator.start()
+            let firstCleanup = await coordinator.finishCleanup(for: context)
+            let duplicateCleanup = await coordinator.finishCleanup(for: context)
+
+            try expect(duplicateCancel == nil, "duplicate cancel must not create another terminal event")
+            try expect(
+                blockedStart == .cleanupRequired(cleanup),
+                "storm start must not bypass pending cleanup"
+            )
+            try expect(firstCleanup, "matching storm cleanup must release its barrier")
+            try expect(!duplicateCleanup, "cleanup acknowledgement must be accepted once")
+        }
+
+        let snapshot = await coordinator.snapshot()
+        try expect(snapshot.activeContext == nil, "storm must finish without active context")
+        try expect(snapshot.phase == .idle, "storm must finish idle")
+        try expect(snapshot.pendingCancellation == nil, "storm must finish without cleanup barrier")
+        try expect(snapshot.workerEpoch.rawValue == 1, "cooperative cancellation must retain worker epoch")
+        try expect(latestContext?.generation.rawValue == iterations, "every storm start must be unique")
+        try expect(
+            snapshot.lastTerminal == latestContext.map {
+                PipelineTerminal(context: $0, reason: .stopped)
+            },
+            "storm must retain only the latest terminal state"
+        )
     }
 }
