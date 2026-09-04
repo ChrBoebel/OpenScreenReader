@@ -1,14 +1,16 @@
 # OpenScreenReader — Visual Identity Directions
 
-**Status:** Exploratory design brief
-**Decision surface:** Compare and select a visual territory before producing final logo assets.
+**Status:** Direction selected; retained as exploration history
+**Decision:** The original **Owl Frame** is the approved app logo. See [`BRAND_SYSTEM.md`](BRAND_SYSTEM.md) for the normative identity and colour system.
 **Brand basis:** `90_SYNTHESIS.md`, modules 10–70, product and privacy documentation.
 
 ## Executive recommendation
 
-Start with **Direction A — Frame Friend** and retain **Direction B — Open Signal** as the more restrained alternative.
+The exploration concluded with the original **Owl Frame** concept in `animal-concepts/01-owl-frame.png`. It is now canonicalised as `assets/open-screen-reader-app-icon.png` and selected for the OpenScreenReader app logo.
 
-Frame Friend is the strongest fit because it derives its character directly from the product gesture — selecting a screen region — while a very subtle face makes the utility feel approachable. It can look warm without becoming a mascot, and it avoids implying that OpenScreenReader is a complete assistive screen reader.
+The selected design keeps the product-derived selection frame while making the owl immediately recognisable through its almond-shaped eyes, light central beak, forehead arches, and contained voice curve. Later text-to-wave refinements were useful explorations but did not improve the overall aesthetic balance and are not approved assets.
+
+The approved palette is **Local Ink** `#0B1724`, **Voice Mint** `#55E0BE`, **Mint Light** `#B8F7E7`, and **Warm Paper** `#F7F4ED`. The complete usage rules, accessibility guardrails, and production handoff are defined in [`BRAND_SYSTEM.md`](BRAND_SYSTEM.md).
 
 ## What “Silicon Valley quality” should mean here
 
@@ -229,7 +231,7 @@ Each finalist should pass all of these tests:
 - Can be rebuilt as clean vectors and as Icon Composer layers.
 - Meets contrast and reduced-transparency expectations in the product UI.
 
-## Proposed next decision
+## Historical proposed decision
 
 Select one of these routes:
 
@@ -237,7 +239,7 @@ Select one of these routes:
 - **B — Open Signal:** safest premium/minimal direction.
 - **A/B hybrid:** Frame Friend for the app icon, with its face removed for the corporate mark and menu-bar glyph.
 
-The A/B hybrid is the recommended path: it preserves the sympathetic Dock presence the user wants while keeping technical and repository contexts calm and professional.
+This proposal was superseded by the explicit selection of the original Owl Frame as the app logo. It remains here to preserve the reasoning trail; use [`BRAND_SYSTEM.md`](BRAND_SYSTEM.md) as the current source of truth.
 
 ## Sources
 

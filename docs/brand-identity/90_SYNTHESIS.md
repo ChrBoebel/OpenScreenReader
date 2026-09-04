@@ -3,7 +3,7 @@
 - Status: evidence-based working draft
 - Session: `OpenScreenReader-brand-2026-09`
 - Participant: Christopher, represented in this pass by an explicitly delegated founder proxy
-- Scope: strategic verbal identity; visual identity is not yet defined
+- Scope: strategic verbal identity plus approved visual direction
 - Product stage: foundation and architecture validation; no working application has been released
 
 This draft synthesizes confirmed founder directives and existing repository documentation. Direct evidence, interpretation, provisional recommendations, and open decisions are intentionally distinguished. It contains no inferred founder biography, diagnosis, or customer testimony.
@@ -237,7 +237,7 @@ Text appears in slides, tickets, chats, PDFs, images, and interfaces—not alway
 
 | Facet | Working definition |
 | --- | --- |
-| Physique | Native macOS menu-bar presence, region-selection gesture, minimal status feedback, and natural local voice. Visual identity remains undefined. |
+| Physique | Native macOS menu-bar presence, region-selection gesture, minimal status feedback, and the approved Owl Frame app logo in Local Ink, Voice Mint, Mint Light, and Warm Paper. |
 | Personality | Calm, capable, respectful, transparent, quietly modern. |
 | Culture | Accessibility, local-first privacy, user agency, open-source inspectability, and evidence before claims. |
 | Relationship | Invited helper: appears on command, handles only the selected content, explains trust-sensitive actions, and stops immediately. |
@@ -322,7 +322,7 @@ Until these gates pass, public copy should use development language such as “b
 4. Decide whether accessibility, privacy, or productivity leads the top-level story.
 5. Choose the launch-language hierarchy and finalize German/English terminology.
 6. Define measurable acceptance thresholds for naturalness, immediacy, offline behavior, and cancellation claims.
-7. Establish a visual identity; no evidence yet supports color, type, iconography, imagery, or motion choices.
+7. Produce the approved Owl Frame app logo as precise vector geometry, Icon Composer layers, and a tested monochrome menu-bar derivative. The visual direction and core palette are defined in `BRAND_SYSTEM.md`; production assets remain outstanding.
 
 ### Founder and project model
 
@@ -350,4 +350,5 @@ Until these gates pass, public copy should use development language such as “b
 - **Leading line:** “Select any text. Hear it naturally. Keep it local.”, provisional
 - **Non-negotiables:** local OCR/TTS after download, no account/cloud fallback/default telemetry/history, immediate cancellation, no VoiceOver-replacement claim
 - **Founder model:** product-first, founder-transparent, provisional
+- **Visual identity:** Owl Frame app logo; Local Ink `#0B1724`, Voice Mint `#55E0BE`, Mint Light `#B8F7E7`, Warm Paper `#F7F4ED`
 - **Current communication status:** describe an intended product under validation, not a released capability

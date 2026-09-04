@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "status": "approved",
+  "decisionDate": "2026-09-04",
+  "appLogo": {
+    "name": "Owl Frame",
+    "canonicalRaster": "open-screen-reader-app-icon.png",
+    "productionVectorStatus": "pending"
+  },
+  "colors": {
+    "localInk": {
+      "hex": "#0B1724",
+      "role": "dark foundation and primary dark text"
+    },
+    "voiceMint": {
+      "hex": "#55E0BE",
+      "role": "primary brand accent and selection state"
+    },
+    "mintLight": {
+      "hex": "#B8F7E7",
+      "role": "soft highlight and secondary tint"
+    },
+    "warmPaper": {
+      "hex": "#F7F4ED",
+      "role": "light canvas and warm detail"
+    }
+  },
+  "contrastRatios": {
+    "localInkOnVoiceMint": 11.01,
+    "localInkOnMintLight": 15.05,
+    "localInkOnWarmPaper": 16.45,
+    "voiceMintOnWarmPaper": 1.49
+  }
+}

@@ -1,5 +1,9 @@
 # OpenScreenReader
 
+<p align="center">
+  <img src="docs/brand-identity/assets/open-screen-reader-app-icon.png" alt="OpenScreenReader owl app logo" width="160">
+</p>
+
 **Select. Listen. Stay private.**
 
 OpenScreenReader is a planned open-source macOS menu bar app that reads any visible text aloud with natural, fully local AI voices.
@@ -46,6 +50,7 @@ The implementation architecture is provisional and must be validated with focuse
 - [Research summary](docs/research/market-and-tts-findings.md)
 - [Roadmap](docs/roadmap.md)
 - [Architecture decisions](docs/decisions/)
+- [Approved brand system](docs/brand-identity/BRAND_SYSTEM.md)
 - [Contributing](CONTRIBUTING.md)
 
 ## Privacy principles
