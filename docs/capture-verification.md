@@ -118,3 +118,7 @@ The 23:37:52 manual probe then **passed**: the owner pressed Escape while anothe
 - The full 23:59:43 run passed 31 Swift Testing tests, both real permission-dependent system tests, and all four native UI tests, without skips or failures. German Y resolves to key code 6 and US Y to 16. The Finder test passed selection start and repeated-shortcut cancellation (35.686 seconds). One green run does not establish that the previously observed UI-test intermittency is permanently resolved.
 - The ARM64 Release build succeeded after midnight on September 5. The normal local certificate was reused for Debug; neither permission needed another grant.
 - Computer Use attachment to the menu-bar-only app again timed out. The app was nevertheless started and its exact Debug process was confirmed; native XCUITest provided the global shortcut evidence. Changing keyboard layouts while the app is running still requires restarting the app to resolve the new physical Y key.
+
+### Configurable shortcut follow-up, 2026-09-05
+
+The fixed shortcut has been replaced with locally saved settings and conflict-safe reconfiguration. ⌘⇧Y remains the default, and the selected shortcut continues to start/cancel the same pipeline. See [Shortcut verification](shortcut-verification.md) for the new registration, persistence, and native UI checks; the broader capture/permission gates above remain separate.

@@ -8,11 +8,15 @@
 
 OpenScreenReader is a planned open-source macOS menu bar app that reads any visible text aloud with natural, fully local AI voices.
 
-> Status: native macOS menu bar app with a global hotkey, region selection, in-memory ScreenCaptureKit capture, and local German/English OCR using Apple Vision. The menu reports recognized character/line counts or an empty result; image and text content are discarded after recognition. Speech and configurable shortcuts are not implemented. Capture, OCR fixtures, and a manual global Escape-delivery probe have passed on the development Mac. The integration remains experimental: the Finder-hotkey UI test is intermittent, and the broader permission/display/layout matrix is not yet verified. No application has been released yet.
+> Status: native macOS menu bar app with a configurable global hotkey, region selection, in-memory ScreenCaptureKit capture, and local German/English OCR using Apple Vision. The menu reports recognized character/line counts or an empty result; image and text content are discarded after recognition. Speech is not implemented. Capture, OCR fixtures, and a manual global Escape-delivery probe have passed on the development Mac. The integration remains experimental: the Finder-hotkey UI test has been intermittent, and the broader permission/display/layout matrix is not yet verified. No application has been released yet.
 
 ## Product promise
 
-Current shortcut: **⌘⇧Y (Command + Shift + Y)** starts region selection; pressing it again or Escape cancels. This owner-selected shortcut overlaps macOS's “Make Sticky” service while OpenScreenReader is running. The Y key is resolved from the keyboard layout when the app starts; restart the app after changing layouts.
+Default shortcut: **⌘⇧Y (Command + Shift + Y)** starts region selection; pressing the selected shortcut again or Escape cancels. To change it, open the menu bar icon → **Settings… → Keyboard shortcut**, choose modifiers and a key, then **Apply Shortcut**. The choice takes effect immediately and is saved locally across restarts. **Restore Default** returns to ⌘⇧Y. Changes are blocked during an active operation so its cancellation shortcut remains available.
+
+Supported keys are A–Z, 0–9, and Space, combined with Command, Option, or Control; Shift is optional. Failed registration leaves the previous shortcut active and does not save the rejected choice. System-wide registrations are checked through Carbon, but ordinary app commands and services cannot all be detected: Command-only choices require confirmation, and the default overlaps macOS’s “Make Sticky” service. Keys are resolved from the current keyboard layout when registered; restart the app or apply the shortcut again after changing layouts.
+
+Implementation checks and remaining limitations are recorded in [Shortcut verification](docs/shortcut-verification.md).
 
 - Press a global keyboard shortcut.
 - Drag a rectangle over any visible text.

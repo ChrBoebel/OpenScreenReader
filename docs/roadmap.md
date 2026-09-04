@@ -13,7 +13,7 @@
 ## Phase 1 — Technical spikes
 
 - [x] Native menu bar shell with an automated UI smoke test.
-- [ ] Global hotkey registration and conflict handling.
+- [x] Configurable global hotkey registration, local preference persistence, and transactional conflict handling. Broader layout/system-shortcut coverage remains experimental.
 - [ ] Multi-monitor region-selection overlay.
 - [ ] Selected-region capture with ScreenCaptureKit/CoreGraphics.
 - [x] Basic Apple Vision OCR for German and English ([verification and remaining layout checks](ocr-verification.md)).
@@ -28,7 +28,8 @@ Each spike needs a small reproducible test or benchmark and a written decision b
 
 - [ ] Integrate hotkey → overlay → screenshot → OCR → TTS → playback.
 - [ ] Add sentence segmentation and text normalization.
-- [ ] Add menu bar settings for hotkey, voice, speed, and model lifecycle.
+- [x] Add menu bar settings for the hotkey, including restore-default and conflict feedback.
+- [ ] Add settings for voice, speed, and model lifecycle.
 - [ ] Add explicit permissions onboarding.
 - [ ] Add bundled-model manifest, source/license display, and integrity checks.
 - [ ] Add error recovery and worker health monitoring.

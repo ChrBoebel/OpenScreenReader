@@ -30,6 +30,7 @@ Updateprüfungen sind später nur transparent und abschaltbar zulässig. Eine fe
 
 ## Speicher- und Lebenszyklus
 
+- Die gewählte Tastenkombination (Taste und Modifikatoren) wird lokal unter `readingShortcut.v1` in UserDefaults gespeichert. Die Auswahl erfasst keine Tastatureingaben und enthält keine Bildschirm-, OCR- oder Audioinhalte.
 - Screenshots bleiben im Prozessspeicher und werden nach OCR freigegeben.
 - OCR-Text bleibt nur so lange erhalten, wie Auftrag und Wiedergabe laufen.
 - Audiopuffer werden nach Wiedergabe oder Abbruch verworfen.
