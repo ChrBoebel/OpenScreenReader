@@ -9,6 +9,7 @@ xcuserdata/
 
 # Swift Package Manager
 .build/
+Runtime/.generated/
 .swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
 
 # Python / local TTS worker
