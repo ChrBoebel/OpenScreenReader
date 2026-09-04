@@ -20,7 +20,7 @@ struct AppStatusTests {
     @Test
     @MainActor
     func appModelStartsReadyWithAnIdleCoordinator() async {
-        let model = AppModel(hotkeyManager: RegisteredHotkeyManagerFake())
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: RegisteredHotkeyManagerFake())
         let snapshot = await model.pipelineCoordinator.snapshot()
 
         #expect(model.status == .ready)

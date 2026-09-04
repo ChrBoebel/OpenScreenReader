@@ -10,9 +10,12 @@ final class AppModel: ObservableObject {
     @Published private(set) var lastCaptureSize: CGSize?
     @Published private(set) var lastOCRSummary: OCRSummary?
     @Published private(set) var errorMessage: String?
+    @Published private(set) var shortcutConfiguration: ShortcutConfiguration
+    @Published private(set) var shortcutNotice: String?
 
     let pipelineCoordinator: PipelineCoordinator
     private let hotkeyManager: any HotkeyManaging
+    private let shortcutStore: any ShortcutStoring
     private let selectionController: any RegionSelectionControlling
     private let captureService: any ScreenCapturing
     private let escapeMonitor: any EscapeMonitoring
@@ -30,6 +33,7 @@ final class AppModel: ObservableObject {
     }
 
     init(
+        shortcutStore: any ShortcutStoring = UserDefaultsShortcutStore(),
         pipelineCoordinator: PipelineCoordinator = PipelineCoordinator(),
         hotkeyManager: any HotkeyManaging = GlobalHotkeyManager(),
         selectionController: any RegionSelectionControlling = RegionSelectionOverlayController(),
@@ -39,6 +43,8 @@ final class AppModel: ObservableObject {
         operationTimeout: Duration = .seconds(15)
     ) {
         self.pipelineCoordinator = pipelineCoordinator
+        self.shortcutStore = shortcutStore
+        self.shortcutConfiguration = shortcutStore.load() ?? .default
         self.hotkeyManager = hotkeyManager
         self.selectionController = selectionController
         self.captureService = captureService
@@ -46,14 +52,43 @@ final class AppModel: ObservableObject {
         self.ocrService = ocrService
         self.operationTimeout = operationTimeout
         hotkeyManager.onPress = { [weak self] in self?.enqueueReadRequest() }
-        hotkeyRegistration = hotkeyManager.register(.readScreenRegion)
+        hotkeyRegistration = hotkeyManager.register(shortcutConfiguration.resolvedShortcut())
         if hotkeyRegistration != .registered {
             status = .error
-            errorMessage = Self.registrationErrorMessage(for: hotkeyRegistration)
+            errorMessage = Self.registrationErrorMessage(for: hotkeyRegistration, shortcut: shortcutConfiguration)
         }
     }
 
     var readActionTitle: String { activeContext == nil ? "Read Screen Region…" : "Stop Reading" }
+    var canChangeShortcut: Bool { activeContext == nil }
+
+    func enqueueShortcutChange(_ configuration: ShortcutConfiguration) {
+        enqueue { $0.changeShortcut(configuration) }
+    }
+
+    private func changeShortcut(_ configuration: ShortcutConfiguration) {
+        guard canChangeShortcut else {
+            shortcutNotice = "Stop the current operation before changing its shortcut."
+            return
+        }
+        guard configuration.isValid else {
+            shortcutNotice = "Choose a key and at least Command, Option, or Control. Escape is reserved for cancellation."
+            return
+        }
+        let result = hotkeyManager.register(configuration.resolvedShortcut())
+        guard result == .registered else {
+            shortcutNotice = Self.registrationErrorMessage(for: result, shortcut: configuration)
+            return
+        }
+        if hotkeyRegistration != .registered {
+            status = .ready
+            errorMessage = nil
+        }
+        hotkeyRegistration = .registered
+        shortcutConfiguration = configuration
+        shortcutStore.save(configuration)
+        shortcutNotice = "Shortcut \(configuration.displayName) is active and saved."
+    }
 
     var captureFeedback: String {
         if status == .capturing { return "Capturing selected region locally…" }
@@ -99,7 +134,7 @@ final class AppModel: ObservableObject {
     private func processReadRequest() async {
         guard hotkeyRegistration == .registered else {
             status = .error
-            errorMessage = Self.registrationErrorMessage(for: hotkeyRegistration)
+            errorMessage = Self.registrationErrorMessage(for: hotkeyRegistration, shortcut: shortcutConfiguration)
             return
         }
         if let activeContext {
@@ -236,10 +271,12 @@ final class AppModel: ObservableObject {
         escapeMonitor.stop()
     }
 
-    private static func registrationErrorMessage(for registration: HotkeyRegistration) -> String? {
+    private static func registrationErrorMessage(
+        for registration: HotkeyRegistration, shortcut: ShortcutConfiguration
+    ) -> String? {
         switch registration {
         case .inactive, .registered: nil
-        case .conflict: "The shortcut \(HotkeyShortcut.readScreenRegion.displayName) is already in use."
+        case .conflict: "The shortcut \(shortcut.displayName) is already in use."
         case let .failed(status): "The global shortcut could not be registered (error \(status))."
         }
     }

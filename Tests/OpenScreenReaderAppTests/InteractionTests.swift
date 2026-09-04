@@ -8,11 +8,110 @@ import Testing
 @MainActor
 struct InteractionTests {
     @Test
+    func customShortcutPersistsAndConflictKeepsPreviousBinding() async {
+        let store = MemoryShortcutStore()
+        let hotkey = HotkeyManagerFake(registrationResult: .registered)
+        let model = AppModel(shortcutStore: store, hotkeyManager: hotkey)
+        let custom = ShortcutConfiguration(key: "J", modifiers: UInt32(cmdKey | shiftKey))
+        model.enqueueShortcutChange(custom)
+        await model.waitForInteractionToSettle()
+        #expect(model.shortcutConfiguration == custom)
+        #expect(store.saved == custom)
+        #expect(hotkey.registeredShortcut == custom.resolvedShortcut())
+        hotkey.registrationResult = .conflict
+        model.enqueueShortcutChange(.default)
+        await model.waitForInteractionToSettle()
+        #expect(model.shortcutConfiguration == custom)
+        #expect(hotkey.registeredShortcut == custom.resolvedShortcut())
+        #expect(model.hotkeyRegistration == .registered)
+        #expect(store.saved == custom)
+        #expect(model.shortcutNotice?.contains("already in use") == true)
+        let restored = AppModel(shortcutStore: store,
+            hotkeyManager: HotkeyManagerFake(registrationResult: .registered))
+        #expect(restored.shortcutConfiguration == custom)
+        hotkey.registrationResult = .registered
+        model.enqueueShortcutChange(.default)
+        await model.waitForInteractionToSettle()
+        #expect(store.saved == .default)
+    }
+
+    @Test
+    func shortcutCannotChangeDuringSelectionAndInvalidSettingsAreRejected() async {
+        let store = MemoryShortcutStore()
+        let model = AppModel(shortcutStore: store,
+            hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+            selectionController: RegionSelectionControllerFake())
+        model.enqueueShortcutChange(ShortcutConfiguration(key: "Y", modifiers: 0))
+        await model.waitForInteractionToSettle()
+        #expect(store.saved == nil)
+        await model.handleReadRequest()
+        model.enqueueShortcutChange(ShortcutConfiguration(key: "J", modifiers: UInt32(cmdKey | shiftKey)))
+        await model.waitForInteractionToSettle()
+        #expect(model.shortcutConfiguration == .default)
+        #expect(store.saved == nil)
+        #expect(model.status == .selecting)
+        await model.handleReadRequest()
+        #expect(model.status == .stopped)
+    }
+
+    @Test
+    func shortcutSettingsValidateAndPersistOnlyConfiguration() throws {
+        let suite = "com.christopherbobel.OpenScreenReader.tests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = UserDefaultsShortcutStore(defaults: defaults)
+        let custom = ShortcutConfiguration(key: "R", modifiers: UInt32(controlKey | optionKey))
+        #expect(custom.displayName == "⌃⌥R")
+        #expect(custom.isValid)
+        #expect(!ShortcutConfiguration(key: "Escape", modifiers: UInt32(cmdKey)).isValid)
+        #expect(!ShortcutConfiguration(key: "Y", modifiers: UInt32(shiftKey)).isValid)
+        #expect(!ShortcutConfiguration(key: "Y", modifiers: UInt32(cmdKey) | 1).isValid)
+        store.save(custom)
+        #expect(store.load() == custom)
+        #expect(defaults.persistentDomain(forName: suite)?.count == 1)
+        defaults.set(Data("invalid".utf8), forKey: UserDefaultsShortcutStore.preferenceKey)
+        #expect(store.load() == nil)
+        defaults.set(try JSONEncoder().encode(ShortcutConfiguration(key: "Escape", modifiers: 0)),
+                     forKey: UserDefaultsShortcutStore.preferenceKey)
+        #expect(store.load() == nil)
+    }
+
+    @Test
+    func realRegistrationPreservesOldBindingOnConflictAndReleasesItOnSuccess() {
+        let manager = GlobalHotkeyManager()
+        let competitor = GlobalHotkeyManager()
+        let probe = GlobalHotkeyManager()
+        defer { manager.unregister(); competitor.unregister(); probe.unregister() }
+        let old = ShortcutConfiguration(key: "8", modifiers: UInt32(controlKey | optionKey | shiftKey)).resolvedShortcut()
+        let new = ShortcutConfiguration(key: "9", modifiers: UInt32(controlKey | optionKey | shiftKey)).resolvedShortcut()
+        #expect(manager.register(old) == .registered)
+        #expect(manager.register(old) == .registered)
+        #expect(competitor.register(new) == .registered)
+        #expect(manager.register(new) == .conflict)
+        #expect(probe.register(old) == .conflict)
+        competitor.unregister()
+        #expect(manager.register(new) == .registered)
+        #expect(probe.register(old) == .registered)
+    }
+
+    @Test
+    func changingShortcutRecoversFromStartupConflict() async {
+        let hotkey = HotkeyManagerFake(registrationResult: .conflict)
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: hotkey)
+        #expect(model.status == .error)
+        hotkey.registrationResult = .registered
+        model.enqueueShortcutChange(ShortcutConfiguration(key: "J", modifiers: UInt32(cmdKey | shiftKey)))
+        await model.waitForInteractionToSettle()
+        #expect(model.status == .ready)
+        #expect(model.errorMessage == nil)
+    }
+
+    @Test
     func captureAutomaticallyRecognizesTextAndRetainsOnlyCounts() async {
         let selection = RegionSelectionControllerFake()
         let ocr = OCRFake()
         let escape = EscapeFake()
-        let model = AppModel(hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             selectionController: selection, captureService: CaptureFake(), escapeMonitor: escape,
             ocrService: ocr)
         await model.handleReadRequest()
@@ -34,7 +133,7 @@ struct InteractionTests {
         let selection = RegionSelectionControllerFake()
         let ocr = OCRFake()
         ocr.result = OCRResult(lines: [])
-        let model = AppModel(hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             selectionController: selection, captureService: CaptureFake(), escapeMonitor: EscapeFake(),
             ocrService: ocr)
         await model.handleReadRequest()
@@ -52,7 +151,7 @@ struct InteractionTests {
         let ocr = OCRFake()
         ocr.suspend = true
         let escape = EscapeFake()
-        let model = AppModel(hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             selectionController: selection, captureService: CaptureFake(), escapeMonitor: escape,
             ocrService: ocr)
         await model.handleReadRequest()
@@ -61,6 +160,10 @@ struct InteractionTests {
         await ocr.waitUntilStarted()
         #expect(model.status == .recognizing)
         #expect(escape.isActive)
+        model.enqueueShortcutChange(ShortcutConfiguration(key: "J", modifiers: UInt32(cmdKey | shiftKey)))
+        await model.waitForInteractionToSettle()
+        #expect(model.shortcutConfiguration == .default)
+        #expect(!model.canChangeShortcut)
         if repeatedShortcut { await model.handleReadRequest() }
         else { escape.onEscape?(); await model.waitForInteractionToSettle() }
         #expect(model.status == .stopped)
@@ -79,7 +182,7 @@ struct InteractionTests {
         let ocr = OCRFake()
         ocr.shouldFail = true
         let escape = EscapeFake()
-        let model = AppModel(hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             selectionController: selection, captureService: CaptureFake(), escapeMonitor: escape,
             ocrService: ocr)
         await model.handleReadRequest()
@@ -104,7 +207,7 @@ struct InteractionTests {
         let ocr = OCRFake()
         ocr.suspend = true
         let escape = EscapeFake()
-        let model = AppModel(hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             selectionController: selection, captureService: CaptureFake(), escapeMonitor: escape,
             ocrService: ocr, operationTimeout: timeout ? .milliseconds(100) : .seconds(15))
         await model.handleReadRequest()
@@ -140,6 +243,10 @@ struct InteractionTests {
         let source = Unmanaged<TISInputSource>.fromOpaque(CFArrayGetValueAtIndex(sources, 0)).takeUnretainedValue()
         #expect(HotkeyShortcut.keyCode(for: "Y", modifiers: UInt32(cmdKey | shiftKey), source: source) == layout.1)
         #expect(HotkeyShortcut.keyCode(for: "🦉", modifiers: UInt32(cmdKey | shiftKey), source: source) == nil)
+        #expect(ShortcutConfiguration(key: "Y", modifiers: UInt32(controlKey | optionKey))
+            .resolvedShortcut(source: source).keyCode == layout.1)
+        #expect(ShortcutConfiguration(key: "1", modifiers: UInt32(cmdKey | shiftKey))
+            .resolvedShortcut(source: source).keyCode == UInt32(kVK_ANSI_1))
     }
 
     @Test
@@ -153,7 +260,7 @@ struct InteractionTests {
     func appRegistersTheHotkeyAndStartsSelection() async {
         let hotkey = HotkeyManagerFake(registrationResult: .registered)
         let selection = RegionSelectionControllerFake()
-        let model = AppModel(hotkeyManager: hotkey, selectionController: selection,
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: hotkey, selectionController: selection,
                              captureService: CaptureFake(), escapeMonitor: EscapeFake())
 
         #expect(hotkey.registeredShortcut == .readScreenRegion)
@@ -170,7 +277,7 @@ struct InteractionTests {
     func repeatedReadRequestCancelsTheActiveSelection() async {
         let hotkey = HotkeyManagerFake(registrationResult: .registered)
         let selection = RegionSelectionControllerFake()
-        let model = AppModel(hotkeyManager: hotkey, selectionController: selection,
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: hotkey, selectionController: selection,
                              captureService: CaptureFake(), escapeMonitor: EscapeFake())
 
         await model.handleReadRequest()
@@ -187,6 +294,7 @@ struct InteractionTests {
     func completedSelectionIsPublishedWithoutPersistingPixels() async {
         let selection = RegionSelectionControllerFake()
         let model = AppModel(
+            shortcutStore: MemoryShortcutStore(),
             hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             selectionController: selection, captureService: CaptureFake(), escapeMonitor: EscapeFake()
         )
@@ -213,7 +321,7 @@ struct InteractionTests {
     func registrationConflictIsVisibleAndPreventsSelection() async {
         let hotkey = HotkeyManagerFake(registrationResult: .conflict)
         let selection = RegionSelectionControllerFake()
-        let model = AppModel(hotkeyManager: hotkey, selectionController: selection)
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: hotkey, selectionController: selection)
 
         await model.handleReadRequest()
 
@@ -229,7 +337,7 @@ struct InteractionTests {
         let capture = CaptureFake()
         capture.suspend = true
         let escape = EscapeFake()
-        let model = AppModel(hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
                              selectionController: selection, captureService: capture, escapeMonitor: escape)
         await model.handleReadRequest()
         let region = ScreenRegionSelection(displayID: 1,
@@ -256,7 +364,7 @@ struct InteractionTests {
         let capture = CaptureFake()
         let escape = EscapeFake()
         escape.shouldFail = true
-        let model = AppModel(hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
                              selectionController: selection, captureService: capture, escapeMonitor: escape)
         await model.handleReadRequest()
         selection.complete(ScreenRegionSelection(displayID: 1,
@@ -271,7 +379,7 @@ struct InteractionTests {
 
     @Test
     func rapidReadRequestsAreProcessedInOrder() async {
-        let model = AppModel(hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
                              selectionController: RegionSelectionControllerFake(),
                              captureService: CaptureFake(), escapeMonitor: EscapeFake())
         for _ in 0..<100 { model.enqueueReadRequest() }
@@ -386,18 +494,25 @@ private final class OCRFake: TextRecognizing {
 private final class HotkeyManagerFake: HotkeyManaging {
     var onPress: (() -> Void)?
     private(set) var registeredShortcut: HotkeyShortcut?
-    private let registrationResult: HotkeyRegistration
+    var registrationResult: HotkeyRegistration
 
     init(registrationResult: HotkeyRegistration) {
         self.registrationResult = registrationResult
     }
 
     func register(_ shortcut: HotkeyShortcut) -> HotkeyRegistration {
-        registeredShortcut = shortcut
+        if registrationResult == .registered { registeredShortcut = shortcut }
         return registrationResult
     }
 
     func unregister() {}
+}
+
+@MainActor
+final class MemoryShortcutStore: ShortcutStoring {
+    var saved: ShortcutConfiguration?
+    func load() -> ShortcutConfiguration? { saved }
+    func save(_ configuration: ShortcutConfiguration) { saved = configuration }
 }
 
 @MainActor

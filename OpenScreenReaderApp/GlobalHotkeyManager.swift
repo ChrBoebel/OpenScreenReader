@@ -1,4 +1,74 @@
 import Carbon.HIToolbox
+import Foundation
+
+struct ShortcutConfiguration: Codable, Equatable, Sendable {
+    var key: String
+    var modifiers: UInt32
+
+    static let `default` = ShortcutConfiguration(key: "Y", modifiers: UInt32(cmdKey | shiftKey))
+    static let availableKeys = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789").map(String.init) + ["Space"]
+    static let supportedModifiers = UInt32(cmdKey | shiftKey | optionKey | controlKey)
+
+    var isValid: Bool {
+        Self.availableKeys.contains(key)
+            && modifiers & ~Self.supportedModifiers == 0
+            && modifiers & UInt32(cmdKey | optionKey | controlKey) != 0
+    }
+
+    var displayName: String {
+        [(UInt32(controlKey), "⌃"), (UInt32(optionKey), "⌥"),
+         (UInt32(cmdKey), "⌘"), (UInt32(shiftKey), "⇧")]
+            .filter { modifiers & $0.0 != 0 }.map(\.1).joined() + key
+    }
+
+    @MainActor
+    func resolvedShortcut(source: TISInputSource? = nil) -> HotkeyShortcut {
+        // Resolve the base key, not Option's alternate character or Shift's symbol.
+        // Command mappings still matter for layouts such as Dvorak-QWERTY.
+        HotkeyShortcut(keyCode: isValid ? HotkeyShortcut.keyCode(
+            for: key == "Space" ? " " : key,
+            modifiers: modifiers & UInt32(cmdKey), source: source) : nil,
+            carbonModifiers: modifiers, displayName: displayName)
+    }
+}
+
+@MainActor
+protocol ShortcutStoring {
+    func load() -> ShortcutConfiguration?
+    func save(_ configuration: ShortcutConfiguration)
+}
+
+@MainActor
+final class UserDefaultsShortcutStore: ShortcutStoring {
+    static let preferenceKey = "readingShortcut.v1"
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults? = nil) {
+        if let defaults { self.defaults = defaults; return }
+        #if DEBUG
+        // UI tests must never overwrite the user's real shortcut preference.
+        if let suite = ProcessInfo.processInfo.environment["OSR_SHORTCUT_TEST_SUITE"],
+           suite.hasPrefix("com.christopherbobel.OpenScreenReader.uitests."),
+           let testDefaults = UserDefaults(suiteName: suite) {
+            self.defaults = testDefaults
+            return
+        }
+        #endif
+        self.defaults = .standard
+    }
+
+    func load() -> ShortcutConfiguration? {
+        guard let data = defaults.data(forKey: Self.preferenceKey),
+              let configuration = try? JSONDecoder().decode(ShortcutConfiguration.self, from: data),
+              configuration.isValid else { return nil }
+        return configuration
+    }
+
+    func save(_ configuration: ShortcutConfiguration) {
+        guard configuration.isValid, let data = try? JSONEncoder().encode(configuration) else { return }
+        defaults.set(data, forKey: Self.preferenceKey)
+    }
+}
 
 struct HotkeyShortcut: Equatable, Sendable {
     let keyCode: UInt32?
@@ -7,9 +77,7 @@ struct HotkeyShortcut: Equatable, Sendable {
 
     @MainActor
     static var readScreenRegion: HotkeyShortcut {
-        let modifiers = UInt32(cmdKey | shiftKey)
-        return HotkeyShortcut(keyCode: keyCode(for: "Y", modifiers: modifiers),
-                              carbonModifiers: modifiers, displayName: "⌘⇧Y")
+        ShortcutConfiguration.default.resolvedShortcut()
     }
 
     // Carbon registers physical key codes. Resolve the requested character using
@@ -65,6 +133,9 @@ final class GlobalHotkeyManager: HotkeyManaging {
 
     nonisolated(unsafe) private var eventHandlerRef: EventHandlerRef?
     nonisolated(unsafe) private var hotkeyRef: EventHotKeyRef?
+    private var registeredShortcut: HotkeyShortcut?
+    private var activeEventID: UInt32?
+    private static var nextEventID: UInt32 = 0
 
     deinit {
         if let hotkeyRef {
@@ -76,37 +147,44 @@ final class GlobalHotkeyManager: HotkeyManaging {
     }
 
     func register(_ shortcut: HotkeyShortcut) -> HotkeyRegistration {
-        unregister()
-
+        if registeredShortcut == shortcut { return .registered }
         guard let keyCode = shortcut.keyCode else { return .failed(OSStatus(paramErr)) }
 
         guard installEventHandlerIfNeeded() == noErr else {
             return .failed(OSStatus(eventInternalErr))
         }
 
-        let hotkeyID = EventHotKeyID(signature: Self.signature, id: 1)
+        guard Self.nextEventID < UInt32.max else { return .failed(OSStatus(eventInternalErr)) }
+        Self.nextEventID += 1
+        let hotkeyID = EventHotKeyID(signature: Self.signature, id: Self.nextEventID)
+        var candidateRef: EventHotKeyRef?
         let status = RegisterEventHotKey(
             keyCode,
             shortcut.carbonModifiers,
             hotkeyID,
             GetApplicationEventTarget(),
-            0,
-            &hotkeyRef
+            OptionBits(kEventHotKeyExclusive),
+            &candidateRef
         )
 
         switch status {
         case noErr:
+            // Acquire the replacement before releasing the existing cancel shortcut.
+            unregister()
+            hotkeyRef = candidateRef
+            registeredShortcut = shortcut
+            activeEventID = hotkeyID.id
             return .registered
         case OSStatus(eventHotKeyExistsErr):
-            hotkeyRef = nil
             return .conflict
         default:
-            hotkeyRef = nil
             return .failed(status)
         }
     }
 
     func unregister() {
+        activeEventID = nil
+        registeredShortcut = nil
         if let hotkeyRef {
             UnregisterEventHotKey(hotkeyRef)
             self.hotkeyRef = nil
@@ -151,15 +229,20 @@ final class GlobalHotkeyManager: HotkeyManaging {
             &hotkeyID
         )
         guard status == noErr,
-              hotkeyID.signature == GlobalHotkeyManager.signature,
-              hotkeyID.id == 1 else {
+              hotkeyID.signature == GlobalHotkeyManager.signature else {
             return OSStatus(eventNotHandledErr)
         }
 
         let manager = Unmanaged<GlobalHotkeyManager>
             .fromOpaque(userData)
             .takeUnretainedValue()
+        let eventID = hotkeyID.id
+        // Carbon application events are delivered on the main event loop.
+        guard MainActor.assumeIsolated({ manager.activeEventID == eventID }) else {
+            return OSStatus(eventNotHandledErr)
+        }
         Task { @MainActor in
+            guard manager.activeEventID == eventID else { return }
             manager.onPress?()
         }
         return noErr
