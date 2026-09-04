@@ -8,6 +8,27 @@ import Vision
 @MainActor
 struct OCRTests {
     @Test
+    func cancellationBeforeRequestInstallationRejectsWork() {
+        let cancellation = OCRRequestCancellation()
+        cancellation.cancel()
+        #expect(throws: CancellationError.self) { try cancellation.install(VNRequest()) }
+        #expect(throws: CancellationError.self) { try cancellation.checkCancellation() }
+    }
+
+    @Test
+    func cancellationReachesTheInstalledVisionRequest() throws {
+        let cancellation = OCRRequestCancellation()
+        let request = CancellationProbeRequest()
+        try cancellation.install(request)
+        cancellation.cancel()
+        #expect(request.cancelCount == 1)
+        #expect(throws: CancellationError.self) { try cancellation.checkCancellation() }
+        cancellation.clearRequest()
+        cancellation.cancel()
+        #expect(request.cancelCount == 1)
+    }
+
+    @Test
     func configurationUsesAccurateGermanAndEnglishWithoutRewriting() {
         let request = VisionOCRService.makeRequest()
         #expect(request.recognitionLevel == .accurate)
@@ -57,6 +78,14 @@ struct OCRTests {
         } catch is CancellationError {
             // Expected.
         }
+    }
+}
+
+private final class CancellationProbeRequest: VNRequest {
+    var cancelCount = 0
+    override func cancel() {
+        cancelCount += 1
+        super.cancel()
     }
 }
 

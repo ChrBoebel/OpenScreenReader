@@ -2,6 +2,11 @@ import CoreGraphics
 import Foundation
 import Vision
 
+struct OCRSummary: Equatable, Sendable {
+    let characterCount: Int
+    let lineCount: Int
+}
+
 struct OCRResult: Equatable, Sendable {
     let lines: [String]
 

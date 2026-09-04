@@ -14,7 +14,7 @@ struct SettingsView: View {
             }
 
             Section("Privacy") {
-                Text("Only the selected region is captured in memory. Images are discarded after the capture check. Nothing is copied to the clipboard or sent over the network. OCR and speech are not available yet.")
+                Text("Only the selected region is captured in memory. Apple Vision recognizes German and English text locally. Images and recognized text are discarded after recognition; only character and line counts remain. Nothing is copied to the clipboard or sent over the network. Speech is not available yet.")
                     .fixedSize(horizontal: false, vertical: true)
             }
 

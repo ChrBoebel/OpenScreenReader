@@ -29,7 +29,7 @@ final class MenuBarSmokeUITests: XCTestCase {
 
         XCTAssertTrue(
             app.menuItems[
-                "Select a region to capture locally. Speech is not available yet."
+                "Select a region to recognize text locally. Speech is not available yet."
             ].exists
         )
         XCTAssertTrue(app.menuItems["Settings…"].exists)
@@ -73,7 +73,7 @@ final class MenuBarSmokeUITests: XCTestCase {
         let finishedStatus = app.descendants(matching: .statusItem)
             .matching(NSPredicate(format: "title IN {'OpenScreenReader, Ready', 'OpenScreenReader, Error'}"))
             .firstMatch
-        XCTAssertTrue(finishedStatus.waitForExistence(timeout: 12), statusDescription(in: app))
+        XCTAssertTrue(finishedStatus.waitForExistence(timeout: 17), statusDescription(in: app))
         let failed = finishedStatus.title == "OpenScreenReader, Error"
         finishedStatus.click()
         if failed {
@@ -82,7 +82,10 @@ final class MenuBarSmokeUITests: XCTestCase {
             )).firstMatch
             XCTAssertTrue(permissionError.waitForExistence(timeout: 2), statusDescription(in: app))
         } else {
-            XCTAssertTrue(app.menuItems["Region captured locally. No image was saved."].waitForExistence(timeout: 2))
+            let recognitionResult = app.menuItems.matching(NSPredicate(
+                format: "title BEGINSWITH 'Recognized ' OR title == 'No readable text found. Select a clearer region.'"
+            )).firstMatch
+            XCTAssertTrue(recognitionResult.waitForExistence(timeout: 2))
         }
     }
 

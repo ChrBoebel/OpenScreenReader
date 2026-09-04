@@ -8,6 +8,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var hotkeyRegistration: HotkeyRegistration = .inactive
     @Published private(set) var lastSelection: ScreenRegionSelection?
     @Published private(set) var lastCaptureSize: CGSize?
+    @Published private(set) var lastOCRSummary: OCRSummary?
     @Published private(set) var errorMessage: String?
 
     let pipelineCoordinator: PipelineCoordinator
@@ -15,9 +16,12 @@ final class AppModel: ObservableObject {
     private let selectionController: any RegionSelectionControlling
     private let captureService: any ScreenCapturing
     private let escapeMonitor: any EscapeMonitoring
+    private let ocrService: any TextRecognizing
+    private let operationTimeout: Duration
     private var activeContext: PipelineOperationContext?
     private var interactionTask: Task<Void, Never>?
     private var captureTask: Task<Void, Never>?
+    private var recognitionTask: Task<Void, Never>?
     private var timeoutTask: Task<Void, Never>?
 
     isolated deinit {
@@ -30,13 +34,17 @@ final class AppModel: ObservableObject {
         hotkeyManager: any HotkeyManaging = GlobalHotkeyManager(),
         selectionController: any RegionSelectionControlling = RegionSelectionOverlayController(),
         captureService: any ScreenCapturing = ScreenCaptureService(),
-        escapeMonitor: any EscapeMonitoring = EscapeMonitor()
+        escapeMonitor: any EscapeMonitoring = EscapeMonitor(),
+        ocrService: any TextRecognizing = VisionOCRService(),
+        operationTimeout: Duration = .seconds(15)
     ) {
         self.pipelineCoordinator = pipelineCoordinator
         self.hotkeyManager = hotkeyManager
         self.selectionController = selectionController
         self.captureService = captureService
         self.escapeMonitor = escapeMonitor
+        self.ocrService = ocrService
+        self.operationTimeout = operationTimeout
         hotkeyManager.onPress = { [weak self] in self?.enqueueReadRequest() }
         hotkeyRegistration = hotkeyManager.register(.readScreenRegion)
         if hotkeyRegistration != .registered {
@@ -46,6 +54,16 @@ final class AppModel: ObservableObject {
     }
 
     var readActionTitle: String { activeContext == nil ? "Read Screen Region…" : "Stop Reading" }
+
+    var captureFeedback: String {
+        if status == .capturing { return "Capturing selected region locally…" }
+        if status == .recognizing { return "Recognizing German and English text locally…" }
+        guard let summary = lastOCRSummary else {
+            return "Select a region to recognize text locally. Speech is not available yet."
+        }
+        if summary.characterCount == 0 { return "No readable text found. Select a clearer region." }
+        return "Recognized \(summary.characterCount) characters in \(summary.lineCount) lines locally. Speech is not available yet."
+    }
 
     // Serialize only short control transitions. Never queue cancellation behind capture.
     private func enqueue(_ action: @escaping @MainActor (AppModel) async -> Void) {
@@ -66,8 +84,15 @@ final class AppModel: ObservableObject {
 
     func waitForInteractionToSettle() async { await interactionTask?.value }
 
+    func waitForTimeoutToSettle() async {
+        await timeoutTask?.value
+        await interactionTask?.value
+    }
+
     func waitForCaptureToSettle() async {
         await captureTask?.value
+        await interactionTask?.value
+        await recognitionTask?.value
         await interactionTask?.value
     }
 
@@ -87,6 +112,7 @@ final class AppModel: ObservableObject {
             status = .selecting
             lastSelection = nil
             lastCaptureSize = nil
+            lastOCRSummary = nil
             errorMessage = nil
             selectionController.start(
                 onSelection: { [weak self] selection in
@@ -131,8 +157,7 @@ final class AppModel: ObservableObject {
                 let image = try await service.capture(selection)
                 try Task.checkCancellation()
                 let size = CGSize(width: image.width, height: image.height)
-                // Until OCR is wired in, retain only dimensions, never the image.
-                self?.enqueue { await $0.finishCapture(size: size, context: context) }
+                self?.enqueue { await $0.beginRecognition(image, size: size, context: context) }
             } catch is CancellationError {
                 self?.enqueue { await $0.cancel(context: context) }
             } catch {
@@ -141,17 +166,46 @@ final class AppModel: ObservableObject {
                 self?.enqueue { await $0.fail(context: context, message: message) }
             }
         }
+        let timeout = operationTimeout
         timeoutTask = Task { @MainActor [weak self] in
-            do { try await Task.sleep(for: .seconds(10)) } catch { return }
-            self?.enqueue { await $0.fail(context: context, message: "Capture timed out. Please try again.") }
+            do { try await Task.sleep(for: timeout) } catch { return }
+            self?.enqueue { await $0.fail(context: context, message: "Capture or text recognition timed out. Please try a smaller region.") }
         }
     }
 
-    private func finishCapture(size: CGSize, context: PipelineOperationContext) async {
+    private func beginRecognition(
+        _ image: CGImage, size: CGSize, context: PipelineOperationContext
+    ) async {
+        guard context == activeContext,
+              await pipelineCoordinator.accept(.recognizing, for: context) else { return }
+        status = .recognizing
+        let service = ocrService
+        recognitionTask = Task { @MainActor [weak self] in
+            do {
+                let result = try await service.recognize(image)
+                try Task.checkCancellation()
+                // Only counts cross into observable UI state. Until speech is wired in,
+                // discard the recognized content at the end of this operation.
+                let summary = OCRSummary(characterCount: result.characterCount, lineCount: result.lineCount)
+                self?.enqueue { await $0.finishRecognition(summary: summary, size: size, context: context) }
+            } catch is CancellationError {
+                self?.enqueue { await $0.cancel(context: context) }
+            } catch {
+                let message = (error as? OCRFailure)?.localizedDescription
+                    ?? OCRFailure.recognitionFailed.localizedDescription
+                self?.enqueue { await $0.fail(context: context, message: message) }
+            }
+        }
+    }
+
+    private func finishRecognition(
+        summary: OCRSummary, size: CGSize, context: PipelineOperationContext
+    ) async {
         guard context == activeContext, await pipelineCoordinator.complete(context) else { return }
         stopResources()
         activeContext = nil
         lastCaptureSize = size
+        lastOCRSummary = summary
         status = .ready
     }
 
@@ -175,6 +229,7 @@ final class AppModel: ObservableObject {
 
     private func stopResources() {
         captureTask?.cancel()
+        recognitionTask?.cancel()
         timeoutTask?.cancel()
         timeoutTask = nil
         selectionController.cancel()
