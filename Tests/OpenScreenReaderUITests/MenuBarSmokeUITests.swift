@@ -111,6 +111,26 @@ final class MenuBarSmokeUITests: XCTestCase {
     }
 
     @MainActor
+    func testInterfaceSoundsPreferencePersists() {
+        let app = makeApplication()
+        app.launch()
+        defer { app.terminate() }
+        openMenu(in: app, status: "Ready")
+        app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
+        let sounds = app.checkBoxes["interfaceSoundsEnabled"]
+        XCTAssertTrue(sounds.waitForExistence(timeout: 3))
+        XCTAssertEqual((sounds.value as? NSNumber)?.boolValue ?? ((sounds.value as? String) == "1"), true, sounds.debugDescription)
+        sounds.click()
+        XCTAssertEqual((sounds.value as? NSNumber)?.boolValue ?? ((sounds.value as? String) != "0"), false, sounds.debugDescription)
+        app.terminate()
+        app.launch()
+        openMenu(in: app, status: "Ready")
+        app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
+        XCTAssertTrue(sounds.waitForExistence(timeout: 3))
+        XCTAssertEqual((sounds.value as? NSNumber)?.boolValue ?? ((sounds.value as? String) != "0"), false, sounds.debugDescription)
+    }
+
+    @MainActor
     func testLocalSupertonicReadsFixtureAndEscapeStopsIt() throws {
         try verifyLocalSupertonic(ending: .escape)
     }
@@ -169,7 +189,17 @@ final class MenuBarSmokeUITests: XCTestCase {
             .matching(NSPredicate(format: "title == 'OpenScreenReader, Speaking'")).firstMatch
         XCTAssertTrue(speaking.waitForExistence(timeout: 90), statusDescription(in: app))
         let action = app.buttons["readingStatusAction"]
-        XCTAssertTrue(action.waitForExistence(timeout: 3))
+        if !action.waitForExistence(timeout: 3) {
+            let dialog = app.dialogs.firstMatch
+            if dialog.exists {
+                let attachment = XCTAttachment(screenshot: dialog.screenshot())
+                attachment.name = "reading-panel-missing-action"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+            }
+            XCTFail(app.dialogs.debugDescription)
+            return
+        }
         XCTAssertEqual(action.label, "Vorlesen stoppen")
         XCTAssertGreaterThanOrEqual(action.frame.width, 44)
         XCTAssertGreaterThanOrEqual(action.frame.height, 44)

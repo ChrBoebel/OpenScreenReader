@@ -28,11 +28,15 @@ struct SpeechRuntimeConfiguration: Sendable {
 
 @MainActor
 protocol SpeechReading: AnyObject {
+    /// Ephemeral normalized level at the playback clock, never queued-ahead PCM.
+    var playbackLevel: Double { get }
     /// Returns only after the last audio buffer has played.
     func read(_ text: String, onPlayback: @escaping @MainActor () -> Void) async throws
     /// Must silence playback immediately, without awaiting synthesis.
     func stop()
 }
+
+extension SpeechReading { var playbackLevel: Double { 0 } }
 
 enum SpeechFailure: Error, LocalizedError {
     case notInstalled, tooLong, failed
@@ -50,6 +54,7 @@ final class LocalSpeechService: SpeechReading {
     private let configuration: SpeechRuntimeConfiguration
     private let playback: SpeechAudioPlayer
     var playbackDiagnostics: SpeechAudioPlayer.Diagnostics { playback.diagnostics }
+    var playbackLevel: Double { playback.playbackLevel }
     private struct Packet: Decodable {
         let kind: String
         let sampleRate: Int?
@@ -216,6 +221,31 @@ actor SpeechPacketReader {
     }
 }
 
+/// Twenty-millisecond scalar windows. No PCM is retained by this envelope.
+struct PlaybackEnvelope {
+    private struct Window { let start: Int64; let end: Int64; let level: Double }
+    private var windows: [Window] = []
+    var count: Int { windows.count }
+
+    mutating func append(_ samples: UnsafeBufferPointer<Float>, startingAt start: Int64, sampleRate: Int) {
+        let hop = max(1, sampleRate / 50)
+        for offset in stride(from: 0, to: samples.count, by: hop) {
+            let end = min(samples.count, offset + hop)
+            var energy = 0.0
+            for index in offset..<end { energy += Double(samples[index]) * Double(samples[index]) }
+            let rms = sqrt(energy / Double(end - offset))
+            let level = rms < 0.002 ? 0 : min(1, sqrt(rms) * 1.8)
+            windows.append(Window(start: start + Int64(offset), end: start + Int64(end), level: level))
+        }
+    }
+    mutating func level(at frame: Int64) -> Double {
+        windows.removeAll { $0.end <= frame }
+        guard let first = windows.first, frame >= first.start else { return 0 }
+        return first.level
+    }
+    mutating func reset() { windows.removeAll(keepingCapacity: false) }
+}
+
 /// A bounded look-ahead queue: request the next packet after scheduling, not
 /// after playing. A short pre-roll absorbs transport/generation jitter.
 @MainActor
@@ -237,6 +267,12 @@ final class SpeechAudioPlayer {
     private var generation: UInt64 = 0
     private var waiter: CheckedContinuation<Void, Error>?
     private var draining = false
+    private var envelope = PlaybackEnvelope()
+    var playbackLevel: Double {
+        guard player.isPlaying,
+              let time = player.lastRenderTime.flatMap({ player.playerTime(forNodeTime: $0) }) else { return 0 }
+        return envelope.level(at: time.sampleTime)
+    }
 
     init(sampleRate: Int = 24_000) {
         self.sampleRate = sampleRate
@@ -279,7 +315,10 @@ final class SpeechAudioPlayer {
             diagnostics.underruns += 1
             diagnostics.missingFrames += Int(rendered - scheduledEnd)
         }
-        scheduledEnd = max(scheduledEnd, rendered) + AVAudioFramePosition(buffer.frameLength)
+        let startFrame = max(scheduledEnd, rendered)
+        _ = envelope.level(at: rendered)
+        envelope.append(UnsafeBufferPointer(start: samples, count: frameCount), startingAt: startFrame, sampleRate: sampleRate)
+        scheduledEnd = startFrame + AVAudioFramePosition(buffer.frameLength)
         diagnostics.frames += frameCount
         queuedFrames += frameCount
         diagnostics.maximumQueuedFrames = max(diagnostics.maximumQueuedFrames, queuedFrames)
@@ -320,6 +359,7 @@ final class SpeechAudioPlayer {
         generation &+= 1
         player.stop()
         engine.stop()
+        envelope.reset()
         queuedFrames = 0
         draining = false
         let completion = waiter

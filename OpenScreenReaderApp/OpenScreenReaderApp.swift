@@ -2,7 +2,11 @@ import SwiftUI
 
 @main
 struct OpenScreenReaderApp: App {
-    @StateObject private var model = AppModel(readingPanel: ReadingPanelController())
+    @StateObject private var model: AppModel = {
+        // One sound player serves pipeline cues and the reading control's press feedback.
+        let sounds = InterfaceSoundPlayer()
+        return AppModel(readingPanel: ReadingPanelController(interfaceSounds: sounds), interfaceSounds: sounds)
+    }()
 
     var body: some Scene {
         MenuBarExtra {

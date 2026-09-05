@@ -7,6 +7,10 @@ struct SettingsView: View {
     @State private var permissionNotice: String?
     @State private var draftShortcut = ShortcutConfiguration.default
     @State private var confirmCommonShortcut = false
+    @AppStorage(InterfaceSoundPlayer.preferenceKey, store: InterfaceSoundPlayer.defaults)
+    private var interfaceSoundsEnabled = true
+    @AppStorage(InterfaceSoundPlayer.volumeKey, store: InterfaceSoundPlayer.defaults)
+    private var interfaceSoundsVolume = InterfaceSoundPlayer.defaultVolume
 
     var body: some View {
         Form {
@@ -28,6 +32,14 @@ struct SettingsView: View {
                 .padding(.vertical, 4)
             }
             Section("General") {
+                Toggle("Interface sounds", isOn: $interfaceSoundsEnabled)
+                    .toggleStyle(.checkbox)
+                    .accessibilityIdentifier("interfaceSoundsEnabled")
+                Slider(value: $interfaceSoundsVolume, in: 0...1) { Text("Effect volume") }
+                    .disabled(!interfaceSoundsEnabled)
+                    .accessibilityIdentifier("interfaceSoundsVolume")
+                Text("Opening, completion, attention and stop-button cues from one original sound family. No sounds over speech or on cancellation. Reduce Motion follows macOS settings.")
+                    .font(.caption).foregroundStyle(.secondary)
                 LabeledContent("Status", value: model.status.title)
                 LabeledContent("Global shortcut", value: model.shortcutConfiguration.displayName)
                     .accessibilityIdentifier("activeShortcut")

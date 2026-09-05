@@ -22,6 +22,7 @@ final class AppModel: ObservableObject {
     private let ocrService: any TextRecognizing
     private let speechService: any SpeechReading
     private let readingPanel: (any ReadingStatusPresenting)?
+    private let interfaceSounds: (any InterfaceSoundPlaying)?
     private let operationTimeout: Duration
     private let speechStartupTimeout: Duration
     private var activeContext: PipelineOperationContext?
@@ -29,6 +30,7 @@ final class AppModel: ObservableObject {
     private var captureTask: Task<Void, Never>?
     private var recognitionTask: Task<Void, Never>?
     private var speechTask: Task<Void, Never>?
+    private var levelTask: Task<Void, Never>?
     private var timeoutTask: Task<Void, Never>?
     private var speechTimeoutGeneration: UInt64 = 0
 
@@ -48,6 +50,7 @@ final class AppModel: ObservableObject {
         ocrService: any TextRecognizing = VisionOCRService(),
         speechService: any SpeechReading = LocalSpeechService(),
         readingPanel: (any ReadingStatusPresenting)? = nil,
+        interfaceSounds: (any InterfaceSoundPlaying)? = nil,
         operationTimeout: Duration = .seconds(15),
         speechStartupTimeout: Duration = .seconds(90)
     ) {
@@ -61,6 +64,7 @@ final class AppModel: ObservableObject {
         self.ocrService = ocrService
         self.speechService = speechService
         self.readingPanel = readingPanel
+        self.interfaceSounds = interfaceSounds
         self.operationTimeout = operationTimeout
         self.speechStartupTimeout = speechStartupTimeout
         hotkeyManager.onPress = { [weak self] in self?.enqueueReadRequest() }
@@ -151,6 +155,7 @@ final class AppModel: ObservableObject {
     }
 
     private func processReadRequest() async {
+        interfaceSounds?.stop()
         guard hotkeyRegistration == .registered else {
             status = .error
             errorMessage = Self.registrationErrorMessage(for: hotkeyRegistration, shortcut: shortcutConfiguration)
@@ -240,6 +245,7 @@ final class AppModel: ObservableObject {
               await pipelineCoordinator.accept(.recognizing, for: context) else { return }
         status = .recognizing
         showReadingPanel(.recognizing, context: context)
+        interfaceSounds?.play(.selection)
         let service = ocrService
         recognitionTask = Task { @MainActor [weak self] in
             do {
@@ -291,9 +297,20 @@ final class AppModel: ObservableObject {
     private func speechPlaybackStarted(context: PipelineOperationContext) async {
         guard context == activeContext else { return }
         if status == .synthesizing {
+            interfaceSounds?.stop()
             guard await pipelineCoordinator.accept(.speaking, for: context) else { return }
             status = .speaking
             showReadingPanel(.speaking, context: context)
+            levelTask?.cancel()
+            levelTask = Task { @MainActor [weak self] in
+                while !Task.isCancelled {
+                    do {
+                        guard let self, self.activeContext == context, self.status == .speaking else { return }
+                        self.readingPanel?.updateLevel(self.speechService.playbackLevel)
+                    }
+                    do { try await Task.sleep(for: .milliseconds(33)) } catch { return }
+                }
+            }
         }
         armSpeechTimeout(.seconds(30), context: context)
     }
@@ -317,6 +334,7 @@ final class AppModel: ObservableObject {
         activeContext = nil
         status = .ready
         showReadingPanel(lastOCRSummary?.characterCount == 0 ? .noText : .finished, context: context)
+        interfaceSounds?.play(lastOCRSummary?.characterCount == 0 ? .attention : .completion)
     }
 
     private func fail(context: PipelineOperationContext, message: String) async {
@@ -328,10 +346,12 @@ final class AppModel: ObservableObject {
         status = .error
         errorMessage = message
         showReadingPanel(.failed, context: context)
+        interfaceSounds?.play(.attention)
     }
 
     private func cancel(context: PipelineOperationContext) async {
         guard context == activeContext else { return }
+        interfaceSounds?.stop()
         speechService.stop()
         let directive = await pipelineCoordinator.cancel()
         activeContext = nil
@@ -350,6 +370,10 @@ final class AppModel: ObservableObject {
     }
 
     private func stopResources() {
+        levelTask?.cancel()
+        levelTask = nil
+        readingPanel?.updateLevel(0)
+        interfaceSounds?.stop()
         speechService.stop()
         speechTask?.cancel()
         captureTask?.cancel()

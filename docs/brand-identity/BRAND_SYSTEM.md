@@ -73,13 +73,21 @@ Required production tests: `16`, `20`, `32`, `64`, `128`, `256`, `512`, and `102
 - Decorative highlight only: Mint Light.
 - Use macOS semantic colours for standard controls and states instead of forcing brand colours into every interface element.
 
+### Reading-control motion and sound, 2026-09-05
+
+The owner rejected two earlier passes: a restrained notification-style card and a hand-drawn "Reading Lens" frame. The direction was then reset to *super aesthetic, satisfying and high quality*; see [the research brief](../research/reading-control-motion-study.md) and [native verification](../reading-panel-verification.md). This records the current functional grammar; final subjective acceptance remains the owner's call. The canonical Owl Frame artwork and palette remain approved.
+
+The control is a translucent **Local Ink island**: a 312 × 60 pt continuous-corner body over a system blur material, with a fine Warm Paper top highlight, a hairline outline and a soft layered shadow. It opens from a 60 pt dot with one perceptible spring and closes back into it. A glowing **Voice Mint ribbon** with halo is the living centre during reading; its amplitude follows rendered speech. Recognition shows a travelling light, preparation a calm swell. Terminal states draw their own symbol (mint check, paper stop square, warm amber attention ring); amber is an attention accent only, never text. The round 44 pt stop control compresses on press and springs back with haptic and sound feedback. Reduce Motion, Reduce Transparency and Increase Contrast each have a defined static or opaque alternative.
+
+Sound is one original family with a tactile strike, a harmonic body and a short tail: a rising opening gesture, a resolved completion arpeggio, two muted falling knocks for attention, and a mechanical tap for the button. Volume and Off are independent of speech; cancellation itself is silent and no cue overlays speech. This functional grammar does not approve earlier text-to-wave app-logo explorations or copying competitor artwork/audio.
+
 ## Typography and shape language
 
 - Product UI: system font / SF Pro through native macOS APIs.
 - Brand and website shortlist: Geist Sans or Instrument Sans; final choice remains open.
 - Rounded or subtly tapered terminals; friendly but not pill-like corner radii.
 - Reuse the logo's selection-corner geometry in the region-selection overlay.
-- Motion, if used, should be one soft travelling pulse—not a permanent equaliser.
+- Motion should communicate an event or actual playback: one opening gesture and a responsive voice ribbon, not an arbitrary permanent equaliser.
 
 ## Production handoff
 

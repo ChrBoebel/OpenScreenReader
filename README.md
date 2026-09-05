@@ -22,6 +22,8 @@ With the development runtime installed, selecting text starts speech automatical
 
 A small floating reading panel appears after capture, at the bottom of the selected display. It shows recognition, preparation, and playback without taking keyboard focus. Its stop button cancels the whole operation. Completed/stopped feedback disappears automatically; empty-text and error notices remain until dismissed or a new selection starts. The panel contains status only, never the selected text. See [panel behavior and verification](docs/reading-panel-verification.md).
 
+The reading control is a small translucent Local Ink island that springs open from a dot after capture and closes back into it when it is done. A glowing Voice Mint ribbon follows the rendered speech level; recognition shows a travelling light, preparation a calm swell, and the finished, stopped and attention states draw their own symbol. The round 44 pt stop button compresses on press with haptic and sound feedback. Everything follows macOS Reduce Motion, Reduce Transparency and Increase Contrast. Four original, locally synthesized cues (opening, completion, attention, stop-button tap) share one sound family and have independent volume and Off controls in Settings → **Interface sounds**. Cancellation itself is silent and cues stop before speech.
+
 - Press a global keyboard shortcut.
 - Drag a rectangle over any visible text.
 - Recognize it locally with Apple Vision.

@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import CoreGraphics
 import Carbon.HIToolbox
 import Foundation
@@ -8,6 +9,18 @@ import Testing
 @Suite("Speech transport and buffering", .serialized)
 @MainActor
 struct SpeechBufferingTests {
+    @Test
+    func envelopeFollowsRenderedFramesAndDropsOldLevels() {
+        var envelope = PlaybackEnvelope()
+        let samples: [Float] = Array(repeating: 0.25, count: 480) + Array(repeating: 0, count: 480)
+        samples.withUnsafeBufferPointer { envelope.append($0, startingAt: 2_400, sampleRate: 24_000) }
+        #expect(envelope.level(at: 0) == 0)
+        #expect(envelope.level(at: 2_400) > 0.5)
+        #expect(envelope.level(at: 2_880) == 0)
+        #expect(envelope.level(at: 3_360) == 0)
+        #expect(envelope.count == 0)
+    }
+
     @Test
     func supertonicIsTheOnlyDefaultAndUsesItsNativeSampleRate() {
         let runtime = SpeechRuntimeConfiguration(root: URL(fileURLWithPath: "/missing-runtime"))
@@ -137,25 +150,29 @@ struct InteractionTests {
         let ocr = OCRFake()
         ocr.suspend = true
         let panel = ReadingPanelFake()
+        let sounds = InterfaceSoundsFake()
         let model = AppModel(shortcutStore: MemoryShortcutStore(),
             hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             selectionController: selection, captureService: capture, escapeMonitor: EscapeFake(),
-            ocrService: ocr, readingPanel: panel)
+            ocrService: ocr, readingPanel: panel, interfaceSounds: sounds)
         await model.handleReadRequest()
         #expect(panel.state == nil)
         selection.complete(Self.ocrRegion)
         await capture.waitUntilStarted()
         #expect(model.status == .capturing)
         #expect(panel.state == nil)
+        #expect(sounds.cues.isEmpty)
         capture.resume()
         await ocr.waitUntilStarted()
         #expect(panel.state == .recognizing)
+        #expect(sounds.cues == [.selection])
         #expect(panel.displayID == Self.ocrRegion.displayID)
         let oldStop = panel.onStop
         oldStop?()
         await model.waitForInteractionToSettle()
         #expect(model.status == .stopped)
         #expect(panel.state == .stopped)
+        #expect(sounds.isStopped)
         await model.handleReadRequest()
         #expect(panel.state == nil)
         oldStop?()
@@ -174,10 +191,11 @@ struct InteractionTests {
         speech.suspend = true
         speech.emitPlayback = playing
         let panel = ReadingPanelFake()
+        let sounds = InterfaceSoundsFake()
         let model = AppModel(shortcutStore: MemoryShortcutStore(),
             hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             selectionController: selection, captureService: CaptureFake(), escapeMonitor: EscapeFake(),
-            ocrService: OCRFake(), speechService: speech, readingPanel: panel)
+            ocrService: OCRFake(), speechService: speech, readingPanel: panel, interfaceSounds: sounds)
         await model.handleReadRequest()
         selection.complete(Self.ocrRegion)
         await model.waitForInteractionToSettle()
@@ -185,10 +203,17 @@ struct InteractionTests {
         await speech.waitUntilStarted()
         await model.waitForInteractionToSettle()
         #expect(panel.state == (playing ? .speaking : .preparing))
+        try? await Task.sleep(for: .milliseconds(80))
+        #expect(panel.level == (playing ? 0.65 : 0))
+        #expect(sounds.cues == [.selection])
+        if playing { #expect(sounds.isStopped) }
         panel.onStop?()
         await model.waitForInteractionToSettle()
         #expect(speech.stopped)
+        #expect(sounds.isStopped)
         #expect(model.status == .stopped)
+        try? await Task.sleep(for: .milliseconds(80))
+        #expect(panel.level == 0)
         #expect(panel.state == .stopped)
         speech.resume()
         await model.waitForSpeechToSettle()
@@ -203,10 +228,11 @@ struct InteractionTests {
         if outcome == "empty" { ocr.result = OCRResult(lines: []) }
         speech.shouldFail = outcome == "failure"
         let panel = ReadingPanelFake()
+        let sounds = InterfaceSoundsFake()
         let model = AppModel(shortcutStore: MemoryShortcutStore(),
             hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             selectionController: selection, captureService: CaptureFake(), escapeMonitor: EscapeFake(),
-            ocrService: ocr, speechService: speech, readingPanel: panel)
+            ocrService: ocr, speechService: speech, readingPanel: panel, interfaceSounds: sounds)
         await model.handleReadRequest()
         selection.complete(Self.ocrRegion)
         await model.waitForInteractionToSettle()
@@ -215,6 +241,7 @@ struct InteractionTests {
         let expected: ReadingPanelState = outcome == "empty" ? .noText : outcome == "failure" ? .failed : .finished
         #expect(panel.state == expected)
         #expect(panel.onStop == nil)
+        #expect(sounds.cues == (outcome == "complete" ? [.selection, .completion] : [.selection, .attention]))
     }
 
     @Test
@@ -725,6 +752,133 @@ struct InteractionTests {
 @MainActor
 struct ReadingPanelTests {
     @Test
+    func drawingClockDoesNotRetainAnUnownedView() async throws {
+        weak var released: ReadingControlView?
+        do {
+            let view = ReadingControlView(frame: CGRect(origin: .zero, size: ReadingControlView.Metrics.surface))
+            released = view
+            view.present(.speaking, opening: true, action: {})
+            try await Task.sleep(for: .milliseconds(35))
+        }
+        try await Task.sleep(for: .milliseconds(35))
+        #expect(released == nil)
+    }
+
+    @Test
+    func sameHostSurvivesTransitionsAndImmediateHideCancelsExit() async throws {
+        let screen = try #require(NSScreen.screens.first)
+        let number = try #require(screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)
+        let controller = ReadingPanelController(terminalDuration: .seconds(10))
+        defer { controller.hide() }
+        controller.show(.recognizing, displayID: number.uint32Value, onStop: {})
+        let host = try #require(controller.panel?.contentView)
+        #expect(host is ReadingControlView, "First show installs the native reading control.")
+        controller.show(.preparing, displayID: number.uint32Value, onStop: {})
+        #expect(controller.panel?.contentView === host)
+        controller.show(.speaking, displayID: number.uint32Value, onStop: {})
+        #expect(controller.panel?.contentView === host)
+        controller.dismiss()
+        controller.hide()
+        #expect(controller.panel?.isVisible == false)
+        controller.show(.recognizing, displayID: number.uint32Value, onStop: {})
+        try await Task.sleep(for: .milliseconds(350))
+        #expect(controller.state == .recognizing)
+        #expect(controller.panel?.isVisible == true)
+        #expect(controller.panel?.frame == ReadingPanelController.frame(in: screen.visibleFrame))
+    }
+
+    @Test
+    func soundCuesAreShortBoundedDeterministicAndDecodeWithoutFiles() throws {
+        for cue in InterfaceCue.allCases {
+            let samples = cue.samples
+            #expect(samples == cue.samples)
+            #expect(samples.count <= (cue == .tap ? 2_646 : 35_280), "Cues stay under 800 ms; the tap under 60 ms.")
+            #expect(samples.allSatisfy { $0.isFinite && abs($0) <= cue.peak + 0.001 })
+            #expect(samples.max().map { $0 > cue.peak * 0.9 } == true, "Each cue is normalised to its intended peak.")
+            #expect(samples.first == 0)
+            #expect(abs(samples.last ?? 1) < 0.001)
+            #expect(cue.wavData.count == 44 + samples.count * 2)
+            let decoded = try AVAudioPlayer(data: cue.wavData)
+            #expect(decoded.numberOfChannels == 1)
+            #expect(abs(decoded.duration - Double(samples.count) / Double(InterfaceCue.sampleRate)) < 0.001)
+        }
+    }
+
+    @Test
+    func stopButtonPressPlaysATapWithoutStoppingCuesAndCancellationCannotCutIt() {
+        let sounds = InterfaceSoundsFake()
+        let controller = ReadingPanelController(terminalDuration: .seconds(10), interfaceSounds: sounds)
+        defer { controller.hide() }
+        guard let number = NSScreen.screens.first?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return }
+        controller.show(.speaking, displayID: number.uint32Value, onStop: {})
+        let view = controller.panel?.contentView as? ReadingControlView
+        #expect(view != nil)
+        view?.onPress?()
+        #expect(sounds.cues == [.tap])
+        #expect(sounds.isStopped, "A tap is never registered as an interruptible cue.")
+    }
+    /// Opt-in design review: `OSR_PANEL_PREVIEW_DIR=/path` (pass it to xcodebuild as
+    /// `TEST_RUNNER_OSR_PANEL_PREVIEW_DIR`) writes the cue WAVs and on-screen captures
+    /// of the opening sequence and every reading-control state into that directory.
+    @Test
+    func exportReadingControlPreview() async throws {
+        guard let path = ProcessInfo.processInfo.environment["OSR_PANEL_PREVIEW_DIR"] else { return }
+        let directory = URL(fileURLWithPath: path)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        for cue in InterfaceCue.allCases { try cue.wavData.write(to: directory.appendingPathComponent("cue-\(cue).wav")) }
+        let screen = try #require(NSScreen.screens.first)
+        let number = try #require(screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)
+        let controller = ReadingPanelController(terminalDuration: .seconds(30))
+        defer { controller.hide() }
+        func capture(_ name: String) throws {
+            let panel = try #require(controller.panel)
+            let frame = panel.frame
+            let primary = NSScreen.screens[0].frame
+            let rect = CGRect(x: frame.minX - 40, y: primary.maxY - frame.maxY - 40, width: frame.width + 80, height: frame.height + 80)
+            var image = CGWindowListCreateImage(rect, [.optionOnScreenOnly], kCGNullWindowID, [.bestResolution])
+            if image == nil, let view = panel.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
+                view.cacheDisplay(in: view.bounds, to: rep)
+                image = rep.cgImage
+            }
+            let captured = try #require(image)
+            let png = try #require(NSBitmapImageRep(cgImage: captured).representation(using: .png, properties: [:]))
+            try png.write(to: directory.appendingPathComponent("\(name).png"))
+        }
+        let display = number.uint32Value
+        controller.show(.recognizing, displayID: display, onStop: {})
+        for (index, delay) in [60, 80, 80, 120, 400].enumerated() {
+            try await Task.sleep(for: .milliseconds(delay))
+            try capture("0-opening-\(index)")
+        }
+        try capture("1-recognizing")
+        controller.show(.preparing, displayID: display, onStop: {})
+        try await Task.sleep(for: .milliseconds(600))
+        try capture("2-preparing")
+        controller.show(.speaking, displayID: display, onStop: {})
+        for (index, level) in [0.12, 0.45, 0.9].enumerated() {
+            for _ in 0..<12 { controller.updateLevel(level); try await Task.sleep(for: .milliseconds(33)) }
+            try capture("3-speaking-\(index)")
+        }
+        controller.show(.finished, displayID: display, onStop: nil)
+        try await Task.sleep(for: .milliseconds(180))
+        try capture("4-finished-drawing")
+        try await Task.sleep(for: .milliseconds(500))
+        try capture("4-finished")
+        controller.dismiss()
+        try await Task.sleep(for: .milliseconds(110))
+        try capture("4-finished-closing")
+        try await Task.sleep(for: .milliseconds(300))
+        for (name, state) in [("5-stopped", ReadingPanelState.stopped), ("6-notext", .noText), ("7-failed", .failed)] {
+            controller.hide()
+            controller.show(.speaking, displayID: display, onStop: {})
+            try await Task.sleep(for: .milliseconds(500))
+            controller.show(state, displayID: display, onStop: nil)
+            try await Task.sleep(for: .milliseconds(700))
+            try capture(name)
+        }
+    }
+
+    @Test
     func panelFitsSelectedDisplaysIncludingNegativeOriginsAndSmallFrames() {
         for visible in [CGRect(x: -1440, y: 124, width: 1440, height: 850),
                         CGRect(x: 120, y: -900, width: 1920, height: 860),
@@ -755,7 +909,7 @@ struct ReadingPanelTests {
         #expect(controller.state == .preparing)
         #expect(panel.isVisible)
         controller.show(.finished, displayID: number.uint32Value, onStop: nil)
-        try await Task.sleep(for: .milliseconds(120))
+        try await Task.sleep(for: .milliseconds(350))
         #expect(controller.state == nil)
         #expect(!panel.isVisible)
         controller.show(.noText, displayID: number.uint32Value, onStop: nil)
@@ -771,6 +925,8 @@ struct ReadingPanelTests {
 
 @MainActor
 private final class ReadingPanelFake: ReadingStatusPresenting {
+    var level: Double = 0
+    func updateLevel(_ level: Double) { self.level = level }
     var state: ReadingPanelState?
     var displayID: UInt32?
     var onStop: (() -> Void)?
@@ -780,6 +936,14 @@ private final class ReadingPanelFake: ReadingStatusPresenting {
         self.onStop = onStop
     }
     func hide() { state = nil; onStop = nil }
+}
+
+@MainActor
+private final class InterfaceSoundsFake: InterfaceSoundPlaying {
+    var cues: [InterfaceCue] = []
+    var isStopped = true
+    func play(_ cue: InterfaceCue) { cues.append(cue); if cue != .tap { isStopped = false } }
+    func stop() { isStopped = true }
 }
 
 @MainActor
@@ -845,6 +1009,7 @@ private final class OCRFake: TextRecognizing {
 
 @MainActor
 private final class SpeechFake: SpeechReading {
+    var playbackLevel: Double { 0.65 }
     var receivedText: String?
     var suspend = false
     var stopped = false

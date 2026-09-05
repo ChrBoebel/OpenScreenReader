@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F00000000000000000000003 /* InterfaceSoundPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000004; };
 		F00000000000000000000001 /* ReadingPanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000002; };
 		E00000000000000000000001 = {isa = PBXBuildFile; fileRef = E00000000000000000000002; };
 		D00000000000000000000003 /* VisionOCRService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D00000000000000000000004; };
@@ -46,6 +47,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		F00000000000000000000004 /* InterfaceSoundPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterfaceSoundPlayer.swift; sourceTree = "<group>"; };
 		F00000000000000000000002 /* ReadingPanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingPanelController.swift; sourceTree = "<group>"; };
 		E00000000000000000000002 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalSpeechService.swift; sourceTree = "<group>"; };
 		D00000000000000000000004 /* VisionOCRService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisionOCRService.swift; sourceTree = "<group>"; };
@@ -126,6 +128,7 @@
 				D00000000000000000000004 /* VisionOCRService.swift */,
 				E00000000000000000000002 /* LocalSpeechService.swift */,
 				F00000000000000000000002 /* ReadingPanelController.swift */,
+				F00000000000000000000004 /* InterfaceSoundPlayer.swift */,
 				A00000000000000000000019 /* GlobalHotkeyManager.swift */,
 				A0000000000000000000001A /* RegionSelectionController.swift */,
 				B00000000000000000000004 /* ScreenCaptureService.swift */,
@@ -300,6 +303,7 @@
 				D00000000000000000000003 /* VisionOCRService.swift in Sources */,
 				E00000000000000000000001 /* LocalSpeechService.swift in Sources */,
 				F00000000000000000000001 /* ReadingPanelController.swift in Sources */,
+				F00000000000000000000003 /* InterfaceSoundPlayer.swift in Sources */,
 				A00000000000000000000028 /* GlobalHotkeyManager.swift in Sources */,
 				A00000000000000000000029 /* RegionSelectionController.swift in Sources */,
 				B00000000000000000000003 /* ScreenCaptureService.swift in Sources */,
