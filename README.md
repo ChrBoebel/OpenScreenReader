@@ -8,7 +8,7 @@
 
 OpenScreenReader is a planned open-source macOS menu bar app that reads any visible text aloud with natural, fully local AI voices.
 
-> Status: experimental native macOS menu bar app with a configurable global hotkey, region selection, in-memory ScreenCaptureKit capture, local German/English Apple Vision OCR, and automatic local Qwen speech. The pinned development worker and model are installed separately; they are not yet bundled for distribution. Real OCR → speech UI tests and global Escape/repeated-shortcut cancellation have passed on the development Mac. Cold speech startup measured about five seconds. Finder-hotkey start tests have been intermittent, and the broader permission/display/layout matrix remains open. No application has been released yet.
+> Status: experimental native macOS menu bar app with a configurable global hotkey, region selection, in-memory ScreenCaptureKit capture, local German/English Apple Vision OCR, and automatic local Supertonic 3 speech. The owner selected Supertonic after the German listening comparison; M1 is the initial default voice. The pinned development worker and model are installed separately, not bundled for distribution. Verification and remaining limitations are recorded in the [Supertonic integration notes](docs/research/supertonic-integration.md). Finder-hotkey start tests have been intermittent, and the broader permission/display/layout matrix remains open. No application has been released yet.
 
 ## Product promise
 
@@ -18,7 +18,7 @@ Supported keys are A–Z, 0–9, and Space, combined with Command, Option, or Co
 
 Implementation checks and remaining limitations are recorded in [Shortcut verification](docs/shortcut-verification.md).
 
-With the development runtime installed, selecting text starts speech automatically. The menu shows **Preparing voice**, then **Speaking**; Escape, the repeated shortcut, or **Stop Reading** cancels. Settings shows the local runtime's availability. The current evaluation voice is Serena, selections are limited to 8,000 characters, and no cloud or system voice is substituted on failure. See [runtime installation and verification](docs/research/swift-runtime-evaluation.md). Screenshots are released after OCR; text and audio are retained only for the active reading, without history or automatic clipboard writes.
+With the development runtime installed, selecting text starts speech automatically. The menu shows **Preparing voice**, then **Speaking**; Escape, the repeated shortcut, or **Stop Reading** cancels. Settings shows Supertonic 3, its machine-generated M1 voice, model license, and local runtime availability. Selections are limited to 8,000 characters; no Qwen, cloud, or system voice is substituted on failure. See [runtime installation and verification](docs/research/supertonic-integration.md). Screenshots are released after OCR; text and audio are retained only for the active reading, without history or automatic clipboard writes.
 
 - Press a global keyboard shortcut.
 - Drag a rectangle over any visible text.
@@ -41,13 +41,15 @@ Existing tools generally offer either fast local screen OCR with macOS system vo
 - SwiftUI and AppKit
 - ScreenCaptureKit/CoreGraphics
 - Apple Vision (`VNRecognizeTextRequest`)
-- MLX-based local TTS worker
-- Qwen3-TTS 0.6B 4-bit as the primary candidate
-- optional Supertonic provider for a lower-memory mode
+- Supertonic 3 local ONNX worker as the selected default
+- Native 44.1 kHz playback; M1, normal speed, eight denoising steps
+- Qwen3-TTS Swift/MLX retained as a comparison experiment, not a fallback
 
 The bundled model and runtime will be pinned, hashed, license-audited, and injected into release builds without committing model weights to Git.
 
 The implementation architecture is provisional and must be validated with focused technical spikes before the full MVP is built.
+
+Supertonic weights/stock voices use BigScience Open RAIL-M, not the project's Apache-2.0 license. Upstream has announced the end of development/support. License obligations, maintainability, and packaging remain explicit release gates; see [source and license record](docs/research/supertonic-listening-comparison.md).
 
 ## Documentation
 

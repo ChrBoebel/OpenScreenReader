@@ -47,7 +47,9 @@ MLX and RSS are two views of unified memory and must not be added naively.
 
 ## Model decision
 
-1. **Qwen3-TTS 0.6B 4-bit:** primary candidate because the tested MLX path streams and reached the first audio block in 0.226 seconds when warm.
+**Superseded on 2026-09-05:** after listening to the actual German samples, the owner selected **Supertonic 3 as the default** and rejected Qwen's perceived variability. M1 is the initial app voice. The measurements below remain historical evidence, not the current selection rule. The new default remains subject to OpenRAIL-M distribution obligations and the newly verified upstream end-of-support risk. See [integration and verification](supertonic-integration.md).
+
+1. **Qwen3-TTS 0.6B 4-bit:** original primary candidate because the tested MLX path streams and reached the first audio block in 0.226 seconds when warm.
 2. **Supertonic 3:** optional lower-memory provider. Code is MIT; model distribution requires compliance with its OpenRAIL-M license.
 3. **Chatterbox Multilingual V3:** not a default provider for the MVP because the tested path starts too slowly and uses more memory.
 4. **Thorsten/Piper:** defer until a specific runtime and German phonemizer path has been verified. The model and runtime licenses must be assessed separately.

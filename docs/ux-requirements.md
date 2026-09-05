@@ -28,7 +28,7 @@ Der offizielle MVP enthält ein geprüftes Standardmodell. Der Nutzer muss vor d
 
 ## Performance-Ziele
 
-- Bei warmem Qwen-Modell soll der erste Audioblock möglichst in weniger als 500 ms nach abgeschlossenem OCR-Text bereitstehen.
+- Bei warmem Standardmodell soll der erste Audioblock möglichst in weniger als 500 ms nach abgeschlossenem OCR-Text bereitstehen. Dies ist ein Ziel, kein Nachweis für den aktuellen Supertonic-Entwicklungspfad.
 - Der erste Satz wird abgespielt, während spätere Sätze noch synthetisiert werden.
 - Abbruchreaktion: Zielwert unter 100 ms bis Audio verstummt.
 - Das Modell wird zeitlich begrenzt warm gehalten; die genaue Dauer wird anhand von Energie- und RAM-Messungen festgelegt.

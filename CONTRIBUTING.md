@@ -38,7 +38,7 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild build -proje
 
 The Xcode test command uses local ad-hoc signing because the UI test launches and exercises the real menu bar application. It does not require an Apple Developer account.
 
-On a Mac with existing app permissions, use the stable Debug signing override below instead of changing its identity. The two real Qwen UI tests skip explicitly when no development runtime is installed. They require the separate fixed-text fixture built above and use the actual local model/audio path; see [runtime setup and test evidence](docs/research/swift-runtime-evaluation.md). `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer bash scripts/verify-speech-playback.sh` additionally exercises complete playback and immediate cancellation without recording audio; it audibly plays a fixed public German sentence.
+On a Mac with existing app permissions, use the stable Debug signing override below instead of changing its identity. The two real Supertonic UI tests skip explicitly when no development runtime is installed. They require the separate fixed-text fixture built above and use the actual local model/audio path; see [runtime setup and test evidence](docs/research/supertonic-integration.md). `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer bash scripts/verify-speech-playback.sh` additionally exercises complete playback and immediate cancellation without recording audio; it audibly plays a fixed public German sentence.
 
 ### Optional stable local Debug signing
 

@@ -2,7 +2,7 @@
 
 > Diese Architektur ist eine begründete Ausgangshypothese. Die Prozessgrenzen und Packaging-Strategie werden durch technische Spikes validiert, bevor der vollständige MVP entsteht.
 
-Aktueller Entwicklungsstand: Ein gepinnter nativer Swift/MLX-Worker ist lokal installiert und an OCR sowie AVAudioEngine angeschlossen. Reale Synthese, Wiedergabe und globale Abbrüche wurden geprüft; siehe [Runtime-Evaluation](research/swift-runtime-evaluation.md). Dies legt die Produktions-Runtime und Release-Verpackung noch nicht fest. Die [ursprüngliche Integrationsprüfung](research/tts-integration-readiness.md) dokumentiert die Voraussetzungen und den Modell-Download.
+Aktueller Entwicklungsstand: Nach der Hörentscheidung des Eigentümers vom 2026-09-05 ist Supertonic 3 das Standardmodell, zunächst mit M1. Ein lokaler Python-/ONNX-Prozess ist über dieselbe `SpeechReading`-Schnittstelle an OCR und AVAudioEngine angeschlossen; siehe [Supertonic-Integration](research/supertonic-integration.md). Der bisherige Swift-/MLX-Qwen-Spike bleibt als Vergleich erhalten, wird von der App aber weder gestartet noch als Fallback verwendet. Dies legt die portable Produktions-Runtime und Release-Verpackung noch nicht fest.
 
 ## Systemübersicht
 
@@ -53,9 +53,9 @@ Geplanter Stack:
 
 ## TTS-Prozess
 
-Der aktuelle Entwicklungsspike verwendet einen nativen Swift/MLX-Prozess pro Vorleseauftrag, ohne Python. `SpeechReading` trennt die Auftragssteuerung vom konkreten `LocalSpeechService`. Text und PCM laufen über anonyme Pipes, die Wiedergabe erfolgt im App-Prozess. Der Worker darf im Entwicklungsprofil weder Netzwerkverbindungen aufbauen noch Dateien schreiben (ausgenommen `/dev/null`). Abbruch stoppt zuerst den Audioplayer und beendet anschließend den eigenen Worker; Generationen verwerfen verspätete Ergebnisse. Das Modell bleibt zwischen Sätzen geladen, aber nicht zwischen Aufträgen. Dieses Verhalten ist implementiert und kein Nachweis für den warmen Latenzzielwert.
+Der aktuelle Entwicklungsspike verwendet einen einzelnen Python-/ONNX-Prozess pro Vorleseauftrag. `SpeechReading` trennt die Auftragssteuerung vom konkreten `LocalSpeechService`; `SpeechRuntimeConfiguration` legt den expliziten Supertonic-Pfad und 44,1 kHz fest. Text und PCM laufen über anonyme Pipes, die Wiedergabe erfolgt im App-Prozess. Der Worker darf im Entwicklungsprofil weder Netzwerkverbindungen aufbauen noch Dateien schreiben (ausgenommen `/dev/null`). Python läuft isoliert und ohne Bytecode-Schreibzugriffe. Abbruch stoppt zuerst den Audioplayer und beendet anschließend den eigenen Worker; Generationen verwerfen verspätete Ergebnisse. Das Modell bleibt zwischen Textsegmenten geladen, aber nicht zwischen Aufträgen. Dieses Verhalten ist implementiert und kein Nachweis für den warmen Latenzzielwert.
 
-Die frühere Hypothese eines langlebigen Python-/MLX-Workers bleibt eine Vergleichsoption. Eine mögliche Warmhaltevariante hätte folgende Eigenschaften:
+Ein langlebiger Worker bleibt eine noch nicht implementierte Vergleichsoption. Eine mögliche Warmhaltevariante hätte folgende Eigenschaften:
 
 - App startet den Worker kontrolliert;
 - Modell wird einmal geladen und zeitlich begrenzt warm gehalten;
@@ -66,8 +66,8 @@ Die frühere Hypothese eines langlebigen Python-/MLX-Workers bleibt eine Verglei
 
 Vor dem MVP müssen zwei Varianten verglichen werden:
 
-1. gebündelter Python-/MLX-Worker;
-2. stärker native beziehungsweise direkt eingebettete MLX-Integration.
+1. portabel gebündelter Python-/ONNX-Worker;
+2. native ONNX-Integration; der vorherige MLX-Pfad bleibt ein Vergleich.
 
 Bewertungskriterien: Startzeit, Signierung/Notarisierung, Paketgröße, Fehlertoleranz, Energieverbrauch, Lizenzkette und Wartbarkeit.
 
@@ -94,11 +94,13 @@ Das Standardmodell soll Bestandteil des signierten Release-Artefakts sein, damit
 
 Primär:
 
-- Qwen3-TTS 0.6B 4-bit für Qualität und Streaming.
+- Supertonic 3, vom Eigentümer nach direktem Hörvergleich ausgewählt; M1, acht Schritte, normale Geschwindigkeit. Satzweise Synthese, begrenzte Audio-Pakete und vier Sekunden Wiedergabepuffer.
 
-Optional:
+Vergleich, nicht automatisch verwendet:
 
-- Supertonic 3 als späterer speichersparender Modus, sofern die OpenRAIL-M-Bedingungen bei Distribution und Nutzung korrekt angezeigt werden.
+- Qwen3-TTS 0.6B 4-bit Swift/MLX. Der Eigentümer empfand die untersuchten Stimmen als zu wechselhaft.
+
+Die Supertonic-OpenRAIL-M-Bedingungen, das angekündigte Ende des offiziellen Supports sowie die vollständige Python-/ONNX-Lizenz- und Packaging-Kette müssen vor Distribution geprüft werden.
 
 Nicht für den ersten Pfad:
 

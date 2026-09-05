@@ -18,6 +18,7 @@
 - [ ] Selected-region capture with ScreenCaptureKit/CoreGraphics.
 - [x] Basic Apple Vision OCR for German and English ([verification and remaining layout checks](ocr-verification.md)).
 - [x] Development-only native Qwen MLX worker with streamed first chunk ([pinned runtime and real checks](research/swift-runtime-evaluation.md)); warm performance and release packaging remain open.
+- [x] Select Supertonic 3 as default after owner listening comparison and implement a local ONNX development worker; [integration and verification](research/supertonic-integration.md). Qwen remains comparison-only, not a fallback.
 - [x] Cancellation from `Esc` and the repeated shortcut through real OCR/speech on the development Mac; broader device/layout stress coverage remains open.
 - [ ] Packaged worker and bundled-model signing/notarization experiment.
 - [ ] Offline and temporary-file privacy verification.
@@ -50,7 +51,7 @@ Each spike needs a small reproducible test or benchmark and a written decision b
 
 - repeated capture of the previous region;
 - automatic language switching;
-- Supertonic low-memory mode;
+- additional local providers, if justified by listening tests;
 - sentence or word highlighting;
 - custom pronunciation rules;
 - optional plugin interface for additional local providers;

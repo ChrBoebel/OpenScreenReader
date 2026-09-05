@@ -19,7 +19,7 @@ Before changing code or architecture, read:
 - `Esc` and the repeated hotkey cancel the complete active pipeline immediately.
 - No cloud OCR, cloud TTS, silent fallback, account, or default telemetry.
 - No persistent screenshot, OCR text, audio history, or automatic clipboard write.
-- Qwen3-TTS 0.6B 4-bit is the primary TTS candidate; architecture must remain provider-based.
+- Supertonic 3 is the default TTS model by the owner's 2026-09-05 listening decision; architecture must remain provider-based. Qwen is comparison-only, never an automatic fallback. Supertonic's OpenRAIL-M and upstream maintenance risks remain release gates.
 - The official macOS MVP should include its pinned, verified default model without committing weights to Git; packaging and the complete license chain must pass a release gate first.
 - The project is not a complete replacement for VoiceOver.
 
