@@ -798,8 +798,8 @@ struct ReadingPanelTests {
             #expect(rendering == cue.render(variant: 0))
             #expect(rendering.left.count == rendering.right.count)
             #expect(rendering.left != rendering.right, "The room is stereo.")
-            let limit = cue == .tap || cue == .release ? 4_410 : 52_920
-            #expect(samples.count <= limit, "Cues stay under 1.2 s; clicks under 100 ms.")
+            let limit = cue == .tap || cue == .release ? 7_056 : 66_150
+            #expect(samples.count <= limit, "Cues stay under 1.5 s; clicks under 160 ms.")
             let peak = Double(cue.peak) + 0.001
             #expect(rendering.left.allSatisfy { $0.isFinite && abs(Double($0)) <= peak })
             #expect(rendering.right.allSatisfy { $0.isFinite && abs(Double($0)) <= peak })

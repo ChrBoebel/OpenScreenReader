@@ -713,9 +713,22 @@ final class ReadingControlView: NSView {
             case .recognizing:
                 goal = 3
             case .preparing:
-                // Bars rise one after another, then breathe.
-                let risen = reduced || sinceChange > 0.05 + Double(index) * 0.045
-                goal = risen ? 7 + shape[index] * (3 + (reduced ? 0 : 3 * (0.5 + 0.5 * sin(now * 2.4 + Double(index) * 0.6)))) : 3
+                if reduced {
+                    goal = 6 + shape[index] * 8
+                } else {
+                    // The voice takes a breath: 1.2 s in, a short hold, 1.3 s out. A drop falls into the
+                    // middle when preparation starts and at the top of every breath, and ripples outward.
+                    let cycle = 2.6
+                    let t = sinceChange.truncatingRemainder(dividingBy: cycle)
+                    let breath: Double
+                    if t < 1.2 { let u = t / 1.2; breath = u * u * (3 - 2 * u) }
+                    else if t < 1.3 { breath = 1 }
+                    else { let u = (t - 1.3) / 1.3; breath = 1 - u * u * (3 - 2 * u) }
+                    let age = sinceChange < 1.2 ? sinceChange : (t >= 1.2 ? t - 1.2 : t + cycle - 1.2)
+                    let distance = abs(Double(index) - Double(Metrics.barCount - 1) / 2)
+                    let ripple = max(0, 1 - abs(age * 14 - distance) / 1.3) * 7 * exp(-age * 2.2)
+                    goal = 4 + shape[index] * (3 + 12 * breath) + ripple
+                }
             case .speaking:
                 if reduced {
                     goal = 4 + shape[index] * 22

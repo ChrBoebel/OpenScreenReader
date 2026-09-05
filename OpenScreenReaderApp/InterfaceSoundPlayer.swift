@@ -2,9 +2,10 @@ import AppKit
 import AVFoundation
 import Foundation
 
-/// One original, deterministic sound family: wood, glass and breath. Every cue
-/// has a tactile strike, a harmonic body, a sub layer and a short stereo room.
-/// No downloaded samples, no captured audio.
+/// One original, deterministic sound family: wood and water. Marimba-style bars
+/// with 1 : 4 : 10 partials give weight and warmth, entrained-bubble water drops
+/// give the bright, satisfying moments, a low log-drum thud sits underneath and a
+/// small stereo room ties it together. No downloaded samples, no captured audio.
 enum InterfaceCue: CaseIterable, Equatable {
     /// The captured frame lands as the control opens.
     case selection
@@ -33,49 +34,45 @@ enum InterfaceCue: CaseIterable, Equatable {
         let alternate = variant % variantCount == 1
         switch self {
         case .selection:
-            // "Open": a breath in, a wooden tick with weight, then a rising fourth (or fifth).
-            voice.breath(at: 0, duration: 0.16, gain: 0.16)
-            voice.strike(at: 0.05, brightness: 2400, decay: 0.004, gain: 0.5)
-            voice.sub(at: 0.05, frequency: 88, decay: 0.09, gain: 0.45)
-            voice.pluck(at: 0.05, frequency: alternate ? 587.33 : 659.26, decay: 0.2, gain: 0.5)
-            voice.pluck(at: 0.135, frequency: alternate ? 880 : 880, decay: 0.32, gain: 0.55, shimmer: true)
-            voice.room(wet: 0.34, size: 0.24)
-            return voice.render(duration: 0.7, peak: peak, fade: 0.08)
+            // Landing: a log-drum thud, two rising marimba bars and one water drop on the second.
+            voice.thud(at: 0, frequency: 100, decay: 0.12, gain: 0.55)
+            voice.bar(at: 0, frequency: alternate ? 220 : 196, decay: 0.45, gain: 0.7, hardness: 0.55)
+            voice.bar(at: 0.085, frequency: alternate ? 293.66 : 261.63, decay: 0.6, gain: 0.75, hardness: 0.45)
+            voice.drop(at: 0.085, frequency: alternate ? 800 : 720, rise: 1.5, decay: 0.06, gain: 0.5, seed: 5)
+            voice.room(wet: 0.32, size: 0.4)
+            return voice.render(duration: 0.9, peak: peak, fade: 0.08)
         case .completion:
-            // "Done": a plucked major arpeggio landing on a bell with an octave shimmer.
-            voice.strike(at: 0, brightness: 1900, decay: 0.003, gain: 0.3)
-            voice.sub(at: 0, frequency: 82, decay: 0.16, gain: 0.35)
-            voice.pluck(at: 0, frequency: 523.25, decay: 0.24, gain: 0.4)
-            voice.pluck(at: 0.09, frequency: alternate ? 698.46 : 659.26, decay: 0.26, gain: 0.4)
-            voice.bell(at: 0.18, frequency: 783.99, decay: 0.55, gain: 0.5)
-            voice.bell(at: 0.32, frequency: 1567.98, decay: 0.5, gain: 0.14)
-            voice.sub(at: 0.18, frequency: 98, decay: 0.3, gain: 0.22)
-            voice.room(wet: 0.42, size: 0.32)
-            return voice.render(duration: 1.2, peak: peak, fade: 0.1)
+            // Done: a deep marimba root, a cascade of five rising water drops, a closing bar.
+            voice.thud(at: 0, frequency: 80, decay: 0.18, gain: 0.45)
+            voice.bar(at: 0, frequency: 130.81, decay: 1.0, gain: 0.6, hardness: 0.3)
+            let drops: [Double] = alternate ? [349.23, 440, 523.25, 698.46, 880] : [330, 440, 550, 660, 880]
+            for (index, frequency) in drops.enumerated() {
+                voice.drop(at: 0.05 + Double(index) * 0.085, frequency: frequency, rise: 1.45, decay: 0.09,
+                           gain: 0.55 - Double(index) * 0.04, seed: 40 + index)
+            }
+            voice.bar(at: 0.47, frequency: alternate ? 349.23 : 261.63, decay: 0.8, gain: 0.5, hardness: 0.35)
+            voice.room(wet: 0.45, size: 0.55)
+            return voice.render(duration: 1.5, peak: peak, fade: 0.1)
         case .attention:
-            // "Hm": two muted wooden knocks that fall a minor third. Never a siren.
-            voice.strike(at: 0, brightness: 1300, decay: 0.006, gain: 0.42)
-            voice.sub(at: 0, frequency: 96, decay: 0.08, gain: 0.4)
-            voice.pluck(at: 0, frequency: 587.33, decay: 0.13, gain: 0.4, muted: true)
-            voice.strike(at: 0.15, brightness: 1300, decay: 0.006, gain: 0.38)
-            voice.sub(at: 0.15, frequency: 80, decay: 0.12, gain: 0.45)
-            voice.pluck(at: 0.15, frequency: 466.16, decay: 0.22, gain: 0.4, muted: true)
-            voice.room(wet: 0.28, size: 0.2)
-            return voice.render(duration: 0.65, peak: peak, fade: 0.08)
+            // Hm: two muted wooden knocks that fall a major third, with a little weight. Never a siren.
+            voice.bar(at: 0, frequency: 293.66, decay: 0.12, gain: 0.8, hardness: 0.6)
+            voice.thud(at: 0, frequency: 90, decay: 0.09, gain: 0.3)
+            voice.bar(at: 0.16, frequency: 233.08, decay: 0.2, gain: 0.8, hardness: 0.55)
+            voice.thud(at: 0.16, frequency: 75, decay: 0.11, gain: 0.35)
+            voice.room(wet: 0.25, size: 0.3)
+            return voice.render(duration: 0.8, peak: peak, fade: 0.08)
         case .tap:
-            // Mechanical key down: bright click, low body, no ring.
-            voice.strike(at: 0, brightness: 3400, decay: 0.003, gain: 0.55)
-            voice.sub(at: 0, frequency: 160, decay: 0.02, gain: 0.5)
-            voice.pluck(at: 0, frequency: 1760, decay: 0.012, gain: 0.2, muted: true)
-            voice.room(wet: 0.06, size: 0.1)
-            return voice.render(duration: 0.08, peak: peak, fade: 0.01)
+            // Key down: a hard, tiny wooden tick with a low body.
+            voice.bar(at: 0, frequency: 1100, decay: 0.012, gain: 0.9, hardness: 0.9, partials: [(1, 1, 1), (2.6, 0.5, 0.4)])
+            voice.thud(at: 0, frequency: 150, decay: 0.02, gain: 0.6)
+            voice.room(wet: 0.08, size: 0.12)
+            return voice.render(duration: 0.12, peak: peak, fade: 0.01)
         case .release:
-            // Key up: softer, lower "tock".
-            voice.strike(at: 0, brightness: 1800, decay: 0.004, gain: 0.4)
-            voice.sub(at: 0, frequency: 120, decay: 0.03, gain: 0.5)
-            voice.pluck(at: 0, frequency: 1174.66, decay: 0.014, gain: 0.16, muted: true)
-            voice.room(wet: 0.06, size: 0.1)
-            return voice.render(duration: 0.1, peak: peak, fade: 0.012)
+            // Key up: a softer wooden tock with a tiny drop.
+            voice.bar(at: 0, frequency: 720, decay: 0.02, gain: 0.8, hardness: 0.6, partials: [(1, 1, 1), (2.6, 0.3, 0.4)])
+            voice.drop(at: 0, frequency: 950, rise: 1.5, decay: 0.03, gain: 0.5, seed: 12)
+            voice.room(wet: 0.08, size: 0.12)
+            return voice.render(duration: 0.16, peak: peak, fade: 0.012)
         }
     }
 
@@ -110,11 +107,15 @@ struct CueRendering: Equatable {
     var mono: [Float] { zip(left, right).map { ($0 + $1) / 2 } }
 }
 
-/// Deterministic additive/plucked synthesis with per-partial decay, a short
-/// pitch settle on each onset, filtered-noise strikes, pitch-dropping sub hits,
-/// a breath swell and a small stereo room built from early reflections and
-/// two damped comb lines per channel.
+/// Deterministic physical-flavoured synthesis: marimba bars (tuned 1 : 4 : 10
+/// partials whose upper modes vanish in milliseconds), water drops (an entrained
+/// bubble whose pitch rises as it shrinks, plus a splash), log-drum thuds with a
+/// pitch drop, and a small stereo room built from early reflections and two
+/// damped comb lines per channel.
 struct CueSynthesizer {
+    typealias Partial = (ratio: Double, gain: Double, decay: Double)
+    static let marimba: [Partial] = [(1, 1, 1), (3.93, 0.5, 0.12), (9.9, 0.22, 0.05), (14.2, 0.06, 0.03)]
+
     let sampleRate: Int
     private var voices: [(start: Int, samples: [Double])] = []
     private var wet = 0.0
@@ -124,91 +125,70 @@ struct CueSynthesizer {
 
     private var period: Double { 1 / Double(sampleRate) }
 
-    mutating func pluck(at start: Double, frequency: Double, decay: Double, gain: Double,
-                        muted: Bool = false, shimmer: Bool = false) {
-        // Plucked-string colour: a strong fundamental, quickly fading upper partials, a touch of inharmonic sparkle.
-        var partials: [(ratio: Double, gain: Double, decay: Double)] = muted
-            ? [(1, 1, 1), (2, 0.14, 0.45), (3, 0.04, 0.35)]
-            : [(1, 1, 1), (2, 0.42, 0.5), (3, 0.2, 0.38), (4, 0.09, 0.3), (5, 0.04, 0.25)]
-        if shimmer { partials += [(2.02, 0.12, 0.6), (5.41, 0.04, 0.3)] }
-        tone(at: start, frequency: frequency, decay: decay, gain: gain, partials: partials, settle: 0.02)
-    }
-
-    mutating func bell(at start: Double, frequency: Double, decay: Double, gain: Double) {
-        // Slightly inharmonic glass partials with long decay.
-        tone(at: start, frequency: frequency, decay: decay, gain: gain,
-             partials: [(1, 1, 1), (2.0, 0.35, 0.7), (2.756, 0.2, 0.55), (4.07, 0.08, 0.4), (5.41, 0.05, 0.3)], settle: 0.006)
-    }
-
-    private mutating func tone(at start: Double, frequency: Double, decay: Double, gain: Double,
-                               partials: [(ratio: Double, gain: Double, decay: Double)], settle: Double) {
-        let length = Int(decay * 6 * Double(sampleRate))
+    mutating func bar(at start: Double, frequency: Double, decay: Double, gain: Double, hardness: Double,
+                      partials: [Partial] = CueSynthesizer.marimba) {
+        let length = max(Int(0.02 * Double(sampleRate)), Int(decay * 6 * Double(sampleRate)))
         var buffer = [Double](repeating: 0, count: length)
+        let contact = filteredNoise(count: length, seed: UInt32(frequency), low: 300, high: 2500 + hardness * 3000)
         for index in 0..<length {
             let time = Double(index) * period
-            let cycles = time + settle * 0.012 * (1 - exp(-time / 0.012))
-            let attack = time < 0.003 ? 0.5 - 0.5 * cos(.pi * time / 0.003) : 1
+            let attack = time < 0.0012 ? 0.5 - 0.5 * cos(.pi * time / 0.0012) : 1
             var value = 0.0
             for partial in partials {
-                value += sin(2 * .pi * frequency * partial.ratio * cycles) * partial.gain
+                let weight = partial.ratio > 1 ? hardness : 1
+                value += sin(2 * .pi * frequency * partial.ratio * time) * partial.gain * weight
                     * exp(-time / (decay * partial.decay))
             }
-            buffer[index] = value * attack * gain
+            buffer[index] = (value * attack + contact[index] * exp(-time / 0.003) * 0.8 * hardness) * gain
         }
         voices.append((Int(start * Double(sampleRate)), buffer))
     }
 
-    mutating func sub(at start: Double, frequency: Double, decay: Double, gain: Double) {
-        let length = Int(decay * 6 * Double(sampleRate))
+    mutating func drop(at start: Double, frequency: Double, rise: Double, decay: Double, gain: Double, seed: Int) {
+        let length = max(Int(0.05 * Double(sampleRate)), Int(decay * 6 * Double(sampleRate)))
         var buffer = [Double](repeating: 0, count: length)
+        let splash = filteredNoise(count: length, seed: UInt32(100 + seed), low: 1500, high: 7000)
         var phase = 0.0
         for index in 0..<length {
             let time = Double(index) * period
-            let instantaneous = frequency * (1 + 0.9 * exp(-time / (decay * 0.3)))
+            let instantaneous = frequency * (1 + (rise - 1) * (1 - exp(-time / 0.025)))
             phase += 2 * .pi * instantaneous * period
-            let attack = time < 0.0015 ? time / 0.0015 : 1
-            buffer[index] = sin(phase) * exp(-time / decay) * attack * gain
+            let attack = time < 0.0004 ? time / 0.0004 : 1
+            buffer[index] = (sin(phase) * exp(-time / decay) * attack + splash[index] * exp(-time / 0.004) * 0.35) * gain
         }
         voices.append((Int(start * Double(sampleRate)), buffer))
     }
 
-    mutating func strike(at start: Double, brightness: Double, decay: Double, gain: Double) {
-        let length = Int(decay * 8 * Double(sampleRate))
+    mutating func thud(at start: Double, frequency: Double, decay: Double, gain: Double) {
+        let length = max(Int(0.02 * Double(sampleRate)), Int(decay * 6 * Double(sampleRate)))
         var buffer = [Double](repeating: 0, count: length)
-        var seed: UInt32 = 0x2545_F491
-        var low = 0.0, lower = 0.0
-        let quick = 1 - exp(-2 * .pi * brightness * period)
-        let slow = 1 - exp(-2 * .pi * brightness * 0.25 * period)
+        let knock = filteredNoise(count: length, seed: 3, low: 0, high: 900)
+        var phase = 0.0
         for index in 0..<length {
-            seed = seed &* 1_664_525 &+ 1_013_904_223
-            let white = Double(seed >> 8) / Double(1 << 24) * 2 - 1
-            low += (white - low) * quick
-            lower += (white - lower) * slow
             let time = Double(index) * period
-            let attack = time < 0.0005 ? time / 0.0005 : 1
-            buffer[index] = (low - lower) * exp(-time / decay) * attack * gain * 2.2
+            let instantaneous = frequency * (1 + 0.9 * exp(-time / 0.04))
+            phase += 2 * .pi * instantaneous * period
+            let attack = time < 0.001 ? time / 0.001 : 1
+            buffer[index] = (sin(phase) * exp(-time / decay) * attack + knock[index] * exp(-time / 0.006) * 0.9) * gain
         }
         voices.append((Int(start * Double(sampleRate)), buffer))
     }
 
-    mutating func breath(at start: Double, duration: Double, gain: Double) {
-        // A soft band-limited noise swell, like a small inhale before speaking.
-        let length = Int(duration * Double(sampleRate))
-        var buffer = [Double](repeating: 0, count: length)
-        var seed: UInt32 = 0x9E37_79B9
-        var low = 0.0, lower = 0.0
-        let quick = 1 - exp(-2 * .pi * 1400 * period)
-        let slow = 1 - exp(-2 * .pi * 500 * period)
-        for index in 0..<length {
-            seed = seed &* 1_664_525 &+ 1_013_904_223
-            let white = Double(seed >> 8) / Double(1 << 24) * 2 - 1
-            low += (white - low) * quick
-            lower += (white - lower) * slow
-            let t = Double(index) / Double(length)
-            let envelope = pow(sin(t * .pi), 1.6)
-            buffer[index] = (low - lower) * envelope * gain * 2.5
+    /// Band-limited deterministic noise: the difference of two one-pole low-passes.
+    private func filteredNoise(count: Int, seed: UInt32, low: Double, high: Double) -> [Double] {
+        var buffer = [Double](repeating: 0, count: count)
+        var state = seed &* 2_654_435_761 &+ 0x9E37_79B9
+        var upper = 0.0, lower = 0.0
+        let quick = 1 - exp(-2 * .pi * high * period)
+        let slow = low > 0 ? 1 - exp(-2 * .pi * low * period) : 1
+        for index in 0..<count {
+            state = state &* 1_664_525 &+ 1_013_904_223
+            let white = Double(state >> 8) / Double(1 << 24) * 2 - 1
+            upper += (white - upper) * quick
+            if low > 0 { lower += (white - lower) * slow } else { lower = 0 }
+            buffer[index] = upper - lower
         }
-        voices.append((Int(start * Double(sampleRate)), buffer))
+        return buffer
     }
 
     mutating func room(wet: Double, size: Double) {
@@ -224,7 +204,7 @@ struct CueSynthesizer {
                 dry[voice.start + offset] += value
             }
         }
-        for index in dry.indices { dry[index] = tanh(dry[index] * 1.25) }
+        for index in dry.indices { dry[index] = tanh(dry[index] * 1.2) }
         var left = dry
         var right = dry
         if wet > 0 {
@@ -265,7 +245,7 @@ struct CueSynthesizer {
             var damped = 0.0
             for index in 0..<count {
                 let delayed = index >= delay ? line[index - delay] : 0
-                damped += (delayed - damped) * 0.35
+                damped += (delayed - damped) * 0.3
                 line[index] = input[index] * 0.5 + damped * feedback
                 output[index] += line[index] * 0.6
             }
