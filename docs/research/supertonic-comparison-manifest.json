@@ -1,5 +1,5 @@
 {
-  "purpose": "Owner-requested local fixed-text listening experiment only; not an app provider or release approval",
+  "purpose": "Pinned Supertonic 3 assets; owner selected this model as development default after listening on 2026-09-05; not release-approved",
   "repository": "Supertone/supertonic-3",
   "revision": "3cadd1ee6394adea1bd021217a0e650ede09a323",
   "license": "BigScience Open RAIL-M, August 18 2022; applies to model and voice styles",
