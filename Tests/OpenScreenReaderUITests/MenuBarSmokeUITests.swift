@@ -82,7 +82,7 @@ final class MenuBarSmokeUITests: XCTestCase {
             app.menuItems["Stop Reading"].click()
         } else if failed {
             let permissionError = app.menuItems.matching(NSPredicate(
-                format: "title CONTAINS 'Allow Input Monitoring' OR title CONTAINS 'Allow Screen Recording' OR title CONTAINS 'local Qwen development runtime is not installed'"
+                format: "title CONTAINS 'Allow Input Monitoring' OR title CONTAINS 'Allow Screen Recording' OR title CONTAINS 'local Supertonic development runtime is not installed'"
             )).firstMatch
             XCTAssertTrue(permissionError.waitForExistence(timeout: 2), statusDescription(in: app))
         } else {
@@ -110,17 +110,17 @@ final class MenuBarSmokeUITests: XCTestCase {
     }
 
     @MainActor
-    func testLocalQwenReadsFixtureAndEscapeStopsIt() throws {
-        try verifyLocalQwen(cancelWithShortcut: false)
+    func testLocalSupertonicReadsFixtureAndEscapeStopsIt() throws {
+        try verifyLocalSupertonic(cancelWithShortcut: false)
     }
 
     @MainActor
-    func testLocalQwenReadsFixtureAndRepeatedShortcutStopsIt() throws {
-        try verifyLocalQwen(cancelWithShortcut: true)
+    func testLocalSupertonicReadsFixtureAndRepeatedShortcutStopsIt() throws {
+        try verifyLocalSupertonic(cancelWithShortcut: true)
     }
 
     @MainActor
-    private func verifyLocalQwen(cancelWithShortcut: Bool) throws {
+    private func verifyLocalSupertonic(cancelWithShortcut: Bool) throws {
         let app = makeApplication()
         app.launch()
         defer { app.terminate() }
@@ -128,7 +128,8 @@ final class MenuBarSmokeUITests: XCTestCase {
         app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
         XCTAssertTrue(app.staticTexts["Select. Listen. Stay private."].waitForExistence(timeout: 5))
         try XCTSkipUnless(app.staticTexts["Installed for local development"].exists,
-                          "Install the pinned development runtime for this real Qwen test.")
+                          "Install the pinned development runtime for this real Supertonic test.")
+        XCTAssertTrue(app.staticTexts["Supertonic 3 · M1"].exists)
         let repository = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
         let fixture = XCUIApplication(url: repository.appendingPathComponent(".build/SpeechFixture.app"))

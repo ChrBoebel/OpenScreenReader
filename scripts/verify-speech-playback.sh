@@ -8,3 +8,4 @@ xcrun swiftc -swift-version 6 -parse-as-library -target arm64-apple-macos14.0 \
     -o "$repo_dir/.build/speech-playback-probe"
 "$repo_dir/.build/speech-playback-probe" "$@"
 "$repo_dir/.build/speech-playback-probe" --cancel
+"$repo_dir/.build/speech-playback-probe" --cancel-loading

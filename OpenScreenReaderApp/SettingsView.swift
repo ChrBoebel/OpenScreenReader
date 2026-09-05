@@ -31,7 +31,9 @@ struct SettingsView: View {
                 LabeledContent("Status", value: model.status.title)
                 LabeledContent("Global shortcut", value: model.shortcutConfiguration.displayName)
                     .accessibilityIdentifier("activeShortcut")
-                LabeledContent("Speech model", value: "Qwen3-TTS 0.6B · 4-bit · Serena")
+                LabeledContent("Speech model", value: SpeechRuntimeConfiguration(root: LocalSpeechService.developmentRoot).modelName)
+                LabeledContent("Voice", value: "Machine-generated · M1 · normal speed")
+                LabeledContent("Model license", value: "BigScience Open RAIL-M")
                 LabeledContent("Speech runtime", value: LocalSpeechService.installationSummary)
                 Text("Experimental local runtime. The model starts afresh for each reading. Not a packaged release.")
                     .font(.caption).foregroundStyle(.secondary)
@@ -83,7 +85,7 @@ struct SettingsView: View {
             .disabled(!model.canChangeShortcut)
 
             Section("Privacy") {
-                Text("Apple Vision recognizes the selected region locally; Qwen reads the text on this Mac. Images, text, and audio are not saved. Only character and line counts remain after reading. Nothing is copied to the clipboard. The speech worker is blocked from network access and file writes. There is no cloud or system-voice fallback.")
+                Text("Apple Vision recognizes the selected region locally; Supertonic reads the text on this Mac. Images, text, and audio are not saved. Only character and line counts remain after reading. Nothing is copied to the clipboard. The speech worker is blocked from network access and file writes. There is no cloud, Qwen, or system-voice fallback.")
                     .fixedSize(horizontal: false, vertical: true)
             }
 

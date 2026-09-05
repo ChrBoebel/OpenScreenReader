@@ -1,6 +1,30 @@
 import AVFoundation
 import Darwin
 import Foundation
+import NaturalLanguage
+
+/// Explicit local development installation, never a downloader or fallback.
+struct SpeechRuntimeConfiguration: Sendable {
+    let root: URL
+    let sampleRate = 44_100
+    let modelName = "Supertonic 3 · M1"
+    var runtime: URL { root.appendingPathComponent("SupertonicRuntime") }
+    var executable: URL { runtime.appendingPathComponent("venv/bin/python3") }
+    var script: URL { runtime.appendingPathComponent("worker.py") }
+    var model: URL { root.appendingPathComponent("DevelopmentModels/supertonic-3-3cadd1ee") }
+    var isInstalled: Bool {
+        FileManager.default.isExecutableFile(atPath: executable.path)
+            && [script, runtime.appendingPathComponent("installation-receipt.json"),
+                runtime.appendingPathComponent("model-manifest.json"),
+                runtime.appendingPathComponent("upstream/helper.py"),
+                model.appendingPathComponent("onnx/vocoder.onnx")]
+                .allSatisfy { FileManager.default.fileExists(atPath: $0.path) }
+    }
+    static func language(for text: String) -> String {
+        // German/English MVP: ambiguous short text uses the product's German default.
+        NLLanguageRecognizer.dominantLanguage(for: text) == .english ? "en" : "de"
+    }
+}
 
 @MainActor
 protocol SpeechReading: AnyObject {
@@ -14,7 +38,7 @@ enum SpeechFailure: Error, LocalizedError {
     case notInstalled, tooLong, failed
     var errorDescription: String? {
         switch self {
-        case .notInstalled: "The local Qwen development runtime is not installed. No text was sent to a server."
+        case .notInstalled: "The local Supertonic development runtime is not installed. No text was sent to a server."
         case .tooLong: "This development version reads up to 8,000 characters. Select a smaller region."
         case .failed: "Local speech could not finish. Please try a smaller region. No cloud or system voice was substituted."
         }
@@ -23,14 +47,15 @@ enum SpeechFailure: Error, LocalizedError {
 
 @MainActor
 final class LocalSpeechService: SpeechReading {
-    private let playback = SpeechAudioPlayer()
+    private let configuration: SpeechRuntimeConfiguration
+    private let playback: SpeechAudioPlayer
     var playbackDiagnostics: SpeechAudioPlayer.Diagnostics { playback.diagnostics }
     private struct Packet: Decodable {
         let kind: String
         let sampleRate: Int?
         let pcm: Data?
     }
-    private struct Request: Encodable { let text: String }
+    private struct Request: Encodable { let text: String; let language: String }
     private var process: Process?
     private var input: FileHandle?
     private var output: FileHandle?
@@ -42,11 +67,13 @@ final class LocalSpeechService: SpeechReading {
     }
 
     static var installationSummary: String {
-        let executable = developmentRoot.appendingPathComponent("DevelopmentRuntime/OpenScreenReaderSpeechWorker")
-        let tokenizer = developmentRoot.appendingPathComponent("DevelopmentModels/qwen3-tts-0.6b-customvoice-4bit-08c72cad/tokenizer.json")
-        return FileManager.default.isExecutableFile(atPath: executable.path)
-            && FileManager.default.fileExists(atPath: tokenizer.path)
+        SpeechRuntimeConfiguration(root: developmentRoot).isInstalled
             ? "Installed for local development" : "Not installed"
+    }
+
+    init(configuration: SpeechRuntimeConfiguration = .init(root: LocalSpeechService.developmentRoot)) {
+        self.configuration = configuration
+        playback = SpeechAudioPlayer(sampleRate: configuration.sampleRate)
     }
 
     isolated deinit { stop() }
@@ -70,18 +97,14 @@ final class LocalSpeechService: SpeechReading {
                      onPlayback: @escaping @MainActor () -> Void) async throws {
         // Development staging is explicit. Release packaging remains a gate;
         // no Hub/model downloader or shell is invoked by the application.
-        let executable = Self.developmentRoot.appendingPathComponent("DevelopmentRuntime/OpenScreenReaderSpeechWorker")
-        let model = Self.developmentRoot.appendingPathComponent("DevelopmentModels/qwen3-tts-0.6b-customvoice-4bit-08c72cad")
-        guard FileManager.default.isExecutableFile(atPath: executable.path),
-              FileManager.default.fileExists(atPath: model.appendingPathComponent("tokenizer.json").path) else {
-            throw SpeechFailure.notInstalled
-        }
+        let executable = configuration.executable
+        guard configuration.isInstalled else { throw SpeechFailure.notInstalled }
         let worker = Process()
         // Extra defence for this experimental external worker, not a substitute
         // for the release App Sandbox/signing and clean-machine privacy gate.
         worker.executableURL = URL(fileURLWithPath: "/usr/bin/sandbox-exec")
         worker.arguments = ["-p", "(version 1)(allow default)(deny network*)(deny file-write*)(allow file-write* (literal \"/dev/null\"))",
-                            executable.path, "--model", model.path]
+                            executable.path, "-I", "-B", configuration.script.path, "--model", configuration.model.path]
         worker.environment = ["PATH": "/usr/bin:/bin", "HF_HUB_OFFLINE": "1", "HF_HUB_DISABLE_TELEMETRY": "1"]
         worker.currentDirectoryURL = executable.deletingLastPathComponent()
         let requestPipe = Pipe()
@@ -97,7 +120,7 @@ final class LocalSpeechService: SpeechReading {
             try worker.run()
             try requestPipe.fileHandleForReading.close()
             try audioPipe.fileHandleForWriting.close()
-            var request = try JSONEncoder().encode(Request(text: text))
+            var request = try JSONEncoder().encode(Request(text: text, language: SpeechRuntimeConfiguration.language(for: text)))
             request.append(10)
             // The request is bounded, but can exceed pipe capacity. Write away
             // from the main actor so Escape is never queued behind a pipe write.
@@ -113,10 +136,10 @@ final class LocalSpeechService: SpeechReading {
                 let packet = try JSONDecoder().decode(Packet.self, from: line)
                 switch packet.kind {
                 case "ready":
-                    guard !ready, packet.sampleRate == 24_000 else { throw SpeechFailure.failed }
+                    guard !ready, packet.sampleRate == configuration.sampleRate else { throw SpeechFailure.failed }
                     ready = true
                 case "audio":
-                    guard ready, packet.sampleRate == 24_000, let data = packet.pcm,
+                    guard ready, packet.sampleRate == configuration.sampleRate, let data = packet.pcm,
                           !data.isEmpty, data.count <= 96_000, data.count % 4 == 0 else {
                         throw SpeechFailure.failed
                     }
@@ -205,8 +228,9 @@ final class SpeechAudioPlayer {
     }
     private(set) var diagnostics = Diagnostics()
     private(set) var queuedFrames = 0
-    static let prebufferFrames = 24_000
-    static let capacityFrames = 96_000
+    let sampleRate: Int
+    var prebufferFrames: Int { sampleRate }
+    var capacityFrames: Int { sampleRate * 4 }
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
     private var scheduledEnd: AVAudioFramePosition = 0
@@ -214,7 +238,10 @@ final class SpeechAudioPlayer {
     private var waiter: CheckedContinuation<Void, Error>?
     private var draining = false
 
-    init() { engine.attach(player) }
+    init(sampleRate: Int = 24_000) {
+        self.sampleRate = sampleRate
+        engine.attach(player)
+    }
     isolated deinit { stop() }
 
     func reset() {
@@ -227,12 +254,12 @@ final class SpeechAudioPlayer {
         guard !data.isEmpty, data.count <= 96_000, data.count % 4 == 0 else { throw SpeechFailure.failed }
         let current = generation
         let frameCount = data.count / 4
-        while queuedFrames + frameCount > Self.capacityFrames {
+        while queuedFrames + frameCount > capacityFrames {
             try await waitForProgress()
             guard generation == current else { throw CancellationError() }
         }
         try Task.checkCancellation()
-        guard let format = AVAudioFormat(standardFormatWithSampleRate: 24_000, channels: 1),
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: Double(sampleRate), channels: 1),
               let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(data.count / 4)),
               let samples = buffer.floatChannelData?[0] else { throw SpeechFailure.failed }
         buffer.frameLength = buffer.frameCapacity
@@ -248,7 +275,7 @@ final class SpeechAudioPlayer {
             try engine.start()
         }
         let rendered = player.lastRenderTime.flatMap { player.playerTime(forNodeTime: $0) }?.sampleTime ?? 0
-        if scheduledEnd > 0, rendered > scheduledEnd + 480 {
+        if scheduledEnd > 0, rendered > scheduledEnd + AVAudioFramePosition(sampleRate / 50) {
             diagnostics.underruns += 1
             diagnostics.missingFrames += Int(rendered - scheduledEnd)
         }
@@ -267,7 +294,7 @@ final class SpeechAudioPlayer {
                 }
             }
         }
-        if !player.isPlaying, queuedFrames >= Self.prebufferFrames { player.play() }
+        if !player.isPlaying, queuedFrames >= prebufferFrames { player.play() }
         if player.isPlaying { onPlayback() }
     }
 

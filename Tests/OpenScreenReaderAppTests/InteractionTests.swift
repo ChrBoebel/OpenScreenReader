@@ -8,6 +8,30 @@ import Testing
 @MainActor
 struct SpeechBufferingTests {
     @Test
+    func supertonicIsTheOnlyDefaultAndUsesItsNativeSampleRate() {
+        let runtime = SpeechRuntimeConfiguration(root: URL(fileURLWithPath: "/missing-runtime"))
+        #expect(runtime.sampleRate == 44_100)
+        #expect(runtime.modelName == "Supertonic 3 · M1")
+        #expect(runtime.executable.path.contains("SupertonicRuntime/venv/bin/python3"))
+        #expect(runtime.model.path.hasSuffix("supertonic-3-3cadd1ee"))
+        #expect(!runtime.isInstalled)
+        #expect(SpeechRuntimeConfiguration.language(for: "Dies ist ein deutscher Beispielsatz.") == "de")
+        #expect(SpeechRuntimeConfiguration.language(for: "This is an English sentence about reading books.") == "en")
+    }
+
+    @Test
+    func nativeSupertonicRateKeepsFourSecondsOfBufferCapacity() async throws {
+        let player = SpeechAudioPlayer(sampleRate: 44_100)
+        defer { player.stop() }
+        #expect(player.capacityFrames == 176_400)
+        #expect(player.prebufferFrames == 44_100)
+        try await player.enqueue(Data(repeating: 0, count: 9_600)) {}
+        try await player.finish {}
+        #expect(player.diagnostics.frames == 2_400)
+        #expect(player.queuedFrames == 0)
+    }
+
+    @Test
     func shortPacketReturnsBeforeWriterCloses() async throws {
         let pipe = Pipe()
         defer { try? pipe.fileHandleForReading.close(); try? pipe.fileHandleForWriting.close() }
@@ -86,9 +110,9 @@ struct SpeechBufferingTests {
             for _ in 0..<20 { try await player.enqueue(Data(repeating: 0, count: 96_000)) {} }
         }
         let deadline = ContinuousClock.now.advanced(by: .seconds(3))
-        while player.queuedFrames < SpeechAudioPlayer.capacityFrames, .now < deadline { await Task.yield() }
-        #expect(player.queuedFrames == SpeechAudioPlayer.capacityFrames)
-        #expect(player.diagnostics.maximumQueuedFrames <= SpeechAudioPlayer.capacityFrames)
+        while player.queuedFrames < player.capacityFrames, .now < deadline { await Task.yield() }
+        #expect(player.queuedFrames == player.capacityFrames)
+        #expect(player.diagnostics.maximumQueuedFrames <= player.capacityFrames)
         player.stop()
         do { try await producer.value; Issue.record("Cancelled producer completed successfully") }
         catch { #expect(error is CancellationError) }

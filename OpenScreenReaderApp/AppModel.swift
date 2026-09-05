@@ -101,7 +101,7 @@ final class AppModel: ObservableObject {
     var captureFeedback: String {
         if status == .capturing { return "Capturing selected region locally…" }
         if status == .recognizing { return "Recognizing German and English text locally…" }
-        if status == .synthesizing { return "Preparing the local Qwen voice…" }
+        if status == .synthesizing { return "Preparing the local Supertonic voice…" }
         if status == .speaking { return "Reading locally. Press Escape or the shortcut to stop." }
         guard let summary = lastOCRSummary else {
             return "Select a region to recognize and read text locally."
