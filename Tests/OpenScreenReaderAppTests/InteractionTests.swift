@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Carbon.HIToolbox
 import Foundation
@@ -128,6 +129,94 @@ struct SpeechBufferingTests {
 @Suite("Primary interaction")
 @MainActor
 struct InteractionTests {
+    @Test
+    func readingPanelStaysHiddenUntilCaptureFinishesAndStopsOnlyItsOwnOperation() async {
+        let selection = RegionSelectionControllerFake()
+        let capture = CaptureFake()
+        capture.suspend = true
+        let ocr = OCRFake()
+        ocr.suspend = true
+        let panel = ReadingPanelFake()
+        let model = AppModel(shortcutStore: MemoryShortcutStore(),
+            hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+            selectionController: selection, captureService: capture, escapeMonitor: EscapeFake(),
+            ocrService: ocr, readingPanel: panel)
+        await model.handleReadRequest()
+        #expect(panel.state == nil)
+        selection.complete(Self.ocrRegion)
+        await capture.waitUntilStarted()
+        #expect(model.status == .capturing)
+        #expect(panel.state == nil)
+        capture.resume()
+        await ocr.waitUntilStarted()
+        #expect(panel.state == .recognizing)
+        #expect(panel.displayID == Self.ocrRegion.displayID)
+        let oldStop = panel.onStop
+        oldStop?()
+        await model.waitForInteractionToSettle()
+        #expect(model.status == .stopped)
+        #expect(panel.state == .stopped)
+        await model.handleReadRequest()
+        #expect(panel.state == nil)
+        oldStop?()
+        ocr.resume()
+        await model.waitForCaptureToSettle()
+        await model.waitForInteractionToSettle()
+        #expect(model.status == .selecting)
+        #expect(panel.state == nil)
+        await model.handleReadRequest()
+    }
+
+    @Test(arguments: [false, true])
+    func readingPanelStopsLoadingAndPlayback(playing: Bool) async {
+        let selection = RegionSelectionControllerFake()
+        let speech = SpeechFake()
+        speech.suspend = true
+        speech.emitPlayback = playing
+        let panel = ReadingPanelFake()
+        let model = AppModel(shortcutStore: MemoryShortcutStore(),
+            hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+            selectionController: selection, captureService: CaptureFake(), escapeMonitor: EscapeFake(),
+            ocrService: OCRFake(), speechService: speech, readingPanel: panel)
+        await model.handleReadRequest()
+        selection.complete(Self.ocrRegion)
+        await model.waitForInteractionToSettle()
+        await model.waitForCaptureToSettle()
+        await speech.waitUntilStarted()
+        await model.waitForInteractionToSettle()
+        #expect(panel.state == (playing ? .speaking : .preparing))
+        panel.onStop?()
+        await model.waitForInteractionToSettle()
+        #expect(speech.stopped)
+        #expect(model.status == .stopped)
+        #expect(panel.state == .stopped)
+        speech.resume()
+        await model.waitForSpeechToSettle()
+        #expect(panel.state == .stopped)
+    }
+
+    @Test(arguments: ["complete", "empty", "failure"])
+    func readingPanelReportsTerminalResultsWithoutRetainingContent(outcome: String) async {
+        let selection = RegionSelectionControllerFake()
+        let ocr = OCRFake()
+        let speech = SpeechFake()
+        if outcome == "empty" { ocr.result = OCRResult(lines: []) }
+        speech.shouldFail = outcome == "failure"
+        let panel = ReadingPanelFake()
+        let model = AppModel(shortcutStore: MemoryShortcutStore(),
+            hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+            selectionController: selection, captureService: CaptureFake(), escapeMonitor: EscapeFake(),
+            ocrService: ocr, speechService: speech, readingPanel: panel)
+        await model.handleReadRequest()
+        selection.complete(Self.ocrRegion)
+        await model.waitForInteractionToSettle()
+        await model.waitForCaptureToSettle()
+        await model.waitForSpeechToSettle()
+        let expected: ReadingPanelState = outcome == "empty" ? .noText : outcome == "failure" ? .failed : .finished
+        #expect(panel.state == expected)
+        #expect(panel.onStop == nil)
+    }
+
     @Test
     func customShortcutPersistsAndConflictKeepsPreviousBinding() async {
         let store = MemoryShortcutStore()
@@ -630,6 +719,67 @@ struct InteractionTests {
         #expect(clipped?.rectInScreenPoints == CGRect(x: 900, y: 600, width: 100, height: 100))
         #expect(geometry.selection(from: CGPoint(x: 10, y: 10), to: CGPoint(x: 11, y: 11)) == nil)
     }
+}
+
+@Suite("Reading status presentation", .serialized)
+@MainActor
+struct ReadingPanelTests {
+    @Test
+    func panelFitsSelectedDisplaysIncludingNegativeOriginsAndSmallFrames() {
+        for visible in [CGRect(x: -1440, y: 124, width: 1440, height: 850),
+                        CGRect(x: 120, y: -900, width: 1920, height: 860),
+                        CGRect(x: 0, y: 0, width: 200, height: 50)] {
+            let frame = ReadingPanelController.frame(in: visible)
+            #expect(visible.contains(frame))
+            #expect(frame.midX == visible.midX)
+            #expect(frame.minY >= visible.minY)
+        }
+    }
+
+    @Test
+    func terminalDismissalCannotHideNewWorkAndPanelNeverBecomesKey() async throws {
+        let screen = try #require(NSScreen.screens.first)
+        let number = try #require(screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)
+        let controller = ReadingPanelController(terminalDuration: .milliseconds(50))
+        defer { controller.hide() }
+        let frontmost = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        controller.show(.stopped, displayID: number.uint32Value, onStop: nil)
+        let panel = try #require(controller.panel)
+        #expect(!panel.canBecomeKey)
+        #expect(!panel.canBecomeMain)
+        #expect(panel.styleMask.contains(.nonactivatingPanel))
+        #expect(!panel.hidesOnDeactivate)
+        #expect(NSWorkspace.shared.frontmostApplication?.processIdentifier == frontmost)
+        controller.show(.preparing, displayID: number.uint32Value, onStop: {})
+        try await Task.sleep(for: .milliseconds(120))
+        #expect(controller.state == .preparing)
+        #expect(panel.isVisible)
+        controller.show(.finished, displayID: number.uint32Value, onStop: nil)
+        try await Task.sleep(for: .milliseconds(120))
+        #expect(controller.state == nil)
+        #expect(!panel.isVisible)
+        controller.show(.noText, displayID: number.uint32Value, onStop: nil)
+        try await Task.sleep(for: .milliseconds(120))
+        #expect(controller.state == .noText)
+        controller.hide()
+        #expect(panel.contentView == nil)
+        controller.show(.speaking, displayID: UInt32.max, onStop: {})
+        #expect(controller.state == nil)
+        #expect(!panel.isVisible)
+    }
+}
+
+@MainActor
+private final class ReadingPanelFake: ReadingStatusPresenting {
+    var state: ReadingPanelState?
+    var displayID: UInt32?
+    var onStop: (() -> Void)?
+    func show(_ state: ReadingPanelState, displayID: UInt32, onStop: (() -> Void)?) {
+        self.state = state
+        self.displayID = displayID
+        self.onStop = onStop
+    }
+    func hide() { state = nil; onStop = nil }
 }
 
 @MainActor

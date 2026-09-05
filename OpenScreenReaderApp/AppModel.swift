@@ -21,6 +21,7 @@ final class AppModel: ObservableObject {
     private let escapeMonitor: any EscapeMonitoring
     private let ocrService: any TextRecognizing
     private let speechService: any SpeechReading
+    private let readingPanel: (any ReadingStatusPresenting)?
     private let operationTimeout: Duration
     private let speechStartupTimeout: Duration
     private var activeContext: PipelineOperationContext?
@@ -32,6 +33,7 @@ final class AppModel: ObservableObject {
     private var speechTimeoutGeneration: UInt64 = 0
 
     isolated deinit {
+        readingPanel?.hide()
         stopResources()
         hotkeyManager.unregister()
     }
@@ -45,6 +47,7 @@ final class AppModel: ObservableObject {
         escapeMonitor: any EscapeMonitoring = EscapeMonitor(),
         ocrService: any TextRecognizing = VisionOCRService(),
         speechService: any SpeechReading = LocalSpeechService(),
+        readingPanel: (any ReadingStatusPresenting)? = nil,
         operationTimeout: Duration = .seconds(15),
         speechStartupTimeout: Duration = .seconds(90)
     ) {
@@ -57,6 +60,7 @@ final class AppModel: ObservableObject {
         self.escapeMonitor = escapeMonitor
         self.ocrService = ocrService
         self.speechService = speechService
+        self.readingPanel = readingPanel
         self.operationTimeout = operationTimeout
         self.speechStartupTimeout = speechStartupTimeout
         hotkeyManager.onPress = { [weak self] in self?.enqueueReadRequest() }
@@ -158,6 +162,7 @@ final class AppModel: ObservableObject {
         }
         switch await pipelineCoordinator.start() {
         case let .started(context):
+            readingPanel?.hide()
             activeContext = context
             status = .selecting
             lastSelection = nil
@@ -173,6 +178,7 @@ final class AppModel: ObservableObject {
                 }
             )
         case let .cleanupRequired(directive):
+            readingPanel?.hide()
             stopResources()
             _ = await pipelineCoordinator.finishCleanup(for: directive.context)
             activeContext = nil
@@ -184,6 +190,7 @@ final class AppModel: ObservableObject {
         guard context == activeContext,
               await pipelineCoordinator.accept(.capturing, for: context) else { return }
         lastSelection = selection
+        readingPanel?.hide()
         selectionController.cancel()
         do {
             try escapeMonitor.start(
@@ -232,6 +239,7 @@ final class AppModel: ObservableObject {
         guard context == activeContext,
               await pipelineCoordinator.accept(.recognizing, for: context) else { return }
         status = .recognizing
+        showReadingPanel(.recognizing, context: context)
         let service = ocrService
         recognitionTask = Task { @MainActor [weak self] in
             do {
@@ -259,6 +267,7 @@ final class AppModel: ObservableObject {
         guard !result.text.isEmpty else { await finishSpeech(context: context); return }
         guard await pipelineCoordinator.accept(.synthesizing, for: context) else { return }
         status = .synthesizing
+        showReadingPanel(.preparing, context: context)
         armSpeechTimeout(speechStartupTimeout, context: context)
         let service = speechService
         let text = result.text
@@ -284,6 +293,7 @@ final class AppModel: ObservableObject {
         if status == .synthesizing {
             guard await pipelineCoordinator.accept(.speaking, for: context) else { return }
             status = .speaking
+            showReadingPanel(.speaking, context: context)
         }
         armSpeechTimeout(.seconds(30), context: context)
     }
@@ -306,6 +316,7 @@ final class AppModel: ObservableObject {
         stopResources()
         activeContext = nil
         status = .ready
+        showReadingPanel(lastOCRSummary?.characterCount == 0 ? .noText : .finished, context: context)
     }
 
     private func fail(context: PipelineOperationContext, message: String) async {
@@ -316,6 +327,7 @@ final class AppModel: ObservableObject {
         stopResources()
         status = .error
         errorMessage = message
+        showReadingPanel(.failed, context: context)
     }
 
     private func cancel(context: PipelineOperationContext) async {
@@ -326,6 +338,15 @@ final class AppModel: ObservableObject {
         stopResources()
         if let directive { _ = await pipelineCoordinator.finishCleanup(for: directive.context) }
         status = .stopped
+        showReadingPanel(.stopped, context: context)
+    }
+
+    private func showReadingPanel(_ state: ReadingPanelState, context: PipelineOperationContext) {
+        guard let selection = lastSelection else { readingPanel?.hide(); return }
+        let stop: (() -> Void)? = state.isActive ? { [weak self] in
+            self?.enqueue { await $0.cancel(context: context) }
+        } : nil
+        readingPanel?.show(state, displayID: selection.displayID, onStop: stop)
     }
 
     private func stopResources() {
