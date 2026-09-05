@@ -22,7 +22,7 @@ enum InterfaceCue: CaseIterable, Equatable {
     static let channels = 2
 
     /// Peak amplitude before the user's effect volume is applied.
-    var peak: Float { self == .tap || self == .release ? 0.42 : 0.5 }
+    var peak: Float { self == .tap || self == .release ? 0.42 : self == .completion ? 0.36 : 0.5 }
 
     /// Two voicings alternate so the tenth reading does not sound like the first.
     var variantCount: Int { self == .selection || self == .completion ? 2 : 1 }
@@ -42,17 +42,16 @@ enum InterfaceCue: CaseIterable, Equatable {
             voice.room(wet: 0.32, size: 0.4)
             return voice.render(duration: 0.9, peak: peak, fade: 0.08)
         case .completion:
-            // Done: a deep marimba root, a cascade of five rising water drops, a closing bar.
-            voice.thud(at: 0, frequency: 80, decay: 0.18, gain: 0.45)
-            voice.bar(at: 0, frequency: 130.81, decay: 1.0, gain: 0.6, hardness: 0.3)
-            let drops: [Double] = alternate ? [349.23, 440, 523.25, 698.46, 880] : [330, 440, 550, 660, 880]
+            // Done, quietly: a soft deep root and three rising water drops. No closing bar, less room.
+            voice.thud(at: 0, frequency: 80, decay: 0.14, gain: 0.25)
+            voice.bar(at: 0, frequency: 130.81, decay: 0.7, gain: 0.45, hardness: 0.25)
+            let drops: [Double] = alternate ? [440, 523.25, 698.46] : [440, 550, 660]
             for (index, frequency) in drops.enumerated() {
-                voice.drop(at: 0.05 + Double(index) * 0.085, frequency: frequency, rise: 1.45, decay: 0.09,
-                           gain: 0.55 - Double(index) * 0.04, seed: 40 + index)
+                voice.drop(at: 0.04 + Double(index) * 0.09, frequency: frequency, rise: 1.45, decay: 0.08,
+                           gain: 0.4 - Double(index) * 0.06, seed: 40 + index)
             }
-            voice.bar(at: 0.47, frequency: alternate ? 349.23 : 261.63, decay: 0.8, gain: 0.5, hardness: 0.35)
-            voice.room(wet: 0.45, size: 0.55)
-            return voice.render(duration: 1.5, peak: peak, fade: 0.1)
+            voice.room(wet: 0.3, size: 0.4)
+            return voice.render(duration: 1.0, peak: peak, fade: 0.1)
         case .attention:
             // Hm: two muted wooden knocks that fall a major third, with a little weight. Never a siren.
             voice.bar(at: 0, frequency: 293.66, decay: 0.12, gain: 0.8, hardness: 0.6)
