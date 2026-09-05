@@ -26,6 +26,17 @@ Der offizielle MVP enthält ein geprüftes Standardmodell. Der Nutzer muss vor d
 - Ein leeres beziehungsweise nicht lesbares Ergebnis startet keine TTS.
 - Bedienung per Tastatur und VoiceOver-Bezeichnungen wird von Beginn an berücksichtigt.
 
+## Kleines Vorlese-Panel
+
+- Ein nicht aktivierendes, nicht modales Panel erscheint erst nach abgeschlossener Aufnahme: „Text erkennen …“, „Vorbereiten …“, „Vorlesen“.
+- Es bleibt unten mittig auf dem ausgewählten Display, innerhalb dessen nutzbarer Fläche mit Abstand zum Dock. Es folgt weder Maus noch Auswahlrechteck.
+- Der Stop-Knopf beendet den vollständigen Auftrag. `Esc` und der erneute Hotkey bleiben unverändert verfügbar. Kein zusätzlicher Bestätigungsklick vor dem Vorlesen.
+- „Fertig“ und „Gestoppt“ verschwinden nach 1,4 Sekunden. „Kein Text erkannt“ und Fehler bleiben mit einem Schließen-Knopf sichtbar; Details zu Fehlern stehen im App-Menü. Ein neuer Auftrag blendet jedes alte Panel vor der Auswahl aus.
+- Normale Größe: 320 × 64 Punkte, 44 × 44 Punkte große Schaltfläche, abgerundetes Rechteck statt Kapsel. Local Ink, Warm Paper und ein sparsamer Voice-Mint-Akzent folgen dem genehmigten Markensystem. Keine neue Logo-Variante.
+- Systemschrift und semantische Symbole; keine Aufnahme-/Mikrofonmetapher, kein Equalizer. Der Lautsprecher pulsiert beim Vorlesen dezent; bei reduzierter Bewegung bleibt er statisch. Die Oberfläche ist deckend, bei erhöhtem Kontrast wird die Kontur verstärkt.
+- Das Panel zeigt ausschließlich Status, nie OCR-Text oder eine Vorschau. Statuswechsel und Stop-Klick dürfen den Fokus der gerade benutzten App nicht übernehmen.
+- Pause, Geschwindigkeit und Stimmenauswahl gehören nicht in diese erste kompakte Bedienfläche.
+
 ## Performance-Ziele
 
 - Bei warmem Standardmodell soll der erste Audioblock möglichst in weniger als 500 ms nach abgeschlossenem OCR-Text bereitstehen. Dies ist ein Ziel, kein Nachweis für den aktuellen Supertonic-Entwicklungspfad.

@@ -51,6 +51,12 @@ Geplanter Stack:
 - `ModelManager`: Manifest- und Hashprüfung des gebündelten Modells, Version und Speicherpolitik;
 - `PrivacyAudit`: zentraler Ort für optionale Netzwerk- und Dateisystemereignisse.
 
+### Implementiertes Status-Panel
+
+Die App-Shell injiziert `ReadingPanelController` über `ReadingStatusPresenting` in `AppModel`. Der Controller erhält nur einen geschlossenen Statuswert, die ausgewählte Display-ID und einen auf die aktuelle Pipeline-Generation begrenzten Stop-Callback. Screenshot, OCR-Text, Audio und technische Fehlerpayloads verlassen diese Grenze nicht.
+
+`AppModel` blendet das Panel vor Auswahl/Aufnahme aus und veröffentlicht sichtbare Arbeitszustände erst nach der Aufnahme. Der vorhandene ScreenCaptureKit-Filter schließt zusätzlich die eigene App aus. Das `NSPanel` ist nicht aktivierend, wird nie Key/Main Window und bleibt beim Wechsel in andere Apps sichtbar. Eigene Generationen und abgebrochene Timer verhindern, dass ein veralteter Button oder eine alte Ausblendung einen neuen Auftrag beeinflusst. Bildschirmänderungen positionieren es neu oder blenden es aus, wenn sein Display fehlt. [Verifikation und Grenzen](reading-panel-verification.md).
+
 ## TTS-Prozess
 
 Der aktuelle Entwicklungsspike verwendet einen einzelnen Python-/ONNX-Prozess pro Vorleseauftrag. `SpeechReading` trennt die Auftragssteuerung vom konkreten `LocalSpeechService`; `SpeechRuntimeConfiguration` legt den expliziten Supertonic-Pfad und 44,1 kHz fest. Text und PCM laufen über anonyme Pipes, die Wiedergabe erfolgt im App-Prozess. Der Worker darf im Entwicklungsprofil weder Netzwerkverbindungen aufbauen noch Dateien schreiben (ausgenommen `/dev/null`). Python läuft isoliert und ohne Bytecode-Schreibzugriffe. Abbruch stoppt zuerst den Audioplayer und beendet anschließend den eigenen Worker; Generationen verwerfen verspätete Ergebnisse. Das Modell bleibt zwischen Textsegmenten geladen, aber nicht zwischen Aufträgen. Dieses Verhalten ist implementiert und kein Nachweis für den warmen Latenzzielwert.

@@ -30,6 +30,7 @@ Each spike needs a small reproducible test or benchmark and a written decision b
 - [ ] Production-ready hotkey → overlay → screenshot → OCR → TTS → playback (development integration works; distribution, broader reliability, and performance gates remain).
 - [ ] Add sentence segmentation and text normalization.
 - [x] Add menu bar settings for the hotkey, including restore-default and conflict feedback.
+- [x] Add a small branded reading-status panel with full-pipeline stop, without taking focus; [verification and remaining display/accessibility checks](reading-panel-verification.md).
 - [ ] Add settings for voice, speed, and model lifecycle.
 - [ ] Add explicit permissions onboarding.
 - [ ] Add bundled-model manifest, source/license display, and integrity checks.

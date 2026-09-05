@@ -20,6 +20,8 @@ Implementation checks and remaining limitations are recorded in [Shortcut verifi
 
 With the development runtime installed, selecting text starts speech automatically. The menu shows **Preparing voice**, then **Speaking**; Escape, the repeated shortcut, or **Stop Reading** cancels. Settings shows Supertonic 3, its machine-generated M1 voice, model license, and local runtime availability. Selections are limited to 8,000 characters; no Qwen, cloud, or system voice is substituted on failure. See [runtime installation and verification](docs/research/supertonic-integration.md). Screenshots are released after OCR; text and audio are retained only for the active reading, without history or automatic clipboard writes.
 
+A small floating reading panel appears after capture, at the bottom of the selected display. It shows recognition, preparation, and playback without taking keyboard focus. Its stop button cancels the whole operation. Completed/stopped feedback disappears automatically; empty-text and error notices remain until dismissed or a new selection starts. The panel contains status only, never the selected text. See [panel behavior and verification](docs/reading-panel-verification.md).
+
 - Press a global keyboard shortcut.
 - Drag a rectangle over any visible text.
 - Recognize it locally with Apple Vision.

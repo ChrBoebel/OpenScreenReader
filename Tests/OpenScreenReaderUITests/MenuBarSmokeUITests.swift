@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 
 final class MenuBarSmokeUITests: XCTestCase {
@@ -111,16 +112,28 @@ final class MenuBarSmokeUITests: XCTestCase {
 
     @MainActor
     func testLocalSupertonicReadsFixtureAndEscapeStopsIt() throws {
-        try verifyLocalSupertonic(cancelWithShortcut: false)
+        try verifyLocalSupertonic(ending: .escape)
     }
 
     @MainActor
     func testLocalSupertonicReadsFixtureAndRepeatedShortcutStopsIt() throws {
-        try verifyLocalSupertonic(cancelWithShortcut: true)
+        try verifyLocalSupertonic(ending: .shortcut)
     }
 
     @MainActor
-    private func verifyLocalSupertonic(cancelWithShortcut: Bool) throws {
+    func testReadingPanelStopButtonPreservesOtherAppFocus() throws {
+        try verifyLocalSupertonic(ending: .panel)
+    }
+
+    @MainActor
+    func testReadingPanelDisappearsAfterNaturalCompletion() throws {
+        try verifyLocalSupertonic(ending: .complete)
+    }
+
+    private enum ReadingEnd { case escape, shortcut, panel, complete }
+
+    @MainActor
+    private func verifyLocalSupertonic(ending: ReadingEnd) throws {
         let app = makeApplication()
         app.launch()
         defer { app.terminate() }
@@ -145,21 +158,57 @@ final class MenuBarSmokeUITests: XCTestCase {
         app.menuItems["Read Screen Region…"].click()
         let overlay = app.groups["Screen region selection"].firstMatch
         XCTAssertTrue(overlay.waitForExistence(timeout: 5), statusDescription(in: app))
+        XCTAssertFalse(app.buttons["readingStatusAction"].exists, "The panel must not cover the selected image.")
         let origin = overlay.coordinate(withNormalizedOffset: .zero)
         let frame = overlay.frame
         let start = origin.withOffset(CGVector(dx: region.minX - frame.minX, dy: region.minY - frame.minY))
         let end = origin.withOffset(CGVector(dx: region.maxX - frame.minX, dy: region.maxY - frame.minY))
         start.press(forDuration: 0.1, thenDragTo: end)
+        fixture.activate()
         let speaking = app.descendants(matching: .statusItem)
             .matching(NSPredicate(format: "title == 'OpenScreenReader, Speaking'")).firstMatch
         XCTAssertTrue(speaking.waitForExistence(timeout: 90), statusDescription(in: app))
-        let finder = XCUIApplication(bundleIdentifier: "com.apple.finder")
-        finder.activate()
-        if cancelWithShortcut { finder.typeKey("y", modifierFlags: [.command, .shift]) }
-        else { finder.typeKey(.escape, modifierFlags: []) }
+        let action = app.buttons["readingStatusAction"]
+        XCTAssertTrue(action.waitForExistence(timeout: 3))
+        XCTAssertEqual(action.label, "Vorlesen stoppen")
+        XCTAssertGreaterThanOrEqual(action.frame.width, 44)
+        XCTAssertGreaterThanOrEqual(action.frame.height, 44)
+        XCTAssertEqual(fixture.state, .runningForeground, "Showing and updating the panel must not activate OpenScreenReader.")
+        if ending == .complete {
+            let ready = app.descendants(matching: .statusItem)
+                .matching(NSPredicate(format: "title == 'OpenScreenReader, Ready'")).firstMatch
+            XCTAssertTrue(ready.waitForExistence(timeout: 30), statusDescription(in: app))
+            XCTAssertTrue(action.waitForNonExistence(timeout: 4))
+            XCTAssertEqual(fixture.state, .runningForeground,
+                "Foreground application after completion: \(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "none")")
+            return
+        }
+        if ending == .panel {
+            let panel = app.groups["readingStatusContent"].firstMatch
+            XCTAssertTrue(panel.exists, app.debugDescription)
+            let attachment = XCTAttachment(screenshot: panel.screenshot())
+            attachment.name = "reading-panel-speaking"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            // Click the observed button coordinates from the foreground fixture;
+            // do not let XCTest activate the background app before the click.
+            let target = action.frame
+            let fixtureFrame = fixtureText.frame
+            XCTAssertTrue([target.midX, target.midY, fixtureFrame.minX, fixtureFrame.minY].allSatisfy(\.isFinite))
+            fixtureText.coordinate(withNormalizedOffset: .zero).withOffset(
+                CGVector(dx: target.midX - fixtureFrame.minX, dy: target.midY - fixtureFrame.minY)
+            ).click()
+            XCTAssertEqual(fixture.state, .runningForeground, "Stopping must leave the user's document active.")
+        } else {
+            let finder = XCUIApplication(bundleIdentifier: "com.apple.finder")
+            finder.activate()
+            if ending == .shortcut { finder.typeKey("y", modifierFlags: [.command, .shift]) }
+            else { finder.typeKey(.escape, modifierFlags: []) }
+        }
         let stopped = app.descendants(matching: .statusItem)
             .matching(NSPredicate(format: "title == 'OpenScreenReader, Stopped'")).firstMatch
         XCTAssertTrue(stopped.waitForExistence(timeout: 3), statusDescription(in: app))
+        XCTAssertTrue(action.waitForNonExistence(timeout: 4), "The stopped panel should disappear automatically.")
     }
 
     @MainActor
