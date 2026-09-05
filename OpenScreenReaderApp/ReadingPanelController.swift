@@ -31,22 +31,33 @@ enum ReadingPanelState: Hashable {
 
 @MainActor
 protocol ReadingStatusPresenting: AnyObject {
-    func show(_ state: ReadingPanelState, displayID: UInt32, onStop: (() -> Void)?)
+    /// `origin` is the captured region in screen points. When present on the first
+    /// visible state, the frame visibly collapses into the control before it opens.
+    func show(_ state: ReadingPanelState, displayID: UInt32, origin: CGRect?, onStop: (() -> Void)?)
     func updateLevel(_ level: Double)
     func hide()
+}
+
+extension ReadingStatusPresenting {
+    func show(_ state: ReadingPanelState, displayID: UInt32, onStop: (() -> Void)?) {
+        show(state, displayID: displayID, origin: nil, onStop: onStop)
+    }
 }
 
 @MainActor
 final class ReadingPanelController: NSObject, ReadingStatusPresenting {
     private(set) var state: ReadingPanelState?
     private(set) var panel: ReadingStatusPanel?
+    private(set) var flight: SelectionFlightWindow?
     private var content: ReadingControlView?
     private var displayID: UInt32?
     private var dismissalTask: Task<Void, Never>?
     private var transitionTask: Task<Void, Never>?
+    private var flightTask: Task<Void, Never>?
     private var generation: UInt64 = 0
     private let terminalDuration: Duration
     private let interfaceSounds: (any InterfaceSoundPlaying)?
+    private var reduced: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
 
     init(terminalDuration: Duration = .milliseconds(1100), interfaceSounds: (any InterfaceSoundPlaying)? = nil) {
         self.terminalDuration = terminalDuration
@@ -58,38 +69,77 @@ final class ReadingPanelController: NSObject, ReadingStatusPresenting {
     isolated deinit {
         dismissalTask?.cancel()
         transitionTask?.cancel()
+        flightTask?.cancel()
         content?.stopAnimating()
+        flight?.close()
         panel?.close()
         NotificationCenter.default.removeObserver(self)
     }
 
-    func show(_ state: ReadingPanelState, displayID: UInt32, onStop: (() -> Void)?) {
+    func show(_ state: ReadingPanelState, displayID: UInt32, origin: CGRect?, onStop: (() -> Void)?) {
         dismissalTask?.cancel()
         transitionTask?.cancel()
         generation &+= 1
         let current = generation
         guard let screen = Self.screen(for: displayID) else { hide(); return }
+        let previous = self.state
         self.state = state
         self.displayID = displayID
         let panel = panel ?? ReadingStatusPanel()
         self.panel = panel
         let appearing = content == nil
-        let view = content ?? ReadingControlView(frame: NSRect(origin: .zero, size: Self.frame(in: screen.visibleFrame).size))
+        let frame = Self.frame(in: screen.visibleFrame)
+        let view = content ?? ReadingControlView(frame: NSRect(origin: .zero, size: frame.size))
         content = view
         if appearing { panel.contentView = view }
-        panel.setFrame(Self.frame(in: screen.visibleFrame), display: true)
+        panel.setFrame(frame, display: true)
         view.onPress = { [weak self] in self?.interfaceSounds?.play(.tap) }
-        view.present(state, opening: appearing) { [weak self] in
+        view.onRelease = { [weak self] in self?.interfaceSounds?.play(.release) }
+        let action = { [weak self] in
             guard let self, self.generation == current else { return }
             if state.isActive { onStop?() } else { self.dismiss() }
         }
-        panel.orderFrontRegardless()
+        if previous != state { announce(state, from: view) }
         if state.dismissesAutomatically {
             dismissalTask = Task { @MainActor [weak self, terminalDuration] in
                 do { try await Task.sleep(for: terminalDuration) } catch { return }
                 guard let self, self.generation == current else { return }
                 self.dismiss()
             }
+        }
+        if flight != nil {
+            // The frame is still flying: remember the newest state, open when it lands.
+            view.present(state, opening: false, action: action)
+            return
+        }
+        if appearing, let origin, !reduced, screen.frame.intersects(origin) {
+            view.present(state, opening: false, action: action)
+            let landing = Self.landingRect(for: frame)
+            let flight = SelectionFlightWindow(screen: screen)
+            self.flight = flight
+            flight.fly(from: origin, to: landing)
+            flightTask = Task { @MainActor [weak self] in
+                do { try await Task.sleep(for: .milliseconds(SelectionFlightWindow.durationMilliseconds)) } catch { return }
+                guard let self, self.flight === flight else { return }
+                self.land(flight)
+            }
+            return
+        }
+        view.present(state, opening: appearing, action: action)
+        panel.orderFrontRegardless()
+        if appearing { interfaceSounds?.play(.selection) }
+    }
+
+    private func land(_ flight: SelectionFlightWindow) {
+        guard let panel, let content, let state else { return }
+        self.flight = nil
+        panel.orderFrontRegardless()
+        content.present(state, opening: true, action: content.currentAction)
+        interfaceSounds?.play(.selection)
+        flight.fade()
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(180))
+            flight.close()
         }
     }
 
@@ -103,8 +153,12 @@ final class ReadingPanelController: NSObject, ReadingStatusPresenting {
         generation &+= 1
         dismissalTask?.cancel()
         transitionTask?.cancel()
+        flightTask?.cancel()
         dismissalTask = nil
         transitionTask = nil
+        flightTask = nil
+        flight?.close()
+        flight = nil
         content?.stopAnimating()
         panel?.orderOut(nil)
         panel?.contentView = nil
@@ -127,12 +181,26 @@ final class ReadingPanelController: NSObject, ReadingStatusPresenting {
         }
     }
 
+    private func announce(_ state: ReadingPanelState, from view: NSView) {
+        // The control is deliberately text-free; VoiceOver users still hear every change.
+        NSAccessibility.post(element: view, notification: .announcementRequested, userInfo: [
+            .announcement: state.title,
+            .priority: NSAccessibilityPriorityLevel.medium.rawValue,
+        ])
+    }
+
     /// The window is larger than the visible body so the drawn shadow has room.
     static func frame(in visibleFrame: CGRect) -> CGRect {
         let width = min(ReadingControlView.Metrics.surface.width, visibleFrame.width)
         let height = min(ReadingControlView.Metrics.surface.height, visibleFrame.height)
         let inset = min(4, max(0, visibleFrame.height - height))
         return CGRect(x: visibleFrame.midX - width / 2, y: visibleFrame.minY + inset, width: width, height: height)
+    }
+    /// Where the collapsed dot sits, in screen points.
+    static func landingRect(for panelFrame: CGRect) -> CGRect {
+        let size = ReadingControlView.Metrics.height
+        return CGRect(x: panelFrame.midX - size / 2, y: panelFrame.minY + ReadingControlView.Metrics.bodyBottom,
+                      width: size, height: size)
     }
     private static func screen(for displayID: UInt32) -> NSScreen? {
         NSScreen.screens.first {
@@ -164,35 +232,118 @@ final class ReadingStatusPanel: NSPanel {
     }
 }
 
+/// A click-through window covering the selected display. It shows the captured
+/// frame as a mint ghost that collapses into a glowing dot at the control's spot.
+@MainActor
+final class SelectionFlightWindow: NSWindow {
+    static let durationMilliseconds = 460
+    private let ghost = CAShapeLayer()
+
+    init(screen: NSScreen) {
+        super.init(contentRect: screen.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        level = .floating
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
+        ignoresMouseEvents = true
+        isOpaque = false
+        backgroundColor = .clear
+        hasShadow = false
+        isReleasedWhenClosed = false
+        animationBehavior = .none
+        let host = NSView(frame: NSRect(origin: .zero, size: screen.frame.size))
+        host.wantsLayer = true
+        ghost.fillColor = ReadingPalette.mint.withAlphaComponent(0).cgColor
+        ghost.strokeColor = ReadingPalette.mint.cgColor
+        ghost.lineWidth = 2
+        ghost.shadowColor = ReadingPalette.mint.cgColor
+        ghost.shadowOffset = .zero
+        ghost.shadowRadius = 14
+        ghost.shadowOpacity = 0
+        host.layer?.addSublayer(ghost)
+        contentView = host
+    }
+
+    func fly(from origin: CGRect, to landing: CGRect) {
+        let start = CGPath(roundedRect: convertFromScreen(origin).insetBy(dx: 1, dy: 1), cornerWidth: 5, cornerHeight: 5, transform: nil)
+        let end = CGPath(roundedRect: convertFromScreen(landing), cornerWidth: landing.width / 2, cornerHeight: landing.height / 2, transform: nil)
+        ghost.path = start
+        orderFrontRegardless()
+        let duration = Double(Self.durationMilliseconds) / 1000
+        let timing = CAMediaTimingFunction(controlPoints: 0.6, 0, 0.2, 1)
+        func animate(_ keyPath: String, from: Any, to: Any) {
+            let animation = CABasicAnimation(keyPath: keyPath)
+            animation.fromValue = from
+            animation.toValue = to
+            animation.duration = duration
+            animation.timingFunction = timing
+            ghost.add(animation, forKey: keyPath)
+        }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        animate("path", from: start, to: end)
+        animate("fillColor", from: ReadingPalette.mint.withAlphaComponent(0).cgColor, to: ReadingPalette.mint.cgColor)
+        animate("lineWidth", from: 2, to: 0)
+        animate("shadowOpacity", from: 0, to: 0.9)
+        ghost.path = end
+        ghost.fillColor = ReadingPalette.mint.cgColor
+        ghost.lineWidth = 0
+        ghost.shadowOpacity = 0.9
+        CATransaction.commit()
+    }
+
+    func fade() {
+        let animation = CABasicAnimation(keyPath: "opacity")
+        animation.fromValue = 1
+        animation.toValue = 0
+        animation.duration = 0.16
+        ghost.add(animation, forKey: "fade")
+        ghost.opacity = 0
+    }
+}
+
 enum ReadingPalette {
     static let ink = NSColor(srgbRed: 11 / 255, green: 23 / 255, blue: 36 / 255, alpha: 1)
+    /// Deeper than Local Ink so mint reads as light, not paint.
+    static let void = NSColor(srgbRed: 5 / 255, green: 11 / 255, blue: 19 / 255, alpha: 1)
     static let paper = NSColor(srgbRed: 247 / 255, green: 244 / 255, blue: 237 / 255, alpha: 1)
     static let mint = NSColor(srgbRed: 85 / 255, green: 224 / 255, blue: 190 / 255, alpha: 1)
     static let mintLight = NSColor(srgbRed: 184 / 255, green: 247 / 255, blue: 231 / 255, alpha: 1)
     /// Attention accent. Warm, not alarming; never used as body text.
     static let amber = NSColor(srgbRed: 1, green: 0.72, blue: 0.4, alpha: 1)
+
+    static func mix(_ a: NSColor, _ b: NSColor, _ t: CGFloat) -> NSColor {
+        let t = min(1, max(0, t))
+        return NSColor(srgbRed: a.redComponent + (b.redComponent - a.redComponent) * t,
+                       green: a.greenComponent + (b.greenComponent - a.greenComponent) * t,
+                       blue: a.blueComponent + (b.blueComponent - a.blueComponent) * t,
+                       alpha: a.alphaComponent + (b.alphaComponent - a.alphaComponent) * t)
+    }
 }
 
-/// A small floating reading instrument: a translucent Local Ink island that
-/// springs open from a dot, carries a glowing Voice Mint ribbon driven by the
-/// rendered speech level, and closes back into the dot when it is done.
-///
-/// Fixed surface geometry, manual per-frame layout and Core Animation layers.
-/// No Auto Layout and no SwiftUI hosting size constraints take part.
+/// A text-free capsule: nine voice bars that answer the rendered speech level,
+/// one round stop control, and shape, colour and motion for every state.
+/// Text appears only on hover (Esc hint) and briefly for attention states;
+/// accessibility labels and announcements always carry the full status.
 @MainActor
 final class ReadingControlView: NSView {
     enum Metrics {
-        static let surface = CGSize(width: 376, height: 100)
-        static let body = CGSize(width: 312, height: 60)
-        static let collapsed: CGFloat = 60
-        static let corner: CGFloat = 20
-        static let padding: CGFloat = 18
-        static let ribbon: CGFloat = 92
-        static let button: CGFloat = 44
+        static let surface = CGSize(width: 300, height: 92)
+        static let height: CGFloat = 44
         static let bodyBottom: CGFloat = 24
+        static let padding: CGFloat = 22
+        static let barCount = 9
+        static let barWidth: CGFloat = 3
+        static let barGap: CGFloat = 3.5
+        static let barMaxHeight: CGFloat = 30
+        static let button: CGFloat = 44
+        static let keycapWidth: CGFloat = 40
+        static var barsWidth: CGFloat { CGFloat(barCount) * barWidth + CGFloat(barCount - 1) * barGap }
+        static var activeWidth: CGFloat { padding + barsWidth + 15 + button }
+        static var terminalWidth: CGFloat { 18 + 24 + 14 + button }
     }
 
     var onPress: (() -> Void)?
+    var onRelease: (() -> Void)?
+    var currentAction: () -> Void { { [weak self] in self?.action?() } }
 
     private let shadowHost = NSView()
     private let softShadow = CALayer()
@@ -202,34 +353,41 @@ final class ReadingControlView: NSView {
     private let canvas = NSView()
     private let tint = CALayer()
     private let depth = CAGradientLayer()
+    private let rim = CAShapeLayer()
     private let glow = CAGradientLayer()
-    private let halo = CAShapeLayer()
-    private let ribbon = CAGradientLayer()
-    private let ribbonMask = CAShapeLayer()
+    private var bars: [CAShapeLayer] = []
     private let comet = CAGradientLayer()
     private let icon = CAShapeLayer()
+    private let bloom = CAShapeLayer()
+    private let keycap = CAShapeLayer()
+    private let keycapText = CATextLayer()
     private let border = CAShapeLayer()
-    private let title = NSTextField(labelWithString: "")
-    private let detail = NSTextField(labelWithString: "")
+    private let note = NSTextField(labelWithString: "")
     private let button = ReadingStopButton(frame: NSRect(x: 0, y: 0, width: Metrics.button, height: Metrics.button))
 
     private var clock: CADisplayLink?
     private var state: ReadingPanelState = .recognizing
     private var action: (() -> Void)?
-    private var expansion = 0.0
-    private var expansionVelocity = 0.0
+    private var width = Metrics.height
+    private var widthVelocity = 0.0
     private var exitStart: TimeInterval?
     private var bumpStart: TimeInterval?
+    private var pulseStart: TimeInterval?
+    private var changed: TimeInterval = 0
+    private var noteUntil: TimeInterval = 0
     private var content = 0.0
     private var level = 0.0
     private var targetLevel = 0.0
-    private var voice = 0.0
-    private var prepare = 0.0
-    private var scan = 0.0
+    private var previousLevel = 0.0
     private var terminal = 0.0
     private var hover = 0.0
+    private var noteBlend = 0.0
+    private var press = 0.0
     private var hovering = false
-    private var phases = (0.0, 0.0, 0.0)
+    private var pressing = false
+    private var opened = false
+    private var heights = [Double](repeating: 3, count: Metrics.barCount)
+    private var phase = 0.0
     private var lastTick: TimeInterval?
     private var reduced: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
 
@@ -248,17 +406,17 @@ final class ReadingControlView: NSView {
             shadow.shadowColor = NSColor.black.cgColor
             shadowHost.layer?.addSublayer(shadow)
         }
-        softShadow.shadowOpacity = 0.45
+        softShadow.shadowOpacity = 0.5
         softShadow.shadowRadius = 16
         softShadow.shadowOffset = CGSize(width: 0, height: -6)
-        contactShadow.shadowOpacity = 0.4
+        contactShadow.shadowOpacity = 0.45
         contactShadow.shadowRadius = 2.5
         contactShadow.shadowOffset = CGSize(width: 0, height: -1)
         addSubview(shadowHost)
 
         body.wantsLayer = true
         body.layer?.masksToBounds = true
-        body.layer?.cornerCurve = .continuous
+        body.layer?.cornerCurve = .circular
         body.onHover = { [weak self] inside in
             self?.hovering = inside
             self?.resumeClock()
@@ -270,7 +428,6 @@ final class ReadingControlView: NSView {
         effect.state = .active
         effect.wantsLayer = true
         effect.layer?.masksToBounds = true
-        effect.layer?.cornerCurve = .continuous
         effect.autoresizingMask = [.width, .height]
         body.addSubview(effect)
 
@@ -278,35 +435,30 @@ final class ReadingControlView: NSView {
         canvas.autoresizingMask = [.width, .height]
         body.addSubview(canvas)
 
-        tint.backgroundColor = ReadingPalette.ink.cgColor
-        depth.colors = [ReadingPalette.paper.withAlphaComponent(0.11).cgColor, NSColor.clear.cgColor,
-                        NSColor.black.withAlphaComponent(0.22).cgColor]
-        depth.locations = [0, 0.48, 1]
+        tint.backgroundColor = ReadingPalette.void.cgColor
+        depth.colors = [ReadingPalette.paper.withAlphaComponent(0.09).cgColor, NSColor.clear.cgColor,
+                        NSColor.black.withAlphaComponent(0.3).cgColor]
+        depth.locations = [0, 0.45, 1]
         depth.startPoint = CGPoint(x: 0.5, y: 1)
         depth.endPoint = CGPoint(x: 0.5, y: 0)
+        rim.fillColor = nil
+        rim.lineWidth = 1
+        rim.strokeColor = ReadingPalette.paper.withAlphaComponent(0.06).cgColor
         glow.type = .radial
         glow.startPoint = CGPoint(x: 0.5, y: 0.5)
         glow.endPoint = CGPoint(x: 1, y: 1)
-        halo.fillColor = nil
-        halo.lineWidth = 7
-        halo.lineCap = .round
-        halo.lineJoin = .round
-        halo.shadowOffset = .zero
-        halo.shadowRadius = 7
-        halo.shadowOpacity = 1
-        ribbon.startPoint = CGPoint(x: 0, y: 0.5)
-        ribbon.endPoint = CGPoint(x: 1, y: 0.5)
-        ribbonMask.fillColor = nil
-        ribbonMask.strokeColor = NSColor.black.cgColor
-        ribbonMask.lineWidth = 2.8
-        ribbonMask.lineCap = .round
-        ribbonMask.lineJoin = .round
-        ribbon.mask = ribbonMask
+        for _ in 0..<Metrics.barCount {
+            let bar = CAShapeLayer()
+            bar.shadowColor = ReadingPalette.mint.cgColor
+            bar.shadowOffset = .zero
+            bar.shadowRadius = 4
+            bars.append(bar)
+        }
         comet.colors = [NSColor.clear.cgColor, ReadingPalette.mintLight.cgColor, NSColor.clear.cgColor]
         comet.locations = [0, 0.5, 1]
         comet.startPoint = CGPoint(x: 0, y: 0.5)
         comet.endPoint = CGPoint(x: 1, y: 0.5)
-        comet.bounds = CGRect(x: 0, y: 0, width: 64, height: 3)
+        comet.bounds = CGRect(x: 0, y: 0, width: 36, height: 3)
         comet.cornerRadius = 1.5
         comet.shadowColor = ReadingPalette.mintLight.cgColor
         comet.shadowOffset = .zero
@@ -318,24 +470,48 @@ final class ReadingControlView: NSView {
         icon.lineCap = .round
         icon.lineJoin = .round
         icon.bounds = CGRect(x: 0, y: 0, width: 24, height: 24)
+        bloom.fillColor = nil
+        bloom.lineWidth = 2
+        bloom.bounds = CGRect(x: 0, y: 0, width: 40, height: 40)
+        bloom.path = CGPath(ellipseIn: bloom.bounds.insetBy(dx: 1, dy: 1), transform: nil)
+        bloom.opacity = 0
+        keycap.fillColor = ReadingPalette.paper.withAlphaComponent(0.08).cgColor
+        keycap.strokeColor = ReadingPalette.paper.withAlphaComponent(0.3).cgColor
+        keycap.lineWidth = 1
+        keycap.bounds = CGRect(x: 0, y: 0, width: 30, height: 18)
+        keycap.path = CGPath(roundedRect: keycap.bounds.insetBy(dx: 0.5, dy: 0.5), cornerWidth: 4.5, cornerHeight: 4.5, transform: nil)
+        keycapText.string = "esc"
+        keycapText.font = NSFont.systemFont(ofSize: 9, weight: .semibold)
+        keycapText.fontSize = 9
+        keycapText.alignmentMode = .center
+        keycapText.foregroundColor = ReadingPalette.paper.withAlphaComponent(0.75).cgColor
+        keycapText.contentsScale = 2
+        keycapText.bounds = CGRect(x: 0, y: 0, width: 30, height: 11)
+        keycap.addSublayer(keycapText)
+        keycapText.position = CGPoint(x: 15, y: 8)
         border.fillColor = nil
         border.lineWidth = 1
-        for layer in [tint, depth, glow, halo, ribbon, comet, icon, border] { canvas.layer?.addSublayer(layer) }
+        for layer in [tint, depth, glow] + bars + [comet, icon, bloom, keycap, rim, border] { canvas.layer?.addSublayer(layer) }
         setAccent(ReadingPalette.mint)
 
-        title.font = .systemFont(ofSize: 12.5, weight: .semibold)
-        title.textColor = ReadingPalette.paper.withAlphaComponent(0.94)
-        title.lineBreakMode = .byTruncatingTail
-        title.setAccessibilityIdentifier("readingStatusTitle")
-        detail.font = .systemFont(ofSize: 10.5, weight: .medium)
-        detail.textColor = ReadingPalette.paper.withAlphaComponent(0.56)
-        detail.lineBreakMode = .byTruncatingTail
-        body.addSubview(title)
-        body.addSubview(detail)
+        note.font = .systemFont(ofSize: 11.5, weight: .semibold)
+        note.textColor = ReadingPalette.paper.withAlphaComponent(0.92)
+        note.lineBreakMode = .byTruncatingTail
+        note.alphaValue = 0
+        note.setAccessibilityIdentifier("readingStatusTitle")
+        body.addSubview(note)
 
         button.target = self
         button.action = #selector(activate)
-        button.onPress = { [weak self] in self?.onPress?() }
+        button.onPress = { [weak self] in
+            self?.pressing = true
+            self?.onPress?()
+            self?.resumeClock()
+        }
+        button.onRelease = { [weak self] in
+            self?.pressing = false
+            self?.onRelease?()
+        }
         button.setAccessibilityIdentifier("readingStatusAction")
         body.addSubview(button)
     }
@@ -346,26 +522,27 @@ final class ReadingControlView: NSView {
     override func layout() {
         super.layout()
         for shadow in [softShadow, contactShadow] { shadow.frame = bounds }
-        glow.bounds = CGRect(x: 0, y: 0, width: 260, height: 170)
+        glow.bounds = CGRect(x: 0, y: 0, width: 220, height: 150)
     }
 
     // MARK: State
 
     func present(_ state: ReadingPanelState, opening: Bool, action: @escaping () -> Void) {
         let previous = self.state
+        let now = CACurrentMediaTime()
         self.state = state
         self.action = action
         exitStart = nil
         alphaValue = 1
         if opening {
-            expansion = 0; expansionVelocity = 0; content = 0
-            level = 0; voice = 0; prepare = 0; scan = 0; terminal = 0; hover = 0
-            bumpStart = nil
+            width = Metrics.height; widthVelocity = 0; content = 0; opened = true
+            level = 0; previousLevel = 0; terminal = 0; hover = 0; noteBlend = 0; press = 0
+            heights = [Double](repeating: 3, count: Metrics.barCount)
+            bumpStart = nil; pulseStart = nil
             lastTick = nil
         }
+        if previous != state || opening { changed = now }
         if state != .speaking { targetLevel = 0 }
-        title.stringValue = state.title
-        detail.stringValue = state.detail
         toolTip = state.detail
         setAccessibilityLabel("Vorlesestatus: " + state.title)
         setAccessibilityHelp(state.detail)
@@ -374,12 +551,17 @@ final class ReadingControlView: NSView {
         button.isEnabled = true
         button.setAccessibilityLabel(state.isActive ? "Vorlesen stoppen" : "Status schließen")
         button.toolTip = state.isActive ? "Gesamten Vorgang stoppen (Esc)" : "Status schließen"
+        note.stringValue = state.title
+        noteUntil = state.needsAttention ? now + 2.4 : 0
         if !state.isActive {
-            showIcon(for: state, drawn: !opening && previous.isActive && !reduced)
-            if state == .finished && !opening && !reduced { bumpStart = CACurrentMediaTime() }
+            showIcon(for: state, drawn: opened && !opening && previous.isActive && !reduced)
+            if state == .finished && !opening && !reduced {
+                bumpStart = now
+                runBloom()
+            }
         }
         resumeClock()
-        tick(now: CACurrentMediaTime())
+        tick(now: now)
     }
 
     func setLevel(_ level: Double) {
@@ -403,11 +585,10 @@ final class ReadingControlView: NSView {
     @objc private func activate() { action?() }
 
     private func setAccent(_ color: NSColor) {
-        glow.colors = [color.withAlphaComponent(0.5).cgColor, color.withAlphaComponent(0).cgColor]
-        halo.strokeColor = color.withAlphaComponent(0.55).cgColor
-        halo.shadowColor = color.cgColor
-        ribbon.colors = [ReadingPalette.mintLight.cgColor, color.cgColor, color.withAlphaComponent(0.72).cgColor]
+        glow.colors = [color.withAlphaComponent(0.55).cgColor, color.withAlphaComponent(0).cgColor]
         icon.strokeColor = color.cgColor
+        bloom.strokeColor = color.cgColor
+        for bar in bars { bar.shadowColor = color.cgColor }
     }
 
     private func showIcon(for state: ReadingPanelState, drawn: Bool) {
@@ -432,8 +613,25 @@ final class ReadingControlView: NSView {
         draw.fromValue = 0
         draw.toValue = 1
         draw.duration = 0.34
+        draw.beginTime = CACurrentMediaTime() + 0.12
+        draw.fillMode = .backwards
         draw.timingFunction = CAMediaTimingFunction(name: .easeOut)
         icon.add(draw, forKey: "draw")
+    }
+
+    private func runBloom() {
+        bloom.removeAllAnimations()
+        let scale = CABasicAnimation(keyPath: "transform.scale")
+        scale.fromValue = 0.5
+        scale.toValue = 1.9
+        let fade = CAKeyframeAnimation(keyPath: "opacity")
+        fade.values = [0, 0.85, 0]
+        fade.keyTimes = [0, 0.2, 1]
+        let group = CAAnimationGroup()
+        group.animations = [scale, fade]
+        group.duration = 0.6
+        group.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        bloom.add(group, forKey: "bloom")
     }
 
     // MARK: Clock
@@ -452,44 +650,95 @@ final class ReadingControlView: NSView {
         lastTick = now
         let reduced = self.reduced
         let exiting = exitStart != nil
-        let expansionGoal = exiting ? 0.0 : 1.0
-        if reduced {
-            expansion = expansionGoal
-            expansionVelocity = 0
-        } else {
-            // One damped spring: perceptible overshoot on opening, none on closing.
-            let stiffness = exiting ? 320.0 : 175.0
-            let damping = exiting ? 36.0 : 17.5
-            expansionVelocity += (-stiffness * (expansion - expansionGoal) - damping * expansionVelocity) * dt
-            expansion += expansionVelocity * dt
-        }
         func approach(_ value: inout Double, _ goal: Double, rate: Double) {
             value += (goal - value) * (reduced ? 1 : 1 - exp(-dt * rate))
         }
-        approach(&voice, state == .speaking ? 1 : 0, rate: 8)
-        approach(&prepare, state == .preparing ? 1 : 0, rate: 8)
-        approach(&scan, state == .recognizing ? 1 : 0, rate: 8)
         approach(&terminal, state.isActive ? 0 : 1, rate: 10)
-        approach(&hover, hovering ? 1 : 0, rate: 12)
-        let contentGoal = exiting ? 0.0 : (expansion > 0.55 ? 1.0 : 0.0)
-        approach(&content, contentGoal, rate: exiting ? 24 : 12)
+        approach(&hover, hovering && !exiting ? 1 : 0, rate: 12)
+        approach(&press, pressing ? 1 : 0, rate: 30)
+        let noteWanted = state.needsAttention && !exiting && (now < noteUntil || hovering)
+        approach(&noteBlend, noteWanted ? 1 : 0, rate: 10)
+
+        // Width spring: one perceptible overshoot on opening, none on closing.
+        let widthGoal: Double
+        if exiting { widthGoal = Metrics.height }
+        else if state.isActive { widthGoal = Metrics.activeWidth + Metrics.keycapWidth * hover }
+        else if state.needsAttention { widthGoal = Metrics.terminalWidth + noteBlend * max(0, noteWidth()) }
+        else { widthGoal = Metrics.terminalWidth }
+        let goal = widthGoal * (1 - 0.02 * press)
         if reduced {
-            level = state == .speaking ? 0.3 : 0
+            width = goal; widthVelocity = 0
         } else {
-            let goal = state == .speaking ? targetLevel : 0
-            approach(&level, goal, rate: goal > level ? 42 : 9)
-            phases.0 += dt * 5.6
-            phases.1 += dt * 3.3
-            phases.2 += dt * 8.1
+            let stiffness = exiting ? 340.0 : 190.0
+            let damping = exiting ? 38.0 : 17.0
+            widthVelocity += (-stiffness * (width - goal) - damping * widthVelocity) * dt
+            width += widthVelocity * dt
         }
-        if let bumpStart, now - bumpStart > 0.4 { self.bumpStart = nil }
+        let contentGoal = exiting ? 0.0 : (width > Metrics.height + 20 ? 1.0 : 0.0)
+        approach(&content, contentGoal, rate: exiting ? 24 : 14)
+
+        if reduced {
+            level = state == .speaking ? 0.35 : 0
+        } else {
+            let levelGoal = state == .speaking ? targetLevel : 0
+            approach(&level, levelGoal, rate: levelGoal > level ? 45 : 9)
+            if state == .speaking && targetLevel - previousLevel > 0.22 && (pulseStart.map { now - $0 > 0.18 } ?? true) {
+                pulseStart = now
+            }
+            previousLevel += (targetLevel - previousLevel) * (1 - exp(-dt * 20))
+            phase += dt * (3.2 + level * 4)
+        }
+        updateBars(now: now, dt: dt, reduced: reduced)
+        if let bumpStart, now - bumpStart > 0.45 { self.bumpStart = nil }
         layoutFrame(now: now, reduced: reduced)
         if let exitStart { alphaValue = max(0, 1 - (now - exitStart) / 0.22) }
 
-        let settled = abs(expansion - expansionGoal) < 0.002 && abs(expansionVelocity) < 0.02
-            && abs(content - contentGoal) < 0.01 && abs(terminal - (state.isActive ? 0 : 1)) < 0.01
-            && abs(hover - (hovering ? 1 : 0)) < 0.01 && bumpStart == nil
+        let settled = abs(width - goal) < 0.05 && abs(widthVelocity) < 0.5 && abs(content - contentGoal) < 0.01
+            && abs(terminal - (state.isActive ? 0 : 1)) < 0.01 && abs(hover - (hovering ? 1 : 0)) < 0.01
+            && abs(noteBlend - (noteWanted ? 1 : 0)) < 0.01 && bumpStart == nil && press < 0.01
+            && (!state.needsAttention || now >= noteUntil)
         if !state.isActive && settled && !exiting { clock?.isPaused = true }
+    }
+
+    private func noteWidth() -> Double {
+        note.sizeThatFits(NSSize(width: 400, height: 20)).width + 12
+    }
+
+    private func updateBars(now: TimeInterval, dt: Double, reduced: Bool) {
+        let shape: [Double] = [0.2, 0.45, 0.7, 0.9, 1, 0.9, 0.7, 0.45, 0.2]
+        let sinceChange = now - changed
+        for index in 0..<Metrics.barCount {
+            var goal = 3.0
+            switch state {
+            case .recognizing:
+                goal = 3
+            case .preparing:
+                // Bars rise one after another, then breathe.
+                let risen = reduced || sinceChange > 0.05 + Double(index) * 0.045
+                goal = risen ? 7 + shape[index] * (3 + (reduced ? 0 : 3 * (0.5 + 0.5 * sin(now * 2.4 + Double(index) * 0.6)))) : 3
+            case .speaking:
+                if reduced {
+                    goal = 4 + shape[index] * 22
+                } else {
+                    let wave = 0.55 + 0.45 * sin(phase + Double(index) * 0.85)
+                    let kick = pulseStart.map { start -> Double in
+                        let travel = (now - start) * 32 - Double(index)
+                        return max(0, 1 - abs(travel) / 2.2) * 9
+                    } ?? 0
+                    goal = 4 + (level * 24 + 1.5) * wave * (0.55 + 0.45 * shape[index]) + kick * level
+                }
+            default:
+                goal = 3
+            }
+            if pressing { goal = 3 }
+            goal = min(goal, Metrics.barMaxHeight)
+            if reduced {
+                heights[index] = goal
+            } else {
+                let rate = goal > heights[index] ? 40.0 : 11.0
+                heights[index] += (goal - heights[index]) * (1 - exp(-dt * rate))
+            }
+        }
     }
 
     private func layoutFrame(now: TimeInterval, reduced: Bool) {
@@ -497,19 +746,19 @@ final class ReadingControlView: NSView {
         CATransaction.setDisableActions(true)
         defer { CATransaction.commit() }
 
-        let progress = max(0, expansion)
-        let bump = bumpStart.map { sin(min(1, (now - $0) / 0.4) * .pi) * 0.03 } ?? 0
-        let width = min(bounds.width - 8, Metrics.collapsed + (Metrics.body.width - Metrics.collapsed) * progress) * (1 + bump)
-        let height = Metrics.body.height * (1 + bump * 0.6)
-        let bodyRect = CGRect(x: (bounds.width - width) / 2, y: Metrics.bodyBottom - (height - Metrics.body.height) / 2,
-                              width: width, height: height)
-        let radius = min(Metrics.corner + (Metrics.collapsed / 2 - Metrics.corner) * max(0, 1 - min(1, progress)), height / 2)
+        let bump = bumpStart.map { sin(min(1, (now - $0) / 0.45) * .pi) * 0.04 } ?? 0
+        // Squash: a fast-moving body flattens slightly and settles back.
+        let squash = reduced ? 0 : min(3, abs(widthVelocity) * 0.006)
+        let w = min(bounds.width - 8, max(Metrics.height, width)) * (1 + bump)
+        let h = (Metrics.height - squash) * (1 + bump * 0.7)
+        let bodyRect = CGRect(x: (bounds.width - w) / 2, y: Metrics.bodyBottom - (h - Metrics.height) / 2, width: w, height: h)
+        let radius = h / 2
         body.frame = bodyRect
         body.layer?.cornerRadius = radius
         effect.layer?.cornerRadius = radius
         let transparencyReduced = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
         effect.isHidden = transparencyReduced
-        tint.opacity = transparencyReduced ? 1 : 0.86
+        tint.opacity = transparencyReduced ? 1 : 0.9
         let shadowPath = CGPath(roundedRect: bodyRect, cornerWidth: radius, cornerHeight: radius, transform: nil)
         softShadow.shadowPath = shadowPath
         contactShadow.shadowPath = shadowPath
@@ -520,63 +769,58 @@ final class ReadingControlView: NSView {
         let centerY = local.midY
         tint.frame = local
         depth.frame = local
+        rim.frame = local
+        rim.path = CGPath(roundedRect: local.insetBy(dx: 1.5, dy: 1.5), cornerWidth: radius - 1.5, cornerHeight: radius - 1.5, transform: nil)
         border.frame = local
-        border.path = CGPath(roundedRect: local.insetBy(dx: 0.5, dy: 0.5), cornerWidth: radius - 0.5,
-                             cornerHeight: radius - 0.5, transform: nil)
+        border.path = CGPath(roundedRect: local.insetBy(dx: 0.5, dy: 0.5), cornerWidth: radius - 0.5, cornerHeight: radius - 0.5, transform: nil)
         let contrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
-        border.strokeColor = ReadingPalette.paper.withAlphaComponent(contrast ? 0.85 : 0.13 + hover * 0.09).cgColor
+        let accent = state.needsAttention ? ReadingPalette.amber : ReadingPalette.paper
+        border.strokeColor = accent.withAlphaComponent(contrast ? 0.9 : (state.needsAttention ? 0.5 : 0.14) + hover * 0.1).cgColor
 
-        // The ribbon lives in a fixed left region; the text slides left when the ribbon
-        // collapses into a terminal symbol.
-        let ribbonRect = CGRect(x: Metrics.padding, y: 0, width: Metrics.ribbon, height: local.height)
-        ribbon.frame = ribbonRect
-        ribbonMask.frame = CGRect(origin: .zero, size: ribbonRect.size)
-        halo.frame = ribbonRect
-        let breath = reduced ? 0 : sin(now * 2.1) * 0.6
-        let amplitude = voice * (1.4 + level * 11.5 + breath) + prepare * (2.2 + (reduced ? 0 : sin(now * 3.3) * 0.8))
-        let path = ribbonPath(amplitude: amplitude, width: ribbonRect.width, centerY: centerY)
-        ribbonMask.path = path
-        halo.path = path
+        // Bars sit left; the Esc keycap slides in on hover; terminal symbols take the bars' place.
+        let keycapShift = Metrics.keycapWidth * hover
+        let barsX = Metrics.padding + keycapShift
+        let barsCenter = CGPoint(x: barsX + Metrics.barsWidth / 2, y: centerY)
         let visible = Float(content * (1 - terminal))
-        ribbon.opacity = visible * Float(1 - scan * 0.45)
-        halo.opacity = visible * Float(0.35 + voice * (0.15 + level * 0.6) + prepare * 0.2)
-        glow.position = CGPoint(x: ribbonRect.midX, y: centerY)
-        glow.opacity = Float(content) * Float((1 - terminal) * (0.12 + voice * (0.08 + level * 0.55) + prepare * 0.12 + scan * 0.08)
-            + terminal * (state == .finished ? 0.2 : state.needsAttention ? 0.14 : 0))
+        var energy = 0.0
+        for (index, bar) in bars.enumerated() {
+            let height = heights[index]
+            let t = CGFloat(min(1, max(0, (height - 3) / (Metrics.barMaxHeight - 3))))
+            energy += Double(t)
+            let x = barsX + CGFloat(index) * (Metrics.barWidth + Metrics.barGap)
+            bar.frame = CGRect(x: x, y: centerY - height / 2, width: Metrics.barWidth, height: height)
+            bar.path = CGPath(roundedRect: CGRect(x: 0, y: 0, width: Metrics.barWidth, height: height),
+                              cornerWidth: Metrics.barWidth / 2, cornerHeight: Metrics.barWidth / 2, transform: nil)
+            let base = state.needsAttention ? ReadingPalette.amber : ReadingPalette.mint
+            let dim = ReadingPalette.mix(base.withAlphaComponent(0.5), base, min(1, t * 3))
+            let lit = ReadingPalette.mix(dim, ReadingPalette.mintLight, pow(t, 1.4))
+            bar.fillColor = ReadingPalette.mix(lit, ReadingPalette.paper, max(0, t - 0.8) * 3).cgColor
+            bar.shadowOpacity = Float(t) * 0.9
+            bar.opacity = visible
+        }
+        energy /= Double(Metrics.barCount)
+        glow.position = barsCenter
+        glow.opacity = Float(content) * Float((1 - terminal) * (0.1 + energy * 0.8)
+            + terminal * (state == .finished ? 0.25 : state.needsAttention ? 0.18 : 0.05))
+            + Float((1 - content) * 0.9)
 
-        let travel = reduced ? 0.5 : (now * 0.8).truncatingRemainder(dividingBy: 1)
-        comet.position = CGPoint(x: ribbonRect.minX + ribbonRect.width * travel, y: centerY)
-        comet.opacity = reduced ? 0 : Float(scan * content * (1 - terminal))
+        let travel = reduced ? 0.5 : (now * 0.9).truncatingRemainder(dividingBy: 1)
+        comet.position = CGPoint(x: barsX + Metrics.barsWidth * travel, y: centerY)
+        comet.opacity = reduced ? 0 : Float((state == .recognizing ? 1 : 0) * content * (1 - terminal))
 
-        let eased = terminal * terminal * (3 - 2 * terminal)
-        icon.position = CGPoint(x: Metrics.padding + 11, y: centerY)
-        icon.opacity = Float(eased * content)
-        let openTextX = Metrics.padding + Metrics.ribbon + 14
-        let terminalTextX = Metrics.padding + 24 + 12
-        let textX = openTextX + (terminalTextX - openTextX) * eased
-        let buttonX = local.width - 10 - Metrics.button
-        let textWidth = max(0, buttonX - textX - 8)
-        title.frame = CGRect(x: textX, y: centerY + 1, width: textWidth, height: 16)
-        detail.frame = CGRect(x: textX, y: centerY - 15, width: textWidth, height: 13)
-        title.alphaValue = content
-        detail.alphaValue = content * (0.75 + hover * 0.25)
+        icon.position = CGPoint(x: 18 + 12, y: centerY)
+        icon.opacity = Float(terminal * terminal * (3 - 2 * terminal) * content)
+        bloom.position = icon.position
+
+        keycap.position = CGPoint(x: Metrics.padding - 4 + 15, y: centerY)
+        keycap.opacity = Float(hover * content * (1 - terminal))
+
+        let buttonX = local.width - Metrics.button
+        let noteX = 18 + 24 + 10.0
+        note.frame = CGRect(x: noteX, y: centerY - 8, width: max(0, buttonX - noteX - 6), height: 16)
+        note.alphaValue = noteBlend * content
         button.frame = CGRect(x: buttonX, y: (local.height - Metrics.button) / 2, width: Metrics.button, height: Metrics.button)
         button.alphaValue = content
-    }
-
-    private func ribbonPath(amplitude: Double, width: CGFloat, centerY: CGFloat) -> CGPath {
-        let path = CGMutablePath()
-        let segments = 44
-        for index in 0...segments {
-            let t = Double(index) / Double(segments)
-            let window = pow(sin(t * .pi), 1.15)
-            let wave = sin(t * .pi * 3.4 - phases.0) * 0.62
-                + sin(t * .pi * 5.7 + 1.1 - phases.1) * 0.27
-                + sin(t * .pi * 9.1 + 2.3 + phases.2) * 0.11
-            let point = CGPoint(x: Double(width) * t, y: Double(centerY) + wave * window * amplitude)
-            if index == 0 { path.move(to: point) } else { path.addLine(to: point) }
-        }
-        return path
     }
 }
 
@@ -610,6 +854,7 @@ private final class HoverView: NSView {
 final class ReadingStopButton: NSButton {
     var terminal = false { didSet { updateGlyph() } }
     var onPress: (() -> Void)?
+    var onRelease: (() -> Void)?
     private let face = CAShapeLayer()
     private let glyph = CAShapeLayer()
     private var hovered = false { didSet { updateFace() } }
@@ -628,7 +873,7 @@ final class ReadingStopButton: NSButton {
             layer.position = center
             self.layer?.addSublayer(layer)
         }
-        face.path = CGPath(ellipseIn: CGRect(x: 4, y: 4, width: 36, height: 36), transform: nil)
+        face.path = CGPath(ellipseIn: CGRect(x: 6, y: 6, width: 32, height: 32), transform: nil)
         face.lineWidth = 1
         glyph.lineWidth = 2
         glyph.lineCap = .round
@@ -656,19 +901,20 @@ final class ReadingStopButton: NSButton {
         press(true)
         super.mouseDown(with: event)
         press(false)
+        onRelease?()
     }
 
     private func press(_ down: Bool) {
         pressed = down
-        let scale = down ? 0.86 : 1.0
+        let scale = down ? 0.84 : 1.0
         let reduced = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         for layer in [face, glyph] {
             if !reduced {
                 let spring = CASpringAnimation(keyPath: "transform.scale")
                 spring.fromValue = (layer.presentation() ?? layer).value(forKeyPath: "transform.scale")
                 spring.toValue = scale
-                spring.stiffness = down ? 620 : 260
-                spring.damping = down ? 32 : 13
+                spring.stiffness = down ? 640 : 260
+                spring.damping = down ? 32 : 12
                 spring.duration = spring.settlingDuration
                 layer.add(spring, forKey: "press")
             }
@@ -677,8 +923,8 @@ final class ReadingStopButton: NSButton {
     }
 
     private func updateFace() {
-        face.fillColor = ReadingPalette.paper.withAlphaComponent(pressed ? 0.28 : hovered ? 0.17 : 0.1).cgColor
-        face.strokeColor = ReadingPalette.paper.withAlphaComponent(hovered ? 0.36 : 0.18).cgColor
+        face.fillColor = ReadingPalette.paper.withAlphaComponent(pressed ? 0.3 : hovered ? 0.19 : 0.11).cgColor
+        face.strokeColor = ReadingPalette.paper.withAlphaComponent(hovered ? 0.38 : 0.2).cgColor
     }
 
     private func updateGlyph() {
@@ -686,12 +932,12 @@ final class ReadingStopButton: NSButton {
         CATransaction.setDisableActions(true)
         let path = CGMutablePath()
         if terminal {
-            path.move(to: CGPoint(x: 17, y: 17)); path.addLine(to: CGPoint(x: 27, y: 27))
-            path.move(to: CGPoint(x: 17, y: 27)); path.addLine(to: CGPoint(x: 27, y: 17))
+            path.move(to: CGPoint(x: 17.5, y: 17.5)); path.addLine(to: CGPoint(x: 26.5, y: 26.5))
+            path.move(to: CGPoint(x: 17.5, y: 26.5)); path.addLine(to: CGPoint(x: 26.5, y: 17.5))
             glyph.fillColor = nil
             glyph.strokeColor = ReadingPalette.paper.cgColor
         } else {
-            path.addRoundedRect(in: CGRect(x: 16, y: 16, width: 12, height: 12), cornerWidth: 3, cornerHeight: 3)
+            path.addRoundedRect(in: CGRect(x: 16.5, y: 16.5, width: 11, height: 11), cornerWidth: 3, cornerHeight: 3)
             glyph.fillColor = ReadingPalette.paper.cgColor
             glyph.strokeColor = nil
         }

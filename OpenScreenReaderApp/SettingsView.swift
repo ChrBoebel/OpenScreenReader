@@ -38,7 +38,7 @@ struct SettingsView: View {
                 Slider(value: $interfaceSoundsVolume, in: 0...1) { Text("Effect volume") }
                     .disabled(!interfaceSoundsEnabled)
                     .accessibilityIdentifier("interfaceSoundsVolume")
-                Text("Opening, completion, attention and stop-button cues from one original sound family. No sounds over speech or on cancellation. Reduce Motion follows macOS settings.")
+                Text("Opening, completion, attention and stop-button cues from one original stereo sound family. No sounds over speech or on cancellation. Reduce Motion follows macOS settings.")
                     .font(.caption).foregroundStyle(.secondary)
                 LabeledContent("Status", value: model.status.title)
                 LabeledContent("Global shortcut", value: model.shortcutConfiguration.displayName)

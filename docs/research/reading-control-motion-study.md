@@ -103,3 +103,16 @@ The first authorized native pass (a hand-drawn 244 × 60 pt "Reading Lens" with 
 - **A coherent sound family** (strike + harmonic body + tail) at a higher default level with normalised peaks and raised-cosine tails, replacing the three sine sketches.
 
 The window grew to a 376 × 100 pt surface for shadow room; the body is 312 × 60 pt. These remain our choices, not measured competitor constants. No competitor assets, models or network dependencies were added. See [verification](../reading-panel-verification.md) for the actual build, regression and native-flow results. The proposed two-family sound audition and ten-repeat subjective comparison are still the owner's to perform; the opt-in preview export described there exists to make that audition easy.
+
+### Third pass: text-free capsule
+
+After the island pass the owner compared it with Wispr Flow's bar (black capsule, X, bars, check, no text) and asked for far less text, more communication through animation, colour and sound, and a "super aesthetic" result. The third pass keeps the material and spring work and changes the language:
+
+- a 44 pt capsule instead of a 60 pt rounded body, with no title or detail text;
+- nine level-driven bars with height-dependent colour and syllable pulses instead of a ribbon;
+- the selection frame flies into the landing dot before the capsule opens, and the opening cue is played at landing;
+- an Esc keycap on hover, two words for attention states, VoiceOver announcements for every change;
+- a body flinch and bar flattening on press, key-down and key-up clicks;
+- stereo cues with a synthetic room, a sub layer, a breath swell and alternating voicings.
+
+A per-sentence progress arc was proposed and deliberately not built: the local speech worker streams audio without sentence boundaries, so any arc would have been fabricated progress. It stays a candidate for when the worker reports segments. The brand system now records the capsule and bar exceptions.

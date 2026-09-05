@@ -75,19 +75,21 @@ Required production tests: `16`, `20`, `32`, `64`, `128`, `256`, `512`, and `102
 
 ### Reading-control motion and sound, 2026-09-05
 
-The owner rejected two earlier passes: a restrained notification-style card and a hand-drawn "Reading Lens" frame. The direction was then reset to *super aesthetic, satisfying and high quality*; see [the research brief](../research/reading-control-motion-study.md) and [native verification](../reading-panel-verification.md). This records the current functional grammar; final subjective acceptance remains the owner's call. The canonical Owl Frame artwork and palette remain approved.
+Two earlier passes were rejected by the owner: a restrained notification-style card and a hand-drawn "Reading Lens" frame. A third, island-style pass with title text was then reset again after the owner pointed at Wispr Flow's text-free bar and asked for a control that communicates through animation, colour and sound and is "super aesthetic". See [the research brief](../research/reading-control-motion-study.md) and [native verification](../reading-panel-verification.md). Final subjective acceptance remains the owner's call. The canonical Owl Frame artwork and palette remain approved.
 
-The control is a translucent **Local Ink island**: a 312 × 60 pt continuous-corner body over a system blur material, with a fine Warm Paper top highlight, a hairline outline and a soft layered shadow. It opens from a 60 pt dot with one perceptible spring and closes back into it. A glowing **Voice Mint ribbon** with halo is the living centre during reading; its amplitude follows rendered speech. Recognition shows a travelling light, preparation a calm swell. Terminal states draw their own symbol (mint check, paper stop square, warm amber attention ring); amber is an attention accent only, never text. The round 44 pt stop control compresses on press and springs back with haptic and sound feedback. Reduce Motion, Reduce Transparency and Increase Contrast each have a defined static or opaque alternative.
+**Owner-approved exceptions to the shape rules below:** the reading control is a **capsule** (fully round ends) and its voice is a row of **rounded bars**. The bars are not a frequency equaliser: they follow one travelling wave driven by the rendered speech level. These exceptions apply to this control only, not to icons, the app logo or other surfaces.
 
-Sound is one original family with a tactile strike, a harmonic body and a short tail: a rising opening gesture, a resolved completion arpeggio, two muted falling knocks for attention, and a mechanical tap for the button. Volume and Off are independent of speech; cancellation itself is silent and no cue overlays speech. This functional grammar does not approve earlier text-to-wave app-logo explorations or copying competitor artwork/audio.
+The control is a text-free capsule 44 pt tall over a system blur, tinted deeper than Local Ink so mint reads as light. Nine Voice Mint bars are the living centre; their colour rises with height from dimmed mint through Voice Mint to Mint Light with a near-white core. After capture the selection frame collapses as a mint ghost into a glowing dot and springs open into the capsule, with the opening sound landing on the same beat. Recognition shows a travelling light, preparation lets the bars rise one by one. Terminal states draw a mint check, a paper stop square or a warm amber attention ring; amber is an attention accent only. Text appears only as an Esc keycap on hover and as two words for attention states; accessibility labels and VoiceOver announcements always carry the full status. The round 44 pt stop control compresses on press and springs back with haptic, key-down and key-up sounds. Reduce Motion, Reduce Transparency and Increase Contrast each have a defined static or opaque alternative.
+
+Sound is one original stereo family of wood, glass and breath: a tactile strike, a plucked or bell-like body, a sub layer and a small synthetic room. Opening (breath, tick, rising fourth), completion (plucked arpeggio into a bell with octave shimmer), attention (two muted falling knocks), key down and key up; opening and completion alternate between two voicings. Volume and Off are independent of speech; cancellation itself is silent and no cue overlays speech. This does not approve earlier text-to-wave app-logo explorations or copying competitor artwork/audio.
 
 ## Typography and shape language
 
 - Product UI: system font / SF Pro through native macOS APIs.
 - Brand and website shortlist: Geist Sans or Instrument Sans; final choice remains open.
-- Rounded or subtly tapered terminals; friendly but not pill-like corner radii.
+- Rounded or subtly tapered terminals; friendly but not pill-like corner radii. Sole exception: the reading control capsule (see above).
 - Reuse the logo's selection-corner geometry in the region-selection overlay.
-- Motion should communicate an event or actual playback: one opening gesture and a responsive voice ribbon, not an arbitrary permanent equaliser.
+- Motion should communicate an event or actual playback: one opening gesture and a level-driven voice, not an arbitrary permanent equaliser.
 
 ## Production handoff
 

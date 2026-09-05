@@ -245,7 +245,6 @@ final class AppModel: ObservableObject {
               await pipelineCoordinator.accept(.recognizing, for: context) else { return }
         status = .recognizing
         showReadingPanel(.recognizing, context: context)
-        interfaceSounds?.play(.selection)
         let service = ocrService
         recognitionTask = Task { @MainActor [weak self] in
             do {
@@ -366,7 +365,8 @@ final class AppModel: ObservableObject {
         let stop: (() -> Void)? = state.isActive ? { [weak self] in
             self?.enqueue { await $0.cancel(context: context) }
         } : nil
-        readingPanel?.show(state, displayID: selection.displayID, onStop: stop)
+        readingPanel?.show(state, displayID: selection.displayID,
+                           origin: state == .recognizing ? selection.rectInScreenPoints : nil, onStop: stop)
     }
 
     private func stopResources() {
