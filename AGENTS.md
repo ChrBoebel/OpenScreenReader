@@ -37,6 +37,7 @@ Before changing code or architecture, read:
 - Keep secrets and credentials out of the repository.
 - Do not add AI/agent authorship to source headers, commits, changelogs, or project metadata.
 - Do not commit, push, create remotes, or publish releases unless explicitly requested.
+- For authorized changes, use a focused `codex/` feature branch and a pull request targeting `main`. Do not commit or push directly to `main`; the earlier direct-push workflow is superseded by the owner's PR-workflow decision. Leave PRs open for review and merge only when explicitly requested. Do not rewrite already published history.
 
 ## Verification expectations
 
