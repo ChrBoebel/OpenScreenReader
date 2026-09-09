@@ -6,6 +6,16 @@ Aktueller Entwicklungsstand: Nach der Hörentscheidung des Eigentümers vom 2026
 
 ## Systemübersicht
 
+### Everyday controls update — 2026-09-09
+
+`SpeechReading.setPaused` pauses the native player without discarding scheduled buffers. `SpeechAudioPlayer` suppresses both prebuffer auto-start and short-tail start while paused; its bounded producer/drain waits remain cancellable. `AppModel.isPaused` is orthogonal to the core speaking phase, so adding regions remains available. The app-level speech watchdog is suspended during a user pause; worker packet watchdogs still cover actual inference, excluding channel backpressure. Resume restores the watchdog; Stop/skip clear pause state.
+
+Queue rows have stable UUIDs. Removal/reordering refreshes only the next prepared text; play-now moves the selected row to the head and uses the existing generation-protected skip/handoff. A transient `NSPopover` hosts `PlaybackControlsView` only after a capsule-button click. Its previews are presentation-only and remain session-local; the closed capsule gets only status/count/level and a callback. `SetupView` offers explicit permission requests and read-only preflight, not a fabricated end-to-end result.
+
+`SpeechTextNormalizer` repairs explicit soft hyphens and non-breaking spaces without rewriting ordinary hyphens, numbers or codes. The Python segmenter preserves abbreviation/initial/ordinal context, honors explicit paragraph boundaries and retains the existing 240-character cap. This is deterministic segmentation, not an LLM text rewrite or a proof of audible linguistic fidelity.
+
+`LocalSpeechService.installedConfiguration` selects bundled Speech resources when present, otherwise the explicit development installation. Bundled Python is under `SupertonicRuntime/python/bin/python3`; its standard library and pinned package closure are private build resources. The offline `package-development-app.rb` spike verifies model/installed-runtime hashes before copying, excludes unrelated base-interpreter packages and build-time pkgconfig links, checks symlink containment, ad-hoc signs nested native code and the app, and retains licenses. It is intentionally not a release/signing/notarization pipeline.
+
 ```text
 GlobalHotkeyManager
         │
@@ -41,7 +51,7 @@ Geplanter Stack:
 ### Vorgeschlagene Module
 
 - `AppShell`: Lebenszyklus, Menüleiste und Einstellungen;
-- `GlobalHotkeyManager`: registriert Start/Stop und verhindert Konflikte;
+- `GlobalHotkeyManager`: registriert Lesen/Hinzufügen und verhindert Konflikte; vollständiger Stop bleibt bei Esc und expliziten Stop-Controls;
 - `SelectionOverlay`: Multi-Monitor-Auswahl und Abbruch;
 - `ScreenCaptureService`: erfasst ausschließlich das gewählte Rechteck;
 - `VisionOCRService`: OCR, Sprache und Lesereihenfolge;
@@ -53,6 +63,8 @@ Geplanter Stack:
 
 ### Implementiertes Status-Panel
 
+`ReadingPanelPlacement` berechnet die Position relativ zum `visibleFrame` des gewählten Displays. Unten bleibt die Zeichenfläche 300 × 92 pt, seitlich ist sie 92 × 300 pt: Layoutkoordinaten werden abgebildet, Text/Symbole/Taste nicht gedreht. Der Controller verarbeitet Drag-Callbacks von der dekorativen Statusfläche, getrennt vom Stop-Button; ab 5 pt folgt das Fenster direkt, auf Loslassen wird der nächste erlaubte Rand samt normiertem Versatz gespeichert. Die 220-ms-Einrast-Task ist abbrechbar und generationsgeschützt; Reduce Motion positioniert unmittelbar. Anzeigeänderungen begrenzen die Geometrie erneut. Die Settings-Vorschau ist ein expliziter reiner Präsentationszustand `positioning`, keine simulierte Pipeline. Ein neuer Auftrag räumt sie über denselben `hide()`-Pfad auf.
+
 Die App-Shell injiziert `ReadingPanelController` über `ReadingStatusPresenting` in `AppModel`. Der Controller erhält einen geschlossenen Statuswert, die ausgewählte Display-ID, einen auf die aktuelle Pipeline-Generation begrenzten Stop-Callback und während der Wiedergabe einen flüchtigen skalaren Pegel. Screenshot, OCR-Text, Audio und technische Fehlerpayloads verlassen diese Grenze nicht.
 
 Das Vorlese-Control (`ReadingControlView`) ist ein layer-basierter nativer `NSView` auf einer festen 300 × 92 pt großen Zeichenfläche; die sichtbare Kapsel ist 44 pt hoch und zwischen 44 pt (Punkt) und rund 250 pt (Hinweistext) breit, der Rest ist Platz für den gezeichneten Schatten. Die Kapsel ist ein Container mit `NSVisualEffectView` (Material `hudWindow`, hinter dem Fenster), einer sehr dunklen Tönung, Tiefen- und Glanzverlauf, Randlicht, einem radialen Leuchten, neun `CAShapeLayer`-Balken mit eigenem Leuchten, einem Wander-Licht für die Erkennung, einem Symbol-Layer, einem Bloom-Ring und einer Esc-Tastenkappe. Ein `NSTextField` zeigt nur bei Hinweisen kurz Text; die Stop-Taste ist ein echter 44-pt-`NSButton`. `ReadingStatusPresenting.show` erhält für den ersten sichtbaren Zustand zusätzlich das Auswahlrechteck in Bildschirmpunkten; `SelectionFlightWindow` (klick-durchlässig, nur auf dem gewählten Display) lässt einen Mint-Geist des Rahmens per Core-Animation-Pfadmorph in den Landepunkt fallen. Erst danach erscheint das Panel, gleichzeitig spielt der Controller den Öffnungsklang; `hide()` bricht den Flug sofort ab. Zustandswechsel werden zusätzlich als VoiceOver-Ansage gepostet. Es gibt kein Auto Layout und keinen SwiftUI-Host; alle Frames werden pro Bild von Hand gesetzt, sodass keine Constraint-Schleife entstehen kann. Ein `CADisplayLink` aus `NSView.displayLink(target:selector:)` treibt eine von Hand integrierte Feder (Öffnen mit Überschwingen, Schließen kritisch gedämpft) sowie die Zustandsüberblendungen; sein Ziel ist ein schwach referenzierender Proxy, damit der View freigegeben werden kann. Bei ruhenden Endzuständen pausiert der Link. Die Stop-Taste spielt beim Drücken über den Controller einen Tap-Klang und löst `NSHapticFeedbackManager` aus; dieser Pfad ist von der Pipeline entkoppelt und wird durch die Abbruchbereinigung nicht abgeschnitten. `PlaybackEnvelope` berechnet außerhalb des Audiothreads 20-ms-Pegelfenster aus dem vorhandenen PCM. `AppModel` fragt den zur gerenderten Sampleposition gehörenden Pegel alle 33 ms ab; Auftragsschutz und Ressourcenabbau beenden diesen Takt. Provider ohne Pegelunterstützung liefern über `SpeechReading` den Standardwert null.
@@ -61,9 +73,25 @@ Das Vorlese-Control (`ReadingControlView`) ist ein layer-basierter nativer `NSVi
 
 ## TTS-Prozess
 
-Der aktuelle Entwicklungsspike verwendet einen einzelnen Python-/ONNX-Prozess pro Vorleseauftrag. `SpeechReading` trennt die Auftragssteuerung vom konkreten `LocalSpeechService`; `SpeechRuntimeConfiguration` legt den expliziten Supertonic-Pfad und 44,1 kHz fest. Text und PCM laufen über anonyme Pipes, die Wiedergabe erfolgt im App-Prozess. Der Worker darf im Entwicklungsprofil weder Netzwerkverbindungen aufbauen noch Dateien schreiben (ausgenommen `/dev/null`). Python läuft isoliert und ohne Bytecode-Schreibzugriffe. Abbruch stoppt zuerst den Audioplayer und beendet anschließend den eigenen Worker; Generationen verwerfen verspätete Ergebnisse. Das Modell bleibt zwischen Textsegmenten geladen, aber nicht zwischen Aufträgen. Dieses Verhalten ist implementiert und kein Nachweis für den warmen Latenzzielwert.
+### Geschwindigkeit und Textwarteschlange
 
-Ein langlebiger Worker bleibt eine noch nicht implementierte Vergleichsoption. Eine mögliche Warmhaltevariante hätte folgende Eigenschaften:
+`SpeechReading.playbackRate` ist eine providerunabhängige, live änderbare Eigenschaft. `SpeechAudioPlayer` verbindet Player → `AVAudioUnitTimePitch` → Mixer; Rate wird auf 0,75–2 begrenzt, Pitch bleibt 0 Cent. Modellparameter und Gewichte bleiben unverändert. Der Vorpuffer entspricht mindestens einer Sekunde bei der aktuellen Startgeschwindigkeit. Die feste Kapazität beträgt acht Sekunden Quell-PCM (44.100 Hz Mono-Float32: rund 1,35 MiB), damit bei 2× bis zu vier Sekunden Vorlauf für die nächste Satzsynthese bleiben. Die Grenze schrumpft beim Live-Verlangsamen nicht unter bereits geplante Puffer. [Apple API](https://developer.apple.com/documentation/avfaudio/avaudiounittimepitch).
+
+`AppModel` verwaltet höchstens fünf zusätzliche OCR-Ergebnisse im RAM. Seit der Eigentümerentscheidung vom 2026-09-09 führt der primäre Carbon-Hotkey über `enqueuePrimaryShortcut` zum vorhandenen `addToQueue`-Pfad: im Leerlauf neue Auswahl, während Sprache/Vorbereitung zusätzliche Auswahl/Aufnahme/OCR. Bei bereits laufender Auswahl/Aufnahme/OCR oder voller Warteschlange bleibt die Sitzung bestehen und eine Meldung erklärt den Zustand. Eine zweite Carbon-Tastenkombination bleibt lediglich als optionaler kompatibler Alias erhalten. Der explizite Menü-Stop nutzt weiterhin `enqueueReadRequest` und ist vom Hotkey getrennt. Die bestehende Auswahloberfläche wird wiederverwendet; das Statuspanel bleibt während Auswahl/Aufnahme verborgen und kehrt danach ohne Öffnungsklang zurück. Eine UUID verwirft veraltete Zusatz-Ergebnisse; ein separater Timeout begrenzt Aufnahme/OCR. Ein leerer, zu langer oder fehlgeschlagener Zusatz wird mit Statusmeldung abgelehnt, ohne laufende Sprache oder bereits wartende Texte zu stoppen.
+
+Der Core-Coordinator besitzt weiterhin nur den aktuellen Sprachauftrag. Beim FIFO-Wechsel wird dieser abgeschlossen, eine neue Generation erzeugt und das schon erkannte Ergebnis über dieselbe Synthese-/Wiedergabelogik gestartet. Die Sitzungsgeneration des Escape-Monitors bleibt über diesen Wechsel stabil, wird aber bei Gesamtstopp/neuem manuellen Start invalidiert. Wenn nur eine noch laufende Zusatz-Auswahl/OCR übrig ist, bleibt der alte Kontext als abbrechbarer Eigentümer bestehen; `waiting` ist ein Präsentationszustand, keine neue Core-Phase. „Next Text“ beendet nur den aktuellen Sprachauftrag und startet den nächsten fertigen Eintrag; Gesamtstopp und Fehler räumen beide Task-Pfade und die gesamte Textliste auf. Es wird kein zusätzlicher Sprachworker vorab gestartet.
+
+Seit 2026-09-09 verwendet die Warteschlange einen einzelnen Python-/ONNX-Prozess pro Sitzung. `SpeechReading.prepareNext` bereitet höchstens einen Nachfolger vor, `stopCurrent` bewahrt ihn beim normalen Übergang/Überspringen, `stop` verwirft sämtliche Jobs und beendet den Prozess. Andere Provider dürfen über die Default-Implementierungen weiterhin ohne Vorbereitung arbeiten. `AppModel` aktualisiert die Vorbereitung erst nach Beginn der aktuellen Wiedergabe bzw. beim Hinzufügen während Sprache; beim Dequeue wird der vorhandene Nachfolger nicht vor seiner Übernahme ersetzt.
+
+`SpeechWorkerSession` führt ausschließlich einen Syntheseauftrag gleichzeitig aus. Das neue explizite `--session`-Protokoll versieht ready/audio/end mit Version 2 und der UUID des Textauftrags; abweichende IDs/Versionen werden abgelehnt. Modell und Stimme werden einmal geladen/verifiziert, der Zufallsseed wird pro Text zurückgesetzt. Der Legacy-Einzelauftrag ohne Flag bleibt für frühere Entwicklungs-Apps kompatibel. Nach dem end-Paket des aktuellen Texts darf derselbe Worker den Nachfolger synthetisieren, während der Player die restlichen Puffer abspielt. Es gibt kein paralleles zweites Modell und keine Vorabsynthese der gesamten Liste.
+
+Pro Job begrenzt `SpeechPreparationBuffer` die RAM-Pakete auf acht Quell-Sekunden und blockiert den Produzenten bei voller Kapazität. Aktueller Transportbuffer, nächster Transportbuffer und Player ergeben zusammen höchstens 24 Quell-Sekunden geplantes/gepuffertes PCM (rund 4,04 MiB), zuzüglich begrenzter In-flight-Pakete, Transportkodierung und Engine-/Modellspeicher. Beide wartenden Seiten werden bei Abbruch geweckt. Eine vorbereitete Übernahme pausiert abbrechbar 120 ms. Stop räumt beide Jobs, Reader, Timer, Audio und Prozess auf. Wird eine noch nicht fertig synthetisierte aktuelle Passage übersprungen, wird deren Worker hart beendet und der wartende Nachfolger mit einem neuen Worker gestartet. Bereits laufende Vorbereitung nach abgeschlossener aktueller Synthese bleibt beim Überspringen erhalten.
+
+Die App beendet die Sitzung bei Gesamtstopp, Fehler oder leerer Warteschlange. Ein separater generationsgeschützter 30-s-Leerlauftimer begrenzt Warmhalten ohne aktiven/vorbereiteten Auftrag, etwa beim Warten auf eine zusätzliche Auswahl. Packet-Watchdogs (90 s bis Audio, danach 30 s ohne Workerpaket) laufen nicht während regulärer Buffer-Backpressure. Vor jedem Prozessstart sowie nach jedem asynchronen Übergang werden Cancellation und Jobidentität geprüft.
+
+Text und PCM laufen über anonyme Pipes, die Wiedergabe erfolgt im App-Prozess. Der Worker darf weder Netzwerkverbindungen aufbauen noch Dateien schreiben (ausgenommen `/dev/null`). Python läuft isoliert und ohne Bytecode-Schreibzugriffe. `scripts/update-supertonic-worker.rb` aktualisiert explizit nur den projekt-eigenen Worker samt Receipt-Hash, verweigert lokale Abweichungen und lädt weder Modelle noch Pakete nach. [Messungen und Grenzen](warm-queue-verification.md).
+
+Weitergehendes Warmhalten über abgeschlossene Sitzungen hinweg bleibt eine noch nicht implementierte Vergleichsoption. Eine mögliche Variante hätte folgende Eigenschaften:
 
 - App startet den Worker kontrolliert;
 - Modell wird einmal geladen und zeitlich begrenzt warm gehalten;
@@ -102,7 +130,7 @@ Das Standardmodell soll Bestandteil des signierten Release-Artefakts sein, damit
 
 Primär:
 
-- Supertonic 3, vom Eigentümer nach direktem Hörvergleich ausgewählt; M1, acht Schritte, normale Geschwindigkeit. Satzweise Synthese, begrenzte Audio-Pakete und vier Sekunden Wiedergabepuffer.
+- Supertonic 3, vom Eigentümer nach direktem Hörvergleich ausgewählt; M1, acht Schritte, normale Synthesegeschwindigkeit. Satzweise Synthese, begrenzte Audio-Pakete und acht Sekunden Quell-PCM im Wiedergabepuffer; Live-Tempo 0,75–2×.
 
 Vergleich, nicht automatisch verwendet:
 
@@ -117,7 +145,7 @@ Nicht für den ersten Pfad:
 
 ## Nebenläufigkeit und Abbruch
 
-- Jeder neue Hotkey-Aufruf erhöht eine Generation-ID.
+- Ein neuer Sprachauftrag erhält eine Generation-ID; ein wiederholter Hotkey zum Hinzufügen widerruft nicht die noch sprechende Generation.
 - Ergebnisse älterer Generationen werden verworfen.
 - `Esc` beendet Overlay, OCR-Task, TTS-Task, Audioqueue und aktiven Workerauftrag.
 - Nur der aktuelle Auftrag darf Audiopuffer an die Wiedergabe senden.
