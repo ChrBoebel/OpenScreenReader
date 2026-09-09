@@ -23,6 +23,19 @@ Read:
 
 ## Development workflow
 
+### Branches and pull requests
+
+Changes reach `main` through a pull request, not a direct push:
+
+1. Fetch the current `origin/main` and start a focused feature branch. Use the `codex/` prefix for repository-assistant work.
+2. Make small, meaningful commits and run the checks relevant to the changed behavior. Review the outgoing diff for secrets, model weights and generated user content before pushing.
+3. Push the feature branch and open a pull request with base `main`. Describe the change, actual verification results, skipped checks and remaining risks using the PR template.
+4. Leave the pull request open for review. Merge only after the project owner approves the merge; do not automatically merge or rewrite published history.
+
+Documentation-only changes require a diff/content review and `git diff --check`; an app build or UI test is not needed when no app code, configuration or assets changed. Behavior changes still require the relevant tests, build and real UI checks where possible. A skipped or blocked check must never be reported as passed.
+
+This is the agreed contribution policy. It does not by itself configure GitHub branch-protection rules, required reviewers or required status checks. Publishing an app release remains a separate approval and release-gate decision.
+
 The project is currently in its foundation phase. A platform-neutral Swift package contains the first cancellable-pipeline contracts. Xcode 26.6 is installed locally and is selected per command so other development processes keep their own toolchain choice.
 
 Run the Apple test target, current behavior checks, and production build with:
