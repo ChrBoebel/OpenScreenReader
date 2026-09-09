@@ -8,6 +8,14 @@ import Vision
 @MainActor
 struct OCRTests {
     @Test
+    func speechNormalizationOnlyRepairsUnambiguousArtifacts() {
+        #expect(SpeechTextNormalizer.normalize("Stra\u{00ad}\nße\u{00a0}lesen.") == "Straße lesen.")
+        #expect(SpeechTextNormalizer.normalize("AB-123\n42,50 €\n04.09.2026\nz. B.\nhttps://example.com") ==
+                "AB-123\n42,50 €\n04.09.2026\nz. B.\nhttps://example.com")
+        #expect(SpeechTextNormalizer.normalize("Straßen-\nbahn") == "Straßen-\nbahn")
+        #expect(SpeechTextNormalizer.normalize("Heading\n\nParagraph") == "Heading\n\nParagraph")
+    }
+    @Test
     func cancellationBeforeRequestInstallationRejectsWork() {
         let cancellation = OCRRequestCancellation()
         cancellation.cancel()

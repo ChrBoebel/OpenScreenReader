@@ -7,10 +7,13 @@ struct SettingsView: View {
     @State private var permissionNotice: String?
     @State private var draftShortcut = ShortcutConfiguration.default
     @State private var confirmCommonShortcut = false
+    @State private var editingQueueShortcut = false
     @AppStorage(InterfaceSoundPlayer.preferenceKey, store: InterfaceSoundPlayer.defaults)
     private var interfaceSoundsEnabled = true
     @AppStorage(InterfaceSoundPlayer.volumeKey, store: InterfaceSoundPlayer.defaults)
     private var interfaceSoundsVolume = InterfaceSoundPlayer.defaultVolume
+    @AppStorage(ReadingPanelPlacement.edgeKey, store: InterfaceSoundPlayer.defaults)
+    private var readingPanelEdge = ReadingPanelEdge.bottom.rawValue
 
     var body: some View {
         Form {
@@ -32,6 +35,30 @@ struct SettingsView: View {
                 .padding(.vertical, 4)
             }
             Section("General") {
+                Button("Set Up & Test…") { model.showSetup() }
+                Picker("Reading speed", selection: Binding(get: { model.playbackRate }, set: { model.setPlaybackRate($0) })) {
+                    ForEach(SpeechSpeed.presets, id: \.self) { speed in Text(SpeechSpeed.label(speed)).tag(speed) }
+                }
+                .accessibilityIdentifier("readingSpeed")
+                Text("Changes immediately, including during playback. Pitch stays unchanged. Also available in the menu bar under Speed.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Picker("Control position", selection: $readingPanelEdge) {
+                    ForEach(ReadingPanelEdge.allCases, id: \.rawValue) { edge in
+                        Text(edge.title).tag(edge.rawValue)
+                    }
+                }
+                .accessibilityIdentifier("readingPanelPosition")
+                .onChange(of: readingPanelEdge) { _, value in
+                    // Keep the offset from dragging when Settings synchronizes the selected edge.
+                    let placement = ReadingPanelPlacement.load(from: InterfaceSoundPlayer.defaults)
+                    guard placement.edge.rawValue == value else { return }
+                    NotificationCenter.default.post(name: ReadingPanelPlacement.changed, object: InterfaceSoundPlayer.defaults)
+                }
+                Text("Drag the waveform to dock the control at the left, right or bottom edge of the selected screen. Its position is remembered. The stop button stays separate.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Button("Preview & move control") { model.previewReadingPanelPosition() }
+                    .disabled(!model.canChangeShortcut)
+                    .accessibilityIdentifier("previewReadingPanelPosition")
                 Toggle("Interface sounds", isOn: $interfaceSoundsEnabled)
                     .toggleStyle(.checkbox)
                     .accessibilityIdentifier("interfaceSoundsEnabled")
@@ -44,14 +71,22 @@ struct SettingsView: View {
                 LabeledContent("Global shortcut", value: model.shortcutConfiguration.displayName)
                     .accessibilityIdentifier("activeShortcut")
                 LabeledContent("Speech model", value: SpeechRuntimeConfiguration(root: LocalSpeechService.developmentRoot).modelName)
-                LabeledContent("Voice", value: "Machine-generated · M1 · normal speed")
+                LabeledContent("Voice", value: "Machine-generated · M1 · \(SpeechSpeed.label(model.playbackRate))")
                 LabeledContent("Model license", value: "BigScience Open RAIL-M")
                 LabeledContent("Speech runtime", value: LocalSpeechService.installationSummary)
-                Text("Experimental local runtime. The model starts afresh for each reading. Not a packaged release.")
+                Text("Experimental local runtime. The model stays loaded through the queue and prepares the next text while audio plays. Stop releases it. Not a packaged release.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
             Section("Keyboard shortcut") {
+                Picker("Action", selection: $editingQueueShortcut) {
+                    Text("Read / Add to queue").tag(false)
+                    Text("Additional queue shortcut").tag(true)
+                }
+                .accessibilityIdentifier("shortcutAction")
+                .onChange(of: editingQueueShortcut) { _, queue in
+                    draftShortcut = queue ? model.queueShortcutConfiguration : model.shortcutConfiguration
+                }
                 HStack {
                     modifierToggle("Command ⌘", flag: UInt32(cmdKey))
                     modifierToggle("Shift ⇧", flag: UInt32(shiftKey))
@@ -72,14 +107,14 @@ struct SettingsView: View {
                         if draftShortcut.modifiers == UInt32(cmdKey) {
                             confirmCommonShortcut = true
                         } else {
-                            model.enqueueShortcutChange(draftShortcut)
+                            applyDraftShortcut()
                         }
                     }
                     .disabled(!draftShortcut.isValid)
                     .accessibilityIdentifier("applyShortcut")
                     Button("Restore Default") {
-                        draftShortcut = .default
-                        model.enqueueShortcutChange(.default)
+                        draftShortcut = editingQueueShortcut ? .queueDefault : .default
+                        applyDraftShortcut()
                     }
                 }
                 Text("Choose A–Z, 0–9, or Space with Command, Option, or Control; Shift is optional. Escape always cancels. Changes are saved locally.")
@@ -93,6 +128,10 @@ struct SettingsView: View {
                     Text(notice).fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("shortcutNotice")
                 }
+                LabeledContent("Add to queue", value: model.queueShortcutConfiguration.displayName)
+                Text("Press your reading shortcut again to select another region while speech continues. No second shortcut is needed. Up to five waiting texts stay in memory only. Escape or Stop Reading ends everything and empties the queue. Use Next Text in the menu to skip. The additional queue shortcut is optional.")
+                    .font(.caption).foregroundStyle(.secondary)
+                if let notice = model.queueShortcutNotice { Text(notice).font(.caption) }
             }
             .disabled(!model.canChangeShortcut)
 
@@ -127,13 +166,18 @@ struct SettingsView: View {
         .padding()
         .navigationTitle("OpenScreenReader Settings")
         .accessibilityLabel("OpenScreenReader settings")
-        .onAppear { draftShortcut = model.shortcutConfiguration }
+        .onAppear { draftShortcut = editingQueueShortcut ? model.queueShortcutConfiguration : model.shortcutConfiguration }
         .alert("Override app commands?", isPresented: $confirmCommonShortcut) {
-            Button("Use Shortcut") { model.enqueueShortcutChange(draftShortcut) }
+            Button("Use Shortcut") { applyDraftShortcut() }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("\(draftShortcut.displayName) may replace a familiar command in other apps while OpenScreenReader is running. Use it anyway?")
         }
+    }
+
+    private func applyDraftShortcut() {
+        if editingQueueShortcut { model.enqueueQueueShortcutChange(draftShortcut) }
+        else { model.enqueueShortcutChange(draftShortcut) }
     }
 
     private func modifierToggle(_ title: String, flag: UInt32) -> some View {
@@ -145,5 +189,121 @@ struct SettingsView: View {
             }
         ))
         .toggleStyle(.checkbox)
+    }
+}
+
+struct PlaybackControlsView: View {
+    @ObservedObject var model: AppModel
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Label(model.isPaused ? "Pausiert" : model.status.title, systemImage: model.isPaused ? "pause.fill" : "waveform")
+                    .font(.headline)
+                Spacer()
+                Button { model.enqueueStopRequest() } label: { Image(systemName: "stop.fill") }
+                    .help("Alles stoppen und Warteschlange leeren")
+                    .accessibilityLabel("Alles stoppen")
+            }
+            HStack(spacing: 12) {
+                Button { model.togglePause() } label: {
+                    Label(model.isPaused ? "Fortsetzen" : "Pause", systemImage: model.isPaused ? "play.fill" : "pause.fill")
+                }.disabled(!model.canPause)
+                    .accessibilityIdentifier("togglePlaybackPause")
+                Button { model.enqueueSkipRequest() } label: { Label("Weiter", systemImage: "forward.end.fill") }
+                    .disabled(!model.canSkipText)
+            }
+            Picker("Tempo", selection: Binding(get: { model.playbackRate }, set: { model.setPlaybackRate($0) })) {
+                ForEach(SpeechSpeed.presets, id: \.self) { Text(SpeechSpeed.label($0)).tag($0) }
+            }
+            Divider()
+            HStack {
+                Text("Als Nächstes · \(model.queuedTextCount)").font(.headline)
+                Spacer()
+                Button { model.enqueueAddRequest() } label: { Image(systemName: "plus") }
+                    .disabled(!model.canAddToQueue).help("Weiteren Bildschirmbereich auswählen")
+            }
+            if model.queueEntries.isEmpty {
+                Text("Drücke \(model.shortcutConfiguration.displayName) erneut, um einen Text einzureihen.")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(Array(model.queueEntries.enumerated()), id: \.element.id) { index, entry in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(entry.preview).lineLimit(2)
+                        HStack {
+                            Button("Jetzt lesen") { model.playQueueEntry(entry.id) }
+                            Spacer()
+                            Button { model.moveQueueEntry(entry.id, offset: -1) } label: { Image(systemName: "arrow.up") }
+                                .disabled(index == 0).accessibilityLabel("Text nach oben")
+                            Button { model.moveQueueEntry(entry.id, offset: 1) } label: { Image(systemName: "arrow.down") }
+                                .disabled(index == model.queuedTextCount - 1).accessibilityLabel("Text nach unten")
+                            Button { model.removeQueueEntry(entry.id) } label: { Image(systemName: "minus.circle") }
+                                .accessibilityLabel("Text aus Warteschlange entfernen")
+                        }.controlSize(.small)
+                    }
+                }
+            }
+            Text("Nur für diese Sitzung · nichts wird gespeichert").font(.caption).foregroundStyle(.secondary)
+        }
+        .padding(20).frame(width: 340)
+        .tint(Color(red: 0.12, green: 0.65, blue: 0.55))
+        .accessibilityIdentifier("playbackControls")
+    }
+}
+
+struct SetupView: View {
+    @ObservedObject var model: AppModel
+    @State private var screenAllowed = false
+    @State private var inputAllowed = false
+    @State private var notice = ""
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Markieren. Zuhören. Lokal.").font(.title2.bold())
+            Text("Zwei Berechtigungen, dann ein echter Vorlesetest. Kein Konto und kein Cloud-Dienst.")
+                .foregroundStyle(.secondary)
+            permissionRow("1 · Bildschirmaufnahme", allowed: screenAllowed,
+                          explanation: "Nur der von dir markierte Bereich wird für die lokale Texterkennung erfasst.") {
+                _ = CGRequestScreenCaptureAccess()
+                refresh()
+                notice = "Aktiviere OpenScreenReader in Datenschutz & Sicherheit → Aufnahme von Bildschirm & Systemaudio. Öffne die App danach erneut, falls macOS dazu auffordert."
+            }
+            permissionRow("2 · Eingabeüberwachung", allowed: inputAllowed,
+                          explanation: "Damit Esc auch in anderen Apps sofort stoppt. Keine Tastatureingaben werden gespeichert.") {
+                _ = CGRequestListenEventAccess()
+                refresh()
+                notice = "Aktiviere OpenScreenReader in Datenschutz & Sicherheit → Eingabeüberwachung. Verwende die App unter /Applications/OpenScreenReader.app, nicht den UI-Tests-Runner."
+            }
+            Label(LocalSpeechService.installationSummary, systemImage: "waveform")
+            Button("Status erneut prüfen") { refresh() }
+            Divider()
+            Text("3 · Im Alltag testen").font(.headline)
+            Text("Öffne einen Text in einer anderen App. Starte die Auswahl, markiere einen Satz und drücke beim Vorlesen Esc. Die Freigaben oben sind Systemprüfungen; erst dieser Test bestätigt den vollständigen Ablauf.")
+                .font(.callout)
+            Button("Bildschirmbereich auswählen") {
+                model.beginSetupCapture()
+            }.disabled(!screenAllowed || !inputAllowed || !model.canChangeShortcut)
+                .buttonStyle(.borderedProminent)
+            if !notice.isEmpty { Text(notice).font(.caption).foregroundStyle(.secondary) }
+            if let error = model.errorMessage { Text(error).font(.caption).foregroundStyle(.red) }
+            HStack {
+                Text(model.isPaused ? "Pausiert" : model.status.title).font(.caption)
+                Spacer()
+                Button("Einrichtung schließen") { model.finishSetup() }
+            }
+        }
+        .padding(24).frame(width: 480)
+        .onAppear { refresh() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in refresh() }
+    }
+    private func refresh() {
+        screenAllowed = CGPreflightScreenCaptureAccess()
+        inputAllowed = CGPreflightListenEventAccess()
+    }
+    private func permissionRow(_ title: String, allowed: Bool, explanation: String, request: @escaping () -> Void) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Label(title + (allowed ? " · freigegeben" : " · fehlt"), systemImage: allowed ? "checkmark.circle.fill" : "circle")
+                .font(.headline)
+            Text(explanation).font(.caption).foregroundStyle(.secondary)
+            if !allowed { Button("Freigabe anfragen…", action: request) }
+        }
     }
 }

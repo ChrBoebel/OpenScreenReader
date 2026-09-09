@@ -2,6 +2,48 @@ import AppKit
 import XCTest
 
 final class MenuBarSmokeUITests: XCTestCase {
+    @MainActor
+    func testReadingSpeedPersistsAndQueueActionsAreAvailable() {
+        let app = makeApplication()
+        app.launch()
+        defer { app.terminate() }
+        let status = app.descendants(matching: .statusItem).firstMatch
+        XCTAssertTrue(status.waitForExistence(timeout: 5))
+        status.click()
+        XCTAssertTrue(app.menuItems["Add Screen Region to Queue…"].exists)
+        XCTAssertTrue(app.menuItems["Next Text"].exists)
+        XCTAssertFalse(app.menuItems["Next Text"].isEnabled)
+        // macOS can expose an infinite frame for SettingsLink inside a status
+        // menu. Exercise the native Settings command instead of guessed points.
+        app.typeKey(.escape, modifierFlags: [])
+        app.typeKey(",", modifierFlags: [.command])
+        let speed = app.popUpButtons["readingSpeed"]
+        XCTAssertTrue(speed.waitForExistence(timeout: 3))
+        speed.click()
+        speed.menuItems["1.5×"].click()
+        expectation(for: NSPredicate(format: "value == %@", "1.5×"), evaluatedWith: speed)
+        waitForExpectations(timeout: 3)
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(status.waitForExistence(timeout: 5))
+        status.click()
+        XCTAssertTrue(app.menuItems["Speed · 1.5×"].exists)
+        app.typeKey(.escape, modifierFlags: [])
+        app.typeKey(",", modifierFlags: [.command])
+        XCTAssertTrue(speed.waitForExistence(timeout: 3))
+        XCTAssertEqual(speed.value as? String, "1.5×")
+        // The separate Add shortcut starts a selection when idle. No capture
+        // permission is required until the user actually commits a region.
+        let finder = XCUIApplication(bundleIdentifier: "com.apple.finder")
+        finder.activate()
+        finder.typeKey("y", modifierFlags: [.command, .option, .shift])
+        XCTAssertTrue(app.groups["Screen region selection"].firstMatch.waitForExistence(timeout: 3))
+        app.typeKey(.escape, modifierFlags: [])
+        XCTAssertTrue(app.descendants(matching: .statusItem)
+            .matching(NSPredicate(format: "title == 'OpenScreenReader, Stopped'"))
+            .firstMatch.waitForExistence(timeout: 3))
+    }
+
     override func setUpWithError() throws {
         continueAfterFailure = false
     }
@@ -131,12 +173,77 @@ final class MenuBarSmokeUITests: XCTestCase {
     }
 
     @MainActor
+    func testControlCanDockOnBothSidesAndRememberDraggedPosition() throws {
+        let app = makeApplication()
+        app.launch()
+        defer { app.terminate() }
+        openMenu(in: app, status: "Ready")
+        app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
+        let preview = app.buttons["previewReadingPanelPosition"]
+        XCTAssertTrue(preview.waitForExistence(timeout: 3))
+        preview.click()
+        let control = app.groups["readingStatusContent"]
+        XCTAssertTrue(control.waitForExistence(timeout: 3))
+        let screen = try XCTUnwrap(NSScreen.main)
+        let height = screen.frame.height
+        let visible = screen.visibleFrame
+        let initial = control.frame
+        let center = control.coordinate(withNormalizedOffset: CGVector(dx: 0.42, dy: 0.5))
+        let left = center.withOffset(CGVector(dx: visible.minX + 40 - (initial.minX + initial.width * 0.42),
+                                              dy: height - visible.midY - initial.midY))
+        center.press(forDuration: 0.1, thenDragTo: left)
+        let vertical = NSPredicate { _, _ in control.frame.height > control.frame.width }
+        expectation(for: vertical, evaluatedWith: control)
+        waitForExpectations(timeout: 3)
+        XCTAssertLessThan(control.frame.midX, visible.minX + 100)
+        XCTAssertEqual(app.buttons["readingStatusAction"].frame.width, 44, accuracy: 1)
+        let side = control.frame
+        let grip = control.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.42))
+        let right = grip.withOffset(CGVector(dx: visible.maxX - 40 - side.midX, dy: 0))
+        grip.press(forDuration: 0.1, thenDragTo: right)
+        expectation(for: NSPredicate { _, _ in control.frame.midX > visible.maxX - 100 }, evaluatedWith: control)
+        waitForExpectations(timeout: 3)
+        // Wait for the bounded snap to finish before comparing restored coordinates.
+        let docked = NSPredicate { _, _ in abs(control.frame.maxX - (visible.maxX - 4)) < 1 }
+        expectation(for: docked, evaluatedWith: control)
+        waitForExpectations(timeout: 3)
+        let saved = control.frame
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Right-edge vertical control"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        app.buttons["readingStatusAction"].click()
+        expectation(for: NSPredicate { _, _ in !control.exists }, evaluatedWith: control)
+        waitForExpectations(timeout: 3)
+        app.terminate()
+        app.launch()
+        openMenu(in: app, status: "Ready")
+        app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
+        preview.click()
+        XCTAssertTrue(control.waitForExistence(timeout: 3))
+        XCTAssertEqual(control.frame, saved)
+        let restoredGrip = control.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.42))
+        let bottom = restoredGrip.withOffset(CGVector(dx: visible.midX - control.frame.midX,
+            dy: height - visible.minY - 45 - (control.frame.minY + control.frame.height * 0.42)))
+        restoredGrip.press(forDuration: 0.1, thenDragTo: bottom)
+        expectation(for: NSPredicate { _, _ in control.frame.width > control.frame.height }, evaluatedWith: control)
+        waitForExpectations(timeout: 3)
+        let picker = app.popUpButtons["readingPanelPosition"]
+        picker.click()
+        app.menuItems["Left"].click()
+        expectation(for: NSPredicate { _, _ in control.frame.height > control.frame.width && control.frame.midX < visible.minX + 100 },
+                    evaluatedWith: control)
+        waitForExpectations(timeout: 3)
+        app.buttons["readingStatusAction"].click()
+    }
+
+    @MainActor
     func testLocalSupertonicReadsFixtureAndEscapeStopsIt() throws {
         try verifyLocalSupertonic(ending: .escape)
     }
 
     @MainActor
-    func testLocalSupertonicReadsFixtureAndRepeatedShortcutStopsIt() throws {
+    func testLocalSupertonicReadsFixtureAndRepeatedShortcutOpensAdditionalSelection() throws {
         try verifyLocalSupertonic(ending: .shortcut)
     }
 
@@ -232,7 +339,11 @@ final class MenuBarSmokeUITests: XCTestCase {
         } else {
             let finder = XCUIApplication(bundleIdentifier: "com.apple.finder")
             finder.activate()
-            if ending == .shortcut { finder.typeKey("y", modifierFlags: [.command, .shift]) }
+            if ending == .shortcut {
+                finder.typeKey("y", modifierFlags: [.command, .shift])
+                XCTAssertTrue(app.groups["Screen region selection"].firstMatch.waitForExistence(timeout: 3))
+                app.typeKey(.escape, modifierFlags: [])
+            }
             else { finder.typeKey(.escape, modifierFlags: []) }
         }
         let stopped = app.descendants(matching: .statusItem)
@@ -265,8 +376,9 @@ final class MenuBarSmokeUITests: XCTestCase {
         finder.activate()
         finder.typeKey("j", modifierFlags: [.command, .shift])
         XCTAssertTrue(app.groups["Screen region selection"].firstMatch.waitForExistence(timeout: 3))
-        finder.activate()
-        finder.typeKey("j", modifierFlags: [.command, .shift])
+        app.typeKey("j", modifierFlags: [.command, .shift])
+        XCTAssertTrue(app.groups["Screen region selection"].firstMatch.exists)
+        app.typeKey(.escape, modifierFlags: [])
         openMenu(in: app, status: "Stopped")
         app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
         app.buttons["Restore Default"].click()
@@ -303,7 +415,7 @@ final class MenuBarSmokeUITests: XCTestCase {
     }
 
     @MainActor
-    func testGlobalHotkeyStartsAndRepeatedHotkeyCancelsFromFinder() {
+    func testGlobalHotkeyKeepsExistingSelectionAndEscapeCancels() {
         let app = makeApplication()
         app.launch()
         defer { app.terminate() }
@@ -323,9 +435,12 @@ final class MenuBarSmokeUITests: XCTestCase {
             "Expected the global hotkey to expose the selection overlay.\n\(statusDescription(in: app))"
         )
 
-        finder.activate()
-        finder.typeKey("y", modifierFlags: [.command, .shift])
+        // The overlay owns focus after starting. Do not activate Finder again:
+        // XCTest may click through the overlay while activating another app.
+        app.typeKey("y", modifierFlags: [.command, .shift])
 
+        XCTAssertTrue(overlay.exists, statusDescription(in: app))
+        app.typeKey(.escape, modifierFlags: [])
         let stoppedStatus = app.descendants(matching: .statusItem)
             .matching(NSPredicate(format: "title == 'OpenScreenReader, Stopped'"))
             .firstMatch

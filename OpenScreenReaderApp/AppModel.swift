@@ -1,9 +1,110 @@
 import AppKit
 import Combine
 import OpenScreenReaderCore
+import SwiftUI
 
 @MainActor
 final class AppModel: ObservableObject {
+    @Published private(set) var isPaused = false
+    struct QueueEntry: Identifiable {
+        let id: UUID
+        let preview: String
+    }
+    var queueEntries: [QueueEntry] {
+        queuedTexts.map { QueueEntry(id: $0.id, preview: String($0.result.text.prefix(100)).replacingOccurrences(of: "\n", with: " ")) }
+    }
+    private var controlsPopover: NSPopover?
+    private var setupWindow: NSWindow?
+    private var offeredSetup = false
+    func offerSetupIfNeeded() {
+        guard !offeredSetup else { return }
+        offeredSetup = true
+        guard !preferences.bool(forKey: "setupDismissed.v1"),
+              !ProcessInfo.processInfo.arguments.contains("--uitesting"),
+              ProcessInfo.processInfo.environment["OSR_SHORTCUT_TEST_SUITE"] == nil,
+              ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
+        showSetup()
+    }
+    func finishSetup() {
+        preferences.set(true, forKey: "setupDismissed.v1")
+        setupWindow?.close()
+        setupWindow?.contentViewController = nil
+        setupWindow = nil
+    }
+    func beginSetupCapture() {
+        setupWindow?.orderOut(nil)
+        enqueueAddRequest()
+    }
+    var canPause: Bool { status == .speaking && activeContext != nil }
+    func enqueueStopRequest() {
+        guard let context = activeContext else { return }
+        enqueue { await $0.cancel(context: context) }
+    }
+
+    func togglePause() {
+        guard canPause, let context = activeContext else { return }
+        isPaused.toggle()
+        speechService.setPaused(isPaused)
+        if isPaused {
+            timeoutTask?.cancel()
+            speechTimeoutGeneration &+= 1
+            readingPanel?.updateLevel(0)
+        } else { armSpeechTimeout(.seconds(30), context: context) }
+        readingPanel?.updatePaused(isPaused)
+    }
+
+    func removeQueueEntry(_ id: UUID) {
+        guard let index = queuedTexts.firstIndex(where: { $0.id == id }) else { return }
+        queuedTexts.remove(at: index)
+        queueWasEdited()
+    }
+
+    func moveQueueEntry(_ id: UUID, offset: Int) {
+        guard let index = queuedTexts.firstIndex(where: { $0.id == id }),
+              queuedTexts.indices.contains(index + offset) else { return }
+        queuedTexts.swapAt(index, index + offset)
+        queueWasEdited()
+    }
+
+    func playQueueEntry(_ id: UUID) {
+        enqueue { model in
+            guard let index = model.queuedTexts.firstIndex(where: { $0.id == id }),
+                  let context = model.activeContext else { return }
+            let selected = model.queuedTexts.remove(at: index)
+            model.queuedTexts.insert(selected, at: 0)
+            model.queueWasEdited()
+            await model.finishSpeech(context: context)
+        }
+    }
+
+    private func queueWasEdited() {
+        updateQueuePresentation()
+        if status == .speaking { speechService.prepareNext(queuedTexts.first?.result.speechText) }
+    }
+
+    func showPlaybackControls(from view: NSView) {
+        if status == .error { showSetup(); return }
+        controlsPopover?.close()
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.contentViewController = NSHostingController(rootView: PlaybackControlsView(model: self))
+        controlsPopover = popover
+        popover.show(relativeTo: view.bounds, of: view, preferredEdge: .maxY)
+    }
+
+    func showSetup() {
+        if setupWindow == nil {
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 530),
+                                  styleMask: [.titled, .closable], backing: .buffered, defer: false)
+            window.title = "OpenScreenReader · Einrichtung"
+            window.isReleasedWhenClosed = false
+            window.contentViewController = NSHostingController(rootView: SetupView(model: self))
+            window.center()
+            setupWindow = window
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        setupWindow?.makeKeyAndOrderFront(nil)
+    }
     @Published private(set) var status: AppStatus = .ready
     @Published private(set) var hotkeyRegistration: HotkeyRegistration = .inactive
     @Published private(set) var lastSelection: ScreenRegionSelection?
@@ -12,6 +113,29 @@ final class AppModel: ObservableObject {
     @Published private(set) var errorMessage: String?
     @Published private(set) var shortcutConfiguration: ShortcutConfiguration
     @Published private(set) var shortcutNotice: String?
+    @Published private(set) var playbackRate: Double
+    @Published private(set) var queueShortcutConfiguration: ShortcutConfiguration
+    @Published private(set) var queueShortcutNotice: String?
+    @Published private(set) var queueNotice: String?
+    @Published private(set) var queuedTextCount = 0
+    @Published private(set) var isAddingToQueue = false
+
+    static let queueLimit = 5
+    private struct QueuedText {
+        let id = UUID()
+        let result: OCRResult
+        let selection: ScreenRegionSelection
+        let size: CGSize
+    }
+    private var queuedTexts: [QueuedText] = []
+    private var queueInputID: UUID?
+    private var queueInputTask: Task<Void, Never>?
+    private var queueInputTimeout: Task<Void, Never>?
+    private var queueOverlayVisible = false
+    private var sessionGeneration: UInt64 = 0
+    private let preferences: UserDefaults
+    private let queueHotkeyManager: (any HotkeyManaging)?
+    private let queueShortcutStore: any ShortcutStoring
 
     let pipelineCoordinator: PipelineCoordinator
     private let hotkeyManager: any HotkeyManaging
@@ -38,6 +162,7 @@ final class AppModel: ObservableObject {
         readingPanel?.hide()
         stopResources()
         hotkeyManager.unregister()
+        queueHotkeyManager?.unregister()
     }
 
     init(
@@ -52,7 +177,10 @@ final class AppModel: ObservableObject {
         readingPanel: (any ReadingStatusPresenting)? = nil,
         interfaceSounds: (any InterfaceSoundPlaying)? = nil,
         operationTimeout: Duration = .seconds(15),
-        speechStartupTimeout: Duration = .seconds(90)
+        speechStartupTimeout: Duration = .seconds(90),
+        preferences: UserDefaults = InterfaceSoundPlayer.defaults,
+        queueHotkeyManager: (any HotkeyManaging)? = nil,
+        queueShortcutStore: any ShortcutStoring = UserDefaultsShortcutStore(preferenceKey: "enqueueShortcut.v1")
     ) {
         self.pipelineCoordinator = pipelineCoordinator
         self.shortcutStore = shortcutStore
@@ -67,16 +195,59 @@ final class AppModel: ObservableObject {
         self.interfaceSounds = interfaceSounds
         self.operationTimeout = operationTimeout
         self.speechStartupTimeout = speechStartupTimeout
-        hotkeyManager.onPress = { [weak self] in self?.enqueueReadRequest() }
+        self.preferences = preferences
+        self.queueHotkeyManager = queueHotkeyManager
+        self.queueShortcutStore = queueShortcutStore
+        self.queueShortcutConfiguration = queueShortcutStore.load() ?? .queueDefault
+        self.playbackRate = SpeechSpeed.validated(preferences.object(forKey: SpeechSpeed.preferenceKey) as? Double ?? 1)
+        speechService.playbackRate = playbackRate
+        readingPanel?.configureControls { [weak self] view in self?.showPlaybackControls(from: view) }
+        hotkeyManager.onPress = { [weak self] in self?.enqueuePrimaryShortcut() }
         hotkeyRegistration = hotkeyManager.register(shortcutConfiguration.resolvedShortcut())
         if hotkeyRegistration != .registered {
             status = .error
             errorMessage = Self.registrationErrorMessage(for: hotkeyRegistration, shortcut: shortcutConfiguration)
         }
+        queueHotkeyManager?.onPress = { [weak self] in self?.enqueueAddRequest() }
+        if queueShortcutConfiguration == shortcutConfiguration {
+            queueShortcutNotice = "Choose an additional shortcut different from the primary shortcut. The primary shortcut and menu action remain available."
+        } else if let result = queueHotkeyManager?.register(queueShortcutConfiguration.resolvedShortcut()), result != .registered {
+            queueShortcutNotice = Self.registrationErrorMessage(for: result, shortcut: queueShortcutConfiguration)
+        }
     }
 
     var readActionTitle: String { activeContext == nil ? "Read Screen Region…" : "Stop Reading" }
     var canChangeShortcut: Bool { activeContext == nil }
+    var canAddToQueue: Bool {
+        !isAddingToQueue && queuedTextCount < Self.queueLimit
+            && (activeContext == nil || status == .synthesizing || status == .speaking || status == .waiting)
+    }
+    var canSkipText: Bool { activeContext != nil && queuedTextCount > 0 }
+
+    func setPlaybackRate(_ value: Double) {
+        playbackRate = SpeechSpeed.validated(value)
+        speechService.playbackRate = playbackRate
+        preferences.set(playbackRate, forKey: SpeechSpeed.preferenceKey)
+    }
+
+    func enqueueQueueShortcutChange(_ configuration: ShortcutConfiguration) {
+        enqueue { model in
+            guard model.canChangeShortcut else { return }
+            guard configuration.isValid, configuration != model.shortcutConfiguration else {
+                model.queueShortcutNotice = "Choose a valid additional shortcut different from the primary shortcut."
+                return
+            }
+            guard let manager = model.queueHotkeyManager else { return }
+            let result = manager.register(configuration.resolvedShortcut())
+            guard result == .registered else {
+                model.queueShortcutNotice = Self.registrationErrorMessage(for: result, shortcut: configuration)
+                return
+            }
+            model.queueShortcutConfiguration = configuration
+            model.queueShortcutStore.save(configuration)
+            model.queueShortcutNotice = "Add shortcut \(configuration.displayName) is active and saved."
+        }
+    }
 
     func enqueueShortcutChange(_ configuration: ShortcutConfiguration) {
         enqueue { $0.changeShortcut(configuration) }
@@ -89,6 +260,10 @@ final class AppModel: ObservableObject {
         }
         guard configuration.isValid else {
             shortcutNotice = "Choose a key and at least Command, Option, or Control. Escape is reserved for cancellation."
+            return
+        }
+        guard configuration != queueShortcutConfiguration else {
+            shortcutNotice = "Primary and additional shortcut combinations must be different."
             return
         }
         let result = hotkeyManager.register(configuration.resolvedShortcut())
@@ -106,11 +281,18 @@ final class AppModel: ObservableObject {
         shortcutNotice = "Shortcut \(configuration.displayName) is active and saved."
     }
 
+    func previewReadingPanelPosition() {
+        guard canChangeShortcut,
+              let number = NSScreen.main?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return }
+        readingPanel?.show(.positioning, displayID: number.uint32Value, onStop: nil)
+    }
+
     var captureFeedback: String {
         if status == .capturing { return "Capturing selected region locally…" }
         if status == .recognizing { return "Recognizing German and English text locally…" }
         if status == .synthesizing { return "Preparing the local Supertonic voice…" }
-        if status == .speaking { return "Reading locally. Press Escape or the shortcut to stop." }
+        if status == .speaking { return "Reading locally. Press the shortcut again to add text; Escape stops everything." }
+        if status == .waiting { return "Waiting for the new selection or its text recognition. Escape stops everything." }
         guard let summary = lastOCRSummary else {
             return "Select a region to recognize and read text locally."
         }
@@ -128,7 +310,23 @@ final class AppModel: ObservableObject {
         }
     }
 
+    // The shortcut always selects/adds; the menu's explicit Stop Reading action
+    // remains separate so it never opens a selection instead of stopping.
+    func enqueuePrimaryShortcut() { enqueue { await $0.addToQueue() } }
     func enqueueReadRequest() { enqueue { await $0.processReadRequest() } }
+    func enqueueAddRequest() { enqueue { await $0.addToQueue() } }
+    func enqueueSkipRequest() {
+        enqueue { model in
+            guard model.canSkipText, let context = model.activeContext else { return }
+            model.stopSpeechResources()
+            await model.finishSpeech(context: context)
+        }
+    }
+    func waitForQueueInputToSettle() async {
+        await interactionTask?.value
+        await queueInputTask?.value
+        await interactionTask?.value
+    }
 
     func handleReadRequest() async {
         enqueueReadRequest()
@@ -165,6 +363,8 @@ final class AppModel: ObservableObject {
             await cancel(context: activeContext)
             return
         }
+        sessionGeneration &+= 1
+        queueNotice = nil
         switch await pipelineCoordinator.start() {
         case let .started(context):
             readingPanel?.hide()
@@ -198,13 +398,18 @@ final class AppModel: ObservableObject {
         readingPanel?.hide()
         selectionController.cancel()
         do {
+            let session = sessionGeneration
             try escapeMonitor.start(
                 onEscape: { [weak self] in
-                    self?.enqueue { await $0.cancel(context: context) }
+                    self?.enqueue {
+                        guard $0.sessionGeneration == session, let active = $0.activeContext else { return }
+                        await $0.cancel(context: active)
+                    }
                 },
                 onUnavailable: { [weak self] in
                     self?.enqueue {
-                        await $0.fail(context: context, message: EscapeMonitorFailure.unavailable.localizedDescription)
+                        guard $0.sessionGeneration == session, let active = $0.activeContext else { return }
+                        await $0.fail(context: active, message: EscapeMonitorFailure.unavailable.localizedDescription)
                     }
                 }
             )
@@ -275,7 +480,7 @@ final class AppModel: ObservableObject {
         showReadingPanel(.preparing, context: context)
         armSpeechTimeout(speechStartupTimeout, context: context)
         let service = speechService
-        let text = result.text
+        let text = result.speechText
         speechTask = Task { @MainActor [weak self] in
             do {
                 try Task.checkCancellation()
@@ -305,13 +510,14 @@ final class AppModel: ObservableObject {
                 while !Task.isCancelled {
                     do {
                         guard let self, self.activeContext == context, self.status == .speaking else { return }
-                        self.readingPanel?.updateLevel(self.speechService.playbackLevel)
+                        self.readingPanel?.updateLevel(self.isPaused ? 0 : self.speechService.playbackLevel)
                     }
                     do { try await Task.sleep(for: .milliseconds(33)) } catch { return }
                 }
             }
         }
-        armSpeechTimeout(.seconds(30), context: context)
+        speechService.prepareNext(queuedTexts.first?.result.speechText)
+        if !isPaused { armSpeechTimeout(.seconds(30), context: context) }
     }
 
     private func armSpeechTimeout(_ duration: Duration, context: PipelineOperationContext) {
@@ -328,6 +534,29 @@ final class AppModel: ObservableObject {
     }
 
     private func finishSpeech(context: PipelineOperationContext) async {
+        guard context == activeContext else { return }
+        if !queuedTexts.isEmpty {
+            guard await pipelineCoordinator.complete(context) else { return }
+            stopSpeechResources()
+            let next = queuedTexts.removeFirst()
+            updateQueuePresentation()
+            guard case let .started(nextContext) = await pipelineCoordinator.start() else {
+                await fail(context: context, message: "The next text could not start. Please select it again.")
+                return
+            }
+            activeContext = nextContext
+            lastSelection = next.selection
+            _ = await pipelineCoordinator.accept(.capturing, for: nextContext)
+            _ = await pipelineCoordinator.accept(.recognizing, for: nextContext)
+            await finishRecognition(result: next.result, size: next.size, context: nextContext)
+            return
+        }
+        if isAddingToQueue {
+            stopSpeechResources()
+            status = .waiting
+            showReadingPanel(.waiting, context: context)
+            return
+        }
         guard context == activeContext, await pipelineCoordinator.complete(context) else { return }
         stopResources()
         activeContext = nil
@@ -361,27 +590,159 @@ final class AppModel: ObservableObject {
     }
 
     private func showReadingPanel(_ state: ReadingPanelState, context: PipelineOperationContext) {
+        guard !queueOverlayVisible else { readingPanel?.hide(); return }
         guard let selection = lastSelection else { readingPanel?.hide(); return }
         let stop: (() -> Void)? = state.isActive ? { [weak self] in
             self?.enqueue { await $0.cancel(context: context) }
         } : nil
         readingPanel?.show(state, displayID: selection.displayID,
                            origin: state == .recognizing ? selection.rectInScreenPoints : nil, onStop: stop)
+        readingPanel?.updateQueueCount(queuedTextCount)
     }
 
-    private func stopResources() {
+    private func stopSpeechResources() {
+        isPaused = false
+        readingPanel?.updatePaused(false)
         levelTask?.cancel()
         levelTask = nil
         readingPanel?.updateLevel(0)
         interfaceSounds?.stop()
-        speechService.stop()
+        speechService.stopCurrent()
         speechTask?.cancel()
+        timeoutTask?.cancel()
+        timeoutTask = nil
+        speechTimeoutGeneration &+= 1
+    }
+
+    private func stopResources() {
+        controlsPopover?.close()
+        controlsPopover?.contentViewController = nil
+        controlsPopover = nil
+        stopSpeechResources()
+        speechService.stop()
+        sessionGeneration &+= 1
+        queueInputID = nil
+        queueInputTask?.cancel()
+        queueInputTimeout?.cancel()
+        queueInputTimeout = nil
+        isAddingToQueue = false
+        queueOverlayVisible = false
+        queuedTexts.removeAll(keepingCapacity: false)
+        updateQueuePresentation()
         captureTask?.cancel()
         recognitionTask?.cancel()
         timeoutTask?.cancel()
         timeoutTask = nil
         selectionController.cancel()
         escapeMonitor.stop()
+    }
+
+    private func addToQueue() async {
+        controlsPopover?.close()
+        guard canAddToQueue else {
+            queueNotice = queuedTextCount >= Self.queueLimit ? "Queue full (5 texts). Wait for a text to finish."
+                : "Finish the current selection or recognition before adding another text."
+            return
+        }
+        guard activeContext != nil else { await processReadRequest(); return }
+        let id = UUID()
+        queueInputID = id
+        isAddingToQueue = true
+        queueOverlayVisible = true
+        queueNotice = "Select another region. Playback continues; Escape stops everything."
+        readingPanel?.hide()
+        let session = sessionGeneration
+        selectionController.start(onSelection: { [weak self] selection in
+            self?.enqueue { $0.captureQueueInput(selection, id: id) }
+        }, onCancel: { [weak self] in
+            self?.enqueue {
+                guard $0.queueInputID == id, $0.sessionGeneration == session, let active = $0.activeContext else { return }
+                await $0.cancel(context: active)
+            }
+        })
+    }
+
+    private func captureQueueInput(_ selection: ScreenRegionSelection, id: UUID) {
+        guard queueInputID == id else { return }
+        selectionController.cancel()
+        queueNotice = "Recognizing the next text locally…"
+        let capture = captureService, ocr = ocrService
+        queueInputTask = Task { @MainActor [weak self] in
+            do {
+                let image = try await capture.capture(selection)
+                try Task.checkCancellation()
+                guard self?.queueInputID == id else { return }
+                let size = CGSize(width: image.width, height: image.height)
+                self?.enqueue { model in
+                    guard model.queueInputID == id else { return }
+                    model.queueOverlayVisible = false
+                    model.restoreReadingPanel()
+                }
+                let result = try await ocr.recognize(image)
+                try Task.checkCancellation()
+                self?.enqueue { await $0.finishQueueInput(result, selection: selection, size: size, id: id) }
+            } catch is CancellationError {
+                self?.enqueue { await $0.rejectQueueInput(id: id, message: "The additional capture was cancelled.") }
+            } catch {
+                self?.enqueue { await $0.rejectQueueInput(id: id, message: "The additional region could not be recognized. Select it again.") }
+            }
+        }
+        queueInputTimeout?.cancel()
+        queueInputTimeout = Task { @MainActor [weak self, operationTimeout] in
+            do { try await Task.sleep(for: operationTimeout) } catch { return }
+            self?.enqueue { await $0.rejectQueueInput(id: id, message: "The additional capture or text recognition timed out.") }
+        }
+    }
+
+    private func finishQueueInput(_ result: OCRResult, selection: ScreenRegionSelection, size: CGSize, id: UUID) async {
+        guard queueInputID == id else { return }
+        guard !result.text.isEmpty else {
+            await rejectQueueInput(id: id, message: "No readable text in the additional region.")
+            return
+        }
+        guard result.text.count <= 8_000, result.text.utf8.count <= 48_000 else {
+            await rejectQueueInput(id: id, message: SpeechFailure.tooLong.localizedDescription)
+            return
+        }
+        queuedTexts.append(QueuedText(result: result, selection: selection, size: size))
+        endQueueInput()
+        queueNotice = "Added to queue."
+        updateQueuePresentation()
+        if status == .speaking { speechService.prepareNext(queuedTexts.first?.result.speechText) }
+        if status == .waiting, let context = activeContext { await finishSpeech(context: context) }
+        else { restoreReadingPanel() }
+    }
+
+    private func rejectQueueInput(id: UUID, message: String) async {
+        guard queueInputID == id else { return }
+        endQueueInput()
+        queueNotice = message
+        if status == .waiting, let context = activeContext { await finishSpeech(context: context) }
+        else { restoreReadingPanel() }
+    }
+
+    private func endQueueInput() {
+        queueInputID = nil
+        queueInputTask?.cancel()
+        queueInputTimeout?.cancel()
+        queueInputTimeout = nil
+        isAddingToQueue = false
+        queueOverlayVisible = false
+    }
+
+    private func updateQueuePresentation() {
+        queuedTextCount = queuedTexts.count
+        readingPanel?.updateQueueCount(queuedTextCount)
+    }
+
+    private func restoreReadingPanel() {
+        guard let context = activeContext, let selection = lastSelection, !queueOverlayVisible else { return }
+        let state: ReadingPanelState = status == .speaking ? .speaking : status == .waiting ? .waiting : .preparing
+        readingPanel?.restore(state, displayID: selection.displayID, onStop: { [weak self] in
+            self?.enqueue { await $0.cancel(context: context) }
+        })
+        readingPanel?.updateQueueCount(queuedTextCount)
+        readingPanel?.updatePaused(isPaused)
     }
 
     private static func registrationErrorMessage(

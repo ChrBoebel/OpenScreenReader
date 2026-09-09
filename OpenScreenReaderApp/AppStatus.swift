@@ -5,6 +5,7 @@ enum AppStatus: String, CaseIterable, Equatable, Sendable {
     case recognizing
     case synthesizing
     case speaking
+    case waiting
     case stopped
     case error
 
@@ -20,6 +21,8 @@ enum AppStatus: String, CaseIterable, Equatable, Sendable {
             "Recognizing"
         case .speaking:
             "Speaking"
+        case .waiting:
+            "Waiting for next text"
         case .synthesizing:
             "Preparing voice"
         case .stopped:
@@ -41,6 +44,8 @@ enum AppStatus: String, CaseIterable, Equatable, Sendable {
             "text.viewfinder"
         case .speaking:
             "speaker.wave.2"
+        case .waiting:
+            "text.badge.plus"
         case .synthesizing:
             "waveform.badge.magnifyingglass"
         case .error:

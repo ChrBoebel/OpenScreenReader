@@ -16,7 +16,7 @@ Before changing code or architecture, read:
 
 - Native macOS menu bar experience.
 - Hotkey → drag region → local OCR → automatic local speech.
-- `Esc` and the repeated hotkey cancel the complete active pipeline immediately.
+- `Esc` and explicit Stop controls cancel the complete active pipeline immediately. By the owner's 2026-09-09 decision, repeating the primary hotkey adds another region to the queue during speech/preparation, without interrupting playback. Repeats during an existing selection/capture/OCR do not duplicate or cancel it.
 - No cloud OCR, cloud TTS, silent fallback, account, or default telemetry.
 - No persistent screenshot, OCR text, audio history, or automatic clipboard write.
 - Supertonic 3 is the default TTS model by the owner's 2026-09-05 listening decision; architecture must remain provider-based. Qwen is comparison-only, never an automatic fallback. Supertonic's OpenRAIL-M and upstream maintenance risks remain release gates.

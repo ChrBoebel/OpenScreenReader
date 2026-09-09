@@ -10,6 +10,68 @@ import Testing
 @MainActor
 struct SpeechBufferingTests {
     @Test
+    func stoppingBeforePreparationTaskStartsCannotLaunchAWorkerLater() async throws {
+        let service = LocalSpeechService()
+        defer { service.stop() }
+        service.prepareNext("Ein kurzer öffentlicher Testsatz.")
+        service.stop()
+        try await Task.sleep(for: .milliseconds(40))
+        #expect(service.workerLaunchCount == 0)
+        #expect(service.workerPID == nil)
+        #expect(service.preparedAudioBytes == 0)
+    }
+
+    @Test
+    func preparationBufferIsBoundedAndCancellationReleasesBothSides() async throws {
+        let buffer = SpeechPreparationBuffer(capacityBytes: 8)
+        try await buffer.send(Data(repeating: 1, count: 8))
+        var sent = false
+        let producer = Task { try await buffer.send(Data(repeating: 2, count: 4)); sent = true }
+        await Task.yield()
+        #expect(buffer.bufferedBytes == 8)
+        #expect(!sent)
+        #expect(try await buffer.next()?.count == 8)
+        try await producer.value
+        #expect(buffer.bufferedBytes == 4)
+        buffer.cancel()
+        #expect(buffer.bufferedBytes == 0)
+        do { _ = try await buffer.next(); Issue.record("Cancelled buffer accepted consumer") }
+        catch { #expect(error is CancellationError) }
+        let full = SpeechPreparationBuffer(capacityBytes: 8)
+        try await full.send(Data(repeating: 1, count: 8))
+        let blockedProducer = Task { try await full.send(Data(repeating: 1, count: 4)) }
+        await Task.yield()
+        full.cancel()
+        do { try await blockedProducer.value; Issue.record("Cancelled producer survived") }
+        catch { #expect(error is CancellationError) }
+        #expect(full.bufferedBytes == 0)
+        let empty = SpeechPreparationBuffer(capacityBytes: 8)
+        let consumer = Task { try await empty.next() }
+        await Task.yield()
+        empty.cancel()
+        do { _ = try await consumer.value; Issue.record("Cancelled consumer survived") }
+        catch { #expect(error is CancellationError) }
+    }
+
+    @Test
+    func playbackSpeedIsBoundedAndSurvivesResetWithoutPitchShift() {
+        let player = SpeechAudioPlayer(sampleRate: 44_100)
+        player.playbackRate = 1.5
+        #expect(player.playbackRate == 1.5)
+        #expect(player.prebufferFrames == 66_150)
+        #expect(player.pitchCents == 0)
+        player.reset()
+        #expect(player.playbackRate == 1.5)
+        player.playbackRate = 99
+        #expect(player.playbackRate == 2)
+        player.playbackRate = 0
+        #expect(player.playbackRate == 0.75)
+        player.playbackRate = .nan
+        #expect(player.playbackRate == 1)
+        player.stop()
+    }
+
+    @Test
     func envelopeFollowsRenderedFramesAndDropsOldLevels() {
         var envelope = PlaybackEnvelope()
         let samples: [Float] = Array(repeating: 0.25, count: 480) + Array(repeating: 0, count: 480)
@@ -34,10 +96,10 @@ struct SpeechBufferingTests {
     }
 
     @Test
-    func nativeSupertonicRateKeepsFourSecondsOfBufferCapacity() async throws {
+    func nativeSupertonicRateKeepsEightSourceSecondsOfBufferCapacity() async throws {
         let player = SpeechAudioPlayer(sampleRate: 44_100)
         defer { player.stop() }
-        #expect(player.capacityFrames == 176_400)
+        #expect(player.capacityFrames == 352_800)
         #expect(player.prebufferFrames == 44_100)
         try await player.enqueue(Data(repeating: 0, count: 9_600)) {}
         try await player.finish {}
@@ -142,6 +204,338 @@ struct SpeechBufferingTests {
 @Suite("Primary interaction")
 @MainActor
 struct InteractionTests {
+    @Test
+    func explicitStopWhileIdleNeverStartsSelection() async {
+        let f = QueueFixture()
+        f.model.enqueueStopRequest()
+        await f.model.waitForInteractionToSettle()
+        #expect(f.selection.startCount == 0)
+        #expect(f.model.status == .ready)
+    }
+    @Test
+    func pausedPlayerDoesNotAutoStartAndStopReleasesDrain() async throws {
+        let player = SpeechAudioPlayer(sampleRate: 44_100)
+        player.setPaused(true)
+        var callbacks = 0
+        for _ in 0..<3 { try await player.enqueue(Data(repeating: 0, count: 96_000)) { callbacks += 1 } }
+        #expect(player.isPaused)
+        #expect(callbacks == 0)
+        let drain = Task { try await player.finish { callbacks += 1 } }
+        try await Task.sleep(for: .milliseconds(80))
+        #expect(player.queuedFrames == 72_000)
+        player.stop()
+        do { try await drain.value; Issue.record("Stopped drain returned successfully") }
+        catch is CancellationError {}
+        #expect(!player.isPaused)
+        #expect(player.queuedFrames == 0)
+    }
+
+    @Test
+    func queueEditingUsesStableIDsAndRefreshesPreparation() async throws {
+        let f = QueueFixture()
+        await f.model.handleReadRequest()
+        f.selection.complete(Self.ocrRegion)
+        await f.model.waitForCaptureToSettle()
+        try await f.speech.waitForReads(1)
+        await f.model.waitForInteractionToSettle()
+        f.model.togglePause()
+        #expect(f.model.isPaused && f.speech.isPaused)
+        for text in ["Second", "Third", "Fourth"] {
+            f.ocr.result = OCRResult(lines: [text])
+            f.model.enqueueAddRequest()
+            await f.model.waitForInteractionToSettle()
+            f.selection.complete(Self.ocrRegion)
+            await f.model.waitForQueueInputToSettle()
+        }
+        let entries = f.model.queueEntries
+        f.model.moveQueueEntry(entries[2].id, offset: -1)
+        f.model.removeQueueEntry(entries[0].id)
+        #expect(f.model.queueEntries.map(\.preview) == ["Fourth", "Third"])
+        #expect(f.speech.preparedText == "Fourth")
+        f.model.removeQueueEntry(entries[0].id)
+        #expect(f.model.queuedTextCount == 2)
+        f.model.playQueueEntry(entries[1].id)
+        await f.model.waitForInteractionToSettle()
+        try await f.speech.waitForReads(2)
+        #expect(f.speech.texts.last == "Third")
+        #expect(!f.model.isPaused)
+        #expect(f.model.queueEntries.map(\.preview) == ["Fourth"])
+        await f.model.handleReadRequest()
+        #expect(f.model.queueEntries.isEmpty)
+    }
+    @Test
+    func repeatedPrimaryShortcutQueuesWithoutStoppingAndIgnoresDuplicateSelection() async throws {
+        let f = QueueFixture()
+        f.hotkey.onPress?()
+        await f.model.waitForInteractionToSettle()
+        f.hotkey.onPress?()
+        await f.model.waitForInteractionToSettle()
+        #expect(f.model.status == .selecting)
+        #expect(f.selection.startCount == 1)
+        guard f.model.status == .selecting else { return }
+        f.selection.complete(Self.ocrRegion)
+        await f.model.waitForCaptureToSettle()
+        try await f.speech.waitForReads(1)
+        f.hotkey.onPress?()
+        await f.model.waitForInteractionToSettle()
+        #expect(f.model.status == .speaking)
+        #expect(f.model.isAddingToQueue)
+        #expect(f.selection.startCount == 2)
+        guard f.model.isAddingToQueue else { return }
+        f.hotkey.onPress?()
+        await f.model.waitForInteractionToSettle()
+        #expect(f.selection.startCount == 2)
+        f.ocr.result = OCRResult(lines: ["Danach vorlesen"])
+        f.selection.complete(Self.ocrRegion)
+        await f.model.waitForQueueInputToSettle()
+        #expect(f.model.queuedTextCount == 1)
+        #expect(f.speech.texts.count == 1)
+        f.speech.finishFirst()
+        try await f.speech.waitForReads(2)
+        #expect(f.speech.texts.last == "Danach vorlesen")
+        f.escape.onEscape?()
+        await f.model.waitForInteractionToSettle()
+        #expect(f.model.status == .stopped)
+        #expect(f.model.queuedTextCount == 0)
+    }
+
+    @Test
+    func speedPreferencePersistsAndReachesTheProviderImmediately() throws {
+        let suite = "com.christopherbobel.OpenScreenReader.speed-tests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let speech = QueueSpeechFake()
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+            speechService: speech, preferences: defaults)
+        #expect(model.playbackRate == 1)
+        model.setPlaybackRate(1.75)
+        #expect(speech.playbackRate == 1.75)
+        let next = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+            speechService: QueueSpeechFake(), preferences: defaults)
+        #expect(next.playbackRate == 1.75)
+    }
+
+    @Test
+    func queueShortcutCannotReplaceStopAndFailedRegistrationKeepsPrevious() async {
+        let queueHotkey = HotkeyManagerFake(registrationResult: .registered)
+        let store = MemoryShortcutStore()
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+            queueHotkeyManager: queueHotkey, queueShortcutStore: store)
+        model.enqueueQueueShortcutChange(.default)
+        await model.waitForInteractionToSettle()
+        #expect(model.queueShortcutConfiguration == .queueDefault)
+        #expect(store.saved == nil)
+        let custom = ShortcutConfiguration(key: "J", modifiers: UInt32(cmdKey | shiftKey | optionKey))
+        model.enqueueQueueShortcutChange(custom)
+        await model.waitForInteractionToSettle()
+        #expect(store.saved == custom)
+        queueHotkey.registrationResult = .conflict
+        model.enqueueQueueShortcutChange(.queueDefault)
+        await model.waitForInteractionToSettle()
+        #expect(model.queueShortcutConfiguration == custom)
+        #expect(store.saved == custom)
+        model.enqueueShortcutChange(custom)
+        await model.waitForInteractionToSettle()
+        #expect(model.shortcutConfiguration == .default)
+    }
+
+    @Test
+    func queueRejectsEmptyAndOversizedTextsAndStopsAtFive() async throws {
+        let f = QueueFixture()
+        await f.model.handleReadRequest()
+        f.selection.complete(Self.ocrRegion)
+        await f.model.waitForCaptureToSettle()
+        try await f.speech.waitForReads(1)
+        for text in ["", String(repeating: "a", count: 8_001)] {
+            f.ocr.result = OCRResult(lines: [text])
+            f.model.enqueueAddRequest()
+            await f.model.waitForInteractionToSettle()
+            f.selection.complete(Self.ocrRegion)
+            await f.model.waitForQueueInputToSettle()
+            #expect(f.model.queuedTextCount == 0)
+            #expect(f.model.status == .speaking)
+            #expect(!f.model.isAddingToQueue)
+        }
+        for index in 0..<5 {
+            f.ocr.result = OCRResult(lines: ["Text \(index)"])
+            f.model.enqueueAddRequest()
+            await f.model.waitForInteractionToSettle()
+            f.selection.complete(Self.ocrRegion)
+            await f.model.waitForQueueInputToSettle()
+        }
+        #expect(f.model.queuedTextCount == 5)
+        let starts = f.selection.startCount
+        f.hotkey.onPress?()
+        await f.model.waitForInteractionToSettle()
+        #expect(f.selection.startCount == starts)
+        #expect(f.model.queuedTextCount == 5)
+        #expect(f.model.status == .speaking)
+        #expect(!f.model.canAddToQueue)
+        await f.model.handleReadRequest()
+        #expect(f.model.queuedTextCount == 0)
+    }
+
+    @Test
+    func queuedTextsReadInOrderAndStopClearsAllWaitingText() async throws {
+        let f = QueueFixture()
+        await f.model.handleReadRequest()
+        f.selection.complete(Self.ocrRegion)
+        await f.model.waitForCaptureToSettle()
+        try await f.speech.waitForReads(1)
+        for text in ["Zweiter Text", "Dritter Text"] {
+            f.ocr.result = OCRResult(lines: [text])
+            f.model.enqueueAddRequest()
+            await f.model.waitForInteractionToSettle()
+            f.selection.complete(Self.ocrRegion)
+            await f.model.waitForQueueInputToSettle()
+        }
+        #expect(f.model.queuedTextCount == 2)
+        #expect(f.speech.preparedText == "Zweiter Text", "Only the next FIFO entry is prepared.")
+        #expect(f.speech.texts.count == 1, "Adding text must not stop or restart speech.")
+        f.speech.finishFirst()
+        try await f.speech.waitForReads(2)
+        #expect(f.speech.texts == ["Hello world", "Zweiter Text"])
+        #expect(f.model.queuedTextCount == 1)
+        await f.model.waitForInteractionToSettle()
+        #expect(f.speech.preparedText == "Dritter Text")
+        await f.model.handleReadRequest()
+        #expect(f.model.queuedTextCount == 0)
+        #expect(!f.model.isAddingToQueue)
+        #expect(f.model.status == .stopped)
+        #expect(!f.escape.isActive)
+        #expect(f.speech.preparedText == nil)
+    }
+
+    @Test
+    func completionWaitsForPendingOCRAndSkipCannotCancelTheNextText() async throws {
+        let f = QueueFixture()
+        await f.model.handleReadRequest()
+        f.selection.complete(Self.ocrRegion)
+        await f.model.waitForCaptureToSettle()
+        try await f.speech.waitForReads(1)
+        f.ocr.suspend = true
+        f.ocr.result = OCRResult(lines: ["Danach"])
+        f.model.enqueueAddRequest()
+        await f.model.waitForInteractionToSettle()
+        f.selection.complete(Self.ocrRegion)
+        await f.ocr.waitUntilStarted()
+        f.speech.finishFirst()
+        await f.model.waitForSpeechToSettle()
+        #expect(f.model.status == .waiting)
+        #expect(f.escape.isActive)
+        f.ocr.resume()
+        await f.model.waitForQueueInputToSettle()
+        try await f.speech.waitForReads(2)
+        f.ocr.suspend = false
+        f.ocr.result = OCRResult(lines: ["Übersprungen zum nächsten"])
+        f.model.enqueueAddRequest()
+        await f.model.waitForInteractionToSettle()
+        f.selection.complete(Self.ocrRegion)
+        await f.model.waitForQueueInputToSettle()
+        f.model.enqueueSkipRequest()
+        await f.model.waitForInteractionToSettle()
+        try await f.speech.waitForReads(3)
+        await f.model.waitForInteractionToSettle()
+        #expect(f.model.status == .speaking)
+        #expect(f.speech.texts.last == "Übersprungen zum nächsten")
+        await f.model.handleReadRequest()
+    }
+
+    @Test
+    func escapeDiscardsLateQueueOCRAndDoesNotRestartReading() async throws {
+        let f = QueueFixture()
+        await f.model.handleReadRequest()
+        f.selection.complete(Self.ocrRegion)
+        await f.model.waitForCaptureToSettle()
+        try await f.speech.waitForReads(1)
+        f.ocr.suspend = true
+        f.model.enqueueAddRequest()
+        await f.model.waitForInteractionToSettle()
+        f.selection.complete(Self.ocrRegion)
+        await f.ocr.waitUntilStarted()
+        f.escape.onEscape?()
+        await f.model.waitForInteractionToSettle()
+        f.ocr.resume()
+        await f.model.waitForQueueInputToSettle()
+        #expect(f.model.status == .stopped)
+        #expect(f.model.queuedTextCount == 0)
+        #expect(f.speech.texts.count == 1)
+    }
+
+    @Test
+    func queueCaptureTimeoutDoesNotInterruptSpeechOrAcceptItsLateResult() async throws {
+        let f = QueueFixture(operationTimeout: .milliseconds(120))
+        await f.model.handleReadRequest()
+        f.selection.complete(Self.ocrRegion)
+        await f.model.waitForCaptureToSettle()
+        try await f.speech.waitForReads(1)
+        f.capture.suspend = true
+        f.model.enqueueAddRequest()
+        await f.model.waitForInteractionToSettle()
+        f.selection.complete(Self.ocrRegion)
+        await f.capture.waitUntilStarted()
+        try await Task.sleep(for: .milliseconds(180))
+        await f.model.waitForInteractionToSettle()
+        #expect(!f.model.isAddingToQueue)
+        #expect(f.model.status == .speaking)
+        f.capture.resume()
+        await f.model.waitForQueueInputToSettle()
+        #expect(f.model.queuedTextCount == 0)
+        #expect(f.ocr.calls == 1)
+        await f.model.handleReadRequest()
+    }
+
+    @Test
+    func escapeStillStopsAfterAdvancingToAQueuedText() async throws {
+        let f = QueueFixture()
+        await f.model.handleReadRequest()
+        f.selection.complete(Self.ocrRegion)
+        await f.model.waitForCaptureToSettle()
+        try await f.speech.waitForReads(1)
+        let escapeFromSessionStart = f.escape.onEscape
+        f.model.enqueueAddRequest()
+        await f.model.waitForInteractionToSettle()
+        f.selection.complete(Self.ocrRegion)
+        await f.model.waitForQueueInputToSettle()
+        f.speech.finishFirst()
+        try await f.speech.waitForReads(2)
+        escapeFromSessionStart?()
+        await f.model.waitForInteractionToSettle()
+        #expect(f.model.status == .stopped)
+        #expect(f.model.queuedTextCount == 0)
+        await f.model.handleReadRequest()
+        escapeFromSessionStart?()
+        await f.model.waitForInteractionToSettle()
+        #expect(f.model.status == .selecting, "An old session's Escape callback must not stop a new session.")
+        await f.model.handleReadRequest()
+    }
+
+    @Test
+    func positionPreviewDoesNotCaptureRecognizeSpeakOrReplaceAnActiveOperation() async {
+        let selection = RegionSelectionControllerFake()
+        let capture = CaptureFake()
+        let ocr = OCRFake()
+        let speech = SpeechFake()
+        let escape = EscapeFake()
+        let panel = ReadingPanelFake()
+        let model = AppModel(shortcutStore: MemoryShortcutStore(),
+            hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+            selectionController: selection, captureService: capture, escapeMonitor: escape,
+            ocrService: ocr, speechService: speech, readingPanel: panel)
+        model.previewReadingPanelPosition()
+        #expect(panel.state == .positioning)
+        #expect(panel.onStop == nil)
+        #expect(model.status == .ready)
+        #expect(selection.startCount == 0 && capture.calls == 0 && ocr.calls == 0)
+        #expect(speech.receivedText == nil && !escape.isActive)
+        await model.handleReadRequest()
+        #expect(panel.state == nil)
+        model.previewReadingPanelPosition()
+        #expect(panel.state == nil, "Preview cannot replace selection or an active pipeline.")
+        #expect(selection.startCount == 1)
+        await model.handleReadRequest()
+    }
+
     @Test
     func readingPanelStaysHiddenUntilCaptureFinishesAndStopsOnlyItsOwnOperation() async {
         let selection = RegionSelectionControllerFake()
@@ -754,6 +1148,200 @@ struct InteractionTests {
 @MainActor
 struct ReadingPanelTests {
     @Test
+    func returningFromQueueCaptureIsSilentAndShowsQueueCount() throws {
+        let screen = try #require(NSScreen.screens.first)
+        let number = try #require(screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)
+        let sounds = InterfaceSoundsFake()
+        let controller = ReadingPanelController(interfaceSounds: sounds)
+        defer { controller.hide() }
+        controller.show(.speaking, displayID: number.uint32Value, onStop: {})
+        controller.hide()
+        sounds.cues.removeAll()
+        controller.restore(.speaking, displayID: number.uint32Value, onStop: {})
+        controller.updateQueueCount(2)
+        #expect(sounds.cues.isEmpty)
+        let badge = controller.panel?.contentView?.subviews.compactMap { $0 as? NSButton }.first
+        #expect(badge?.title == "+2")
+        #expect(badge?.isHidden == false)
+        controller.updateQueueCount(0)
+        #expect(badge?.title == "···")
+        #expect(badge?.isHidden == false)
+    }
+
+    @Test
+    func draggingSurvivesSpeechTransitionsButNeverSurvivesHide() async throws {
+        let suite = "com.christopherbobel.OpenScreenReader.placement-tests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let screen = try #require(NSScreen.screens.first)
+        let number = try #require(screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)
+        let controller = ReadingPanelController(defaults: defaults)
+        defer { controller.hide() }
+        var stops = 0
+        controller.show(.preparing, displayID: number.uint32Value, onStop: { stops += 1 })
+        let panel = try #require(controller.panel)
+        let original = panel.frame
+        let pointer = CGPoint(x: original.midX, y: original.midY)
+        controller.beginDrag(at: pointer)
+        controller.moveDrag(to: CGPoint(x: pointer.x + 2, y: pointer.y + 2))
+        controller.endDrag()
+        #expect(panel.frame == original, "A click or tiny hand movement is not a drag.")
+        controller.beginDrag(at: pointer)
+        controller.moveDrag(to: CGPoint(x: screen.visibleFrame.minX + 20, y: screen.visibleFrame.midY))
+        let draggedFrame = panel.frame
+        controller.show(.speaking, displayID: number.uint32Value, onStop: { stops += 1 })
+        #expect(panel.frame == draggedFrame, "Starting speech must not jerk a held capsule back to its dock.")
+        controller.endDrag()
+        try await Task.sleep(for: .milliseconds(300))
+        let saved = ReadingPanelPlacement.load(from: defaults)
+        #expect(saved.edge == .left)
+        // Other suites synthesize cue buffers on MainActor. Give the animation's next tick a turn.
+        for _ in 0..<40 {
+            if panel.frame == saved.frame(in: screen.visibleFrame) { break }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        #expect(panel.frame == saved.frame(in: screen.visibleFrame))
+        #expect(stops == 0)
+        (panel.contentView as? ReadingControlView)?.currentAction()
+        #expect(stops == 1)
+        controller.beginDrag(at: CGPoint(x: panel.frame.midX, y: panel.frame.midY))
+        controller.moveDrag(to: CGPoint(x: screen.visibleFrame.maxX, y: screen.visibleFrame.midY))
+        controller.endDrag()
+        controller.hide()
+        controller.moveDrag(to: .zero)
+        controller.endDrag()
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(panel.isVisible == false)
+        #expect(panel.contentView == nil)
+        let newController = ReadingPanelController(defaults: defaults)
+        defer { newController.hide() }
+        newController.show(.positioning, displayID: number.uint32Value, onStop: nil)
+        #expect(newController.panel?.frame == ReadingPanelPlacement.load(from: defaults).frame(in: screen.visibleFrame))
+    }
+
+    @Test
+    func completionWaitsUntilUserReleasesTheDragSurface() async throws {
+        let screen = try #require(NSScreen.screens.first)
+        let number = try #require(screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)
+        let controller = ReadingPanelController(terminalDuration: .milliseconds(40))
+        defer { controller.hide() }
+        controller.show(.finished, displayID: number.uint32Value, onStop: nil)
+        let frame = try #require(controller.panel?.frame)
+        controller.beginDrag(at: CGPoint(x: frame.midX, y: frame.midY))
+        try await Task.sleep(for: .milliseconds(350))
+        #expect(controller.panel?.isVisible == true)
+        controller.endDrag()
+        try await Task.sleep(for: .milliseconds(350))
+        #expect(controller.panel?.isVisible == false)
+    }
+
+    @Test
+    func placementFitsEveryEdgeAndRemembersOnlyNormalizedGeometry() throws {
+        let suite = "com.christopherbobel.OpenScreenReader.placement-tests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        #expect(ReadingPanelPlacement.load(from: defaults) == ReadingPanelPlacement())
+        for visible in [CGRect(x: -1440, y: 124, width: 1440, height: 850),
+                        CGRect(x: 120, y: -900, width: 1920, height: 860),
+                        CGRect(x: 0, y: 0, width: 200, height: 50)] {
+            for edge in ReadingPanelEdge.allCases {
+                for fraction in [0.0, 0.5, 1.0] {
+                    let placement = ReadingPanelPlacement(edge: edge, fraction: fraction)
+                    let frame = placement.frame(in: visible)
+                    #expect(visible.contains(frame))
+                    placement.save(to: defaults)
+                    #expect(ReadingPanelPlacement.load(from: defaults) == placement)
+                }
+            }
+        }
+        defaults.set("unknown", forKey: ReadingPanelPlacement.edgeKey)
+        defaults.set(Double.nan, forKey: ReadingPanelPlacement.fractionKey)
+        #expect(ReadingPanelPlacement.load(from: defaults) == ReadingPanelPlacement())
+    }
+
+    @Test
+    func droppingSelectsNearestEdgeAndPreservesAlongEdgePosition() {
+        let screen = CGRect(x: -1200, y: 100, width: 1200, height: 900)
+        for (point, edge) in [(CGPoint(x: -1190, y: 700), ReadingPanelEdge.left),
+                              (CGPoint(x: -10, y: 700), .right),
+                              (CGPoint(x: -400, y: 110), .bottom)] {
+            let placement = ReadingPanelPlacement.dropped(at: point, in: screen)
+            #expect(placement.edge == edge)
+            let frame = placement.frame(in: screen)
+            #expect(screen.contains(frame))
+            #expect(abs((edge == .bottom ? frame.midX : frame.midY) - (edge == .bottom ? point.x : point.y)) < 1)
+        }
+    }
+
+    @Test
+    func verticalControlHasUprightStopTargetAndBackgroundDragDoesNotStop() {
+        let view = ReadingControlView(frame: CGRect(x: 0, y: 0, width: 92, height: 300))
+        view.isVertical = true
+        var stops = 0
+        view.present(.speaking, opening: false, action: { stops += 1 })
+        for index in 0..<120 { view.tick(now: CACurrentMediaTime() + Double(index) / 60) }
+        let button = view.subviews.flatMap(\.subviews).compactMap { $0 as? ReadingStopButton }.first
+        #expect(button?.frame.size == CGSize(width: 44, height: 44))
+        #expect(stops == 0)
+        // Re-presenting a captured callback (as the selection flight does) must not recurse.
+        let capturedAction = view.currentAction
+        view.present(.speaking, opening: false, action: capturedAction)
+        view.currentAction()
+        #expect(stops == 1)
+        view.stopAnimating()
+    }
+
+    @Test
+    func dragSurfaceReceivesMouseEventsWhileStopKeepsItsOwnHitTarget() throws {
+        let window = ReadingStatusPanel()
+        window.setFrame(CGRect(x: 100, y: 100, width: 300, height: 92), display: false)
+        let view = ReadingControlView(frame: CGRect(x: 0, y: 0, width: 300, height: 92))
+        window.contentView = view
+        defer { view.stopAnimating(); window.close() }
+        view.present(.positioning, opening: false, action: {})
+        for index in 0..<120 { view.tick(now: CACurrentMediaTime() + Double(index) / 60) }
+        let target = try #require(view.hitTest(CGPoint(x: 130, y: 46)))
+        #expect(!(target is ReadingStopButton))
+        let button = try #require(view.subviews.flatMap(\.subviews).compactMap { $0 as? ReadingStopButton }.first)
+        let buttonPoint = view.convert(CGPoint(x: 22, y: 22), from: button)
+        #expect(view.hitTest(buttonPoint) === button)
+        var positions: [CGPoint] = []
+        var releases = 0
+        view.onDragStart = { positions.append($0) }
+        view.onDragMove = { positions.append($0) }
+        view.onDragEnd = { releases += 1 }
+        func event(_ type: NSEvent.EventType, _ location: CGPoint) throws -> NSEvent {
+            try #require(NSEvent.mouseEvent(with: type, location: location, modifierFlags: [], timestamp: 0,
+                windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 0.5))
+        }
+        target.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 130, y: 46)))
+        target.mouseDragged(with: try event(.leftMouseDragged, CGPoint(x: 150, y: 66)))
+        target.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 150, y: 66)))
+        #expect(positions == [CGPoint(x: 230, y: 146), CGPoint(x: 250, y: 166)])
+        #expect(releases == 1)
+    }
+
+    /// Opt-in render of only the view's drawing, never a screenshot of the user's screen.
+    @Test
+    func renderPlacementLayouts() throws {
+        guard let path = ProcessInfo.processInfo.environment["OSR_PLACEMENT_RENDER_DIR"] else { return }
+        let directory = URL(fileURLWithPath: path)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        for edge in ReadingPanelEdge.allCases {
+            let size = edge == .bottom ? CGSize(width: 300, height: 92) : CGSize(width: 92, height: 300)
+            let view = ReadingControlView(frame: CGRect(origin: .zero, size: size))
+            view.isVertical = edge != .bottom
+            view.present(.positioning, opening: false, action: {})
+            for index in 0..<120 { view.tick(now: CACurrentMediaTime() + Double(index) / 60) }
+            let bitmap = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+            view.cacheDisplay(in: view.bounds, to: bitmap)
+            let data = try #require(bitmap.representation(using: .png, properties: [:]))
+            try data.write(to: directory.appendingPathComponent("\(edge.rawValue).png"))
+            view.stopAnimating()
+        }
+    }
+
+    @Test
     func drawingClockDoesNotRetainAnUnownedView() async throws {
         weak var released: ReadingControlView?
         do {
@@ -770,7 +1358,10 @@ struct ReadingPanelTests {
     func sameHostSurvivesTransitionsAndImmediateHideCancelsExit() async throws {
         let screen = try #require(NSScreen.screens.first)
         let number = try #require(screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)
-        let controller = ReadingPanelController(terminalDuration: .seconds(10))
+        let suite = "com.christopherbobel.OpenScreenReader.placement-tests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let controller = ReadingPanelController(terminalDuration: .seconds(10), defaults: defaults)
         defer { controller.hide() }
         controller.show(.recognizing, displayID: number.uint32Value, onStop: {})
         let host = try #require(controller.panel?.contentView)
@@ -1066,6 +1657,7 @@ private final class OCRFake: TextRecognizing {
 
 @MainActor
 private final class SpeechFake: SpeechReading {
+    var playbackRate: Double = 1
     var playbackLevel: Double { 0.65 }
     var receivedText: String?
     var suspend = false
@@ -1089,6 +1681,56 @@ private final class SpeechFake: SpeechReading {
         if continuation == nil { await withCheckedContinuation { started = $0 } }
     }
     func resume() { continuation?.resume(); continuation = nil }
+}
+
+@MainActor
+private final class QueueSpeechFake: SpeechReading {
+    var isPaused = false
+    func setPaused(_ paused: Bool) { isPaused = paused }
+    var playbackRate = 1.0
+    var preparedText: String?
+    func prepareNext(_ text: String?) { preparedText = text }
+    var texts: [String] = []
+    private var completions: [CheckedContinuation<Void, Error>] = []
+    func read(_ text: String, onPlayback: @escaping @MainActor () -> Void) async throws {
+        texts.append(text)
+        onPlayback()
+        try await withCheckedThrowingContinuation { completions.append($0) }
+    }
+    func finishFirst() { if !completions.isEmpty { completions.removeFirst().resume() } }
+    func stop() {
+        preparedText = nil
+        stopCurrent()
+    }
+    func stopCurrent() {
+        let pending = completions
+        completions.removeAll()
+        for completion in pending { completion.resume(throwing: CancellationError()) }
+    }
+    func waitForReads(_ count: Int) async throws {
+        for _ in 0..<500 {
+            if texts.count >= count { return }
+            try await Task.sleep(for: .milliseconds(2))
+        }
+        #expect(texts.count >= count)
+    }
+}
+
+@MainActor
+private struct QueueFixture {
+    let hotkey = HotkeyManagerFake(registrationResult: .registered)
+    let selection = RegionSelectionControllerFake()
+    let capture = CaptureFake()
+    let ocr = OCRFake()
+    let speech = QueueSpeechFake()
+    let escape = EscapeFake()
+    let model: AppModel
+    init(operationTimeout: Duration = .seconds(15)) {
+        model = AppModel(shortcutStore: MemoryShortcutStore(),
+            hotkeyManager: hotkey,
+            selectionController: selection, captureService: capture, escapeMonitor: escape,
+            ocrService: ocr, speechService: speech, operationTimeout: operationTimeout)
+    }
 }
 
 @MainActor

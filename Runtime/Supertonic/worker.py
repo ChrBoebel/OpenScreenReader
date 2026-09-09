@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Disposable local Supertonic worker: bounded JSON/PCM over anonymous pipes.
+"""Session-local Supertonic worker: bounded JSON/PCM over anonymous pipes.
 
 Run with Python -I -B under the app's deny-network/deny-write sandbox. No model
 or dependency downloader is present. The parent owns cancellation and kills this
@@ -18,28 +18,53 @@ SAMPLE_RATE = 44100
 MAX_PACKET_FRAMES = 24000
 
 
-def read_request(source):
+def read_request(source, session=False):
     line = source.readline(64002)
+    if session and not line:
+        return None
     if len(line) > 64001 or not line.endswith(b"\n"):
         raise ValueError("Invalid request frame")
     request = json.loads(line)
-    if not isinstance(request, dict) or set(request) != {"text", "language"}:
+    fields = {"text", "language", "id"} if session else {"text", "language"}
+    if not isinstance(request, dict) or set(request) != fields:
         raise ValueError("Invalid fields")
     text, language = request["text"], request["language"]
     if not isinstance(text, str) or not text.strip() or len(text) > 8000:
         raise ValueError("Invalid text")
     if language not in ("de", "en"):
         raise ValueError("Invalid language")
+    if session:
+        identity = request["id"]
+        if not isinstance(identity, str) or not 0 < len(identity) <= 64:
+            raise ValueError("Invalid identity")
+        return text, language, identity
     return text, language
 
 
 def segments(text):
+    # Keep common German/English abbreviations, initials and ordinal dates with
+    # their following context. Never expand numbers or rewrite user wording.
+    abbreviations = {"dr.", "prof.", "mr.", "mrs.", "ms.", "bzw.", "ca.", "nr.",
+                     "z.b.", "d.h.", "u.a.", "usw.", "etc.", "e.g.", "i.e.", "vs."}
+    sentences = []
+    start = 0
+    text = text.strip()
+    for boundary in re.finditer(r"(?<=[.!?])\s+|\n[ \t]*\n+", text):
+        preceding = text[:boundary.start()].split()
+        token = preceding[-1] if preceding else ""
+        paragraph = boundary.group().count("\n") >= 2
+        protected = token.lower() in abbreviations or re.fullmatch(r"(?:[^\W\d_]|\d+)\.", token)
+        if protected and not paragraph:
+            continue
+        sentences.append(text[start:boundary.start()])
+        start = boundary.end()
+    sentences.append(text[start:])
     result = []
-    for sentence in re.split(r"(?<=[.!?])\s+", text.strip()):
+    for sentence in sentences:
         remaining = sentence.strip()
         while len(remaining) > 240:
-            boundary = remaining.rfind(" ", 1, 241)
-            boundary = boundary if boundary > 0 else 240
+            spaces = list(re.finditer(r"\s", remaining[:241]))
+            boundary = spaces[-1].start() if spaces else 240
             result.append(remaining[:boundary])
             remaining = remaining[boundary:].lstrip()
         if remaining:
@@ -85,8 +110,10 @@ def load_verified_helper(model):
     return helper
 
 
-def run(source, output, model):
-    text, language = read_request(source)
+def run(source, output, model, session=False):
+    request = read_request(source, session=session)
+    if request is None:
+        return
     helper = load_verified_helper(model)
     import numpy as np
 
@@ -94,8 +121,28 @@ def run(source, output, model):
     if tts.sample_rate != SAMPLE_RATE:
         raise ValueError("Wrong model sample rate")
     style = helper.load_voice_style([str(model / "voice_styles/M1.json")])
-    np.random.seed(42)
-    send(output, {"kind": "ready", "sampleRate": SAMPLE_RATE})
+    while request is not None:
+        text, language = request[:2]
+        identity = request[2] if session else None
+        def emit(packet):
+            if session:
+                packet["id"] = identity
+                packet["protocol"] = 2
+            send(output, packet)
+        # Per-text reproducibility must not depend on earlier queued text.
+        np.random.seed(42)
+        emit({"kind": "ready", "sampleRate": SAMPLE_RATE})
+        synthesize(source, emit, tts, style, text, language)
+        emit({"kind": "end"})
+        # Do not retain a user's prior text/PCM while waiting for another request.
+        del text, language, request
+        if not session:
+            break
+        request = read_request(source, session=True)
+
+
+def synthesize(source, emit, tts, style, text, language):
+    import numpy as np
     for segment in segments(text):
         wav, duration = tts(segment, language, style, 8, speed=1.0)
         seconds = float(duration[0])
@@ -109,10 +156,9 @@ def run(source, output, model):
             raise ValueError("Invalid audio")
         for offset in range(0, frames, MAX_PACKET_FRAMES):
             pcm = audio[offset:offset + MAX_PACKET_FRAMES].astype("<f4").tobytes()
-            send(output, {"kind": "audio", "sampleRate": SAMPLE_RATE,
+            emit({"kind": "audio", "sampleRate": SAMPLE_RATE,
                           "pcm": base64.b64encode(pcm).decode("ascii")})
             await_ack(source)
-    send(output, {"kind": "end"})
 
 
 def main():
@@ -122,9 +168,10 @@ def main():
         os.dup2(null.fileno(), sys.stdout.fileno())
         os.dup2(null.fileno(), sys.stderr.fileno())
     try:
-        if len(sys.argv) != 3 or sys.argv[1] != "--model":
+        session = len(sys.argv) == 4 and sys.argv[3] == "--session"
+        if (len(sys.argv) != 3 and not session) or sys.argv[1] != "--model":
             raise ValueError("Invalid arguments")
-        run(sys.stdin.buffer, output, Path(sys.argv[2]).resolve())
+        run(sys.stdin.buffer, output, Path(sys.argv[2]).resolve(), session=session)
     except Exception:
         try:
             send(output, {"kind": "error"})

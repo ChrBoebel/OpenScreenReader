@@ -6,6 +6,7 @@ struct ShortcutConfiguration: Codable, Equatable, Sendable {
     var modifiers: UInt32
 
     static let `default` = ShortcutConfiguration(key: "Y", modifiers: UInt32(cmdKey | shiftKey))
+    static let queueDefault = ShortcutConfiguration(key: "Y", modifiers: UInt32(cmdKey | optionKey | shiftKey))
     static let availableKeys = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789").map(String.init) + ["Space"]
     static let supportedModifiers = UInt32(cmdKey | shiftKey | optionKey | controlKey)
 
@@ -42,8 +43,10 @@ protocol ShortcutStoring {
 final class UserDefaultsShortcutStore: ShortcutStoring {
     static let preferenceKey = "readingShortcut.v1"
     private let defaults: UserDefaults
+    private let key: String
 
-    init(defaults: UserDefaults? = nil) {
+    init(defaults: UserDefaults? = nil, preferenceKey: String = UserDefaultsShortcutStore.preferenceKey) {
+        key = preferenceKey
         if let defaults { self.defaults = defaults; return }
         #if DEBUG
         // UI tests must never overwrite the user's real shortcut preference.
@@ -58,7 +61,7 @@ final class UserDefaultsShortcutStore: ShortcutStoring {
     }
 
     func load() -> ShortcutConfiguration? {
-        guard let data = defaults.data(forKey: Self.preferenceKey),
+        guard let data = defaults.data(forKey: key),
               let configuration = try? JSONDecoder().decode(ShortcutConfiguration.self, from: data),
               configuration.isValid else { return nil }
         return configuration
@@ -66,7 +69,7 @@ final class UserDefaultsShortcutStore: ShortcutStoring {
 
     func save(_ configuration: ShortcutConfiguration) {
         guard configuration.isValid, let data = try? JSONEncoder().encode(configuration) else { return }
-        defaults.set(data, forKey: Self.preferenceKey)
+        defaults.set(data, forKey: key)
     }
 }
 

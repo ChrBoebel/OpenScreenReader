@@ -2,6 +2,18 @@ import CoreGraphics
 import Foundation
 import Vision
 
+/// Repair only explicit soft-hyphen artifacts. Ordinary hyphens, identifiers,
+/// punctuation and paragraph breaks are deliberately preserved.
+enum SpeechTextNormalizer {
+    static func normalize(_ text: String) -> String {
+        text.replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .replacingOccurrences(of: "\u{00ad}\n", with: "")
+            .replacingOccurrences(of: "\u{00ad}", with: "")
+            .replacingOccurrences(of: "\u{00a0}", with: " ")
+    }
+}
+
 struct OCRSummary: Equatable, Sendable {
     let characterCount: Int
     let lineCount: Int
@@ -16,6 +28,7 @@ struct OCRResult: Equatable, Sendable {
     }
 
     var text: String { lines.joined(separator: "\n") }
+    var speechText: String { SpeechTextNormalizer.normalize(text) }
     var lineCount: Int { lines.count }
     var characterCount: Int { text.count }
 }
