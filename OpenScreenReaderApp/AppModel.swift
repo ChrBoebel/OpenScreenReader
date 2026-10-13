@@ -518,9 +518,12 @@ final class AppModel: ObservableObject {
         status = .recognizing
         showReadingPanel(.recognizing, context: context)
         let service = ocrService
+        let selection = lastSelection
         recognitionTask = Task { @MainActor [weak self] in
             do {
-                let result = try await service.recognize(image)
+                let recognized = try await service.recognize(image)
+                // A click keeps only its paragraph; the surrounding text is dropped here.
+                let result = selection?.focusedText(recognized) ?? recognized
                 try Task.checkCancellation()
                 self?.enqueue { await $0.finishRecognition(result: result, size: size, context: context) }
             } catch is CancellationError {
@@ -663,7 +666,7 @@ final class AppModel: ObservableObject {
             self?.enqueue { await $0.cancel(context: context) }
         } : nil
         readingPanel?.show(state, displayID: selection.displayID,
-                           origin: state == .recognizing ? selection.rectInScreenPoints : nil, onStop: stop)
+                           origin: state == .recognizing ? selection.flightOrigin : nil, onStop: stop)
         readingPanel?.updateQueueCount(queuedTextCount)
     }
 
@@ -745,7 +748,7 @@ final class AppModel: ObservableObject {
                     model.queueOverlayVisible = false
                     model.restoreReadingPanel()
                 }
-                let result = try await ocr.recognize(image)
+                let result = selection.focusedText(try await ocr.recognize(image))
                 try Task.checkCancellation()
                 self?.enqueue { await $0.finishQueueInput(result, selection: selection, size: size, id: id) }
             } catch is CancellationError {

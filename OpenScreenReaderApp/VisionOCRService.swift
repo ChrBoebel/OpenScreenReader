@@ -21,10 +21,53 @@ struct OCRSummary: Equatable, Sendable {
 
 struct OCRResult: Equatable, Sendable {
     let lines: [String]
+    /// Normalized Vision bounding boxes (origin bottom-left), one per line when known.
+    let boxes: [CGRect]
 
-    init(lines: [String]) {
-        self.lines = lines.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+    init(lines: [String], boxes: [CGRect] = []) {
+        let trimmed = lines.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        let kept = trimmed.indices.filter { !trimmed[$0].isEmpty }
+        self.lines = kept.map { trimmed[$0] }
+        self.boxes = boxes.count == lines.count ? kept.map { boxes[$0] } : []
+    }
+
+    /// The paragraph containing (or right next to) a clicked point, in reading order.
+    /// Lines join when they are close vertically, overlap horizontally and have similar
+    /// height, or continue the same row. Everything else is discarded. `point` is
+    /// normalized like the boxes; `size` gives the area's aspect in points.
+    func block(around point: CGPoint, in size: CGSize) -> OCRResult? {
+        guard !lines.isEmpty, boxes.count == lines.count, size.width > 0, size.height > 0 else { return nil }
+        let rects = boxes.map { CGRect(x: $0.minX * size.width, y: $0.minY * size.height,
+                                       width: $0.width * size.width, height: $0.height * size.height) }
+        let target = CGPoint(x: point.x * size.width, y: point.y * size.height)
+        func distance(_ rect: CGRect) -> CGFloat {
+            hypot(max(rect.minX - target.x, 0, target.x - rect.maxX), max(rect.minY - target.y, 0, target.y - rect.maxY))
+        }
+        guard let hit = rects.indices.min(by: { distance(rects[$0]) < distance(rects[$1]) }),
+              distance(rects[hit]) <= rects[hit].height * 1.5 else { return nil }
+        func joined(_ a: CGRect, _ b: CGRect) -> Bool {
+            let height = min(a.height, b.height)
+            let ratio = a.height / b.height
+            guard ratio > 0.6, ratio < 1.6 else { return false }
+            let verticalGap = max(b.minY - a.maxY, a.minY - b.maxY)
+            let horizontalGap = max(b.minX - a.maxX, a.minX - b.maxX)
+            if verticalGap < -height * 0.5 { return horizontalGap <= height * 1.5 } // Same row.
+            return verticalGap <= height && horizontalGap < 0
+        }
+        var block: Set<Int> = [hit]
+        var frontier = [hit]
+        while let current = frontier.popLast() {
+            for candidate in rects.indices where !block.contains(candidate) && joined(rects[current], rects[candidate]) {
+                block.insert(candidate)
+                frontier.append(candidate)
+            }
+        }
+        let ordered = block.sorted { a, b in
+            let rowTolerance = min(rects[a].height, rects[b].height) / 2
+            if abs(rects[a].midY - rects[b].midY) < rowTolerance { return rects[a].minX < rects[b].minX }
+            return rects[a].midY > rects[b].midY
+        }
+        return OCRResult(lines: ordered.map { lines[$0] }, boxes: ordered.map { boxes[$0] })
     }
 
     var text: String { lines.joined(separator: "\n") }
@@ -106,9 +149,10 @@ final class VisionOCRService: TextRecognizing {
                 try cancellation.checkCancellation()
                 // Preserve Vision's observation order; no speculative column reordering
                 // or dehyphenation. Complex layouts still need a dedicated reading-order spike.
-                return OCRResult(lines: (request.results ?? []).compactMap {
-                    $0.topCandidates(1).first?.string
-                })
+                let observations = (request.results ?? []).compactMap { observation in
+                    observation.topCandidates(1).first.map { ($0.string, observation.boundingBox) }
+                }
+                return OCRResult(lines: observations.map(\.0), boxes: observations.map(\.1))
             } catch {
                 try cancellation.checkCancellation()
                 if let failure = error as? OCRFailure { throw failure }

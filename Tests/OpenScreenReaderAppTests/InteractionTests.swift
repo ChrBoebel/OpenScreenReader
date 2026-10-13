@@ -1235,6 +1235,28 @@ struct InteractionTests {
     }
 
     @Test
+    func clickSelectsABoundedAreaAroundThePointer() throws {
+        let geometry = DisplaySelectionGeometry(displayID: 4,
+            frameInScreenPoints: CGRect(x: -1440, y: 100, width: 1440, height: 900), backingScaleFactor: 2)
+        let centred = try #require(geometry.clickSelection(at: CGPoint(x: 720, y: 450)))
+        #expect(centred.rectInScreenPoints == CGRect(x: -1440 + 120, y: 150, width: 1200, height: 800))
+        #expect(centred.focus == CGPoint(x: 0.5, y: 0.5))
+        let corner = try #require(geometry.clickSelection(at: CGPoint(x: 30, y: 880)))
+        #expect(corner.rectInScreenPoints == CGRect(x: -1440, y: 200, width: 1200, height: 800))
+        #expect(corner.focus == CGPoint(x: 30.0 / 1200, y: 780.0 / 800))
+        #expect(corner.rectInBackingPixels.size == CGSize(width: 2400, height: 1600))
+        // The control flies from the clicked spot, not from the larger recognition area.
+        let flight = corner.flightOrigin
+        #expect(flight.midX == -1410 && flight.midY == 980 && flight.width < 60)
+        let dragged = try #require(geometry.selection(in: CGRect(x: 10, y: 10, width: 100, height: 50)))
+        #expect(dragged.focus == nil && dragged.flightOrigin == dragged.rectInScreenPoints)
+        let text = OCRResult(lines: ["A", "B"], boxes: [CGRect(x: 0, y: 0.6, width: 0.2, height: 0.03),
+                                                        CGRect(x: 0, y: 0.1, width: 0.2, height: 0.03)])
+        #expect(corner.focusedText(text).lines.isEmpty, "A click far from any text reads nothing.")
+        #expect(dragged.focusedText(text) == text, "A dragged region is read completely.")
+    }
+
+    @Test
     func selectionHintAppearsForTheFirstFewSelectionsOnly() throws {
         let suite = "com.christopherbobel.OpenScreenReader.hint-tests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: suite))

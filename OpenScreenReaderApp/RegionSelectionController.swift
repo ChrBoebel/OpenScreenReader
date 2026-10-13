@@ -8,6 +8,22 @@ struct ScreenRegionSelection: Equatable, Sendable {
     let backingScaleFactor: CGFloat
     var displayGeometry: DisplaySelectionGeometry? = nil
     var topologyRevision: UInt64? = nil
+    /// Set for a click: the normalized point whose paragraph should be read.
+    var focus: CGPoint? = nil
+
+    /// A click reads only the paragraph under the pointer; the rest of the area is discarded.
+    func focusedText(_ result: OCRResult) -> OCRResult {
+        guard let focus else { return result }
+        return result.block(around: focus, in: rectInScreenPoints.size) ?? OCRResult(lines: [])
+    }
+
+    /// Where the control's opening flight starts: the dragged frame, or the clicked spot.
+    var flightOrigin: CGRect {
+        guard let focus else { return rectInScreenPoints }
+        let point = CGPoint(x: rectInScreenPoints.minX + focus.x * rectInScreenPoints.width,
+                            y: rectInScreenPoints.minY + focus.y * rectInScreenPoints.height)
+        return CGRect(x: point.x - 20, y: point.y - 12, width: 40, height: 24)
+    }
 }
 
 @MainActor
@@ -40,6 +56,19 @@ struct DisplaySelectionGeometry: Equatable, Sendable {
             width: abs(end.x - start.x),
             height: abs(end.y - start.y)
         ))
+    }
+
+    /// A bounded area around a click, kept inside the display. Only this area is
+    /// captured, and only the clicked paragraph within it is read.
+    static let clickArea = CGSize(width: 1200, height: 800)
+    func clickSelection(at point: CGPoint) -> ScreenRegionSelection? {
+        let width = min(Self.clickArea.width, localBounds.width)
+        let height = min(Self.clickArea.height, localBounds.height)
+        let x = min(max(point.x - width / 2, 0), localBounds.width - width)
+        let y = min(max(point.y - height / 2, 0), localBounds.height - height)
+        guard var selection = selection(in: CGRect(x: x, y: y, width: width, height: height)) else { return nil }
+        selection.focus = CGPoint(x: (point.x - x) / width, y: (point.y - y) / height)
+        return selection
     }
 
     func selection(in rect: CGRect) -> ScreenRegionSelection? {
@@ -332,13 +361,13 @@ private final class SelectionOverlayView: NSView {
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
         setAccessibilityLabel("Screen region selection")
-        setAccessibilityHelp(String(localized: "Drag over the text to read. Hold Space to move the selection, Shift to lock an edge, Option to grow it from the centre. Press Escape to cancel."))
+        setAccessibilityHelp(String(localized: "Drag over the text to read, or click a paragraph. Hold Space to move the selection, Shift to lock an edge, Option to grow it from the centre. Press Escape to cancel."))
         if showsHint { addHint(screen: screen) }
     }
 
     /// A small pill under the menu bar for the first few selections.
     private func addHint(screen: NSScreen) {
-        let label = NSTextField(labelWithString: String(localized: "Drag over text to read it  ·  Space moves  ·  Esc cancels"))
+        let label = NSTextField(labelWithString: String(localized: "Drag over text or click a paragraph  ·  Space moves  ·  Esc cancels"))
         label.font = .preferredFont(forTextStyle: .callout)
         label.textColor = .white
         var size = label.intrinsicContentSize
@@ -400,10 +429,12 @@ private final class SelectionOverlayView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
-        gesture?.move(to: convert(event.locationInWindow, from: nil))
-        guard geometry.displayID != 0,
-              let rect = gesture?.rect,
-              let selection = geometry.selection(in: rect) else {
+        let point = convert(event.locationInWindow, from: nil)
+        gesture?.move(to: point)
+        guard geometry.displayID != 0, let gesture else { onCancel(); return }
+        // A click without a drag reads the paragraph under the pointer.
+        let isClick = gesture.rect.width < 3 && gesture.rect.height < 3
+        guard let selection = isClick ? geometry.clickSelection(at: point) : geometry.selection(in: gesture.rect) else {
             onCancel()
             return
         }
