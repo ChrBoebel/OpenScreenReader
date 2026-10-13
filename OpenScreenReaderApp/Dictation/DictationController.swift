@@ -19,7 +19,11 @@ final class DictationController: NSObject, ObservableObject {
   var isActive: Bool { request != nil || activationID != nil }
   private var activationID: UUID?
   private var modelGeneration = UUID()
-  private(set) var selectedModel: DictationModel
+  @Published private(set) var selectedModel: DictationModel
+  @Published private(set) var language: DictationLanguage
+  /// Two seconds instead of one before the clipboard is restored, for slow target apps.
+  @Published private(set) var restoresClipboardSlowly: Bool
+  var canChangeModel: Bool { !isActive && canPrepareModel }
   private let shortcut: any HotkeyManaging
   private let escape: any HotkeyManaging
   private let preferences: UserDefaults
@@ -38,8 +42,8 @@ final class DictationController: NSObject, ObservableObject {
   var titleLabel = NSTextField(labelWithString: "Modell wird vorbereitet …")
   var detailLabel = NSTextField(wrappingLabelWithString: "")
   var permissionLabel = NSTextField(wrappingLabelWithString: "")
-  var language = NSPopUpButton(), pasteDelay = NSPopUpButton(), modelPicker = NSPopUpButton()
-  var startButton: NSButton!, cancelButton: NSButton!, demoDE: NSButton!, demoEN: NSButton!
+  var startButton: NSButton!, cancelButton: NSButton!, setupButton: NSButton!
+  var demoDE: NSButton?, demoEN: NSButton?
   var panel: DictationStatusPanel!
   let capsule = DictationCapsuleView(frame: CGRect(origin: .zero, size: DictationCapsuleView.surface))
   private var panelGeneration = UUID()
@@ -66,18 +70,12 @@ final class DictationController: NSObject, ObservableObject {
     self.escape = escape
     self.preferences = preferences
     self.selectedModel = DictationModel(rawValue: preferences.string(forKey: "dictationModel.v1") ?? "") ?? .qwen
+    self.language = DictationLanguage(rawValue: preferences.integer(forKey: "dictationLanguage.v1")) ?? .automatic
+    self.restoresClipboardSlowly = preferences.bool(forKey: "dictationSlowPaste.v1")
     self.monitorFn = registerHotkey
     super.init()
     buildWindow()
     buildPanel()
-    language.selectItem(at: max(0, min(2, preferences.integer(forKey: "dictationLanguage.v1"))))
-    pasteDelay.selectItem(at: preferences.bool(forKey: "dictationSlowPaste.v1") ? 1 : 0)
-    language.target = self
-    language.action = #selector(savePreferences)
-    pasteDelay.target = self
-    pasteDelay.action = #selector(savePreferences)
-    modelPicker.target = self
-    modelPicker.action = #selector(changeModel)
     shortcut.onPress = { [weak self] in self?.toggle() }
     fnShortcuts.onAction = { [weak self] action in
       guard let self else { return false }
@@ -135,9 +133,13 @@ final class DictationController: NSObject, ObservableObject {
     )
     refreshPermissions()
   }
-  @objc func savePreferences() {
-    preferences.set(language.indexOfSelectedItem, forKey: "dictationLanguage.v1")
-    preferences.set(pasteDelay.indexOfSelectedItem == 1, forKey: "dictationSlowPaste.v1")
+  func setLanguage(_ value: DictationLanguage) {
+    language = value
+    preferences.set(value.rawValue, forKey: "dictationLanguage.v1")
+  }
+  func setRestoresClipboardSlowly(_ value: Bool) {
+    restoresClipboardSlowly = value
+    preferences.set(value, forKey: "dictationSlowPaste.v1")
   }
   @objc func terminate() { shutdown() }
   func shutdown() {
@@ -183,9 +185,13 @@ final class DictationController: NSObject, ObservableObject {
     loadModel()
     refreshPermissions()
   }
-  func label(_ text: String, size: CGFloat = 13, bold: Bool = false) -> NSTextField {
+  static let windowWidth: CGFloat = 560
+  /// System text styles keep the hierarchy consistent with Settings and Setup.
+  func label(_ text: String, style: NSFont.TextStyle = .body, secondary: Bool = false) -> NSTextField {
     let v = NSTextField(wrappingLabelWithString: text)
-    v.font = bold ? .boldSystemFont(ofSize: size) : .systemFont(ofSize: size)
+    v.font = .preferredFont(forTextStyle: style)
+    v.preferredMaxLayoutWidth = Self.windowWidth - 48
+    if secondary { v.textColor = .secondaryLabelColor }
     return v
   }
   func button(_ title: String, _ action: Selector) -> NSButton {
@@ -203,7 +209,7 @@ final class DictationController: NSObject, ObservableObject {
     view.isEditable = editable
     view.isSelectable = true
     view.isRichText = false
-    view.font = .systemFont(ofSize: 15)
+    view.font = .preferredFont(forTextStyle: .body)
     view.textContainerInset = NSSize(width: 10, height: 10)
     view.isAutomaticQuoteSubstitutionEnabled = false
     view.isAutomaticDashSubstitutionEnabled = false
@@ -216,22 +222,21 @@ final class DictationController: NSObject, ObservableObject {
     scroll.borderType = .bezelBorder
     scroll.hasVerticalScroller = true
     scroll.documentView = view
-    view.frame = NSRect(x: 0, y: 0, width: 570, height: height)
+    view.frame = NSRect(x: 0, y: 0, width: Self.windowWidth - 48, height: height)
     scroll.heightAnchor.constraint(equalToConstant: height).isActive = true
     return scroll
   }
   func buildWindow() {
     window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 680, height: 740),
+      contentRect: NSRect(x: 0, y: 0, width: Self.windowWidth, height: 600),
       styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
-    window.title = "Saywing · Diktieren"
+    window.title = String(localized: "Try Dictation")
     window.isReleasedWhenClosed = false
     window.isRestorable = false
-    window.center()
     let stack = NSStackView()
     stack.orientation = .vertical
     stack.alignment = .leading
-    stack.spacing = 11
+    stack.spacing = 10
     stack.translatesAutoresizingMaskIntoConstraints = false
     window.contentView!.addSubview(stack)
     NSLayoutConstraint.activate([
@@ -239,62 +244,64 @@ final class DictationController: NSObject, ObservableObject {
       stack.trailingAnchor.constraint(equalTo: window.contentView!.trailingAnchor, constant: -24),
       stack.topAnchor.constraint(equalTo: window.contentView!.topAnchor, constant: 22),
       stack.bottomAnchor.constraint(
-        lessThanOrEqualTo: window.contentView!.bottomAnchor, constant: -18),
+        lessThanOrEqualTo: window.contentView!.bottomAnchor, constant: -20),
     ])
-    stack.addArrangedSubview(label("Mit der Stimme schreiben.", size: 25, bold: true))
-    stack.addArrangedSubview(label("Deutsch & English · Lokal auf deinem Mac", size: 13))
+    stack.addArrangedSubview(label(String(localized: "Write with your voice"), style: .title1))
     stack.addArrangedSubview(
-      label(
-        "Fn halten: diktieren. Loslassen: einfügen. Fn doppelt oder Fn + Leertaste: freihändig.\nFn erneut: beenden. Esc: verwerfen. Ohne Fn: ⌥⇧Leertaste startet / beendet.\nZuerst ins gewünschte Textfeld klicken. Wispr Flow und andere Fn-Diktier-Apps beenden."
-      ))
-    titleLabel.font = .boldSystemFont(ofSize: 17)
+      label(String(localized: "Click in the test field, hold Fn while you speak and release to paste. Press Fn twice for hands-free dictation and Fn again to finish. Escape discards. Without Fn, use ⌥⇧Space."),
+            secondary: true))
+    stack.setCustomSpacing(16, after: stack.arrangedSubviews.last!)
+    titleLabel.font = .preferredFont(forTextStyle: .headline)
     stack.addArrangedSubview(titleLabel)
+    detailLabel.font = .preferredFont(forTextStyle: .callout)
     detailLabel.textColor = .secondaryLabelColor
     detailLabel.maximumNumberOfLines = 3
+    detailLabel.preferredMaxLayoutWidth = Self.windowWidth - 48
     stack.addArrangedSubview(detailLabel)
-    language.addItems(withTitles: ["Automatisch (DE / EN)", "Deutsch", "English"])
-    pasteDelay.addItems(withTitles: ["Zwischenablage: 1 s", "Zwischenablage: 2 s"])
-    language.setAccessibilityLabel("Erkennungssprache")
-    modelPicker.addItems(withTitles: DictationModel.allCases.map(\.displayName))
-    modelPicker.selectItem(withTitle: selectedModel.displayName)
-    modelPicker.setAccessibilityLabel("Diktiermodell")
-    pasteDelay.setAccessibilityLabel("Zeit bis zur Wiederherstellung der Zwischenablage")
-    stack.addArrangedSubview(
-      row([modelPicker, language, pasteDelay]))
-    permissionLabel.font = .systemFont(ofSize: 11)
-    stack.addArrangedSubview(permissionLabel)
-    stack.addArrangedSubview(
-      row([
-        button("Mikrofon freigeben", #selector(requestMic)),
-        button("Bedienungshilfen …", #selector(requestAX)),
-      ]))
-    stack.addArrangedSubview(label("Testfeld", size: 14, bold: true))
-    scratch.setAccessibilityLabel("Diktier-Testfeld")
+    permissionLabel.font = .preferredFont(forTextStyle: .callout)
+    permissionLabel.textColor = .systemOrange
+    permissionLabel.preferredMaxLayoutWidth = Self.windowWidth - 48
+    setupButton = button(String(localized: "Open Setup…"), #selector(openSetup))
+    stack.addArrangedSubview(row([permissionLabel, setupButton]))
+    scratch.setAccessibilityLabel(String(localized: "Dictation test field"))
     let scratchScroll = textArea(scratch, height: 130, editable: true)
     stack.addArrangedSubview(scratchScroll)
     scratchScroll.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
-    startButton = button("Aufnahme im Testfeld", #selector(startInScratch))
-    cancelButton = button("Verwerfen · Esc", #selector(cancelAction))
+    startButton = button(String(localized: "Record in Test Field"), #selector(startInScratch))
+    cancelButton = button(String(localized: "Discard"), #selector(cancelAction))
+    var controls: [NSView] = [startButton, cancelButton]
+    #if DEBUG
+    // Public sample recordings exercise recognition without a microphone; development only.
     demoDE = button("Demo Deutsch", #selector(demoGerman))
     demoEN = button("Demo English", #selector(demoEnglish))
-    stack.addArrangedSubview(row([startButton, cancelButton, demoDE, demoEN]))
-    stack.addArrangedSubview(
-      label("Letztes Ergebnis · nur bis zum Verwerfen oder Beenden", size: 12, bold: true))
+    controls += [demoDE!, demoEN!]
+    #endif
+    stack.addArrangedSubview(row(controls))
+    stack.setCustomSpacing(16, after: stack.arrangedSubviews.last!)
+    stack.addArrangedSubview(label(String(localized: "Last Result"), style: .headline))
     let resultScroll = textArea(result, height: 92, editable: false)
-    result.setAccessibilityLabel("Letztes Diktierergebnis")
+    result.setAccessibilityLabel(String(localized: "Last dictation result"))
     stack.addArrangedSubview(resultScroll)
     resultScroll.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
     stack.addArrangedSubview(
       row([
-        button("Ergebnis kopieren", #selector(copyResult)),
-        button("Felder leeren", #selector(clearFields)),
+        button(String(localized: "Copy Result"), #selector(copyResult)),
+        button(String(localized: "Clear"), #selector(clearFields)),
+        button(String(localized: "Dictation Settings…"), #selector(openDictationSettings)),
       ]))
-    let footer = label(
-      "Audio und Text bleiben im Arbeitsspeicher. Beim Einfügen wird die Zwischenablage kurz benutzt und danach wiederhergestellt. Eine neue Kopie von dir hat Vorrang. Maximal 60 Sekunden pro Aufnahme.",
-      size: 11)
-    footer.textColor = .secondaryLabelColor
-    stack.addArrangedSubview(footer)
+    stack.addArrangedSubview(
+      label(String(localized: "Audio and text stay in memory until you discard them or quit. Pasting briefly uses the clipboard and then restores it, unless you copied something newer. Up to 60 seconds per recording."),
+            style: .callout, secondary: true))
     refreshPermissions()
+    window.contentView!.layoutSubtreeIfNeeded()
+    window.setContentSize(NSSize(width: Self.windowWidth, height: stack.fittingSize.height + 42))
+    window.center()
+  }
+  var onOpenSetup: (() -> Void)?
+  @objc func openSetup() { onOpenSetup?() }
+  @objc func openDictationSettings() {
+    NSApp.activate(ignoringOtherApps: true)
+    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
   }
   func buildPanel() {
     panel = DictationStatusPanel(
@@ -324,7 +331,6 @@ final class DictationController: NSObject, ObservableObject {
     capsule.present(presentation, title: title, detail: detail)
     startButton?.title = phase == "recording" ? "Beenden & einfügen" : "Aufnahme im Testfeld"
     let busy = ["recording", "processing", "pasting"].contains(phase)
-    modelPicker.isEnabled = !isActive
     startButton?.isEnabled = ["ready", "unloaded", "loading", "recording"].contains(phase)
     demoDE?.isEnabled = worker.ready && phase == "ready"
     demoEN?.isEnabled = demoDE?.isEnabled ?? false
@@ -376,49 +382,35 @@ final class DictationController: NSObject, ObservableObject {
     }
     worker.start(resources: resources, model: selectedModel)
   }
-  @objc func changeModel() {
-    guard let choice = DictationModel.allCases.first(where: { $0.displayName == modelPicker.titleOfSelectedItem }) else { return }
-    selectModel(choice)
-  }
   func selectModel(_ model: DictationModel) {
-    guard !isActive, canPrepareModel else {
-      modelPicker.selectItem(withTitle: selectedModel.displayName)
-      return
-    }
-    guard model != selectedModel else { return }
+    guard canChangeModel, model != selectedModel else { return }
     modelGeneration = UUID()
     cancel(restart: false)
     worker.stop()
     selectedModel = model
     preferences.set(model.rawValue, forKey: "dictationModel.v1")
-    modelPicker.selectItem(withTitle: model.displayName)
     phase = "unloaded"
     loadModel()
   }
-  @objc func requestMic() {
-    switch AVCaptureDevice.authorizationStatus(for: .audio) {
-    case .notDetermined:
-      AVCaptureDevice.requestAccess(for: .audio) { [weak self] _ in
-        DispatchQueue.main.async { self?.refreshPermissions() }
-      }
-    case .denied, .restricted:
-      NSWorkspace.shared.open(
-        URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")!)
-    default: refreshPermissions()
-    }
-  }
-  @objc func requestAX() {
-    let options =
-      ["AXTrustedCheckOptionPrompt": true] as CFDictionary
-    _ = AXIsProcessTrustedWithOptions(options)
-    refreshPermissions()
-  }
+  /// Only problems are shown; granted permissions need no line of their own.
   @objc func refreshPermissions() {
     if monitorFn && canPrepareModel { fnShortcuts.start() }
-    permissionLabel.stringValue =
-      "Mikrofon: \(AVCaptureDevice.authorizationStatus(for:.audio) == .authorized ? "freigegeben":"noch nicht freigegeben") · Andere Apps: \(AXIsProcessTrusted() ? "freigegeben":"Bedienungshilfen erforderlich")"
-      + (monitorFn && !fnShortcuts.isAvailable ? " · Fn nicht aktiv; ⌥⇧Leertaste verwenden." : "")
-      + (shortcutAvailable ? "" : " · Hotkey belegt; bitte Testfeld-Taste verwenden.")
+    var problems: [String] = []
+    if AVCaptureDevice.authorizationStatus(for: .audio) != .authorized {
+      problems.append(String(localized: "Microphone not allowed."))
+    }
+    if !AXIsProcessTrusted() {
+      problems.append(String(localized: "Accessibility not allowed, so text can only be pasted into this window."))
+    }
+    if monitorFn && !fnShortcuts.isAvailable {
+      problems.append(String(localized: "Fn is not available; use ⌥⇧Space."))
+    }
+    if !shortcutAvailable {
+      problems.append(String(localized: "⌥⇧Space is in use by another app; use the Record button."))
+    }
+    permissionLabel.stringValue = problems.joined(separator: " ")
+    permissionLabel.isHidden = problems.isEmpty
+    setupButton?.isHidden = problems.isEmpty
   }
   func armEscape() throws {
     escape.onPress = { [weak self] in self?.cancel() }
@@ -457,7 +449,7 @@ final class DictationController: NSObject, ObservableObject {
     guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else {
       setStatus(
         "Mikrofon freigeben",
-        "Im Diktierfenster auf „Mikrofon freigeben“ klicken und danach die Aufnahme erneut starten.",
+        "In der Einrichtung das Mikrofon freigeben und danach die Aufnahme erneut starten.",
         floating: true)
       hidePanelLater()
       return
@@ -531,9 +523,7 @@ final class DictationController: NSObject, ObservableObject {
     setStatus(
       "Text wird erkannt …", "Alles wird lokal verarbeitet. Esc verwirft den Auftrag.",
       floating: true)
-    let lang =
-      language.indexOfSelectedItem == 1
-      ? "German" : language.indexOfSelectedItem == 2 ? "English" : nil
+    let lang = language.workerValue
     if worker.ready {
       worker.transcribe(audio, id: id, language: lang)
     } else {
@@ -640,7 +630,7 @@ final class DictationController: NSObject, ObservableObject {
       }
       restore = work
       DispatchQueue.main.asyncAfter(
-        deadline: .now() + (pasteDelay.indexOfSelectedItem == 0 ? 1.0 : 2.0), execute: work)
+        deadline: .now() + (restoresClipboardSlowly ? 2.0 : 1.0), execute: work)
     } catch {
       _ = lease?.restore()
       lease = nil

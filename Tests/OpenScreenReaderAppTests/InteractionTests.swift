@@ -3,6 +3,7 @@ import AVFoundation
 import CoreGraphics
 import Carbon.HIToolbox
 import Foundation
+import SwiftUI
 import Testing
 @testable import OpenScreenReader
 
@@ -2082,6 +2083,27 @@ struct DictationIntegrationTests {
         #expect(restoredWorker.models == [.whisperTurbo, .whisperTurbo])
     }
 
+    @Test func languageAndClipboardDelayArePersistedPreferences() throws {
+        let suite = "com.christopherbobel.OpenScreenReader.dictation-preference-tests.\(UUID())"
+        let preferences = try #require(UserDefaults(suiteName: suite))
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let (controller, worker, _) = fixture(preferences: preferences)
+        defer { controller.shutdown() }
+        #expect(controller.language == .automatic)
+        #expect(!controller.restoresClipboardSlowly)
+        controller.setLanguage(.german)
+        controller.setRestoresClipboardSlowly(true)
+        let (restored, _, _) = fixture(preferences: preferences)
+        defer { restored.shutdown() }
+        #expect(restored.language == .german)
+        #expect(restored.restoresClipboardSlowly)
+        worker.ready = true
+        try controller.begin(target: InsertionTarget(local: controller.scratch))
+        controller.send(AudioPacket(samples: [0], rate: 16_000))
+        #expect(worker.languages == ["German"])
+        #expect(DictationLanguage.allCases.map(\.workerValue) == [nil, "German", "English"])
+    }
+
     @Test func modelCannotSwitchDuringDictationAndFailureDoesNotFallback() throws {
         let (controller, worker, _) = fixture()
         defer { controller.shutdown() }
@@ -2284,8 +2306,9 @@ private final class DictationWorkerFake: DictationTranscribing {
     var lastRate = 0.0
     func start(resources: URL, model: DictationModel) { starts += 1; running = true; models.append(model) }
     func stop() { stops += 1; ready = false; running = false }
+    var languages: [String?] = []
     func transcribe(_ audio: AudioPacket, id: UUID, language: String?) {
-        requests.append(id); lastRate = audio.rate
+        requests.append(id); lastRate = audio.rate; languages.append(language)
     }
 }
 
@@ -2594,6 +2617,55 @@ struct DictationCapsuleTests {
             view.cacheDisplay(in: view.bounds, to: rep)
             try #require(rep.representation(using: .png, properties: [:])).write(to: directory.appendingPathComponent("dictation-\(state.rawValue).png"))
             view.stopAnimating()
+        }
+    }
+}
+
+/// Opt-in design review of the windows: `OSR_WINDOW_PREVIEW_DIR=/path` (pass it to
+/// xcodebuild as `TEST_RUNNER_OSR_WINDOW_PREVIEW_DIR`) renders every Settings tab,
+/// Setup, the playback controls and the dictation test window to PNG.
+@Suite("Window previews", .serialized)
+@MainActor
+struct WindowPreviewTests {
+    @Test func exportWindowPreviews() throws {
+        guard let path = ProcessInfo.processInfo.environment["OSR_WINDOW_PREVIEW_DIR"] else { return }
+        let directory = URL(fileURLWithPath: path)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let suite = "com.christopherbobel.OpenScreenReader.window-preview.\(UUID())"
+        let preferences = try #require(UserDefaults(suiteName: suite))
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let dictation = DictationController(resources: URL(fileURLWithPath: "/missing-dictation"),
+            worker: DictationWorkerFake(), shortcut: HotkeyManagerFake(registrationResult: .registered),
+            escape: HotkeyManagerFake(registrationResult: .registered), preferences: preferences, registerHotkey: false)
+        defer { dictation.shutdown() }
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+                             preferences: preferences, dictation: dictation)
+        func write(_ view: NSView, _ name: String) throws {
+            view.layoutSubtreeIfNeeded()
+            let rep = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+            view.cacheDisplay(in: view.bounds, to: rep)
+            try #require(rep.representation(using: .png, properties: [:])).write(to: directory.appendingPathComponent("\(name).png"))
+        }
+        func render<V: View>(_ content: V, _ name: String) throws {
+            for (suffix, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
+                let host = NSHostingView(rootView: content)
+                host.appearance = NSAppearance(named: appearance)
+                host.frame.size = host.fittingSize
+                let window = NSWindow(contentRect: host.frame, styleMask: [.titled], backing: .buffered, defer: false)
+                window.contentView = host
+                try write(host, "\(name)-\(suffix)")
+                window.contentView = nil
+            }
+        }
+        for tab in [SettingsTab.general, .reading, .dictation, .shortcuts, .privacy] {
+            try render(SettingsView(model: model, initialTab: tab), "settings-\(tab)")
+        }
+        try render(SetupView(model: model), "setup")
+        try render(PlaybackControlsView(model: model), "playback-controls")
+        for (suffix, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
+            dictation.window.appearance = NSAppearance(named: appearance)
+            // The frame view draws the window background behind the AppKit labels.
+            try write(try #require(dictation.window.contentView?.superview), "dictation-window-\(suffix)")
         }
     }
 }

@@ -238,6 +238,7 @@ final class AppModel: ObservableObject {
         dictationObservation = dictation?.objectWillChange.sink { [weak self] _ in
             self?.objectWillChange.send()
         }
+        dictation?.onOpenSetup = { [weak self] in self?.showSetup() }
         dictation?.onActivation = { [weak self] start in
             self?.enqueue { model in
                 if let context = model.activeContext { await model.cancel(context: context) }

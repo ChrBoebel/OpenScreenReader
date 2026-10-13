@@ -12,6 +12,27 @@ enum DictationModel: String, CaseIterable, Sendable {
   }
 }
 
+/// Stored by index for compatibility with the original popup preference.
+enum DictationLanguage: Int, CaseIterable, Sendable {
+  case automatic, german, english
+
+  var workerValue: String? {
+    switch self {
+    case .automatic: nil
+    case .german: "German"
+    case .english: "English"
+    }
+  }
+
+  var title: String {
+    switch self {
+    case .automatic: String(localized: "Automatic (German / English)")
+    case .german: "Deutsch"
+    case .english: "English"
+    }
+  }
+}
+
 struct DictationError: LocalizedError {
   let message: String
   var errorDescription: String? { message }
