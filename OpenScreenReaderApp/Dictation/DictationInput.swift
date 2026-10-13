@@ -32,7 +32,7 @@ final class InsertionTarget {
   private let selection: NSRange?
   init(local: NSTextView) {
     pid = getpid()
-    name = "Testfeld"
+    name = String(localized: "Test field")
     self.local = local
     element = nil
     window = nil
@@ -59,34 +59,34 @@ final class InsertionTarget {
     }
     guard AXIsProcessTrusted() else {
       throw DictationError(
-        "Für andere Apps bitte Bedienungshilfen freigeben. Das eigene Testfeld funktioniert bereits."
+        String(localized: "Allow Accessibility to dictate into other apps. The test field already works.")
       )
     }
     guard let app = NSWorkspace.shared.frontmostApplication, app.processIdentifier != getpid()
     else {
       throw DictationError(
-        "Bitte zuerst in das Testfeld oder ein Textfeld einer anderen App klicken.")
+        String(localized: "Click in the test field or a text field in another app first."))
     }
     let root = AXUIElementCreateApplication(app.processIdentifier)
     AXUIElementSetMessagingTimeout(root, 0.3)
     guard let field = axElement(axValue(root, kAXFocusedUIElementAttribute)) else {
-      throw DictationError("Kein Textfeld erkannt. Bitte ein Textfeld auswählen.")
+      throw DictationError(String(localized: "No text field found. Click in a text field first."))
     }
     let subrole = axValue(field, kAXSubroleAttribute) as? String ?? ""
     guard !subrole.lowercased().contains("secure") else {
-      throw DictationError("In Passwortfelder wird nicht diktiert.")
+      throw DictationError(String(localized: "Saywing does not dictate into password fields."))
     }
     let role = axValue(field, kAXRoleAttribute) as? String ?? ""
     guard ["AXTextField", "AXTextArea", "AXComboBox"].contains(role) else {
       throw DictationError(
-        "Dieses Feld wird noch nicht erkannt. Bitte das eigene Testfeld verwenden.")
+        String(localized: "This kind of field is not supported yet. Use the test field instead."))
     }
     let value = axValue(field, kAXValueAttribute) as? String
     guard (value?.utf16.count ?? 0) <= 200000 else {
-      throw DictationError("Das Ziel ist für diesen Diktierfenster zu groß.")
+      throw DictationError(String(localized: "This text field is too large for dictation."))
     }
     return InsertionTarget(
-      pid: app.processIdentifier, name: app.localizedName ?? "Textfeld", element: field,
+      pid: app.processIdentifier, name: app.localizedName ?? String(localized: "Text field"), element: field,
       window: axElement(axValue(root, kAXFocusedWindowAttribute)), original: value,
       selection: selectedRange(field))
   }
@@ -121,7 +121,7 @@ final class InsertionTarget {
   func paste() throws {
     guard isCurrent() else {
       throw DictationError(
-        "Das Ziel hat sich geändert. Das Ergebnis bleibt im Diktierfenster verfügbar.")
+        String(localized: "The target changed. The result stays available in the dictation window."))
     }
     if let local {
       local.paste(nil)
@@ -130,7 +130,7 @@ final class InsertionTarget {
     guard let key = HotkeyShortcut.keyCode(for: "v", modifiers: UInt32(cmdKey)),
       let down = CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(key), keyDown: true),
       let up = CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(key), keyDown: false)
-    else { throw DictationError("Einfügen konnte nicht ausgelöst werden.") }
+    else { throw DictationError(String(localized: "Paste could not be sent.")) }
     down.flags = .maskCommand
     up.flags = .maskCommand
     down.postToPid(pid)
@@ -155,7 +155,7 @@ final class MicrophoneRecorder {
     let format = node.outputFormat(forBus: 0)
     guard (16000...192000).contains(format.sampleRate), format.channelCount > 0,
       format.channelCount <= 16, format.commonFormat == .pcmFormatFloat32, !format.isInterleaved
-    else { throw DictationError("Dieses Mikrofonformat wird noch nicht unterstützt.") }
+    else { throw DictationError(String(localized: "This microphone format is not supported yet.")) }
     audio.start(sampleRate: format.sampleRate)
     node.installTap(onBus: 0, bufferSize: 2048, format: format, block: makeInputTap())
     installed = true

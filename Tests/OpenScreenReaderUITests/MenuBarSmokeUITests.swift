@@ -10,13 +10,15 @@ final class MenuBarSmokeUITests: XCTestCase {
         let status = app.descendants(matching: .statusItem).firstMatch
         XCTAssertTrue(status.waitForExistence(timeout: 5))
         status.click()
-        XCTAssertTrue(app.menuItems["Add Screen Region to Queue…"].exists)
-        XCTAssertTrue(app.menuItems["Next Text"].exists)
-        XCTAssertFalse(app.menuItems["Next Text"].isEnabled)
+        // Playback controls appear only while something is reading.
+        XCTAssertTrue(app.menuItems["Read Screen Region…"].waitForExistence(timeout: 2))
+        XCTAssertFalse(app.menuItems["Add Screen Region to Queue…"].exists)
+        XCTAssertFalse(app.menuItems["Next Text"].exists)
         // macOS can expose an infinite frame for SettingsLink inside a status
         // menu. Exercise the native Settings command instead of guessed points.
         app.typeKey(.escape, modifierFlags: [])
         app.typeKey(",", modifierFlags: [.command])
+        openSettingsTab("Read Aloud", in: app)
         let speed = app.popUpButtons["readingSpeed"]
         XCTAssertTrue(speed.waitForExistence(timeout: 3))
         speed.click()
@@ -30,6 +32,7 @@ final class MenuBarSmokeUITests: XCTestCase {
         XCTAssertTrue(app.menuItems["Speed · 1.5×"].exists)
         app.typeKey(.escape, modifierFlags: [])
         app.typeKey(",", modifierFlags: [.command])
+        openSettingsTab("Read Aloud", in: app)
         XCTAssertTrue(speed.waitForExistence(timeout: 3))
         XCTAssertEqual(speed.value as? String, "1.5×")
         // The separate Add shortcut starts a selection when idle. No capture
@@ -70,11 +73,6 @@ final class MenuBarSmokeUITests: XCTestCase {
         XCTAssertTrue(readRegion.exists)
         XCTAssertTrue(readRegion.isEnabled)
 
-        XCTAssertTrue(
-            app.menuItems[
-                "Select a region to recognize and read text locally."
-            ].exists
-        )
         XCTAssertTrue(app.menuItems["Settings…"].exists)
         XCTAssertTrue(app.menuItems["Quit Saywing"].exists)
 
@@ -148,13 +146,15 @@ final class MenuBarSmokeUITests: XCTestCase {
         XCTAssertTrue(status.waitForExistence(timeout: 5), statusDescription(in: app))
         status.click()
         app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
-        XCTAssertTrue(app.buttons["Allow Screen Recording…"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.images["Saywing Quiet Owl app logo"].exists)
-        XCTAssertTrue(app.staticTexts["Diktieren · in Erprobung"].exists)
-        XCTAssertTrue(app.staticTexts["Vorlesen & Diktieren für macOS."].exists)
-        XCTAssertTrue(app.buttons["Allow Input Monitoring…"].exists)
+        openSettingsTab("General", in: app)
+        XCTAssertTrue(app.images["Saywing Quiet Owl app logo"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Read aloud and dictate on your Mac."].exists)
+        openSettingsTab("Privacy", in: app)
+        for permission in ["Screen Recording", "Input Monitoring", "Microphone", "Accessibility"] {
+            XCTAssertTrue(app.staticTexts[permission].waitForExistence(timeout: 3), permission)
+        }
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(
-            format: "value CONTAINS 'Images, text, and audio are not saved'"
+            format: "value CONTAINS 'never saved'"
         )).firstMatch.exists)
         let preview = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
         preview.name = "Saywing-settings"
@@ -189,6 +189,7 @@ final class MenuBarSmokeUITests: XCTestCase {
         defer { app.terminate() }
         openMenu(in: app, status: "Ready")
         app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
+        openSettingsTab("Read Aloud", in: app)
         let preview = app.buttons["previewReadingPanelPosition"]
         XCTAssertTrue(preview.waitForExistence(timeout: 3))
         preview.click()
@@ -234,6 +235,7 @@ final class MenuBarSmokeUITests: XCTestCase {
         app.launch()
         openMenu(in: app, status: "Ready")
         app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
+        openSettingsTab("Read Aloud", in: app)
         preview.click()
         XCTAssertTrue(control.waitForExistence(timeout: 3))
         XCTAssertEqual(control.frame, saved)
@@ -281,7 +283,8 @@ final class MenuBarSmokeUITests: XCTestCase {
         defer { app.terminate() }
         openMenu(in: app, status: "Ready")
         app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
-        XCTAssertTrue(app.staticTexts["Vorlesen & Diktieren für macOS."].waitForExistence(timeout: 5))
+        openSettingsTab("Read Aloud", in: app)
+        XCTAssertTrue(app.popUpButtons["readingSpeed"].waitForExistence(timeout: 5))
         try XCTSkipUnless(app.staticTexts["Installed for local development"].exists,
                           "Install the pinned development runtime for this real Supertonic test.")
         XCTAssertTrue(app.staticTexts["Supertonic 3 · M1"].exists)
@@ -322,7 +325,7 @@ final class MenuBarSmokeUITests: XCTestCase {
             XCTFail(app.dialogs.debugDescription)
             return
         }
-        XCTAssertEqual(action.label, "Vorlesen stoppen")
+        XCTAssertEqual(action.label, "Stop reading")
         XCTAssertGreaterThanOrEqual(action.frame.width, 44)
         XCTAssertGreaterThanOrEqual(action.frame.height, 44)
         XCTAssertEqual(fixture.state, .runningForeground, "Showing and updating the panel must not activate OpenScreenReader.")
@@ -374,18 +377,19 @@ final class MenuBarSmokeUITests: XCTestCase {
         defer { app.terminate() }
         openMenu(in: app, status: "Ready")
         app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
-        let key = app.popUpButtons["shortcutKey"]
-        XCTAssertTrue(key.waitForExistence(timeout: 3))
-        key.click()
-        app.menuItems["J"].click()
-        app.buttons["applyShortcut"].click()
+        openSettingsTab("Shortcuts", in: app)
+        let recorder = app.buttons["shortcutRecorder"]
+        XCTAssertTrue(recorder.waitForExistence(timeout: 3))
+        recorder.click()
+        app.typeKey("j", modifierFlags: [.option])
         XCTAssertTrue(app.staticTexts["Shortcut ⌥J is active and saved."].waitForExistence(timeout: 3))
         app.terminate()
         app.launch()
         openMenu(in: app, status: "Ready")
         app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
-        XCTAssertTrue(app.popUpButtons["shortcutKey"].waitForExistence(timeout: 3))
-        XCTAssertEqual(app.popUpButtons["shortcutKey"].value as? String, "J")
+        openSettingsTab("Shortcuts", in: app)
+        XCTAssertTrue(recorder.waitForExistence(timeout: 3))
+        XCTAssertEqual(recorder.value as? String, "⌥J")
 
         let finder = XCUIApplication(bundleIdentifier: "com.apple.finder")
         finder.activate()
@@ -396,7 +400,8 @@ final class MenuBarSmokeUITests: XCTestCase {
         app.typeKey(.escape, modifierFlags: [])
         openMenu(in: app, status: "Stopped")
         app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
-        app.buttons["Restore Default"].click()
+        openSettingsTab("Shortcuts", in: app)
+        app.buttons["Restore Default"].firstMatch.click()
         XCTAssertTrue(app.staticTexts["Shortcut ⌥R is active and saved."].waitForExistence(timeout: 3))
     }
 
@@ -407,16 +412,18 @@ final class MenuBarSmokeUITests: XCTestCase {
         defer { app.terminate() }
         openMenu(in: app, status: "Ready")
         app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
-        XCTAssertTrue(app.checkBoxes["Command ⌘"].waitForExistence(timeout: 3))
-        app.checkBoxes["Option ⌥"].click()
-        XCTAssertFalse(app.buttons["applyShortcut"].isEnabled)
-        app.checkBoxes["Command ⌘"].click()
-        app.buttons["applyShortcut"].click()
+        openSettingsTab("Shortcuts", in: app)
+        let recorder = app.buttons["shortcutRecorder"]
+        XCTAssertTrue(recorder.waitForExistence(timeout: 3))
+        recorder.click()
+        app.typeKey("r", modifierFlags: [.shift])
+        XCTAssertTrue(app.staticTexts["Use a letter, digit or Space with ⌘, ⌥ or ⌃. Shift is optional."]
+            .waitForExistence(timeout: 3))
+        app.typeKey("r", modifierFlags: [.command])
         XCTAssertTrue(app.buttons["Use Shortcut"].waitForExistence(timeout: 3))
         app.sheets.buttons["Cancel"].click()
         XCTAssertFalse(app.staticTexts["Shortcut ⌘R is active and saved."].exists)
-        app.buttons["Restore Default"].click()
-        XCTAssertTrue(app.staticTexts["Shortcut ⌥R is active and saved."].waitForExistence(timeout: 3))
+        XCTAssertEqual(recorder.value as? String, "⌥R")
     }
 
     @MainActor
@@ -424,6 +431,8 @@ final class MenuBarSmokeUITests: XCTestCase {
         let suite = "com.christopherbobel.OpenScreenReader.uitests.\(UUID().uuidString)"
         let app = XCUIApplication()
         app.launchEnvironment["OSR_SHORTCUT_TEST_SUITE"] = suite
+        // Assertions use the English source strings; the German catalog has its own checks.
+        app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         addTeardownBlock { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
         return app
     }
@@ -465,6 +474,13 @@ final class MenuBarSmokeUITests: XCTestCase {
     private func statusDescription(in app: XCUIApplication) -> String {
         // Do not include the application's Apple menu and private Recent Items.
         app.descendants(matching: .statusItem).debugDescription
+    }
+
+    @MainActor
+    private func openSettingsTab(_ title: String, in app: XCUIApplication) {
+        let tab = app.toolbars.buttons[title].firstMatch
+        XCTAssertTrue(tab.waitForExistence(timeout: 5), "Settings tab \(title) is missing.")
+        tab.click()
     }
 
     @MainActor

@@ -3,6 +3,7 @@ import AVFoundation
 import CoreGraphics
 import Carbon.HIToolbox
 import Foundation
+import SwiftUI
 import Testing
 @testable import OpenScreenReader
 
@@ -689,6 +690,41 @@ struct InteractionTests {
     }
 
     @Test
+    func recordedKeystrokesBecomeShortcutConfigurations() {
+        let option = ShortcutConfiguration.recorded(character: "j", flags: [.option])
+        #expect(option == ShortcutConfiguration(key: "J", modifiers: UInt32(optionKey)))
+        #expect(option?.isValid == true)
+        let all = ShortcutConfiguration.recorded(character: "7", flags: [.command, .shift, .control, .option, .capsLock])
+        #expect(all == ShortcutConfiguration(key: "7", modifiers: UInt32(cmdKey | shiftKey | controlKey | optionKey)))
+        #expect(ShortcutConfiguration.recorded(character: " ", flags: [.control])?.key == "Space")
+        // Shift alone is recorded, so the field can explain why it is not enough.
+        #expect(ShortcutConfiguration.recorded(character: "y", flags: [.shift])?.isValid == false)
+        #expect(ShortcutConfiguration.recorded(character: "ß", flags: [.option]) == nil)
+        #expect(ShortcutConfiguration.recorded(character: "\u{1b}", flags: [.command]) == nil)
+    }
+
+    @Test
+    func recordingAShortcutSuspendsBothGlobalShortcuts() async {
+        let hotkey = HotkeyManagerFake(registrationResult: .registered)
+        let queue = HotkeyManagerFake(registrationResult: .registered)
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: hotkey,
+                             queueHotkeyManager: queue, queueShortcutStore: MemoryShortcutStore())
+        #expect(hotkey.registeredShortcut == ShortcutConfiguration.default.resolvedShortcut())
+        model.setRecordingShortcut(true)
+        #expect(hotkey.registeredShortcut == nil)
+        #expect(queue.registeredShortcut == nil)
+        model.setRecordingShortcut(false)
+        #expect(hotkey.registeredShortcut == ShortcutConfiguration.default.resolvedShortcut())
+        #expect(queue.registeredShortcut == ShortcutConfiguration.queueDefault.resolvedShortcut())
+        model.setRecordingShortcut(true)
+        let custom = ShortcutConfiguration(key: "J", modifiers: UInt32(optionKey))
+        model.enqueueShortcutChange(custom)
+        await model.waitForInteractionToSettle()
+        model.setRecordingShortcut(false)
+        #expect(hotkey.registeredShortcut == custom.resolvedShortcut())
+    }
+
+    @Test
     func shortcutCannotChangeDuringSelectionAndInvalidSettingsAreRejected() async {
         let store = MemoryShortcutStore()
         let model = AppModel(shortcutStore: store,
@@ -760,7 +796,7 @@ struct InteractionTests {
         #expect(model.hotkeyRegistration == .conflict)
         #expect(model.status == .error)
         #expect(model.errorMessage?.contains("Saywing or OpenScreenReader") == true)
-        #expect(model.errorMessage?.contains("Apply Shortcut") == true)
+        #expect(model.errorMessage?.contains("Settings › Shortcuts") == true)
 
         // Applying the same shortcut must retry; no preference reset or new key is needed.
         competitor.unregister()
@@ -802,11 +838,27 @@ struct InteractionTests {
         #expect(speech.receivedText == "Hello world")
         #expect(model.status == .ready)
         #expect(model.lastOCRSummary == OCRSummary(characterCount: 11, lineCount: 1))
-        #expect(model.captureFeedback.contains("11 characters"))
+        #expect(model.captureFeedback?.contains("11 characters") == true)
         #expect(!escape.isActive)
         #expect(await model.pipelineCoordinator.snapshot().lastTerminal?.reason == .completed)
         await model.handleReadRequest()
         #expect(model.lastOCRSummary == nil)
+    }
+
+    @Test
+    func menuShowsFeedbackOnlyWhenItAddsInformation() async {
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+                             selectionController: RegionSelectionControllerFake())
+        #expect(model.captureFeedback == nil, "The idle menu needs no instructions.")
+        #expect(!model.isReadingActive)
+        #expect(model.readActionTitle == "Read Screen Region…")
+        await model.handleReadRequest()
+        #expect(model.isReadingActive)
+        #expect(model.captureFeedback == nil, "The status line already says Selecting.")
+        #expect(model.readActionTitle == "Stop Reading")
+        #expect(ShortcutConfiguration.default.keyboardShortcut == KeyboardShortcut("r", modifiers: [.option]))
+        #expect(ShortcutConfiguration(key: "Space", modifiers: UInt32(cmdKey | shiftKey | controlKey)).keyboardShortcut
+            == KeyboardShortcut(.space, modifiers: [.command, .shift, .control]))
     }
 
     @Test
@@ -1087,7 +1139,7 @@ struct InteractionTests {
 
         #expect(model.hotkeyRegistration == .conflict)
         #expect(model.status == .error)
-        #expect(model.errorMessage == "The shortcut ⌥R is already in use. Quit any other Saywing or OpenScreenReader copy, then click Apply Shortcut in Settings to retry, or choose a different shortcut.")
+        #expect(model.errorMessage == "The shortcut ⌥R is already in use. Quit any other Saywing or OpenScreenReader copy, then choose it again under Settings › Shortcuts, or record a different one.")
         #expect(selection.startCount == 0)
     }
 
@@ -1148,6 +1200,71 @@ struct InteractionTests {
         #expect(model.status == .stopped)
         #expect(snapshot.activeContext == nil)
         #expect(snapshot.pendingCancellation == nil)
+    }
+
+    @Test
+    func selectionGestureFollowsScreenshotModifiers() {
+        var gesture = SelectionGesture(start: CGPoint(x: 100, y: 100))
+        gesture.move(to: CGPoint(x: 160, y: 140))
+        #expect(gesture.rect == CGRect(x: 100, y: 100, width: 60, height: 40))
+        // Space moves the whole selection with the pointer.
+        gesture.setMoving(true)
+        gesture.move(to: CGPoint(x: 180, y: 150))
+        #expect(gesture.rect == CGRect(x: 120, y: 110, width: 60, height: 40))
+        gesture.setMoving(false)
+        gesture.move(to: CGPoint(x: 200, y: 170))
+        #expect(gesture.rect == CGRect(x: 120, y: 110, width: 80, height: 60))
+        // Option grows the selection from its starting point as the centre.
+        gesture.setModifiers(option: true, shift: false)
+        #expect(gesture.rect == CGRect(x: 40, y: 50, width: 160, height: 120))
+        gesture.setModifiers(option: false, shift: false)
+        // Shift locks the edge that did not move first.
+        gesture.setModifiers(option: false, shift: true)
+        gesture.move(to: CGPoint(x: 230, y: 172))
+        gesture.move(to: CGPoint(x: 240, y: 230))
+        #expect(gesture.rect == CGRect(x: 120, y: 110, width: 120, height: 60))
+        gesture.setModifiers(option: false, shift: false)
+        #expect(gesture.rect == CGRect(x: 120, y: 110, width: 120, height: 120))
+        // A vertical first movement locks the width instead.
+        var vertical = SelectionGesture(start: .zero)
+        vertical.move(to: CGPoint(x: 50, y: 50))
+        vertical.setModifiers(option: false, shift: true)
+        vertical.move(to: CGPoint(x: 51, y: 90))
+        vertical.move(to: CGPoint(x: 120, y: 95))
+        #expect(vertical.rect == CGRect(x: 0, y: 0, width: 50, height: 95))
+    }
+
+    @Test
+    func clickSelectsABoundedAreaAroundThePointer() throws {
+        let geometry = DisplaySelectionGeometry(displayID: 4,
+            frameInScreenPoints: CGRect(x: -1440, y: 100, width: 1440, height: 900), backingScaleFactor: 2)
+        let centred = try #require(geometry.clickSelection(at: CGPoint(x: 720, y: 450)))
+        #expect(centred.rectInScreenPoints == CGRect(x: -1440 + 120, y: 150, width: 1200, height: 800))
+        #expect(centred.focus == CGPoint(x: 0.5, y: 0.5))
+        let corner = try #require(geometry.clickSelection(at: CGPoint(x: 30, y: 880)))
+        #expect(corner.rectInScreenPoints == CGRect(x: -1440, y: 200, width: 1200, height: 800))
+        #expect(corner.focus == CGPoint(x: 30.0 / 1200, y: 780.0 / 800))
+        #expect(corner.rectInBackingPixels.size == CGSize(width: 2400, height: 1600))
+        // The control flies from the clicked spot, not from the larger recognition area.
+        let flight = corner.flightOrigin
+        #expect(flight.midX == -1410 && flight.midY == 980 && flight.width < 60)
+        let dragged = try #require(geometry.selection(in: CGRect(x: 10, y: 10, width: 100, height: 50)))
+        #expect(dragged.focus == nil && dragged.flightOrigin == dragged.rectInScreenPoints)
+        let text = OCRResult(lines: ["A", "B"], boxes: [CGRect(x: 0, y: 0.6, width: 0.2, height: 0.03),
+                                                        CGRect(x: 0, y: 0.1, width: 0.2, height: 0.03)])
+        #expect(corner.focusedText(text).lines.isEmpty, "A click far from any text reads nothing.")
+        #expect(dragged.focusedText(text) == text, "A dragged region is read completely.")
+    }
+
+    @Test
+    func selectionHintAppearsForTheFirstFewSelectionsOnly() throws {
+        let suite = "com.christopherbobel.OpenScreenReader.hint-tests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var shown = 0
+        for _ in 0..<8 where SelectionHint.consume(defaults) { shown += 1 }
+        #expect(shown == SelectionHint.limit)
+        #expect(SelectionHint.limit == 5)
     }
 
     @Test
@@ -1298,7 +1415,7 @@ struct ReadingPanelTests {
             #expect(options.alphaValue < 0.01, "Resting capsule shows only waveform and Stop.")
             #expect(view.hitTest(view.convert(CGPoint(x: options.bounds.midX, y: options.bounds.midY), from: options)) === body)
             #expect(view.hitTest(view.convert(CGPoint(x: 22, y: 22), from: stop)) === stop)
-            #expect(options.toolTip?.contains("Wiedergabe") == true)
+            #expect(options.toolTip?.contains("Playback") == true)
             let frame = body.frame
             let stopFrame = stop.frame
             body.mouseEntered(with: NSEvent())
@@ -1442,6 +1559,78 @@ struct ReadingPanelTests {
         controller.endDrag()
         try await Task.sleep(for: .milliseconds(350))
         #expect(controller.panel?.isVisible == false)
+    }
+
+    @Test
+    func flickedControlLandsWhereItsMomentumPoints() {
+        let visible = CGRect(x: 0, y: 40, width: 1440, height: 860)
+        #expect(abs(PanelMotion.project(1000) - 499) < 0.01, "Apple's projection with a 0.998 deceleration rate.")
+        let nearBottom = CGPoint(x: 600, y: 160)
+        #expect(ReadingPanelPlacement.dropped(at: nearBottom, in: visible).edge == .bottom)
+        // A quick throw to the left wins over the closer bottom edge.
+        let thrown = ReadingPanelPlacement.dropped(at: nearBottom, velocity: CGVector(dx: -2400, dy: 0), in: visible)
+        #expect(thrown.edge == .left)
+        let slowly = ReadingPanelPlacement.dropped(at: nearBottom, velocity: CGVector(dx: -80, dy: 0), in: visible)
+        #expect(slowly.edge == .bottom, "A slow release is not a throw.")
+        // Along the bottom edge the throw also carries the offset.
+        let along = ReadingPanelPlacement.dropped(at: CGPoint(x: 600, y: 60), velocity: CGVector(dx: 900, dy: 0), in: visible)
+        #expect(along.edge == .bottom && along.fraction > ReadingPanelPlacement.dropped(at: CGPoint(x: 600, y: 60), in: visible).fraction)
+    }
+
+    @Test
+    func dragVelocityUsesOnlyTheLastMomentBeforeRelease() {
+        var velocity = DragVelocity()
+        velocity.add(CGPoint(x: 0, y: 0), at: 10.00)
+        velocity.add(CGPoint(x: 30, y: 10), at: 10.03)
+        velocity.add(CGPoint(x: 60, y: 20), at: 10.06)
+        let moving = velocity.velocity(at: 10.07)
+        #expect(abs(moving.dx - 1000) < 1 && abs(moving.dy - 333.3) < 1)
+        #expect(velocity.velocity(at: 10.40) == .zero, "Holding still before release cancels the throw.")
+        var instant = DragVelocity()
+        instant.add(.zero, at: 5)
+        instant.add(CGPoint(x: 400, y: 0), at: 5)
+        #expect(instant.velocity(at: 5) == .zero, "Synthetic moves without elapsed time carry no speed.")
+        var fast = DragVelocity()
+        fast.add(.zero, at: 1)
+        fast.add(CGPoint(x: 900, y: 0), at: 1.02)
+        #expect(fast.velocity(at: 1.02).dx == PanelMotion.maximumSpeed)
+    }
+
+    @Test
+    func springsSettleFromTheirCurrentVelocityWithoutDecorativeOvershoot() {
+        var calm = PanelSpring(position: 0, velocity: 0, target: 100)
+        var peak: CGFloat = 0
+        var time: CGFloat = 0
+        while !calm.isSettled && time < 2 { calm.step(1.0 / 120); peak = max(peak, calm.position); time += 1.0 / 120 }
+        #expect(calm.isSettled && time < 0.8)
+        #expect(peak <= 100.5, "Critically damped: no overshoot.")
+        var handedOff = PanelSpring(position: 0, velocity: 1500, target: 100)
+        var resting = PanelSpring(position: 0, velocity: 0, target: 100)
+        handedOff.step(1.0 / 60); resting.step(1.0 / 60)
+        #expect(handedOff.position > resting.position + 15, "The release velocity continues without a seam.")
+        var flick = PanelSpring(position: 0, velocity: 2500, target: 100, dampingRatio: 0.85)
+        var flickPeak: CGFloat = 0
+        for _ in 0..<240 { flick.step(1.0 / 120); flickPeak = max(flickPeak, flick.position) }
+        #expect(flickPeak > 100 && flickPeak < 130 && flick.isSettled, "A throw may overshoot a little, then rests.")
+    }
+
+    @Test
+    func selectionFlightRespondsImmediately() {
+        var first: [Float] = [0, 0]
+        SelectionFlightWindow.timing.getControlPoint(at: 1, values: &first)
+        // Ease-out: the frame leaves the selection at once instead of hesitating.
+        #expect(first[1] > first[0] * 2)
+        #expect(SelectionFlightWindow.durationMilliseconds <= 400)
+    }
+
+    @Test
+    func edgesResistProgressivelyInsteadOfStoppingHard() {
+        #expect(PanelMotion.rubberband(0, dimension: 300) == 0)
+        let small = PanelMotion.rubberband(20, dimension: 300)
+        let large = PanelMotion.rubberband(200, dimension: 300)
+        #expect(small > 0 && small < 20)
+        #expect(large > small && large < 300 * 0.55)
+        #expect(PanelMotion.rubberband(-20, dimension: 300) == -small)
     }
 
     @Test
@@ -1608,8 +1797,7 @@ struct ReadingPanelTests {
             #expect(rendering == cue.render(variant: 0))
             #expect(rendering.left.count == rendering.right.count)
             #expect(rendering.left != rendering.right, "The room is stereo.")
-            let limit = cue == .tap || cue == .release ? 7_056 : 66_150
-            #expect(samples.count <= limit, "Cues stay under 1.5 s; clicks under 160 ms.")
+            #expect(samples.count <= 66_150, "Cues stay under 1.5 s.")
             let peak = Double(cue.peak) + 0.001
             #expect(rendering.left.allSatisfy { $0.isFinite && abs(Double($0)) <= peak })
             #expect(rendering.right.allSatisfy { $0.isFinite && abs(Double($0)) <= peak })
@@ -1625,7 +1813,7 @@ struct ReadingPanelTests {
     }
 
     @Test
-    func stopButtonPressPlaysATapWithoutStoppingCuesAndCancellationCannotCutIt() {
+    func stopButtonPressIsSilentAndCuesKeepToMeaningfulMoments() {
         let sounds = InterfaceSoundsFake()
         let controller = ReadingPanelController(terminalDuration: .seconds(10), interfaceSounds: sounds)
         defer { controller.hide() }
@@ -1638,8 +1826,8 @@ struct ReadingPanelTests {
         sounds.isStopped = true
         view?.onPress?()
         view?.onRelease?()
-        #expect(sounds.cues == [.tap, .release])
-        #expect(sounds.isStopped, "Clicks are never registered as interruptible cues.")
+        #expect(sounds.cues.isEmpty, "Stopping is a cancellation; it never adds a sound.")
+        #expect(InterfaceCue.allCases == [.selection, .completion, .attention])
     }
 
     @Test
@@ -1809,7 +1997,7 @@ private final class ReadingPanelFake: ReadingStatusPresenting {
 private final class InterfaceSoundsFake: InterfaceSoundPlaying {
     var cues: [InterfaceCue] = []
     var isStopped = true
-    func play(_ cue: InterfaceCue) { cues.append(cue); if cue != .tap && cue != .release { isStopped = false } }
+    func play(_ cue: InterfaceCue) { cues.append(cue); isStopped = false }
     func stop() { isStopped = true }
 }
 
@@ -1967,7 +2155,7 @@ private final class HotkeyManagerFake: HotkeyManaging {
         return registrationResult
     }
 
-    func unregister() {}
+    func unregister() { registeredShortcut = nil }
 }
 
 @MainActor
@@ -2080,6 +2268,35 @@ struct DictationIntegrationTests {
         restored.screenLockedOrSleeping(Notification(name: NSWorkspace.willSleepNotification))
         restored.screenBecameAvailable(Notification(name: NSWorkspace.didWakeNotification))
         #expect(restoredWorker.models == [.whisperTurbo, .whisperTurbo])
+    }
+
+    @Test func languageAndClipboardDelayArePersistedPreferences() throws {
+        let suite = "com.christopherbobel.OpenScreenReader.dictation-preference-tests.\(UUID())"
+        let preferences = try #require(UserDefaults(suiteName: suite))
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let (controller, worker, _) = fixture(preferences: preferences)
+        defer { controller.shutdown() }
+        #expect(controller.language == .automatic)
+        #expect(!controller.restoresClipboardSlowly)
+        controller.setLanguage(.german)
+        controller.setRestoresClipboardSlowly(true)
+        let (restored, _, _) = fixture(preferences: preferences)
+        defer { restored.shutdown() }
+        #expect(restored.language == .german)
+        #expect(restored.restoresClipboardSlowly)
+        worker.ready = true
+        try controller.begin(target: InsertionTarget(local: controller.scratch))
+        controller.send(AudioPacket(samples: [0], rate: 16_000))
+        #expect(worker.languages == ["German"])
+        #expect(DictationLanguage.allCases.map(\.workerValue) == [nil, "German", "English"])
+    }
+
+    @Test func workerCodesBecomeLocalizedTextAndLegacyMessagesPassThrough() throws {
+        let coded = try JSONDecoder().decode(DictationWorkerMessage.self,
+            from: Data(#"{"type":"error","id":"x","code":"processing_failed","message":"raw"}"#.utf8))
+        #expect(coded.localizedDetail == "The recording could not be processed. Please try again.")
+        let legacy = DictationWorkerMessage(type: "fatal", message: "Legacy worker text")
+        #expect(legacy.localizedDetail == "Legacy worker text")
     }
 
     @Test func modelCannotSwitchDuringDictationAndFailureDoesNotFallback() throws {
@@ -2284,8 +2501,9 @@ private final class DictationWorkerFake: DictationTranscribing {
     var lastRate = 0.0
     func start(resources: URL, model: DictationModel) { starts += 1; running = true; models.append(model) }
     func stop() { stops += 1; ready = false; running = false }
+    var languages: [String?] = []
     func transcribe(_ audio: AudioPacket, id: UUID, language: String?) {
-        requests.append(id); lastRate = audio.rate
+        requests.append(id); lastRate = audio.rate; languages.append(language)
     }
 }
 
@@ -2516,7 +2734,7 @@ struct DictationCapsuleTests {
         view.present(.recording, title: "Aufnahme", detail: "")
         view.updateRecording(rms: 0)
         #expect(view.inputLevel == 0)
-        #expect(view.accessibilityLabel()?.contains("Aufnahme") == true)
+        #expect(view.accessibilityLabel()?.contains("Recording") == true)
         view.updateRecording(rms: 0.1)
         #expect(view.inputLevel > 0 && view.inputLevel <= 1)
         view.updateRecording(rms: .nan)
@@ -2524,7 +2742,7 @@ struct DictationCapsuleTests {
         view.present(.processing, title: "Text wird erkannt …", detail: "")
         view.updateRecording(rms: 1)
         #expect(view.inputLevel == 0)
-        #expect(view.accessibilityLabel()?.contains("Text wird erkannt") == true)
+        #expect(view.accessibilityLabel()?.contains("Recognizing text") == true)
     }
 
     @Test func terminalFeedbackDoesNotImplyUnverifiedInsertion() {
@@ -2532,11 +2750,11 @@ struct DictationCapsuleTests {
         view.present(.unconfirmed, title: "Einfügen ausgelöst", detail: "Bitte Zielfeld prüfen.")
         #expect(view.state == .unconfirmed)
         #expect(view.accessibilityHelp() == "Bitte Zielfeld prüfen.")
-        #expect(view.accessibilityLabel()?.contains("Einfügen ausgelöst") == true)
+        #expect(view.accessibilityLabel()?.contains("Paste sent") == true)
         view.present(.inserted, title: "Eingefügt", detail: "Bereit für die nächste Aufnahme.")
         #expect(view.state == .inserted)
         #expect(view.finishButton.isHidden)
-        #expect(view.dismissButton.accessibilityLabel() == "Hinweis schließen")
+        #expect(view.dismissButton.accessibilityLabel() == "Close notice")
     }
 
     @Test func controllerDismissalPreservesResultsAndOldDismissalCannotHideActiveWork() throws {
@@ -2594,6 +2812,65 @@ struct DictationCapsuleTests {
             view.cacheDisplay(in: view.bounds, to: rep)
             try #require(rep.representation(using: .png, properties: [:])).write(to: directory.appendingPathComponent("dictation-\(state.rawValue).png"))
             view.stopAnimating()
+        }
+    }
+}
+
+/// Opt-in design review of the windows: `OSR_WINDOW_PREVIEW_DIR=/path` (pass it to
+/// xcodebuild as `TEST_RUNNER_OSR_WINDOW_PREVIEW_DIR`) renders every Settings tab,
+/// Setup, the playback controls and the dictation test window to PNG.
+@Suite("Window previews", .serialized)
+@MainActor
+struct WindowPreviewTests {
+    @Test func exportWindowPreviews() throws {
+        guard let path = ProcessInfo.processInfo.environment["OSR_WINDOW_PREVIEW_DIR"] else { return }
+        let directory = URL(fileURLWithPath: path)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let suite = "com.christopherbobel.OpenScreenReader.window-preview.\(UUID())"
+        let preferences = try #require(UserDefaults(suiteName: suite))
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let dictation = DictationController(resources: URL(fileURLWithPath: "/missing-dictation"),
+            worker: DictationWorkerFake(), shortcut: HotkeyManagerFake(registrationResult: .registered),
+            escape: HotkeyManagerFake(registrationResult: .registered), preferences: preferences, registerHotkey: false)
+        defer { dictation.shutdown() }
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+                             preferences: preferences, dictation: dictation)
+        func write(_ view: NSView, _ name: String) throws {
+            view.layoutSubtreeIfNeeded()
+            let rep = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+            view.cacheDisplay(in: view.bounds, to: rep)
+            try #require(rep.representation(using: .png, properties: [:])).write(to: directory.appendingPathComponent("\(name).png"))
+        }
+        func render<V: View>(_ content: V, _ name: String) throws {
+            for (suffix, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
+                let host = NSHostingView(rootView: content)
+                host.appearance = NSAppearance(named: appearance)
+                host.frame.size = host.fittingSize
+                let window = NSWindow(contentRect: host.frame, styleMask: [.titled], backing: .buffered, defer: false)
+                window.contentView = host
+                try write(host, "\(name)-\(suffix)")
+                window.contentView = nil
+            }
+        }
+        for tab in [SettingsTab.general, .reading, .dictation, .shortcuts, .privacy] {
+            try render(SettingsView(model: model, initialTab: tab), "settings-\(tab)")
+        }
+        try render(SetupView(model: model), "setup")
+        try render(PlaybackControlsView(model: model), "playback-controls")
+        let overlay = RegionSelectionOverlayController(defaults: preferences)
+        overlay.start(onSelection: { _ in }, onCancel: {})
+        if let view = NSApp.windows.first(where: { $0.title == "Select Screen Region" && $0.isVisible })?.contentView,
+           let pill = view.subviews.first {
+            let area = pill.frame.insetBy(dx: -60, dy: -30)
+            let rep = try #require(view.bitmapImageRepForCachingDisplay(in: area))
+            view.cacheDisplay(in: area, to: rep)
+            try #require(rep.representation(using: .png, properties: [:])).write(to: directory.appendingPathComponent("selection-hint.png"))
+        }
+        overlay.cancel()
+        for (suffix, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
+            dictation.window.appearance = NSAppearance(named: appearance)
+            // The frame view draws the window background behind the AppKit labels.
+            try write(try #require(dictation.window.contentView?.superview), "dictation-window-\(suffix)")
         }
     }
 }

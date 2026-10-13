@@ -25,6 +25,19 @@ struct ShortcutConfiguration: Codable, Equatable, Sendable {
             .filter { modifiers & $0.0 != 0 }.map(\.1).joined() + key
     }
 
+    /// Converts a keystroke from a shortcut field. `character` is the key without
+    /// modifiers applied. Returns nil for keys a global shortcut cannot use; the
+    /// result may still be invalid (for example Shift alone) so the field can explain why.
+    static func recorded(character: String, flags: NSEvent.ModifierFlags) -> ShortcutConfiguration? {
+        let key = character == " " ? "Space" : character.uppercased()
+        guard availableKeys.contains(key) else { return nil }
+        let modifiers = [(NSEvent.ModifierFlags.command, cmdKey), (.option, optionKey),
+                         (.control, controlKey), (.shift, shiftKey)]
+            .filter { flags.contains($0.0) }
+            .reduce(UInt32(0)) { $0 | UInt32($1.1) }
+        return ShortcutConfiguration(key: key, modifiers: modifiers)
+    }
+
     @MainActor
     func resolvedShortcut(source: TISInputSource? = nil) -> HotkeyShortcut {
         // Resolve the base key, not Option's alternate character or Shift's symbol.

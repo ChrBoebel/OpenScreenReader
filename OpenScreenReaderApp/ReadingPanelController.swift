@@ -3,8 +3,79 @@ import QuartzCore
 
 enum ReadingPanelEdge: String, CaseIterable {
     case bottom, left, right
-    var title: String { switch self { case .bottom: "Bottom"; case .left: "Left"; case .right: "Right" } }
+    var title: String { switch self { case .bottom: String(localized: "Bottom"); case .left: String(localized: "Left"); case .right: String(localized: "Right") } }
     var popoverEdge: NSRectEdge { switch self { case .bottom: .maxY; case .left: .maxX; case .right: .minX } }
+}
+
+/// Physical motion for the dockable control, after Apple's fluid-interface model:
+/// project momentum to choose the landing spot, resist softly at boundaries.
+enum PanelMotion {
+    /// Faster pointer readings are noise from coalesced events, not intent.
+    static let maximumSpeed: CGFloat = 6000
+
+    /// Distance travelled while decelerating like a scroll view (rate 0.998 per ms).
+    static func project(_ velocity: CGFloat, decelerationRate: CGFloat = 0.998) -> CGFloat {
+        velocity / 1000 * decelerationRate / (1 - decelerationRate)
+    }
+
+    /// Past a boundary, the control follows less the further it is pulled.
+    static func rubberband(_ overshoot: CGFloat, dimension: CGFloat, constant: CGFloat = 0.55) -> CGFloat {
+        guard dimension > 0 else { return 0 }
+        return overshoot * dimension * constant / (dimension + constant * abs(overshoot))
+    }
+}
+
+/// Pointer velocity from the last 100 ms before release only.
+struct DragVelocity {
+    private var samples: [(point: CGPoint, time: TimeInterval)] = []
+
+    mutating func add(_ point: CGPoint, at time: TimeInterval) {
+        samples.append((point, time))
+        samples.removeAll { time - $0.time > 0.1 }
+    }
+
+    func velocity(at now: TimeInterval) -> CGVector {
+        let recent = samples.filter { now - $0.time <= 0.1 }
+        guard let first = recent.first, let last = recent.last, last.time - first.time >= 0.008 else { return .zero }
+        let dt = CGFloat(last.time - first.time)
+        var vector = CGVector(dx: (last.point.x - first.point.x) / dt, dy: (last.point.y - first.point.y) / dt)
+        let speed = hypot(vector.dx, vector.dy)
+        if speed > PanelMotion.maximumSpeed {
+            vector.dx *= PanelMotion.maximumSpeed / speed
+            vector.dy *= PanelMotion.maximumSpeed / speed
+        }
+        return vector
+    }
+}
+
+/// One axis of a spring described like Apple's: damping ratio and response in seconds.
+/// It always continues from the current position and velocity, so it can be retargeted.
+struct PanelSpring {
+    var position: CGFloat
+    var velocity: CGFloat
+    var target: CGFloat
+    private let stiffness: CGFloat
+    private let damping: CGFloat
+
+    init(position: CGFloat, velocity: CGFloat, target: CGFloat, response: CGFloat = 0.3, dampingRatio: CGFloat = 1) {
+        self.position = position
+        self.velocity = velocity
+        self.target = target
+        stiffness = pow(2 * .pi / response, 2)
+        damping = 4 * .pi * dampingRatio / response
+    }
+
+    mutating func step(_ duration: CGFloat) {
+        var remaining = min(duration, 0.1)
+        while remaining > 0 {
+            let dt = min(remaining, 1.0 / 240)
+            velocity += (-stiffness * (position - target) - damping * velocity) * dt
+            position += velocity * dt
+            remaining -= dt
+        }
+    }
+
+    var isSettled: Bool { abs(position - target) < 0.5 && abs(velocity) < 5 }
 }
 
 /// Only an edge and a normalized offset are persisted, never screen contents or display IDs.
@@ -39,7 +110,11 @@ struct ReadingPanelPlacement: Equatable {
         return CGRect(origin: CGPoint(x: visible.minX + x, y: visible.minY + y), size: size)
     }
 
-    static func dropped(at point: CGPoint, in visible: CGRect) -> Self {
+    /// The landing edge comes from where the throw is heading, not only where it was released.
+    static func dropped(at release: CGPoint, velocity: CGVector = .zero, in visible: CGRect) -> Self {
+        let point = CGPoint(
+            x: min(visible.maxX, max(visible.minX, release.x + PanelMotion.project(velocity.dx))),
+            y: min(visible.maxY, max(visible.minY, release.y + PanelMotion.project(velocity.dy))))
         let edge = ReadingPanelEdge.allCases.min { a, b in
             func distance(_ edge: ReadingPanelEdge) -> CGFloat {
                 switch edge {
@@ -63,25 +138,25 @@ enum ReadingPanelState: Hashable {
     case recognizing, preparing, speaking, finished, stopped, noText, failed, positioning, waiting
     var title: String {
         switch self {
-        case .recognizing: "Text erkennen …"
-        case .preparing: "Vorbereiten …"
-        case .speaking: "Vorlesen"
-        case .finished: "Fertig"
-        case .stopped: "Gestoppt"
-        case .noText: "Kein Text erkannt"
-        case .failed: "Vorlesen nicht möglich"
-        case .positioning: "Position wählen"
-        case .waiting: "Warte auf nächsten Text"
+        case .recognizing: String(localized: "Recognizing text…")
+        case .preparing: String(localized: "Preparing…")
+        case .speaking: String(localized: "Reading aloud")
+        case .finished: String(localized: "Done")
+        case .stopped: String(localized: "Stopped")
+        case .noText: String(localized: "No text found")
+        case .failed: String(localized: "Can’t read aloud")
+        case .positioning: String(localized: "Choose position")
+        case .waiting: String(localized: "Waiting for next text")
         }
     }
     var detail: String {
         switch self {
-        case .recognizing, .preparing, .speaking, .waiting: "Esc stoppt alles und leert die Warteschlange"
-        case .finished: "Alles vorgelesen"
-        case .stopped: "Vorlesen beendet"
-        case .noText: "Wähle einen Bereich mit Text."
-        case .failed: "Einrichtung und Fehlerhilfe über die Fragezeichen-Taste"
-        case .positioning: "Wellenform zum Bildschirmrand ziehen"
+        case .recognizing, .preparing, .speaking, .waiting: String(localized: "Escape stops everything and clears the queue")
+        case .finished: String(localized: "Everything was read")
+        case .stopped: String(localized: "Reading stopped")
+        case .noText: String(localized: "Select a region with text.")
+        case .failed: String(localized: "Setup and help are behind the question mark button")
+        case .positioning: String(localized: "Drag the waveform to a screen edge")
         }
     }
     var isActive: Bool { self == .recognizing || self == .preparing || self == .speaking || self == .waiting }
@@ -135,7 +210,10 @@ final class ReadingPanelController: NSObject, ReadingStatusPresenting {
     private var dismissalTask: Task<Void, Never>?
     private var transitionTask: Task<Void, Never>?
     private var flightTask: Task<Void, Never>?
-    private var snapTask: Task<Void, Never>?
+    private var snap: (x: PanelSpring, y: PanelSpring, generation: UInt64)?
+    private var snapClock: CADisplayLink?
+    private var snapTick: CFTimeInterval?
+    private var dragVelocity = DragVelocity()
     private var dragStart: (pointer: CGPoint, frame: CGRect)?
     private var didDrag = false
     private let defaults: UserDefaults
@@ -162,7 +240,7 @@ final class ReadingPanelController: NSObject, ReadingStatusPresenting {
         dismissalTask?.cancel()
         transitionTask?.cancel()
         flightTask?.cancel()
-        snapTask?.cancel()
+        stopSnap()
         content?.stopAnimating()
         flight?.close()
         panel?.close()
@@ -181,7 +259,7 @@ final class ReadingPanelController: NSObject, ReadingStatusPresenting {
         let panel = panel ?? ReadingStatusPanel()
         self.panel = panel
         let appearing = content == nil
-        snapTask?.cancel()
+        stopSnap()
         let frame = dragStart != nil ? panel.frame : placement.frame(in: screen.visibleFrame)
         let view = content ?? ReadingControlView(frame: NSRect(origin: .zero, size: frame.size))
         view.isVertical = placement.edge != .bottom
@@ -191,8 +269,6 @@ final class ReadingPanelController: NSObject, ReadingStatusPresenting {
         view.onTogglePause = { [weak self] in self?.onTogglePause?() }
         if appearing { panel.contentView = view }
         panel.setFrame(frame, display: true)
-        view.onPress = { [weak self] in self?.interfaceSounds?.play(.tap) }
-        view.onRelease = { [weak self] in self?.interfaceSounds?.play(.release) }
         view.onDragStart = { [weak self] point in self?.beginDrag(at: point) }
         view.onDragMove = { [weak self] point in self?.moveDrag(to: point) }
         view.onDragEnd = { [weak self] in self?.endDrag() }
@@ -257,8 +333,7 @@ final class ReadingPanelController: NSObject, ReadingStatusPresenting {
         dismissalTask?.cancel()
         transitionTask?.cancel()
         flightTask?.cancel()
-        snapTask?.cancel()
-        snapTask = nil
+        stopSnap()
         dragStart = nil
         didDrag = false
         dismissalTask = nil
@@ -280,7 +355,7 @@ final class ReadingPanelController: NSObject, ReadingStatusPresenting {
         let current = generation
         dismissalTask?.cancel()
         transitionTask?.cancel()
-        snapTask?.cancel()
+        stopSnap()
         dragStart = nil
         content?.retract()
         transitionTask = Task { @MainActor [weak self] in
@@ -319,7 +394,7 @@ final class ReadingPanelController: NSObject, ReadingStatusPresenting {
     }
     @objc private func displayLayoutChanged() {
         guard let displayID, let screen = Self.screen(for: displayID) else { hide(); return }
-        snapTask?.cancel()
+        stopSnap()
         dragStart = nil
         panel?.setFrame(placement.frame(in: screen.visibleFrame), display: true)
     }
@@ -336,49 +411,89 @@ final class ReadingPanelController: NSObject, ReadingStatusPresenting {
 
     func beginDrag(at pointer: CGPoint) {
         guard let panel, panel.isVisible, state != nil else { return }
-        snapTask?.cancel()
+        stopSnap()
         dismissalTask?.cancel()
         dragStart = (pointer, panel.frame)
         didDrag = false
     }
 
+    /// The control follows the pointer 1:1 from where it was grabbed and resists
+    /// progressively past the usable screen area instead of stopping hard.
     func moveDrag(to pointer: CGPoint) {
         guard let start = dragStart, let panel, let displayID, let screen = Self.screen(for: displayID) else { return }
         let dx = pointer.x - start.pointer.x, dy = pointer.y - start.pointer.y
+        dragVelocity.add(pointer, at: CACurrentMediaTime())
         guard didDrag || hypot(dx, dy) >= 5 else { return }
         didDrag = true
         let visible = screen.visibleFrame
-        panel.setFrameOrigin(CGPoint(x: min(visible.maxX - panel.frame.width, max(visible.minX, start.frame.minX + dx)),
-                                     y: min(visible.maxY - panel.frame.height, max(visible.minY, start.frame.minY + dy))))
+        func resist(_ value: CGFloat, _ lower: CGFloat, _ upper: CGFloat, _ dimension: CGFloat) -> CGFloat {
+            if value < lower { return lower + PanelMotion.rubberband(value - lower, dimension: dimension) }
+            if value > upper { return upper + PanelMotion.rubberband(value - upper, dimension: dimension) }
+            return value
+        }
+        panel.setFrameOrigin(CGPoint(
+            x: resist(start.frame.minX + dx, visible.minX, visible.maxX - panel.frame.width, visible.width),
+            y: resist(start.frame.minY + dy, visible.minY, visible.maxY - panel.frame.height, visible.height)))
     }
 
+    /// The landing edge is projected from the release velocity, and a spring carries
+    /// that velocity into the dock so there is no seam between dragging and settling.
     func endDrag() {
-        defer { dragStart = nil; didDrag = false; scheduleTerminalDismissal() }
+        defer { dragStart = nil; didDrag = false; dragVelocity = DragVelocity(); scheduleTerminalDismissal() }
         guard dragStart != nil, didDrag, let panel, let displayID, let screen = Self.screen(for: displayID) else { return }
+        let velocity = dragVelocity.velocity(at: CACurrentMediaTime())
         let center = CGPoint(x: panel.frame.midX, y: panel.frame.midY)
-        let next = ReadingPanelPlacement.dropped(at: center, in: screen.visibleFrame)
+        let wasVertical = placement.edge != .bottom
+        let next = ReadingPanelPlacement.dropped(at: center, velocity: velocity, in: screen.visibleFrame)
         let target = next.frame(in: screen.visibleFrame)
         // Saving synchronously updates Settings and the layout, then the new orientation settles at its edge.
         next.save(to: defaults)
         panel.setFrame(target, display: true)
         guard !reduced else { return }
-        let start = CGPoint(x: min(screen.visibleFrame.maxX - target.width, max(screen.visibleFrame.minX, center.x - target.width / 2)),
-                            y: min(screen.visibleFrame.maxY - target.height, max(screen.visibleFrame.minY, center.y - target.height / 2)))
-        panel.setFrameOrigin(start)
-        NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
-        let current = generation
-        snapTask = Task { @MainActor [weak self] in
-            let began = CACurrentMediaTime()
-            while !Task.isCancelled {
-                guard let self, self.generation == current, self.panel?.isVisible == true else { return }
-                let t = min(1, (CACurrentMediaTime() - began) / 0.22)
-                let eased = 1 - pow(1 - t, 3)
-                self.panel?.setFrameOrigin(CGPoint(x: start.x + (target.minX - start.x) * eased,
-                                                   y: start.y + (target.minY - start.y) * eased))
-                if t >= 1 { return }
-                do { try await Task.sleep(for: .milliseconds(16)) } catch { return }
-            }
+        if wasVertical != (next.edge != .bottom) {
+            // The capsule turns at the release point: let it re-form rather than jump.
+            SaywingCapsuleStyle.materialize(content?.layer, reduced: false)
         }
+        let visible = screen.visibleFrame
+        let start = CGPoint(x: min(visible.maxX - target.width, max(visible.minX, center.x - target.width / 2)),
+                            y: min(visible.maxY - target.height, max(visible.minY, center.y - target.height / 2)))
+        panel.setFrameOrigin(start)
+        // Only a throw may overshoot a little; a placed release settles calmly.
+        let ratio: CGFloat = hypot(velocity.dx, velocity.dy) > 600 ? 0.85 : 1
+        snap = (PanelSpring(position: start.x, velocity: velocity.dx, target: target.minX, dampingRatio: ratio),
+                PanelSpring(position: start.y, velocity: velocity.dy, target: target.minY, dampingRatio: ratio),
+                generation)
+        snapTick = nil
+        if snapClock == nil, let view = panel.contentView {
+            let link = view.displayLink(target: SnapClockProxy(controller: self), selector: #selector(SnapClockProxy.fire))
+            link.add(to: .main, forMode: .common)
+            snapClock = link
+        }
+        snapClock?.isPaused = false
+    }
+
+    fileprivate func stepSnap(now: CFTimeInterval) {
+        guard var current = snap, current.generation == generation, let panel, panel.isVisible else { stopSnap(); return }
+        let dt = CGFloat(min(1.0 / 20, now - (snapTick ?? now - 1.0 / 60)))
+        snapTick = now
+        current.x.step(dt)
+        current.y.step(dt)
+        snap = current
+        guard !(current.x.isSettled && current.y.isSettled) else {
+            panel.setFrameOrigin(CGPoint(x: current.x.target, y: current.y.target))
+            // Feedback lands with the control, not when the pointer lets go.
+            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+            stopSnap()
+            return
+        }
+        panel.setFrameOrigin(CGPoint(x: current.x.position, y: current.y.position))
+    }
+
+    private func stopSnap() {
+        snap = nil
+        snapTick = nil
+        snapClock?.invalidate()
+        snapClock = nil
     }
 
     private func scheduleTerminalDismissal() {
@@ -399,7 +514,7 @@ final class ReadingStatusPanel: NSPanel {
     override var canBecomeMain: Bool { false }
     init() {
         super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-        title = "Vorlesestatus"
+        title = String(localized: "Reading status")
         setAccessibilityIdentifier("readingStatusPanel")
         level = .floating
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
@@ -412,11 +527,21 @@ final class ReadingStatusPanel: NSPanel {
     }
 }
 
+/// The display link retains its target; this proxy keeps the controller collectable.
+@MainActor
+private final class SnapClockProxy: NSObject {
+    private weak var controller: ReadingPanelController?
+    init(controller: ReadingPanelController) { self.controller = controller }
+    @objc func fire(_ link: CADisplayLink) { controller?.stepSnap(now: link.timestamp) }
+}
+
 /// A click-through window covering the selected display. It shows the captured
 /// frame as a mint ghost that collapses into a glowing dot at the control's spot.
 @MainActor
 final class SelectionFlightWindow: NSWindow {
-    static let durationMilliseconds = 460
+    static let durationMilliseconds = 380
+    /// Fast start, soft landing: the response is visible on the first frame.
+    static let timing = CAMediaTimingFunction(controlPoints: 0.2, 0.85, 0.25, 1)
     private let ghost = CAShapeLayer()
 
     init(screen: NSScreen) {
@@ -448,7 +573,7 @@ final class SelectionFlightWindow: NSWindow {
         ghost.path = start
         orderFrontRegardless()
         let duration = Double(Self.durationMilliseconds) / 1000
-        let timing = CAMediaTimingFunction(controlPoints: 0.6, 0, 0.2, 1)
+        let timing = Self.timing
         func animate(_ keyPath: String, from: Any, to: Any) {
             let animation = CABasicAnimation(keyPath: keyPath)
             animation.fromValue = from
@@ -581,7 +706,7 @@ final class ReadingControlView: NSView, NSPopoverDelegate {
     func setPaused(_ value: Bool) {
         paused = value
         if value { setLevel(0) }
-        setAccessibilityLabel(value ? "Vorlesen pausiert" : "Vorlesestatus: " + state.title)
+        setAccessibilityLabel(value ? String(localized: "Reading paused") : String(localized: "Reading status: \(state.title)"))
         updateOptions()
         tick(now: CACurrentMediaTime())
     }
@@ -753,7 +878,7 @@ final class ReadingControlView: NSView, NSPopoverDelegate {
                 self?.resumeClock()
             }
         }
-        body.toolTip = "Darüberfahren: Pause und Optionen · Ziehen: Position ändern · Esc: alles stoppen"
+        body.toolTip = String(localized: "Hover for pause and options · Drag to move · Escape stops everything")
         body.onDragStart = { [weak self] in self?.onDragStart?($0) }
         body.onDragMove = { [weak self] in self?.onDragMove?($0) }
         body.onDragEnd = { [weak self] in self?.onDragEnd?() }
@@ -771,19 +896,19 @@ final class ReadingControlView: NSView, NSPopoverDelegate {
 
     private func updateOptions() {
         queueBadge.title = state == .failed ? "?" : queueCount > 0 ? "+\(queueCount)" : "···"
-        let label = state == .failed ? "Einrichtung und Fehlerhilfe öffnen" : "Wiedergabe und Warteschlange · \(queueCount) Texte"
+        let label = state == .failed ? String(localized: "Open setup and help") : String(localized: "Playback and queue · \(queueCount) waiting")
         queueBadge.setAccessibilityLabel(label)
         queueBadge.toolTip = label
         queueBadge.isHidden = !state.isActive && state != .failed
         queueBadge.isEnabled = exitStart == nil
         queueBadge.needsDisplay = true
         pauseButton.title = paused ? "resume" : "pause"
-        pauseButton.setAccessibilityLabel(paused ? "Vorlesen fortsetzen" : "Vorlesen pausieren")
-        pauseButton.toolTip = state == .speaking ? (paused ? "Vorlesen fortsetzen" : "Vorlesen pausieren") : "Pause verfügbar, sobald die Wiedergabe startet"
+        pauseButton.setAccessibilityLabel(paused ? String(localized: "Resume reading") : String(localized: "Pause reading"))
+        pauseButton.toolTip = state == .speaking ? (paused ? String(localized: "Resume reading") : String(localized: "Pause reading")) : String(localized: "Pause becomes available when playback starts")
         pauseButton.isHidden = !state.isActive
         pauseButton.isEnabled = state == .speaking && exitStart == nil
         pauseButton.needsDisplay = true
-        setAccessibilityValue(queueCount > 0 ? "\(queueCount) Texte in der Warteschlange" : "Warteschlange leer")
+        setAccessibilityValue(queueCount > 0 ? String(localized: "\(queueCount) waiting in the queue") : String(localized: "Queue empty"))
         var actions: [NSAccessibilityCustomAction] = []
         if state.isActive || state == .failed {
             actions.append(NSAccessibilityCustomAction(name: label, handler: { [weak self] in
@@ -792,7 +917,7 @@ final class ReadingControlView: NSView, NSPopoverDelegate {
             }))
         }
         if state == .speaking {
-            actions.append(NSAccessibilityCustomAction(name: paused ? "Vorlesen fortsetzen" : "Vorlesen pausieren", handler: { [weak self] in
+            actions.append(NSAccessibilityCustomAction(name: paused ? String(localized: "Resume reading") : String(localized: "Pause reading"), handler: { [weak self] in
                 guard let self, self.pauseButton.isEnabled else { return false }
                 self.togglePause(); return true
             }))
@@ -845,13 +970,13 @@ final class ReadingControlView: NSView, NSPopoverDelegate {
         }
         if state != .speaking { targetLevel = 0 }
         toolTip = state.detail
-        setAccessibilityLabel("Vorlesestatus: " + state.title)
+        setAccessibilityLabel(String(localized: "Reading status: \(state.title)"))
         setAccessibilityHelp(state.detail)
         setAccent(state.needsAttention ? ReadingPalette.amber : ReadingPalette.mint)
         button.terminal = !state.isActive
         button.isEnabled = true
-        button.setAccessibilityLabel(state.isActive ? "Vorlesen stoppen" : "Status schließen")
-        button.toolTip = state.isActive ? "Gesamten Vorgang stoppen (Esc)" : "Status schließen"
+        button.setAccessibilityLabel(state.isActive ? String(localized: "Stop reading") : String(localized: "Close status"))
+        button.toolTip = state.isActive ? String(localized: "Stop everything (Esc)") : String(localized: "Close status")
         note.stringValue = state.title
         noteUntil = state.needsAttention ? now + 2.4 : 0
         if !state.isActive {

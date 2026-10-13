@@ -46,6 +46,58 @@ struct AppStatusTests {
     }
 
     @Test
+    func permissionsOpenTheirOwnPrivacyPane() {
+        #expect(SaywingPermission.allCases.map(\.settingsURL.absoluteString) == [
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent",
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+        ])
+        #expect(SaywingPermission.reading == [.screenRecording, .inputMonitoring])
+        #expect(SaywingPermission.dictation == [.microphone, .accessibility])
+        #expect(SaywingPermission.allCases.filter { !$0.isRequired } == [.inputMonitoring])
+    }
+
+    @Test @MainActor
+    func readingTestNeedsOnlyScreenRecording() {
+        var granted: Set<SaywingPermission> = [.screenRecording]
+        let status = PermissionStatus { granted.contains($0) }
+        #expect(status.canTestReading)
+        #expect(!status.canTestDictation)
+        granted = [.inputMonitoring, .microphone]
+        status.refresh()
+        #expect(!status.canTestReading)
+        #expect(status.canTestDictation)
+        #expect(status.isGranted(.inputMonitoring))
+    }
+
+    @Test
+    func germanLocalizationShipsInTheAppBundle() throws {
+        let path = try #require(Bundle.main.path(forResource: "de", ofType: "lproj"))
+        let german = try #require(Bundle(path: path))
+        func de(_ key: String) -> String { german.localizedString(forKey: key, value: "MISSING", table: nil) }
+        #expect(de("Read Screen Region…") == "Bildschirmbereich vorlesen…")
+        #expect(de("Ready") == "Bereit")
+        #expect(de("Stop reading") == "Vorlesen stoppen")
+        #expect(de("Ready to dictate") == "Bereit zum Diktieren")
+        #expect(String.localizedStringWithFormat(de("%lld texts waiting"), 1) == "1 Text wartet")
+        #expect(String.localizedStringWithFormat(de("%lld texts waiting"), 3) == "3 Texte warten")
+        #expect(german.localizedString(forKey: "NSMicrophoneUsageDescription", value: nil, table: "InfoPlist").hasPrefix("Saywing nimmt"))
+        // Tests run with the English source strings.
+        #expect(AppStatus.ready.title == "Ready")
+    }
+
+    /// Every shipped key has a German entry. Reading sources from the repository is
+    /// left to scripts/check-localization.py so the test host never asks for folder access.
+    @Test
+    func germanTableCoversTheWholeCatalog() throws {
+        let path = try #require(Bundle.main.path(forResource: "Localizable", ofType: "strings", inDirectory: nil, forLocalization: "de"))
+        let table = try #require(NSDictionary(contentsOfFile: path) as? [String: String])
+        #expect(table.count > 280)
+        #expect(table.values.allSatisfy { !$0.isEmpty })
+    }
+
+    @Test
     func appBundleIsConfiguredAsMenuBarOnly() {
         #expect(Bundle.main.object(forInfoDictionaryKey: "LSUIElement") as? Bool == true)
     }

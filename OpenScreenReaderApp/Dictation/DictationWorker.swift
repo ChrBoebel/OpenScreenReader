@@ -7,6 +7,17 @@ struct DictationWorkerMessage: Decodable, Sendable {
   var text: String? = nil
   var message: String? = nil
   var version: Int? = nil
+  /// Stable worker codes map to localized text; older workers send only `message`.
+  var code: String? = nil
+
+  var localizedDetail: String? {
+    switch code {
+    case "load_failed": String(localized: "The model or local runtime could not be loaded.")
+    case "request_too_large": String(localized: "The recording is too large to process.")
+    case "processing_failed": String(localized: "The recording could not be processed. Please try again.")
+    default: message
+    }
+  }
 }
 
 @MainActor
@@ -61,14 +72,14 @@ final class DictationWorker: DictationTranscribing {
         guard let self, self.session == token else { return }
         self.stop()
         self.onMessage?(
-          .init(type: "fatal", message: "Der Diktierprozess wurde beendet. Bitte erneut starten."))
+          .init(type: "fatal", message: String(localized: "The dictation process ended. Please start again.")))
       }
     }
     do { try child.run() } catch {
       onMessage?(
         .init(
           type: "fatal",
-          message: "Die lokale Diktierlaufzeit fehlt oder konnte nicht gestartet werden."))
+          message: String(localized: "The local dictation runtime is missing or could not start.")))
       return
     }
     process = child
@@ -79,7 +90,7 @@ final class DictationWorker: DictationTranscribing {
       self.stop()
       self.onMessage?(
         .init(
-          type: "fatal", message: "Zeitlimit beim Laden des Diktiermodells. Bitte erneut versuchen."
+          type: "fatal", message: String(localized: "Loading the dictation model timed out. Please try again.")
         ))
     }
     let reader = stdout.fileHandleForReading
@@ -114,7 +125,7 @@ final class DictationWorker: DictationTranscribing {
           guard let self, self.session == token else { return }
           self.stop()
           self.onMessage?(
-            .init(type: "fatal", message: "Ungültige Antwort vom lokalen Diktiermodell."))
+            .init(type: "fatal", message: String(localized: "The local dictation model sent an invalid response.")))
         }
       }
     }
@@ -122,7 +133,7 @@ final class DictationWorker: DictationTranscribing {
 
   func transcribe(_ audio: AudioPacket, id: UUID, language: String?) {
     guard ready, let input else {
-      onMessage?(.init(type: "error", id: id.uuidString, message: "Modell ist noch nicht bereit."))
+      onMessage?(.init(type: "error", id: id.uuidString, message: String(localized: "The model is not ready yet.")))
       return
     }
     let token = session
@@ -142,7 +153,7 @@ final class DictationWorker: DictationTranscribing {
           self.onMessage?(
             .init(
               type: "error", id: id.uuidString,
-              message: "Audio konnte nicht an das lokale Modell übergeben werden."))
+              message: String(localized: "Audio could not be passed to the local model.")))
         }
       }
     }

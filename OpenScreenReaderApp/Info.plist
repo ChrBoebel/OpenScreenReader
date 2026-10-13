@@ -29,7 +29,7 @@
     <key>LSUIElement</key>
     <true/>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Saywing nimmt deine Stimme nur während eines gestarteten Diktats auf und erkennt den Text lokal auf deinem Mac.</string>
+    <string>Saywing records your voice only during a dictation you start and recognizes the text locally on your Mac.</string>
     <key>NSHighResolutionCapable</key>
     <true/>
 </dict>

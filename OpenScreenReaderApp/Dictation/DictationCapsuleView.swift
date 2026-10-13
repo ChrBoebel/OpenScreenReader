@@ -84,13 +84,13 @@ final class DictationCapsuleView: NSView {
         finishButton.target = self
         finishButton.action = #selector(finish)
         finishButton.setAccessibilityIdentifier("dictationFinish")
-        finishButton.setAccessibilityLabel("Aufnahme beenden und Text einfügen")
-        finishButton.toolTip = "Aufnahme beenden & einfügen"
+        finishButton.setAccessibilityLabel(String(localized: "Finish recording and paste"))
+        finishButton.toolTip = String(localized: "Finish & Paste")
         addSubview(dismissButton)
         addSubview(finishButton)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(accessibilityChanged),
             name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil)
-        present(.idle, title: "Bereit zum Diktieren", detail: "")
+        present(.idle, title: String(localized: "Ready to dictate"), detail: "")
         accessibilityChanged()
     }
     required init?(coder: NSCoder) { nil }
@@ -102,18 +102,18 @@ final class DictationCapsuleView: NSView {
         if changed { inputLevel = 0 }
         finishButton.isEnabled = state == .recording
         finishButton.isHidden = state != .recording
-        dismissButton.setAccessibilityLabel(state.isBusy ? "Diktat verwerfen" : "Hinweis schließen")
-        dismissButton.toolTip = state.isBusy ? "Verwerfen · Esc" : "Hinweis schließen"
+        dismissButton.setAccessibilityLabel(state.isBusy ? String(localized: "Discard dictation") : String(localized: "Close notice"))
+        dismissButton.toolTip = state.isBusy ? String(localized: "Discard (Esc)") : String(localized: "Close notice")
         let glyph: String
         let statusTitle: String
         switch state {
-        case .recording: statusTitle = "Aufnahme"; glyph = "mic.fill"
-        case .processing: statusTitle = "Text wird erkannt"; glyph = "ellipsis"
-        case .pasting: statusTitle = "Einfügen ausgelöst"; glyph = "arrow.up.doc"
-        case .inserted: statusTitle = "Eingefügt"; glyph = "checkmark"
-        case .unconfirmed: statusTitle = "Einfügen ausgelöst – bitte Zielfeld prüfen"; glyph = "arrow.up.doc"
+        case .recording: statusTitle = String(localized: "Recording"); glyph = "mic.fill"
+        case .processing: statusTitle = String(localized: "Recognizing text"); glyph = "ellipsis"
+        case .pasting: statusTitle = String(localized: "Paste sent"); glyph = "arrow.up.doc"
+        case .inserted: statusTitle = String(localized: "Pasted"); glyph = "checkmark"
+        case .unconfirmed: statusTitle = String(localized: "Paste sent – check the target field"); glyph = "arrow.up.doc"
         case .attention: statusTitle = title; glyph = "exclamationmark"
-        case .idle: statusTitle = title.isEmpty ? "Bereit zum Diktieren" : title; glyph = "mic"
+        case .idle: statusTitle = title.isEmpty ? String(localized: "Ready to dictate") : title; glyph = "mic"
         }
         symbol.isHidden = state == .recording || state == .processing
         let accent = state == .attention ? ReadingPalette.amber : ReadingPalette.mint
@@ -121,10 +121,10 @@ final class DictationCapsuleView: NSView {
             .withSymbolConfiguration(.init(pointSize: 12, weight: .medium))
         symbol.contentTintColor = accent
         toolTip = [statusTitle, detail].filter { !$0.isEmpty }.joined(separator: "\n")
-        setAccessibilityLabel("Saywing · Diktieren · " + statusTitle)
+        setAccessibilityLabel(String(localized: "Saywing dictation: \(statusTitle)"))
         setAccessibilityHelp(detail)
         setAccessibilityCustomActions(state == .attention ? [NSAccessibilityCustomAction(
-            name: "Details im Diktierfenster öffnen", handler: { [weak self] in self?.onDetails?(); return true })] : [])
+            name: String(localized: "Open details in the dictation window"), handler: { [weak self] in self?.onDetails?(); return true })] : [])
         drawFrame(now: CACurrentMediaTime(), reducedMotion: reduced)
         refreshClock()
         if changed, visible {
