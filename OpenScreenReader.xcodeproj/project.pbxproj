@@ -32,6 +32,7 @@
 		AA2000000000000000000002 = {isa = PBXBuildFile; fileRef = AA1000000000000000000002; };
 		AA2000000000000000000003 = {isa = PBXBuildFile; fileRef = AA1000000000000000000003; };
 		AA2000000000000000000004 = {isa = PBXBuildFile; fileRef = AA1000000000000000000004; };
+		BB2000000000000000000001 /* Permissions.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB1000000000000000000001 /* Permissions.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -80,6 +81,7 @@
 		AA1000000000000000000002 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Dictation/DictationWorker.swift; sourceTree = "<group>"; };
 		AA1000000000000000000003 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Dictation/DictationController.swift; sourceTree = "<group>"; };
 		AA1000000000000000000004 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Dictation/DictationCapsuleView.swift; sourceTree = "<group>"; };
+		BB1000000000000000000001 /* Permissions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Permissions.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -131,6 +133,7 @@
 		A00000000000000000000004 /* OpenScreenReaderApp */ = {
 			isa = PBXGroup;
 			children = (
+				BB1000000000000000000001 /* Permissions.swift */,
 				AA1000000000000000000003,
 				AA1000000000000000000004,
 				AA1000000000000000000002,
@@ -312,6 +315,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BB2000000000000000000001 /* Permissions.swift in Sources */,
 				AA2000000000000000000003,
 				AA2000000000000000000004,
 				AA2000000000000000000002,

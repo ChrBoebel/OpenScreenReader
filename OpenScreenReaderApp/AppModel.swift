@@ -102,11 +102,14 @@ final class AppModel: ObservableObject {
 
     func showSetup() {
         if setupWindow == nil {
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 530),
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 640),
                                   styleMask: [.titled, .closable], backing: .buffered, defer: false)
-            window.title = "Saywing · Einrichtung"
+            window.title = String(localized: "Set Up Saywing")
             window.isReleasedWhenClosed = false
-            window.contentViewController = NSHostingController(rootView: SetupView(model: self))
+            let host = NSHostingController(rootView: SetupView(model: self))
+            // The window follows the setup content instead of clipping it.
+            host.sizingOptions = [.preferredContentSize]
+            window.contentViewController = host
             window.center()
             setupWindow = window
         }

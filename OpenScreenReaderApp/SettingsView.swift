@@ -4,7 +4,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var model: AppModel
-    @State private var permissionNotice: String?
+    @StateObject private var permissions = PermissionStatus()
     @State private var draftShortcut = ShortcutConfiguration.default
     @State private var confirmCommonShortcut = false
     @State private var editingQueueShortcut = false
@@ -157,23 +157,10 @@ struct SettingsView: View {
             }
 
             Section("Permissions") {
-                Text("Screen Recording allows the selected region to be captured. Input Monitoring lets Escape cancel while another app is active; only Escape is checked, and monitoring stops when the operation ends.")
-                    .fixedSize(horizontal: false, vertical: true)
-                Button("Allow Screen Recording…") {
-                    let granted = CGRequestScreenCaptureAccess()
-                    permissionNotice = granted ? "Screen Recording is allowed. Select a region to retry."
-                        : "Enable Saywing under System Settings → Privacy & Security → Screen & System Audio Recording, then reopen the app if requested."
-                }
-                Button("Allow Input Monitoring…") {
-                    let granted = CGRequestListenEventAccess()
-                    permissionNotice = granted ? "Input Monitoring is allowed. Select a region to retry."
-                        : "Enable Saywing under System Settings → Privacy & Security → Input Monitoring, then reopen the app if requested."
-                }
-                if let permissionNotice {
-                    Text(permissionNotice).fixedSize(horizontal: false, vertical: true)
-                }
+                ForEach(SaywingPermission.allCases) { PermissionRow(permission: $0, status: permissions) }
                 if let errorMessage = model.errorMessage {
-                    Text(errorMessage).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
+                    Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
@@ -266,71 +253,82 @@ struct PlaybackControlsView: View {
     }
 }
 
+/// One setup for both activities: grants, then a real test of each. A green
+/// grant is a system check only; the tests confirm the complete flow.
 struct SetupView: View {
     @ObservedObject var model: AppModel
-    @State private var screenAllowed = false
-    @State private var inputAllowed = false
-    @State private var notice = ""
+    @StateObject private var permissions = PermissionStatus()
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 20) {
             HStack(spacing: 12) {
                 Image(nsImage: NSApplication.shared.applicationIconImage)
                     .resizable().scaledToFit().frame(width: 56, height: 56)
                     .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Saywing").font(.title2.bold())
-                    Text("Vorlesen & Diktieren für macOS.").font(.subheadline)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Welcome to Saywing").font(.title2.weight(.semibold))
+                    Text("Read screen text aloud and dictate – entirely on this Mac.")
+                        .foregroundStyle(.secondary)
                 }
             }
-            Text("Vorlesen einrichten").font(.headline)
-            Text("Diktieren ist in Erprobung und in dieser App noch nicht verfügbar.")
-                .font(.caption).foregroundStyle(.secondary)
-            Text("Zwei Berechtigungen, dann ein echter Vorlesetest. Kein Konto und kein Cloud-Dienst.")
-                .foregroundStyle(.secondary)
-            permissionRow("1 · Bildschirmaufnahme", allowed: screenAllowed,
-                          explanation: "Nur der von dir markierte Bereich wird für die lokale Texterkennung erfasst.") {
-                _ = CGRequestScreenCaptureAccess()
-                refresh()
-                notice = "Aktiviere Saywing in Datenschutz & Sicherheit → Aufnahme von Bildschirm & Systemaudio. Öffne die App danach erneut, falls macOS dazu auffordert."
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(SaywingPermission.reading) { PermissionRow(permission: $0, status: permissions) }
+                    Label(LocalSpeechService.installationSummary, systemImage: "waveform")
+                        .font(.callout).foregroundStyle(.secondary)
+                    Divider()
+                    Text("Open some text in another app, then select a sentence. Press Escape while it reads.")
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack {
+                        Button("Select Screen Region") { model.beginSetupCapture() }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(!permissions.canTestReading || !model.canChangeShortcut)
+                            .accessibilityIdentifier("setupReadingTest")
+                        Text(model.shortcutConfiguration.displayName).foregroundStyle(.secondary)
+                            .accessibilityLabel("Shortcut \(model.shortcutConfiguration.displayName)")
+                    }
+                    if permissions.canTestReading && !permissions.isGranted(.inputMonitoring) {
+                        Text("Without Input Monitoring, Escape stops reading only while Saywing is in front. The stop button always works.")
+                            .font(.callout).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(8)
+            } label: {
+                Label("Read Aloud", systemImage: "speaker.wave.2")
             }
-            permissionRow("2 · Eingabeüberwachung", allowed: inputAllowed,
-                          explanation: "Damit Esc auch in anderen Apps sofort stoppt. Keine Tastatureingaben werden gespeichert.") {
-                _ = CGRequestListenEventAccess()
-                refresh()
-                notice = "Aktiviere Saywing in Datenschutz & Sicherheit → Eingabeüberwachung. Verwende die App unter /Applications/Saywing.app, nicht den UI-Tests-Runner."
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(SaywingPermission.dictation) { PermissionRow(permission: $0, status: permissions) }
+                    Divider()
+                    Text("Hold Fn while you speak, release to paste. Try it in a test field first.")
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("Try Dictation…") { model.dictation?.showWindow() }
+                        .disabled(model.dictation == nil || !permissions.canTestDictation)
+                        .accessibilityIdentifier("setupDictationTest")
+                }
+                .padding(8)
+            } label: {
+                Label("Dictate", systemImage: "mic")
             }
-            Label(LocalSpeechService.installationSummary, systemImage: "waveform")
-            Button("Status erneut prüfen") { refresh() }
-            Divider()
-            Text("3 · Im Alltag testen").font(.headline)
-            Text("Öffne einen Text in einer anderen App. Starte die Auswahl, markiere einen Satz und drücke beim Vorlesen Esc. Die Freigaben oben sind Systemprüfungen; erst dieser Test bestätigt den vollständigen Ablauf.")
-                .font(.callout)
-            Button("Bildschirmbereich auswählen") {
-                model.beginSetupCapture()
-            }.disabled(!screenAllowed || !inputAllowed || !model.canChangeShortcut)
-                .buttonStyle(.borderedProminent)
-            if !notice.isEmpty { Text(notice).font(.caption).foregroundStyle(.secondary) }
-            if let error = model.errorMessage { Text(error).font(.caption).foregroundStyle(.red) }
+
+            if let error = model.errorMessage {
+                Label(error, systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             HStack {
-                Text(model.isPaused ? "Pausiert" : model.status.title).font(.caption)
+                Text(model.isPaused ? "Paused" : model.status.title).foregroundStyle(.secondary)
                 Spacer()
-                Button("Einrichtung schließen") { model.finishSetup() }
+                Button("Check Again") { permissions.refresh() }
+                Button("Done") { model.finishSetup() }
+                    .keyboardShortcut(.defaultAction)
             }
         }
-        .padding(24).frame(width: 480)
-        .onAppear { refresh() }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in refresh() }
-    }
-    private func refresh() {
-        screenAllowed = CGPreflightScreenCaptureAccess()
-        inputAllowed = CGPreflightListenEventAccess()
-    }
-    private func permissionRow(_ title: String, allowed: Bool, explanation: String, request: @escaping () -> Void) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Label(title + (allowed ? " · freigegeben" : " · fehlt"), systemImage: allowed ? "checkmark.circle.fill" : "circle")
-                .font(.headline)
-            Text(explanation).font(.caption).foregroundStyle(.secondary)
-            if !allowed { Button("Freigabe anfragen…", action: request) }
-        }
+        .padding(24)
+        .frame(width: 520)
     }
 }

@@ -46,6 +46,32 @@ struct AppStatusTests {
     }
 
     @Test
+    func permissionsOpenTheirOwnPrivacyPane() {
+        #expect(SaywingPermission.allCases.map(\.settingsURL.absoluteString) == [
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent",
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+        ])
+        #expect(SaywingPermission.reading == [.screenRecording, .inputMonitoring])
+        #expect(SaywingPermission.dictation == [.microphone, .accessibility])
+        #expect(SaywingPermission.allCases.filter { !$0.isRequired } == [.inputMonitoring])
+    }
+
+    @Test @MainActor
+    func readingTestNeedsOnlyScreenRecording() {
+        var granted: Set<SaywingPermission> = [.screenRecording]
+        let status = PermissionStatus { granted.contains($0) }
+        #expect(status.canTestReading)
+        #expect(!status.canTestDictation)
+        granted = [.inputMonitoring, .microphone]
+        status.refresh()
+        #expect(!status.canTestReading)
+        #expect(status.canTestDictation)
+        #expect(status.isGranted(.inputMonitoring))
+    }
+
+    @Test
     func appBundleIsConfiguredAsMenuBarOnly() {
         #expect(Bundle.main.object(forInfoDictionaryKey: "LSUIElement") as? Bool == true)
     }
