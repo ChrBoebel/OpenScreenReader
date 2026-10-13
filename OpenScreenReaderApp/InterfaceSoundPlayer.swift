@@ -13,16 +13,14 @@ enum InterfaceCue: CaseIterable, Equatable {
     case completion
     /// No text or a failure that needs the user's attention.
     case attention
-    /// The stop/close control was pressed.
-    case tap
-    /// The stop/close control was released.
-    case release
+    // Buttons have no click sounds: stopping is a cancellation, and feedback is
+    // reserved for opening, completion and attention.
 
     static let sampleRate = 44_100
     static let channels = 2
 
     /// Peak amplitude before the user's effect volume is applied.
-    var peak: Float { self == .tap || self == .release ? 0.42 : self == .completion ? 0.36 : 0.5 }
+    var peak: Float { self == .completion ? 0.36 : 0.5 }
 
     /// Two voicings alternate so the tenth reading does not sound like the first.
     var variantCount: Int { self == .selection || self == .completion ? 2 : 1 }
@@ -60,18 +58,6 @@ enum InterfaceCue: CaseIterable, Equatable {
             voice.thud(at: 0.16, frequency: 75, decay: 0.11, gain: 0.35)
             voice.room(wet: 0.25, size: 0.3)
             return voice.render(duration: 0.8, peak: peak, fade: 0.08)
-        case .tap:
-            // Key down: a hard, tiny wooden tick with a low body.
-            voice.bar(at: 0, frequency: 1100, decay: 0.012, gain: 0.9, hardness: 0.9, partials: [(1, 1, 1), (2.6, 0.5, 0.4)])
-            voice.thud(at: 0, frequency: 150, decay: 0.02, gain: 0.6)
-            voice.room(wet: 0.08, size: 0.12)
-            return voice.render(duration: 0.12, peak: peak, fade: 0.01)
-        case .release:
-            // Key up: a softer wooden tock with a tiny drop.
-            voice.bar(at: 0, frequency: 720, decay: 0.02, gain: 0.8, hardness: 0.6, partials: [(1, 1, 1), (2.6, 0.3, 0.4)])
-            voice.drop(at: 0, frequency: 950, rise: 1.5, decay: 0.03, gain: 0.5, seed: 12)
-            voice.room(wet: 0.08, size: 0.12)
-            return voice.render(duration: 0.16, peak: peak, fade: 0.012)
         }
     }
 
@@ -291,9 +277,7 @@ final class InterfaceSoundPlayer: InterfaceSoundPlaying {
     isolated deinit { stop() }
 
     func play(_ cue: InterfaceCue) {
-        // Key clicks never interrupt a cue, and a cancellation never cuts them off.
-        let isClick = cue == .tap || cue == .release
-        if !isClick { stop() }
+        stop()
         guard preferences.object(forKey: Self.preferenceKey) as? Bool ?? true,
               let variants = players[cue], !variants.isEmpty else { return }
         let turn = turns[cue, default: 0]
@@ -302,9 +286,9 @@ final class InterfaceSoundPlayer: InterfaceSoundPlaying {
         let volume = preferences.object(forKey: Self.volumeKey) as? Double ?? Self.defaultVolume
         player.stop()
         player.currentTime = 0
-        player.volume = Float(volume.isFinite ? min(1, max(0, volume)) : Self.defaultVolume) * (isClick ? 0.8 : 1)
+        player.volume = Float(volume.isFinite ? min(1, max(0, volume)) : Self.defaultVolume)
         player.play()
-        if !isClick { current = player }
+        current = player
     }
 
     func stop() { current?.stop(); current = nil }

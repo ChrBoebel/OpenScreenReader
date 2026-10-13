@@ -1660,8 +1660,7 @@ struct ReadingPanelTests {
             #expect(rendering == cue.render(variant: 0))
             #expect(rendering.left.count == rendering.right.count)
             #expect(rendering.left != rendering.right, "The room is stereo.")
-            let limit = cue == .tap || cue == .release ? 7_056 : 66_150
-            #expect(samples.count <= limit, "Cues stay under 1.5 s; clicks under 160 ms.")
+            #expect(samples.count <= 66_150, "Cues stay under 1.5 s.")
             let peak = Double(cue.peak) + 0.001
             #expect(rendering.left.allSatisfy { $0.isFinite && abs(Double($0)) <= peak })
             #expect(rendering.right.allSatisfy { $0.isFinite && abs(Double($0)) <= peak })
@@ -1677,7 +1676,7 @@ struct ReadingPanelTests {
     }
 
     @Test
-    func stopButtonPressPlaysATapWithoutStoppingCuesAndCancellationCannotCutIt() {
+    func stopButtonPressIsSilentAndCuesKeepToMeaningfulMoments() {
         let sounds = InterfaceSoundsFake()
         let controller = ReadingPanelController(terminalDuration: .seconds(10), interfaceSounds: sounds)
         defer { controller.hide() }
@@ -1690,8 +1689,8 @@ struct ReadingPanelTests {
         sounds.isStopped = true
         view?.onPress?()
         view?.onRelease?()
-        #expect(sounds.cues == [.tap, .release])
-        #expect(sounds.isStopped, "Clicks are never registered as interruptible cues.")
+        #expect(sounds.cues.isEmpty, "Stopping is a cancellation; it never adds a sound.")
+        #expect(InterfaceCue.allCases == [.selection, .completion, .attention])
     }
 
     @Test
@@ -1861,7 +1860,7 @@ private final class ReadingPanelFake: ReadingStatusPresenting {
 private final class InterfaceSoundsFake: InterfaceSoundPlaying {
     var cues: [InterfaceCue] = []
     var isStopped = true
-    func play(_ cue: InterfaceCue) { cues.append(cue); if cue != .tap && cue != .release { isStopped = false } }
+    func play(_ cue: InterfaceCue) { cues.append(cue); isStopped = false }
     func stop() { isStopped = true }
 }
 

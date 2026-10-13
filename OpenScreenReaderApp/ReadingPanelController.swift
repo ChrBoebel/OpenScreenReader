@@ -191,8 +191,6 @@ final class ReadingPanelController: NSObject, ReadingStatusPresenting {
         view.onTogglePause = { [weak self] in self?.onTogglePause?() }
         if appearing { panel.contentView = view }
         panel.setFrame(frame, display: true)
-        view.onPress = { [weak self] in self?.interfaceSounds?.play(.tap) }
-        view.onRelease = { [weak self] in self?.interfaceSounds?.play(.release) }
         view.onDragStart = { [weak self] point in self?.beginDrag(at: point) }
         view.onDragMove = { [weak self] point in self?.moveDrag(to: point) }
         view.onDragEnd = { [weak self] in self?.endDrag() }
