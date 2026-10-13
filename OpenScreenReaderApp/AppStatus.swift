@@ -12,23 +12,23 @@ enum AppStatus: String, CaseIterable, Equatable, Sendable {
     var title: String {
         switch self {
         case .ready:
-            "Ready"
+            String(localized: "Ready")
         case .selecting:
-            "Selecting"
+            String(localized: "Selecting")
         case .capturing:
-            "Capturing"
+            String(localized: "Capturing")
         case .recognizing:
-            "Recognizing"
+            String(localized: "Recognizing")
         case .speaking:
-            "Speaking"
+            String(localized: "Speaking")
         case .waiting:
-            "Waiting for next text"
+            String(localized: "Waiting for next text")
         case .synthesizing:
-            "Preparing voice"
+            String(localized: "Preparing voice")
         case .stopped:
-            "Stopped"
+            String(localized: "Stopped")
         case .error:
-            "Error"
+            String(localized: "Error")
         }
     }
 

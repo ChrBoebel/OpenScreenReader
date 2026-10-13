@@ -276,52 +276,52 @@ struct PlaybackControlsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Label(model.isPaused ? "Pausiert" : model.status.title, systemImage: model.isPaused ? "pause.fill" : "waveform")
+                Label(model.isPaused ? String(localized: "Paused") : model.status.title, systemImage: model.isPaused ? "pause.fill" : "waveform")
                     .font(.headline)
                 Spacer()
                 Button { model.enqueueStopRequest() } label: { Image(systemName: "stop.fill") }
-                    .help("Alles stoppen und Warteschlange leeren")
-                    .accessibilityLabel("Alles stoppen")
+                    .help("Stop everything and clear the queue")
+                    .accessibilityLabel("Stop everything")
             }
             HStack(spacing: 12) {
                 Button { model.togglePause() } label: {
-                    Label(model.isPaused ? "Fortsetzen" : "Pause", systemImage: model.isPaused ? "play.fill" : "pause.fill")
+                    Label(model.isPaused ? String(localized: "Resume") : String(localized: "Pause"), systemImage: model.isPaused ? "play.fill" : "pause.fill")
                 }.disabled(!model.canPause)
                     .accessibilityIdentifier("togglePlaybackPause")
-                Button { model.enqueueSkipRequest() } label: { Label("Weiter", systemImage: "forward.end.fill") }
+                Button { model.enqueueSkipRequest() } label: { Label("Next", systemImage: "forward.end.fill") }
                     .disabled(!model.canSkipText)
             }
-            Picker("Tempo", selection: Binding(get: { model.playbackRate }, set: { model.setPlaybackRate($0) })) {
+            Picker("Speed", selection: Binding(get: { model.playbackRate }, set: { model.setPlaybackRate($0) })) {
                 ForEach(SpeechSpeed.presets, id: \.self) { Text(SpeechSpeed.label($0)).tag($0) }
             }
             Divider()
             HStack {
-                Text("Als Nächstes · \(model.queuedTextCount)").font(.headline)
+                Text("Up Next · \(model.queuedTextCount)").font(.headline)
                 Spacer()
                 Button { model.enqueueAddRequest() } label: { Image(systemName: "plus") }
-                    .disabled(!model.canAddToQueue).help("Weiteren Bildschirmbereich auswählen")
+                    .disabled(!model.canAddToQueue).help("Select another screen region")
             }
             if model.queueEntries.isEmpty {
-                Text("Drücke \(model.shortcutConfiguration.displayName) erneut, um einen Text einzureihen.")
+                Text("Press \(model.shortcutConfiguration.displayName) again to add a text.")
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(Array(model.queueEntries.enumerated()), id: \.element.id) { index, entry in
                     VStack(alignment: .leading, spacing: 6) {
                         Text(entry.preview).lineLimit(2)
                         HStack {
-                            Button("Jetzt lesen") { model.playQueueEntry(entry.id) }
+                            Button("Read Now") { model.playQueueEntry(entry.id) }
                             Spacer()
                             Button { model.moveQueueEntry(entry.id, offset: -1) } label: { Image(systemName: "arrow.up") }
-                                .disabled(index == 0).accessibilityLabel("Text nach oben")
+                                .disabled(index == 0).accessibilityLabel("Move up")
                             Button { model.moveQueueEntry(entry.id, offset: 1) } label: { Image(systemName: "arrow.down") }
-                                .disabled(index == model.queuedTextCount - 1).accessibilityLabel("Text nach unten")
+                                .disabled(index == model.queuedTextCount - 1).accessibilityLabel("Move down")
                             Button { model.removeQueueEntry(entry.id) } label: { Image(systemName: "minus.circle") }
-                                .accessibilityLabel("Text aus Warteschlange entfernen")
+                                .accessibilityLabel("Remove from queue")
                         }.controlSize(.small)
                     }
                 }
             }
-            Text("Nur für diese Sitzung · nichts wird gespeichert").font(.caption).foregroundStyle(.secondary)
+            Text("This session only · nothing is saved").font(.callout).foregroundStyle(.secondary)
         }
         .padding(20).frame(width: 340)
         .tint(Color("AccentColor"))
@@ -397,7 +397,7 @@ struct SetupView: View {
             }
 
             HStack {
-                Text(model.isPaused ? "Paused" : model.status.title).foregroundStyle(.secondary)
+                Text(model.isPaused ? String(localized: "Paused") : model.status.title).foregroundStyle(.secondary)
                 Spacer()
                 Button("Check Again") { permissions.refresh() }
                 Button("Done") { model.finishSetup() }

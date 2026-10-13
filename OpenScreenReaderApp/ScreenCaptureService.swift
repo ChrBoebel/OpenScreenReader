@@ -10,13 +10,13 @@ enum ScreenCaptureFailure: Error, Equatable, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .permissionRequired:
-            "Allow Screen Recording in Settings to capture the selected region."
+            String(localized: "Allow Screen Recording in Settings to capture the selected region.")
         case .displayChanged:
-            "The display layout changed. Please select the region again."
+            String(localized: "The display layout changed. Please select the region again.")
         case .invalidRegion:
-            "The selected region is invalid. Please select it again."
+            String(localized: "The selected region is invalid. Please select it again.")
         case .failed:
-            "The region could not be captured. Check Screen Recording permission and try again."
+            String(localized: "The region could not be captured. Check Screen Recording permission and try again.")
         }
     }
 }

@@ -147,7 +147,7 @@ final class AppModel: ObservableObject {
     private var dictationObservation: AnyCancellable?
     var activityTitle: String {
         if let dictation, dictation.isActive { return dictation.statusText }
-        return isPaused ? "Paused" : status.title
+        return isPaused ? String(localized: "Paused") : status.title
     }
     let dictation: DictationController?
     private let preferences: UserDefaults
@@ -231,7 +231,7 @@ final class AppModel: ObservableObject {
         }
         queueHotkeyManager?.onPress = { [weak self] in self?.enqueueAddRequest() }
         if queueShortcutConfiguration == shortcutConfiguration {
-            queueShortcutNotice = "Choose an additional shortcut different from the primary shortcut. The primary shortcut and menu action remain available."
+            queueShortcutNotice = String(localized: "Choose an additional shortcut different from the primary shortcut. The primary shortcut and menu action remain available.")
         } else if let result = queueHotkeyManager?.register(queueShortcutConfiguration.resolvedShortcut()), result != .registered {
             queueShortcutNotice = Self.registrationErrorMessage(for: result, shortcut: queueShortcutConfiguration)
         }
@@ -288,12 +288,12 @@ final class AppModel: ObservableObject {
     func enqueueQueueShortcutChange(_ configuration: ShortcutConfiguration) {
         enqueue { model in
             guard configuration != .dictationDefault else {
-                model.queueShortcutNotice = "⌥⇧Space is reserved for dictation."
+                model.queueShortcutNotice = String(localized: "⌥⇧Space is reserved for dictation.")
                 return
             }
             guard model.canChangeShortcut else { return }
             guard configuration.isValid, configuration != model.shortcutConfiguration else {
-                model.queueShortcutNotice = "Choose a valid additional shortcut different from the primary shortcut."
+                model.queueShortcutNotice = String(localized: "Choose a valid additional shortcut different from the primary shortcut.")
                 return
             }
             guard let manager = model.queueHotkeyManager else { return }
@@ -304,7 +304,7 @@ final class AppModel: ObservableObject {
             }
             model.queueShortcutConfiguration = configuration
             model.queueShortcutStore.save(configuration)
-            model.queueShortcutNotice = "Add shortcut \(configuration.displayName) is active and saved."
+            model.queueShortcutNotice = String(localized: "Add shortcut \(configuration.displayName) is active and saved.")
         }
     }
 
@@ -314,19 +314,19 @@ final class AppModel: ObservableObject {
 
     private func changeShortcut(_ configuration: ShortcutConfiguration) {
         guard canChangeShortcut else {
-            shortcutNotice = "Stop the current operation before changing its shortcut."
+            shortcutNotice = String(localized: "Stop the current operation before changing its shortcut.")
             return
         }
         guard configuration != .dictationDefault else {
-            shortcutNotice = "⌥⇧Space is reserved for dictation. Choose another reading shortcut."
+            shortcutNotice = String(localized: "⌥⇧Space is reserved for dictation. Choose another reading shortcut.")
             return
         }
         guard configuration.isValid else {
-            shortcutNotice = "Choose a key and at least Command, Option, or Control. Escape is reserved for cancellation."
+            shortcutNotice = String(localized: "Choose a key and at least Command, Option, or Control. Escape is reserved for cancellation.")
             return
         }
         guard configuration != queueShortcutConfiguration else {
-            shortcutNotice = "Primary and additional shortcut combinations must be different."
+            shortcutNotice = String(localized: "Primary and additional shortcut combinations must be different.")
             return
         }
         let result = hotkeyManager.register(configuration.resolvedShortcut())
@@ -341,7 +341,7 @@ final class AppModel: ObservableObject {
         hotkeyRegistration = .registered
         shortcutConfiguration = configuration
         shortcutStore.save(configuration)
-        shortcutNotice = "Shortcut \(configuration.displayName) is active and saved."
+        shortcutNotice = String(localized: "Shortcut \(configuration.displayName) is active and saved.")
     }
 
     func previewReadingPanelPosition() {
@@ -505,7 +505,7 @@ final class AppModel: ObservableObject {
             do { try await Task.sleep(for: timeout) } catch { return }
             self?.enqueue {
                 guard $0.status == .capturing || $0.status == .recognizing else { return }
-                await $0.fail(context: context, message: "Capture or text recognition timed out. Please try a smaller region.")
+                await $0.fail(context: context, message: String(localized: "Capture or text recognition timed out. Please try a smaller region."))
             }
         }
     }
@@ -598,7 +598,7 @@ final class AppModel: ObservableObject {
             do { try await Task.sleep(for: duration) } catch { return }
             self?.enqueue {
                 guard $0.speechTimeoutGeneration == timerGeneration else { return }
-                await $0.fail(context: context, message: "Local speech timed out. Please try a smaller region.")
+                await $0.fail(context: context, message: String(localized: "Local speech timed out. Please try a smaller region."))
             }
         }
     }
@@ -611,7 +611,7 @@ final class AppModel: ObservableObject {
             let next = queuedTexts.removeFirst()
             updateQueuePresentation()
             guard case let .started(nextContext) = await pipelineCoordinator.start() else {
-                await fail(context: context, message: "The next text could not start. Please select it again.")
+                await fail(context: context, message: String(localized: "The next text could not start. Please select it again."))
                 return
             }
             activeContext = nextContext
@@ -710,8 +710,8 @@ final class AppModel: ObservableObject {
     private func addToQueue() async {
         controlsPopover?.close()
         guard canAddToQueue else {
-            queueNotice = queuedTextCount >= Self.queueLimit ? "Queue full (5 texts). Wait for a text to finish."
-                : "Finish the current selection or recognition before adding another text."
+            queueNotice = queuedTextCount >= Self.queueLimit ? String(localized: "Queue full (5 texts). Wait for a text to finish.")
+                : String(localized: "Finish the current selection or recognition before adding another text.")
             return
         }
         guard activeContext != nil else { await processReadRequest(); return }
@@ -719,7 +719,7 @@ final class AppModel: ObservableObject {
         queueInputID = id
         isAddingToQueue = true
         queueOverlayVisible = true
-        queueNotice = "Select another region. Playback continues; Escape stops everything."
+        queueNotice = String(localized: "Select another region. Playback continues; Escape stops everything.")
         readingPanel?.hide()
         let session = sessionGeneration
         selectionController.start(onSelection: { [weak self] selection in
@@ -735,7 +735,7 @@ final class AppModel: ObservableObject {
     private func captureQueueInput(_ selection: ScreenRegionSelection, id: UUID) {
         guard queueInputID == id else { return }
         selectionController.cancel()
-        queueNotice = "Recognizing the next text locally…"
+        queueNotice = String(localized: "Recognizing the next text locally…")
         let capture = captureService, ocr = ocrService
         queueInputTask = Task { @MainActor [weak self] in
             do {
@@ -752,22 +752,22 @@ final class AppModel: ObservableObject {
                 try Task.checkCancellation()
                 self?.enqueue { await $0.finishQueueInput(result, selection: selection, size: size, id: id) }
             } catch is CancellationError {
-                self?.enqueue { await $0.rejectQueueInput(id: id, message: "The additional capture was cancelled.") }
+                self?.enqueue { await $0.rejectQueueInput(id: id, message: String(localized: "The additional capture was cancelled.")) }
             } catch {
-                self?.enqueue { await $0.rejectQueueInput(id: id, message: "The additional region could not be recognized. Select it again.") }
+                self?.enqueue { await $0.rejectQueueInput(id: id, message: String(localized: "The additional region could not be recognized. Select it again.")) }
             }
         }
         queueInputTimeout?.cancel()
         queueInputTimeout = Task { @MainActor [weak self, operationTimeout] in
             do { try await Task.sleep(for: operationTimeout) } catch { return }
-            self?.enqueue { await $0.rejectQueueInput(id: id, message: "The additional capture or text recognition timed out.") }
+            self?.enqueue { await $0.rejectQueueInput(id: id, message: String(localized: "The additional capture or text recognition timed out.")) }
         }
     }
 
     private func finishQueueInput(_ result: OCRResult, selection: ScreenRegionSelection, size: CGSize, id: UUID) async {
         guard queueInputID == id else { return }
         guard !result.text.isEmpty else {
-            await rejectQueueInput(id: id, message: "No readable text in the additional region.")
+            await rejectQueueInput(id: id, message: String(localized: "No readable text in the additional region."))
             return
         }
         guard result.text.count <= 8_000, result.text.utf8.count <= 48_000 else {
@@ -776,7 +776,7 @@ final class AppModel: ObservableObject {
         }
         queuedTexts.append(QueuedText(result: result, selection: selection, size: size))
         endQueueInput()
-        queueNotice = "Added to queue."
+        queueNotice = String(localized: "Added to queue.")
         updateQueuePresentation()
         if status == .speaking { speechService.prepareNext(queuedTexts.first?.result.speechText) }
         if status == .waiting, let context = activeContext { await finishSpeech(context: context) }
@@ -820,8 +820,8 @@ final class AppModel: ObservableObject {
     ) -> String? {
         switch registration {
         case .inactive, .registered: nil
-        case .conflict: "The shortcut \(shortcut.displayName) is already in use. Quit any other Saywing or OpenScreenReader copy, then choose it again under Settings › Shortcuts, or record a different one."
-        case let .failed(status): "The global shortcut could not be registered (error \(status))."
+        case .conflict: String(localized: "The shortcut \(shortcut.displayName) is already in use. Quit any other Saywing or OpenScreenReader copy, then choose it again under Settings › Shortcuts, or record a different one.")
+        case let .failed(status): String(localized: "The global shortcut could not be registered (error \(status)).")
         }
     }
 }

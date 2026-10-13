@@ -72,6 +72,45 @@ struct AppStatusTests {
     }
 
     @Test
+    func germanLocalizationShipsInTheAppBundle() throws {
+        let path = try #require(Bundle.main.path(forResource: "de", ofType: "lproj"))
+        let german = try #require(Bundle(path: path))
+        func de(_ key: String) -> String { german.localizedString(forKey: key, value: "MISSING", table: nil) }
+        #expect(de("Read Screen Region…") == "Bildschirmbereich vorlesen…")
+        #expect(de("Ready") == "Bereit")
+        #expect(de("Stop reading") == "Vorlesen stoppen")
+        #expect(de("Ready to dictate") == "Bereit zum Diktieren")
+        #expect(String.localizedStringWithFormat(de("%lld texts waiting"), 1) == "1 Text wartet")
+        #expect(String.localizedStringWithFormat(de("%lld texts waiting"), 3) == "3 Texte warten")
+        #expect(german.localizedString(forKey: "NSMicrophoneUsageDescription", value: nil, table: "InfoPlist").hasPrefix("Saywing nimmt"))
+        // Tests run with the English source strings.
+        #expect(AppStatus.ready.title == "Ready")
+    }
+
+    /// One language per surface: source strings are English, every key has a German
+    /// translation, and no German text bypasses the catalog.
+    @Test
+    func catalogIsCompleteAndSourcesStayInEnglish() throws {
+        let app = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("OpenScreenReaderApp")
+        let data = try Data(contentsOf: app.appendingPathComponent("Localizable.xcstrings"))
+        let catalog = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let strings = try #require(catalog["strings"] as? [String: [String: Any]])
+        #expect(strings.count > 250)
+        for (key, entry) in strings {
+            let german = (entry["localizations"] as? [String: Any])?["de"] as? [String: Any]
+            let unit = german?["stringUnit"] as? [String: Any]
+            let plural = (german?["variations"] as? [String: Any])?["plural"] as? [String: Any]
+            #expect(unit?["state"] as? String == "translated" || plural?.count == 2, "Missing German for \(key)")
+        }
+        let sources = try FileManager.default.subpathsOfDirectory(atPath: app.path).filter { $0.hasSuffix(".swift") }
+        for source in sources {
+            let text = try String(contentsOf: app.appendingPathComponent(source), encoding: .utf8)
+            #expect(text.rangeOfCharacter(from: CharacterSet(charactersIn: "äöüÄÖÜß")) == nil, "\(source) contains German text")
+        }
+    }
+
+    @Test
     func appBundleIsConfiguredAsMenuBarOnly() {
         #expect(Bundle.main.object(forInfoDictionaryKey: "LSUIElement") as? Bool == true)
     }

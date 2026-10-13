@@ -8,9 +8,9 @@ enum EscapeMonitorFailure: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .permissionRequired:
-            "Allow Input Monitoring in Settings so Escape can stop capture and text recognition while another app is active."
+            String(localized: "Allow Input Monitoring in Settings so Escape can stop capture and text recognition while another app is active.")
         case .unavailable:
-            "Global Escape is unavailable, possibly because Secure Input is active. The operation was stopped."
+            String(localized: "Global Escape is unavailable, possibly because Secure Input is active. The operation was stopped.")
         }
     }
 }

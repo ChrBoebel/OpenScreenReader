@@ -61,9 +61,9 @@ enum SpeechFailure: Error, LocalizedError {
     case notInstalled, tooLong, failed
     var errorDescription: String? {
         switch self {
-        case .notInstalled: "The local Supertonic development runtime is not installed. No text was sent to a server."
-        case .tooLong: "This development version reads up to 8,000 characters. Select a smaller region."
-        case .failed: "Local speech could not finish. Please try a smaller region. No cloud or system voice was substituted."
+        case .notInstalled: String(localized: "The local Supertonic development runtime is not installed. No text was sent to a server.")
+        case .tooLong: String(localized: "This development version reads up to 8,000 characters. Select a smaller region.")
+        case .failed: String(localized: "Local speech could not finish. Please try a smaller region. No cloud or system voice was substituted.")
         }
     }
 }
@@ -160,7 +160,7 @@ final class LocalSpeechService: SpeechReading {
     }
     static var installationSummary: String {
         let config = installedConfiguration
-        return config.isInstalled ? (config.bundled ? "Bundled · offline development preview" : "Installed for local development") : "Not installed"
+        return config.isInstalled ? (config.bundled ? String(localized: "Bundled · offline development preview") : String(localized: "Installed for local development")) : String(localized: "Not installed")
     }
     static var installedConfiguration: SpeechRuntimeConfiguration {
         if let root = Bundle.main.resourceURL?.appendingPathComponent("Speech"),

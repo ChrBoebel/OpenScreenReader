@@ -391,10 +391,11 @@ private final class SelectionOverlayView: NSView {
     private func dismissHint() {
         guard let hint else { return }
         self.hint = nil
-        NSAnimationContext.runAnimationGroup({ context in
+        // The overlay closes after the selection, which removes the faded pill with it.
+        NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.12
             hint.animator().alphaValue = 0
-        }, completionHandler: { hint.removeFromSuperview() })
+        }
     }
 
     @available(*, unavailable)

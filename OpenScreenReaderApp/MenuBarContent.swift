@@ -29,7 +29,7 @@ struct MenuBarContent: View {
 
         if model.isReadingActive {
             Divider()
-            Button(model.isPaused ? "Resume Reading" : "Pause Reading") { model.togglePause() }
+            Button(model.isPaused ? String(localized: "Resume Reading") : String(localized: "Pause Reading")) { model.togglePause() }
                 .disabled(!model.canPause)
             Button("Next Text") { model.enqueueSkipRequest() }
                 .disabled(!model.canSkipText)
@@ -37,7 +37,7 @@ struct MenuBarContent: View {
                 .disabled(!model.canAddToQueue)
             Button("Playback Controls…") { model.openPlaybackControls() }
             if model.queuedTextCount > 0 {
-                Text("\(model.queuedTextCount) text(s) waiting")
+                Text("\(model.queuedTextCount) texts waiting")
             }
             if let notice = model.queueNotice { Text(notice) }
         }

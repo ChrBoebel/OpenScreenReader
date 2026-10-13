@@ -61,13 +61,13 @@ struct ClipboardSnapshot: Equatable {
       for type in item.types {
         guard let data = item.data(forType: type) else {
           throw DictationError(
-            "Die Zwischenablage enthält nicht sicher wiederherstellbare Daten. Bitte das Ergebnis manuell kopieren."
+            String(localized: "The clipboard holds data that cannot be restored safely. Copy the result manually.")
           )
         }
         size += data.count
         guard size <= limit else {
           throw DictationError(
-            "Die Zwischenablage ist größer als 16 MB. Sie bleibt unverändert; das Ergebnis kann manuell kopiert werden."
+            String(localized: "The clipboard is larger than 16 MB. It stays unchanged; copy the result manually.")
           )
         }
         types[type.rawValue] = data
@@ -75,7 +75,7 @@ struct ClipboardSnapshot: Equatable {
       result.append(types)
     }
     guard board.changeCount == count else {
-      throw DictationError("Zwischenablage hat sich geändert. Bitte erneut versuchen.")
+      throw DictationError(String(localized: "The clipboard changed. Please try again."))
     }
     return Self(items: result)
   }
@@ -111,12 +111,12 @@ final class ClipboardLease {
     item.setString(marker, forType: markerType)
     item.setData(Data(), forType: .init("org.nspasteboard.ConcealedType"))
     guard board.changeCount == count else {
-      throw DictationError("Zwischenablage wurde während der Vorbereitung geändert.")
+      throw DictationError(String(localized: "The clipboard changed while pasting was prepared."))
     }
     board.clearContents()
     guard board.writeObjects([item]) else {
       _ = original.write(to: board)
-      throw DictationError("Zwischenablage konnte nicht vorbereitet werden.")
+      throw DictationError(String(localized: "The clipboard could not be prepared."))
     }
     return ClipboardLease(
       board: board, original: original, ownedCount: board.changeCount, marker: marker)

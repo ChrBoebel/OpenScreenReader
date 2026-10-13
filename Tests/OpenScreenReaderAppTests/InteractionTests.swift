@@ -1415,7 +1415,7 @@ struct ReadingPanelTests {
             #expect(options.alphaValue < 0.01, "Resting capsule shows only waveform and Stop.")
             #expect(view.hitTest(view.convert(CGPoint(x: options.bounds.midX, y: options.bounds.midY), from: options)) === body)
             #expect(view.hitTest(view.convert(CGPoint(x: 22, y: 22), from: stop)) === stop)
-            #expect(options.toolTip?.contains("Wiedergabe") == true)
+            #expect(options.toolTip?.contains("Playback") == true)
             let frame = body.frame
             let stopFrame = stop.frame
             body.mouseEntered(with: NSEvent())
@@ -2726,7 +2726,7 @@ struct DictationCapsuleTests {
         view.present(.recording, title: "Aufnahme", detail: "")
         view.updateRecording(rms: 0)
         #expect(view.inputLevel == 0)
-        #expect(view.accessibilityLabel()?.contains("Aufnahme") == true)
+        #expect(view.accessibilityLabel()?.contains("Recording") == true)
         view.updateRecording(rms: 0.1)
         #expect(view.inputLevel > 0 && view.inputLevel <= 1)
         view.updateRecording(rms: .nan)
@@ -2734,7 +2734,7 @@ struct DictationCapsuleTests {
         view.present(.processing, title: "Text wird erkannt …", detail: "")
         view.updateRecording(rms: 1)
         #expect(view.inputLevel == 0)
-        #expect(view.accessibilityLabel()?.contains("Text wird erkannt") == true)
+        #expect(view.accessibilityLabel()?.contains("Recognizing text") == true)
     }
 
     @Test func terminalFeedbackDoesNotImplyUnverifiedInsertion() {
@@ -2742,11 +2742,11 @@ struct DictationCapsuleTests {
         view.present(.unconfirmed, title: "Einfügen ausgelöst", detail: "Bitte Zielfeld prüfen.")
         #expect(view.state == .unconfirmed)
         #expect(view.accessibilityHelp() == "Bitte Zielfeld prüfen.")
-        #expect(view.accessibilityLabel()?.contains("Einfügen ausgelöst") == true)
+        #expect(view.accessibilityLabel()?.contains("Paste sent") == true)
         view.present(.inserted, title: "Eingefügt", detail: "Bereit für die nächste Aufnahme.")
         #expect(view.state == .inserted)
         #expect(view.finishButton.isHidden)
-        #expect(view.dismissButton.accessibilityLabel() == "Hinweis schließen")
+        #expect(view.dismissButton.accessibilityLabel() == "Close notice")
     }
 
     @Test func controllerDismissalPreservesResultsAndOldDismissalCannotHideActiveWork() throws {

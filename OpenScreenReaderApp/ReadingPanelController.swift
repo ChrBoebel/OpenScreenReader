@@ -3,7 +3,7 @@ import QuartzCore
 
 enum ReadingPanelEdge: String, CaseIterable {
     case bottom, left, right
-    var title: String { switch self { case .bottom: "Bottom"; case .left: "Left"; case .right: "Right" } }
+    var title: String { switch self { case .bottom: String(localized: "Bottom"); case .left: String(localized: "Left"); case .right: String(localized: "Right") } }
     var popoverEdge: NSRectEdge { switch self { case .bottom: .maxY; case .left: .maxX; case .right: .minX } }
 }
 
@@ -138,25 +138,25 @@ enum ReadingPanelState: Hashable {
     case recognizing, preparing, speaking, finished, stopped, noText, failed, positioning, waiting
     var title: String {
         switch self {
-        case .recognizing: "Text erkennen …"
-        case .preparing: "Vorbereiten …"
-        case .speaking: "Vorlesen"
-        case .finished: "Fertig"
-        case .stopped: "Gestoppt"
-        case .noText: "Kein Text erkannt"
-        case .failed: "Vorlesen nicht möglich"
-        case .positioning: "Position wählen"
-        case .waiting: "Warte auf nächsten Text"
+        case .recognizing: String(localized: "Recognizing text…")
+        case .preparing: String(localized: "Preparing…")
+        case .speaking: String(localized: "Reading aloud")
+        case .finished: String(localized: "Done")
+        case .stopped: String(localized: "Stopped")
+        case .noText: String(localized: "No text found")
+        case .failed: String(localized: "Can’t read aloud")
+        case .positioning: String(localized: "Choose position")
+        case .waiting: String(localized: "Waiting for next text")
         }
     }
     var detail: String {
         switch self {
-        case .recognizing, .preparing, .speaking, .waiting: "Esc stoppt alles und leert die Warteschlange"
-        case .finished: "Alles vorgelesen"
-        case .stopped: "Vorlesen beendet"
-        case .noText: "Wähle einen Bereich mit Text."
-        case .failed: "Einrichtung und Fehlerhilfe über die Fragezeichen-Taste"
-        case .positioning: "Wellenform zum Bildschirmrand ziehen"
+        case .recognizing, .preparing, .speaking, .waiting: String(localized: "Escape stops everything and clears the queue")
+        case .finished: String(localized: "Everything was read")
+        case .stopped: String(localized: "Reading stopped")
+        case .noText: String(localized: "Select a region with text.")
+        case .failed: String(localized: "Setup and help are behind the question mark button")
+        case .positioning: String(localized: "Drag the waveform to a screen edge")
         }
     }
     var isActive: Bool { self == .recognizing || self == .preparing || self == .speaking || self == .waiting }
@@ -514,7 +514,7 @@ final class ReadingStatusPanel: NSPanel {
     override var canBecomeMain: Bool { false }
     init() {
         super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-        title = "Vorlesestatus"
+        title = String(localized: "Reading status")
         setAccessibilityIdentifier("readingStatusPanel")
         level = .floating
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
@@ -706,7 +706,7 @@ final class ReadingControlView: NSView, NSPopoverDelegate {
     func setPaused(_ value: Bool) {
         paused = value
         if value { setLevel(0) }
-        setAccessibilityLabel(value ? "Vorlesen pausiert" : "Vorlesestatus: " + state.title)
+        setAccessibilityLabel(value ? String(localized: "Reading paused") : String(localized: "Reading status: \(state.title)"))
         updateOptions()
         tick(now: CACurrentMediaTime())
     }
@@ -878,7 +878,7 @@ final class ReadingControlView: NSView, NSPopoverDelegate {
                 self?.resumeClock()
             }
         }
-        body.toolTip = "Darüberfahren: Pause und Optionen · Ziehen: Position ändern · Esc: alles stoppen"
+        body.toolTip = String(localized: "Hover for pause and options · Drag to move · Escape stops everything")
         body.onDragStart = { [weak self] in self?.onDragStart?($0) }
         body.onDragMove = { [weak self] in self?.onDragMove?($0) }
         body.onDragEnd = { [weak self] in self?.onDragEnd?() }
@@ -896,19 +896,19 @@ final class ReadingControlView: NSView, NSPopoverDelegate {
 
     private func updateOptions() {
         queueBadge.title = state == .failed ? "?" : queueCount > 0 ? "+\(queueCount)" : "···"
-        let label = state == .failed ? "Einrichtung und Fehlerhilfe öffnen" : "Wiedergabe und Warteschlange · \(queueCount) Texte"
+        let label = state == .failed ? String(localized: "Open setup and help") : String(localized: "Playback and queue · \(queueCount) waiting")
         queueBadge.setAccessibilityLabel(label)
         queueBadge.toolTip = label
         queueBadge.isHidden = !state.isActive && state != .failed
         queueBadge.isEnabled = exitStart == nil
         queueBadge.needsDisplay = true
         pauseButton.title = paused ? "resume" : "pause"
-        pauseButton.setAccessibilityLabel(paused ? "Vorlesen fortsetzen" : "Vorlesen pausieren")
-        pauseButton.toolTip = state == .speaking ? (paused ? "Vorlesen fortsetzen" : "Vorlesen pausieren") : "Pause verfügbar, sobald die Wiedergabe startet"
+        pauseButton.setAccessibilityLabel(paused ? String(localized: "Resume reading") : String(localized: "Pause reading"))
+        pauseButton.toolTip = state == .speaking ? (paused ? String(localized: "Resume reading") : String(localized: "Pause reading")) : String(localized: "Pause becomes available when playback starts")
         pauseButton.isHidden = !state.isActive
         pauseButton.isEnabled = state == .speaking && exitStart == nil
         pauseButton.needsDisplay = true
-        setAccessibilityValue(queueCount > 0 ? "\(queueCount) Texte in der Warteschlange" : "Warteschlange leer")
+        setAccessibilityValue(queueCount > 0 ? String(localized: "\(queueCount) waiting in the queue") : String(localized: "Queue empty"))
         var actions: [NSAccessibilityCustomAction] = []
         if state.isActive || state == .failed {
             actions.append(NSAccessibilityCustomAction(name: label, handler: { [weak self] in
@@ -917,7 +917,7 @@ final class ReadingControlView: NSView, NSPopoverDelegate {
             }))
         }
         if state == .speaking {
-            actions.append(NSAccessibilityCustomAction(name: paused ? "Vorlesen fortsetzen" : "Vorlesen pausieren", handler: { [weak self] in
+            actions.append(NSAccessibilityCustomAction(name: paused ? String(localized: "Resume reading") : String(localized: "Pause reading"), handler: { [weak self] in
                 guard let self, self.pauseButton.isEnabled else { return false }
                 self.togglePause(); return true
             }))
@@ -970,13 +970,13 @@ final class ReadingControlView: NSView, NSPopoverDelegate {
         }
         if state != .speaking { targetLevel = 0 }
         toolTip = state.detail
-        setAccessibilityLabel("Vorlesestatus: " + state.title)
+        setAccessibilityLabel(String(localized: "Reading status: \(state.title)"))
         setAccessibilityHelp(state.detail)
         setAccent(state.needsAttention ? ReadingPalette.amber : ReadingPalette.mint)
         button.terminal = !state.isActive
         button.isEnabled = true
-        button.setAccessibilityLabel(state.isActive ? "Vorlesen stoppen" : "Status schließen")
-        button.toolTip = state.isActive ? "Gesamten Vorgang stoppen (Esc)" : "Status schließen"
+        button.setAccessibilityLabel(state.isActive ? String(localized: "Stop reading") : String(localized: "Close status"))
+        button.toolTip = state.isActive ? String(localized: "Stop everything (Esc)") : String(localized: "Close status")
         note.stringValue = state.title
         noteUntil = state.needsAttention ? now + 2.4 : 0
         if !state.isActive {

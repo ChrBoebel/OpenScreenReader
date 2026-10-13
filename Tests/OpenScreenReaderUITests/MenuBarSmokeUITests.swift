@@ -325,7 +325,7 @@ final class MenuBarSmokeUITests: XCTestCase {
             XCTFail(app.dialogs.debugDescription)
             return
         }
-        XCTAssertEqual(action.label, "Vorlesen stoppen")
+        XCTAssertEqual(action.label, "Stop reading")
         XCTAssertGreaterThanOrEqual(action.frame.width, 44)
         XCTAssertGreaterThanOrEqual(action.frame.height, 44)
         XCTAssertEqual(fixture.state, .runningForeground, "Showing and updating the panel must not activate OpenScreenReader.")
@@ -431,6 +431,8 @@ final class MenuBarSmokeUITests: XCTestCase {
         let suite = "com.christopherbobel.OpenScreenReader.uitests.\(UUID().uuidString)"
         let app = XCUIApplication()
         app.launchEnvironment["OSR_SHORTCUT_TEST_SUITE"] = suite
+        // Assertions use the English source strings; the German catalog has its own checks.
+        app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         addTeardownBlock { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
         return app
     }

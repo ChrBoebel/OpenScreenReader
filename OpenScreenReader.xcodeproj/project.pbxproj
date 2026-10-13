@@ -34,6 +34,8 @@
 		AA2000000000000000000004 = {isa = PBXBuildFile; fileRef = AA1000000000000000000004; };
 		BB2000000000000000000001 /* Permissions.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB1000000000000000000001 /* Permissions.swift */; };
 		BB2000000000000000000002 /* ShortcutRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB1000000000000000000002 /* ShortcutRecorder.swift */; };
+		BB2000000000000000000003 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = BB1000000000000000000003 /* Localizable.xcstrings */; };
+		BB2000000000000000000004 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = BB1000000000000000000004 /* InfoPlist.xcstrings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -84,6 +86,8 @@
 		AA1000000000000000000004 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Dictation/DictationCapsuleView.swift; sourceTree = "<group>"; };
 		BB1000000000000000000001 /* Permissions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Permissions.swift; sourceTree = "<group>"; };
 		BB1000000000000000000002 /* ShortcutRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutRecorder.swift; sourceTree = "<group>"; };
+		BB1000000000000000000003 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		BB1000000000000000000004 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -135,6 +139,8 @@
 		A00000000000000000000004 /* OpenScreenReaderApp */ = {
 			isa = PBXGroup;
 			children = (
+				BB1000000000000000000004 /* InfoPlist.xcstrings */,
+				BB1000000000000000000003 /* Localizable.xcstrings */,
 				BB1000000000000000000002 /* ShortcutRecorder.swift */,
 				BB1000000000000000000001 /* Permissions.swift */,
 				AA1000000000000000000003,
@@ -270,6 +276,7 @@
 			knownRegions = (
 				en,
 				Base,
+				de,
 			);
 			mainGroup = A00000000000000000000002;
 			minimizedProjectReferenceProxies = 1;
@@ -293,6 +300,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BB2000000000000000000004 /* InfoPlist.xcstrings in Resources */,
+				BB2000000000000000000003 /* Localizable.xcstrings in Resources */,
 				C00000000000000000000001 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

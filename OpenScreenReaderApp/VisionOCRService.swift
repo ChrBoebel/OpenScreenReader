@@ -83,9 +83,9 @@ enum OCRFailure: Error, Equatable, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .unsupportedLanguages:
-            "Local German and English text recognition is unavailable on this Mac."
+            String(localized: "Local German and English text recognition is unavailable on this Mac.")
         case .recognitionFailed:
-            "Text could not be recognized. Select a clearer or larger text region and try again."
+            String(localized: "Text could not be recognized. Select a clearer or larger text region and try again.")
         }
     }
 }

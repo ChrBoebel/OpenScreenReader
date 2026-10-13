@@ -14,7 +14,7 @@ final class DictationStatusPanel: NSPanel {
 }
 @MainActor
 final class DictationController: NSObject, ObservableObject {
-  @Published private(set) var statusText = "Diktieren bereit"
+  @Published private(set) var statusText = String(localized: "Ready to dictate")
   var onActivation: ((@escaping @MainActor () -> Void) -> Void)?
   var isActive: Bool { request != nil || activationID != nil }
   private var activationID: UUID?
@@ -39,7 +39,7 @@ final class DictationController: NSObject, ObservableObject {
   let worker: any DictationTranscribing
   let gate = GenerationGate()
   var window: NSWindow!, scratch = NSTextView(), result = NSTextView()
-  var titleLabel = NSTextField(labelWithString: "Modell wird vorbereitet …")
+  var titleLabel = NSTextField(labelWithString: String(localized: "Preparing model…"))
   var detailLabel = NSTextField(wrappingLabelWithString: "")
   var permissionLabel = NSTextField(wrappingLabelWithString: "")
   var startButton: NSButton!, cancelButton: NSButton!, setupButton: NSButton!
@@ -87,7 +87,7 @@ final class DictationController: NSObject, ObservableObject {
       case .lock:
         guard self.isActive else { return false }
         if self.phase == "recording" {
-          self.detailLabel.stringValue = "Freihändig aufnehmen. Fn oder Fn + Leertaste beendet; Esc verwirft."
+          self.detailLabel.stringValue = String(localized: "Recording hands-free. Fn or Fn + Space finishes; Escape discards.")
         }
       case .finish:
         if self.phase == "recording" { self.finishRecording() }
@@ -129,7 +129,7 @@ final class DictationController: NSObject, ObservableObject {
       object: nil)
     phase = "unloaded"
     setStatus(
-      "Bereit zum Diktieren", "Fn halten zum Diktieren; Fn doppelt für freihändig. Das Modell lädt automatisch."
+      String(localized: "Ready to dictate"), String(localized: "Hold Fn to dictate, or press Fn twice for hands-free. The model loads automatically.")
     )
     refreshPermissions()
   }
@@ -161,8 +161,8 @@ final class DictationController: NSObject, ObservableObject {
     // is still stopped synchronously by cancel above.
     phase = worker.ready ? "ready" : worker.running ? "loading" : "unloaded"
     setStatus(
-      "Bereit zum Diktieren",
-      "Fn startet die nächste Aufnahme und beendet vorher das Vorlesen.")
+      String(localized: "Ready to dictate"),
+      String(localized: "Fn starts the next recording and stops reading first."))
     panel?.orderOut(nil)
   }
   @objc func screenLockedOrSleeping(_ note: Notification) {
@@ -176,7 +176,7 @@ final class DictationController: NSObject, ObservableObject {
       cancel(restart: false)
       worker.stop()
       phase = "unloaded"
-      setStatus("Diktieren pausiert", "Das Modell wird beim Zurückkehren automatisch vorbereitet.")
+      setStatus(String(localized: "Dictation paused"), String(localized: "The model is prepared again when you return."))
     }
   }
   @objc func screenBecameAvailable(_ note: Notification) {
@@ -262,7 +262,8 @@ final class DictationController: NSObject, ObservableObject {
     permissionLabel.textColor = .systemOrange
     permissionLabel.preferredMaxLayoutWidth = Self.windowWidth - 48
     setupButton = button(String(localized: "Open Setup…"), #selector(openSetup))
-    stack.addArrangedSubview(row([permissionLabel, setupButton]))
+    stack.addArrangedSubview(permissionLabel)
+    stack.addArrangedSubview(setupButton)
     scratch.setAccessibilityLabel(String(localized: "Dictation test field"))
     let scratchScroll = textArea(scratch, height: 130, editable: true)
     stack.addArrangedSubview(scratchScroll)
@@ -329,7 +330,7 @@ final class DictationController: NSObject, ObservableObject {
       : phase == "processing" ? .processing : phase == "pasting" ? .pasting
       : floating ? .attention : .idle)
     capsule.present(presentation, title: title, detail: detail)
-    startButton?.title = phase == "recording" ? "Beenden & einfügen" : "Aufnahme im Testfeld"
+    startButton?.title = phase == "recording" ? String(localized: "Finish & Paste") : String(localized: "Record in Test Field")
     let busy = ["recording", "processing", "pasting"].contains(phase)
     startButton?.isEnabled = ["ready", "unloaded", "loading", "recording"].contains(phase)
     demoDE?.isEnabled = worker.ready && phase == "ready"
@@ -369,8 +370,8 @@ final class DictationController: NSObject, ObservableObject {
     guard canPrepareModel, request == nil, !worker.running else { return }
     phase = "loading"
     setStatus(
-      "Diktieren wird vorbereitet …",
-      "\(selectedModel.displayName) lädt automatisch und bleibt bereit, solange Saywing geöffnet ist.")
+      String(localized: "Preparing dictation…"),
+      String(localized: "\(selectedModel.displayName) loads automatically and stays ready while Saywing is open."))
     startWorker()
   }
   private func startWorker() {
@@ -419,7 +420,7 @@ final class DictationController: NSObject, ObservableObject {
         == .registered
     else {
       throw DictationError(
-        "Escape ist belegt. Aufnahme wurde nicht gestartet; bitte die andere Diktier-App beenden.")
+        String(localized: "Escape is in use by another app. Recording did not start; quit the other dictation app."))
     }
   }
   func disarmEscape() { escape.unregister() }
@@ -439,17 +440,17 @@ final class DictationController: NSObject, ObservableObject {
     }
     guard ["ready", "unloaded", "loading"].contains(phase), activationID == nil else {
       setStatus(
-        phase == "processing" ? "Text wird erkannt …" : "Modell noch nicht bereit",
+        phase == "processing" ? String(localized: "Recognizing text…") : String(localized: "Model not ready yet"),
         phase == "processing"
-          ? "Esc verwirft diesen Auftrag." : "Der aktuelle Vorgang läuft noch. Esc verwirft ihn.",
+          ? String(localized: "Escape discards this dictation.") : String(localized: "The current dictation is still running. Escape discards it."),
         floating: true)
       hidePanelLater()
       return
     }
     guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else {
       setStatus(
-        "Mikrofon freigeben",
-        "In der Einrichtung das Mikrofon freigeben und danach die Aufnahme erneut starten.",
+        String(localized: "Allow the microphone"),
+        String(localized: "Allow the microphone in Setup, then start recording again."),
         floating: true)
       hidePanelLater()
       return
@@ -468,7 +469,7 @@ final class DictationController: NSObject, ObservableObject {
     } catch {
       cancel(restart: false)
       phase = worker.ready ? "ready" : "unloaded"
-      setStatus("Aufnahme nicht gestartet", error.localizedDescription, floating: true)
+      setStatus(String(localized: "Recording did not start"), error.localizedDescription, floating: true)
       hidePanelLater()
     }
   }
@@ -484,20 +485,20 @@ final class DictationController: NSObject, ObservableObject {
       phase = "recording"
       recordingStart = Date()
       setStatus(
-        "Aufnahme · 0 s", "Ziel: \(target.name). Fn loslassen oder freihändig mit Fn + Leertaste beenden.", floating: true)
+        String(localized: "Recording · 0 s"), String(localized: "Target: \(target.name). Release Fn, or finish hands-free with Fn + Space."), floating: true)
       let id = request
       recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
         MainActor.assumeIsolated {
           guard let self, self.request == id, self.phase == "recording" else { return }
           let elapsed = Date().timeIntervalSince(self.recordingStart)
           self.capsule.updateRecording(rms: self.record?.audio.rms ?? 0)
-          self.titleLabel.stringValue = "Aufnahme · \(Int(elapsed)) / 60 s"
+          self.titleLabel.stringValue = String(localized: "Recording · \(Int(elapsed)) / 60 s")
           if elapsed >= 60 { self.finishRecording() }
         }
       }
     } catch {
       cancel(restart: false)
-      setStatus("Aufnahme nicht gestartet", error.localizedDescription, floating: true)
+      setStatus(String(localized: "Recording did not start"), error.localizedDescription, floating: true)
       hidePanelLater()
     }
   }
@@ -521,7 +522,7 @@ final class DictationController: NSObject, ObservableObject {
     guard let id = request else { return }
     phase = "processing"
     setStatus(
-      "Text wird erkannt …", "Alles wird lokal verarbeitet. Esc verwirft den Auftrag.",
+      String(localized: "Recognizing text…"), String(localized: "Everything is processed on this Mac. Escape discards it."),
       floating: true)
     let lang = language.workerValue
     if worker.ready {
@@ -534,7 +535,7 @@ final class DictationController: NSObject, ObservableObject {
       guard let self, self.gate.accepts(id) else { return }
       self.cancel()
       self.setStatus(
-        "Zeitlimit erreicht", "Der Auftrag wurde verworfen. Du kannst ein neues Diktat starten.",
+        String(localized: "Time limit reached"), String(localized: "The dictation was discarded. You can start a new one."),
         floating: true)
     }
     timeout = timer
@@ -552,15 +553,15 @@ final class DictationController: NSObject, ObservableObject {
       }
       phase = "ready"
       setStatus(
-        "Bereit", "In ein Textfeld klicken und Fn halten – oder hier das Testfeld nutzen."
+        String(localized: "Ready"), String(localized: "Click in a text field and hold Fn, or use the test field here.")
       )
       if smoke { runSmoke() }
     case "fatal":
-      let detail = message.message ?? "Lokaler Sprachprozess nicht verfügbar."
+      let detail = message.message ?? String(localized: "The local dictation process is not available.")
       cancel(restart: false)
       worker.stop()
       phase = "unloaded"
-      setStatus("Modell nicht verfügbar", detail, floating: true)
+      setStatus(String(localized: "Model not available"), detail, floating: true)
       if smoke { finishSmoke(error: detail) }
     case "result", "error":
       guard let raw = message.id, let id = UUID(uuidString: raw), gate.accepts(id),
@@ -571,7 +572,7 @@ final class DictationController: NSObject, ObservableObject {
       if message.type == "error" {
         complete()
         setStatus(
-          "Erkennung fehlgeschlagen", message.message ?? "Bitte erneut versuchen.", floating: true)
+          String(localized: "Recognition failed"), message.message ?? String(localized: "Please try again."), floating: true)
         if smoke { finishSmoke(error: "worker error") }
         return
       }
@@ -580,7 +581,7 @@ final class DictationController: NSObject, ObservableObject {
       result.string = text
       guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
         complete()
-        setStatus("Keine Sprache erkannt", "Es wurde nichts eingefügt.", floating: true)
+        setStatus(String(localized: "No speech recognized"), String(localized: "Nothing was pasted."), floating: true)
         hidePanelLater()
         if smoke { finishSmoke(error: "empty transcription") }
         return
@@ -593,8 +594,8 @@ final class DictationController: NSObject, ObservableObject {
     guard gate.accepts(id), let target, target.isCurrent() else {
       complete()
       setStatus(
-        "Ziel hat sich geändert",
-        "Das Ergebnis steht im Diktierfenster. Es wurde nichts automatisch eingefügt.",
+        String(localized: "Target changed"),
+        String(localized: "The result is in the dictation window. Nothing was pasted automatically."),
         floating: true)
       hidePanelLater()
       if smoke { finishSmoke(error: "target changed") }
@@ -607,7 +608,7 @@ final class DictationController: NSObject, ObservableObject {
       try target.paste()
       phase = "pasting"
       setStatus(
-        "Einfügen ausgelöst", "Die Zwischenablage wird gleich wiederhergestellt.", floating: true)
+        String(localized: "Paste sent"), String(localized: "The clipboard will be restored in a moment."), floating: true)
       let work = DispatchWorkItem { [weak self] in
         guard let self, self.gate.accepts(id) else { return }
         let confirmed = target.confirms(text)
@@ -616,10 +617,10 @@ final class DictationController: NSObject, ObservableObject {
         self.restore = nil
         self.complete()
         self.setStatus(
-          confirmed ? "Eingefügt" : "Einfügen ausgelöst",
+          confirmed ? String(localized: "Pasted") : String(localized: "Paste sent"),
           confirmed
-            ? "Bereit für die nächste Aufnahme."
-            : "Bitte das Zielfeld prüfen. Keine automatische Wiederholung; das Ergebnis bleibt im Diktierfenster.",
+            ? String(localized: "Ready for the next recording.")
+            : String(localized: "Please check the target field. Nothing is retried; the result stays in the dictation window."),
           floating: true, capsuleState: confirmed ? .inserted : .unconfirmed)
         self.hidePanelLater()
         if self.smoke {
@@ -635,7 +636,7 @@ final class DictationController: NSObject, ObservableObject {
       _ = lease?.restore()
       lease = nil
       complete()
-      setStatus("Nicht eingefügt", error.localizedDescription, floating: true)
+      setStatus(String(localized: "Not pasted"), error.localizedDescription, floating: true)
       hidePanelLater()
       if smoke { finishSmoke(error: error.localizedDescription) }
     }
@@ -672,7 +673,7 @@ final class DictationController: NSObject, ObservableObject {
     result.string = ""
     if wasProcessing || !worker.ready { worker.stop() }
     phase = worker.ready ? "ready" : "unloaded"
-    setStatus("Verworfen", "Die Aufnahme und das Ergebnis wurden verworfen.", floating: false)
+    setStatus(String(localized: "Discarded"), String(localized: "The recording and its result were discarded."), floating: false)
     panel?.orderOut(nil)
     if restart { loadModel() }
   }
@@ -681,7 +682,7 @@ final class DictationController: NSObject, ObservableObject {
     NSPasteboard.general.clearContents()
     NSPasteboard.general.setString(latestText, forType: .string)
     setStatus(
-      "Ergebnis kopiert", "Diese ausdrücklich angeforderte Kopie bleibt in der Zwischenablage.")
+      String(localized: "Result copied"), String(localized: "The copy you asked for stays on the clipboard."))
   }
   @objc func clearFields() {
     cancel()
@@ -698,16 +699,16 @@ final class DictationController: NSObject, ObservableObject {
       guard
         let buffer = AVAudioPCMBuffer(
           pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length))
-      else { throw DictationError("Hörprobe konnte nicht gelesen werden.") }
+      else { throw DictationError(String(localized: "The sample recording could not be read.")) }
       try file.read(into: buffer)
       guard let channels = buffer.floatChannelData else {
-        throw DictationError("Ungültige Hörprobe.")
+        throw DictationError(String(localized: "The sample recording is invalid."))
       }
       let samples = Array(UnsafeBufferPointer(start: channels[0], count: Int(buffer.frameLength)))
       try begin(target: InsertionTarget(local: scratch))
       send(AudioPacket(samples: samples, rate: buffer.format.sampleRate))
     } catch {
-      setStatus("Hörprobe nicht verfügbar", error.localizedDescription)
+      setStatus(String(localized: "Sample recording not available"), error.localizedDescription)
       if smoke { finishSmoke(error: "demo failed") }
     }
   }
@@ -748,8 +749,8 @@ final class DictationController: NSObject, ObservableObject {
     smokeClipboard = nil
     setStatus(
       smokeFailures.isEmpty && unchanged
-        ? "Beispieltests erfolgreich" : "Prüfung braucht Aufmerksamkeit",
-      "Zwei öffentliche Hörproben testen Erkennung, Einfügen und Wiederherstellung. Dein Mikrofon wurde dabei nicht verwendet."
+        ? String(localized: "Sample checks passed") : String(localized: "Check needs attention"),
+      String(localized: "Two public sample recordings tested recognition, pasting and restoring. Your microphone was not used.")
     )
   }
 }
