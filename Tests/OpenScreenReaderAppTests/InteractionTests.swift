@@ -1203,6 +1203,49 @@ struct InteractionTests {
     }
 
     @Test
+    func selectionGestureFollowsScreenshotModifiers() {
+        var gesture = SelectionGesture(start: CGPoint(x: 100, y: 100))
+        gesture.move(to: CGPoint(x: 160, y: 140))
+        #expect(gesture.rect == CGRect(x: 100, y: 100, width: 60, height: 40))
+        // Space moves the whole selection with the pointer.
+        gesture.setMoving(true)
+        gesture.move(to: CGPoint(x: 180, y: 150))
+        #expect(gesture.rect == CGRect(x: 120, y: 110, width: 60, height: 40))
+        gesture.setMoving(false)
+        gesture.move(to: CGPoint(x: 200, y: 170))
+        #expect(gesture.rect == CGRect(x: 120, y: 110, width: 80, height: 60))
+        // Option grows the selection from its starting point as the centre.
+        gesture.setModifiers(option: true, shift: false)
+        #expect(gesture.rect == CGRect(x: 40, y: 50, width: 160, height: 120))
+        gesture.setModifiers(option: false, shift: false)
+        // Shift locks the edge that did not move first.
+        gesture.setModifiers(option: false, shift: true)
+        gesture.move(to: CGPoint(x: 230, y: 172))
+        gesture.move(to: CGPoint(x: 240, y: 230))
+        #expect(gesture.rect == CGRect(x: 120, y: 110, width: 120, height: 60))
+        gesture.setModifiers(option: false, shift: false)
+        #expect(gesture.rect == CGRect(x: 120, y: 110, width: 120, height: 120))
+        // A vertical first movement locks the width instead.
+        var vertical = SelectionGesture(start: .zero)
+        vertical.move(to: CGPoint(x: 50, y: 50))
+        vertical.setModifiers(option: false, shift: true)
+        vertical.move(to: CGPoint(x: 51, y: 90))
+        vertical.move(to: CGPoint(x: 120, y: 95))
+        #expect(vertical.rect == CGRect(x: 0, y: 0, width: 50, height: 95))
+    }
+
+    @Test
+    func selectionHintAppearsForTheFirstFewSelectionsOnly() throws {
+        let suite = "com.christopherbobel.OpenScreenReader.hint-tests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var shown = 0
+        for _ in 0..<8 where SelectionHint.consume(defaults) { shown += 1 }
+        #expect(shown == SelectionHint.limit)
+        #expect(SelectionHint.limit == 5)
+    }
+
+    @Test
     func selectionGeometryHandlesNegativeDisplayOriginsAndRetinaScale() throws {
         let geometry = DisplaySelectionGeometry(
             displayID: 9,
@@ -2712,6 +2755,16 @@ struct WindowPreviewTests {
         }
         try render(SetupView(model: model), "setup")
         try render(PlaybackControlsView(model: model), "playback-controls")
+        let overlay = RegionSelectionOverlayController(defaults: preferences)
+        overlay.start(onSelection: { _ in }, onCancel: {})
+        if let view = NSApp.windows.first(where: { $0.title == "Select Screen Region" && $0.isVisible })?.contentView,
+           let pill = view.subviews.first {
+            let area = pill.frame.insetBy(dx: -60, dy: -30)
+            let rep = try #require(view.bitmapImageRepForCachingDisplay(in: area))
+            view.cacheDisplay(in: area, to: rep)
+            try #require(rep.representation(using: .png, properties: [:])).write(to: directory.appendingPathComponent("selection-hint.png"))
+        }
+        overlay.cancel()
         for (suffix, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
             dictation.window.appearance = NSAppearance(named: appearance)
             // The frame view draws the window background behind the AppKit labels.
