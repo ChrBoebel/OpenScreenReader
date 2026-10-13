@@ -1,6 +1,6 @@
-# Contributing to OpenScreenReader
+# Contributing to Saywing
 
-Thank you for helping build a private, local, and accessible macOS reading tool.
+Thank you for helping build a private, local, and accessible macOS text-and-voice tool. Screen reading and explicit local dictation are integrated experimentally; public distribution remains gated. The repository, scheme and module identifiers retain OpenScreenReader for compatibility; the product name is Saywing.
 
 ## Before contributing
 

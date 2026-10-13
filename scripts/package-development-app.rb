@@ -10,7 +10,7 @@ abort 'Usage: ruby scripts/package-development-app.rb RELEASE_APP --development-
   (ARGV.length == 2 || (ARGV.length == 3 && ARGV[2] == '--dmg')) && ARGV[1] == '--development-only'
 repo = File.expand_path('..', __dir__)
 app = File.realpath(ARGV[0])
-abort 'Expected OpenScreenReader.app' unless File.basename(app) == 'OpenScreenReader.app' && File.file?(File.join(app, 'Contents/MacOS/OpenScreenReader'))
+abort 'Expected Saywing.app' unless File.basename(app) == 'Saywing.app' && File.file?(File.join(app, 'Contents/MacOS/Saywing'))
 root = File.join(Dir.home, 'Library/Application Support/OpenScreenReader')
 runtime = File.join(root, 'SupertonicRuntime')
 receipt = JSON.parse(File.read(File.join(runtime, 'installation-receipt.json')))
@@ -37,7 +37,7 @@ abort 'Missing CPython license' unless File.file?(File.join(python, 'lib/python3
 
 FileUtils.mkdir_p(File.join(repo, '.build'))
 stage = Dir.mktmpdir('packaging-', File.join(repo, '.build'))
-target = File.join(stage, 'OpenScreenReader.app')
+target = File.join(stage, 'Saywing.app')
 FileUtils.cp_r(app, target)
 speech = File.join(target, 'Contents/Resources/Speech')
 abort 'Input bundle already contains Speech resources' if File.exist?(speech)
@@ -88,19 +88,20 @@ File.write(File.join(dest, 'installation-receipt.json'), JSON.pretty_generate(
   purpose: 'Private offline packaging experiment. Not approved for redistribution.',
   worker_protocol: 2, model_revision: manifest.fetch('revision'), packages: receipt.fetch('packages'), files: hashes
 ) + "\n")
-FileUtils.cp(File.join(repo, 'LICENSE'), File.join(target, 'Contents/Resources/LICENSE-OpenScreenReader'))
+FileUtils.cp(File.join(repo, 'LICENSE'), File.join(target, 'Contents/Resources/LICENSE-Saywing'))
 File.write(File.join(target, 'Contents/Resources/DEVELOPMENT-PREVIEW.txt'),
   "Private packaging experiment. Not notarized or approved for distribution.\n" +
   "Model: Supertonic 3, #{manifest.fetch('revision')}, BigScience Open RAIL-M.\n" +
   "Full CPython/native-library provenance and license-chain review remain release gates.\n")
-abort 'Bundle signing failed' unless system('/usr/bin/codesign', '--force', '--sign', '-', '--options', 'runtime', target)
+abort 'Bundle signing failed' unless system('/usr/bin/codesign', '--force', '--sign', '-', '--options', 'runtime', '--entitlements', File.join(repo, 'OpenScreenReaderApp/Saywing.entitlements'), target)
 abort 'Bundle verification failed' unless system('/usr/bin/codesign', '--verify', '--deep', '--strict', target)
+abort 'Microphone signing prerequisites missing' unless system('python3', File.join(repo, 'scripts/verify-app-permissions.py'), target)
 puts "PRIVATE DEVELOPMENT BUNDLE: #{target}"
 puts 'No download or publication. Test relocation and offline speech before installation.'
 if ARGV[2] == '--dmg'
   File.symlink('/Applications', File.join(stage, 'Applications'))
   image = stage + '.dmg'
   abort 'Development DMG creation failed' unless system('/usr/bin/hdiutil', 'create', '-volname',
-    'OpenScreenReader Development', '-srcfolder', stage, '-format', 'UDZO', image)
+    'Saywing Development', '-srcfolder', stage, '-format', 'UDZO', image)
   puts "PRIVATE DEVELOPMENT DMG: #{image}"
 end

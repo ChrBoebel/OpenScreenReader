@@ -1,11 +1,14 @@
 import Carbon.HIToolbox
 import Foundation
+import AppKit
 
 struct ShortcutConfiguration: Codable, Equatable, Sendable {
     var key: String
     var modifiers: UInt32
 
-    static let `default` = ShortcutConfiguration(key: "Y", modifiers: UInt32(cmdKey | shiftKey))
+    static let `default` = ShortcutConfiguration(key: "R", modifiers: UInt32(optionKey))
+    static let previousDefault = ShortcutConfiguration(key: "Y", modifiers: UInt32(cmdKey | shiftKey))
+    static let dictationDefault = ShortcutConfiguration(key: "Space", modifiers: UInt32(optionKey | shiftKey))
     static let queueDefault = ShortcutConfiguration(key: "Y", modifiers: UInt32(cmdKey | optionKey | shiftKey))
     static let availableKeys = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789").map(String.init) + ["Space"]
     static let supportedModifiers = UInt32(cmdKey | shiftKey | optionKey | controlKey)
@@ -252,4 +255,182 @@ final class GlobalHotkeyManager: HotkeyManaging {
     }
 
     nonisolated private static let signature: OSType = 0x4F_53_52_52
+}
+
+/// Only gesture timing, never key text. A short single Fn tap is discarded;
+/// double-tap locks recording, and a third quick tap discards it.
+struct FnDictationGesture {
+    enum Action: Equatable, Sendable { case start, lock, finish, cancel }
+    private enum Mode { case idle, holding, waiting, locked }
+    private var mode = Mode.idle
+    private var down = false
+    private var ignoreRelease = false
+    private var pressedAt = 0.0
+    private var lockedAt = 0.0
+    var isActive: Bool { mode != .idle }
+
+    mutating func reset() { self = Self() }
+    mutating func press(at time: Double) -> [Action] {
+        guard !down else { return [] }
+        let expired = expire(at: time)
+        down = true
+        ignoreRelease = false
+        pressedAt = time
+        switch mode {
+        case .idle: mode = .holding; return expired + [.start]
+        case .waiting:
+            mode = .locked; lockedAt = time; ignoreRelease = true
+            return [.lock]
+        case .holding, .locked: return []
+        }
+    }
+    mutating func release(at time: Double) -> [Action] {
+        guard down else { return [] }
+        down = false
+        if ignoreRelease { ignoreRelease = false; return [] }
+        switch mode {
+        case .holding:
+            if time - pressedAt < 0.5 { mode = .waiting; return [] }
+            mode = .idle; return [.finish]
+        case .locked:
+            mode = .idle
+            return time - lockedAt < 0.5 ? [.cancel] : [.finish]
+        case .idle, .waiting: return []
+        }
+    }
+    mutating func space(at time: Double) -> [Action] {
+        guard down else { return [] }
+        ignoreRelease = true
+        switch mode {
+        case .holding, .waiting:
+            mode = .locked; lockedAt = time; return [.lock]
+        case .locked:
+            mode = .idle
+            return time - lockedAt < 0.5 ? [.cancel] : [.finish]
+        case .idle: return []
+        }
+    }
+    mutating func otherKey() -> [Action] {
+        guard down else { return [] }
+        ignoreRelease = true
+        if mode == .holding || mode == .waiting { mode = .idle; return [.cancel] }
+        return []
+    }
+    mutating func expire(at time: Double) -> [Action] {
+        if mode == .waiting, time - pressedAt >= 0.5 {
+            mode = .idle; return [.cancel]
+        }
+        return []
+    }
+}
+
+/// An active tap is needed to consume Fn/Space so macOS does not also open its
+/// emoji/dictation UI. Only Fn gesture metadata is retained, never typed text.
+@MainActor
+final class FnDictationShortcuts {
+    var onAction: ((FnDictationGesture.Action) -> Bool)?
+    private var tap: CFMachPort?
+    private var source: CFRunLoopSource?
+    private var timer: Timer?
+    private var gesture = FnDictationGesture()
+    private var generation = UUID()
+    private var ownsSpace = false
+    private var deliveringAction = false
+    var isAvailable: Bool { tap.map { CGEvent.tapIsEnabled(tap: $0) } ?? false }
+    isolated deinit { stop() }
+
+    func start() {
+        guard tap == nil, AXIsProcessTrusted(), !IsSecureEventInputEnabled() else { return }
+        let mask = [CGEventType.flagsChanged, .keyDown, .keyUp]
+            .reduce(CGEventMask(0)) { $0 | (1 << $1.rawValue) }
+        guard let created = CGEvent.tapCreate(
+            tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
+            eventsOfInterest: mask, callback: { _, type, event, context in
+                guard let context else { return Unmanaged.passUnretained(event) }
+                // Installed exclusively on the main run loop, like EscapeMonitor.
+                let consumed = MainActor.assumeIsolated {
+                    Unmanaged<FnDictationShortcuts>.fromOpaque(context).takeUnretainedValue()
+                        .handle(type: type, event: event)
+                }
+                return consumed ? nil : Unmanaged.passUnretained(event)
+            }, userInfo: Unmanaged.passUnretained(self).toOpaque()),
+            let runLoopSource = CFMachPortCreateRunLoopSource(nil, created, 0) else { return }
+        tap = created
+        source = runLoopSource
+        CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
+        CGEvent.tapEnable(tap: created, enable: true)
+        let health = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                if !self.isAvailable || !AXIsProcessTrusted() || IsSecureEventInputEnabled() {
+                    let active = self.gesture.isActive
+                    self.stop()
+                    if active { _ = self.onAction?(.cancel) }
+                    return
+                }
+                self.enqueue(self.gesture.expire(at: ProcessInfo.processInfo.systemUptime))
+            }
+        }
+        timer = health
+        RunLoop.main.add(health, forMode: .common)
+    }
+    func resetGesture() {
+        guard !deliveringAction else { return }
+        generation = UUID()
+        gesture.reset()
+    }
+    func stop() {
+        resetGesture()
+        timer?.invalidate(); timer = nil
+        if let source { CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes) }
+        if let tap { CFMachPortInvalidate(tap) }
+        tap = nil; source = nil; ownsSpace = false
+    }
+    private func enqueue(_ actions: [FnDictationGesture.Action]) {
+        guard !actions.isEmpty else { return }
+        let current = generation
+        // Keep AX lookups and microphone startup out of the event-tap callback.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.generation == current, self.isAvailable else { return }
+            for action in actions {
+                self.deliveringAction = true
+                let accepted = self.onAction?(action) == true
+                self.deliveringAction = false
+                if !accepted { self.resetGesture(); break }
+            }
+        }
+    }
+    private func handle(type: CGEventType, event: CGEvent) -> Bool {
+        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            let active = gesture.isActive
+            resetGesture()
+            if active { _ = onAction?(.cancel) }
+            return false
+        }
+        let code = event.getIntegerValueField(.keyboardEventKeycode)
+        let fn = event.flags.contains(.maskSecondaryFn)
+        let others = event.flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift])
+        let time = ProcessInfo.processInfo.systemUptime
+        if type == .flagsChanged, code == 63 {
+            if !others.isEmpty {
+                enqueue(gesture.otherKey())
+                if !fn { enqueue(gesture.release(at: time)) }
+                return false
+            }
+            enqueue(fn ? gesture.press(at: time) : gesture.release(at: time))
+            return true
+        }
+        if type == .keyUp, code == 49, ownsSpace { ownsSpace = false; return true }
+        if type == .keyDown, code == 49, fn, others.isEmpty {
+            if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 {
+                enqueue(gesture.space(at: time))
+            }
+            ownsSpace = true
+            return true
+        }
+        if (type == .keyDown || type == .flagsChanged), fn {
+            enqueue(gesture.otherKey())
+        }
+        return false
+    }
 }

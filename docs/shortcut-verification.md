@@ -1,5 +1,47 @@
 # Configurable shortcut verification
 
+## Saved shortcut choice — 2026-10-13
+
+The owner explicitly chose Command-Shift-Y (⌘⇧Y) again after confirming that
+Option-R opens selection. Startup now honors every valid saved shortcut,
+including the former default; it no longer rewrites Command-Shift-Y to Option-R.
+The default for an empty preference remains Option-R.
+
+The saved-choice regression failed before the fix (both the active configuration
+and stored value were overwritten). After the fix, that regression and the
+shortcut persistence/conflict test passed (2 tests). The Release build passed.
+The installed app accepted and saved ⌘⇧Y through Settings and still displayed
+`Ready ⌘⇧Y` after relaunch with the corrected executable. Screen Recording,
+Input Monitoring, and Accessibility were renewed and confirmed by the app.
+Microphone approval was reset for the new development signature and requested
+again; consent remains in the system dialog for the owner. Physical delivery of
+⌘⇧Y and an end-to-end OCR/speech run were not newly verified in this change.
+
+## Selection focus correction — 2026-10-13
+
+The current default is Option-R (⌥R). The selection overlay now uses nonactivating
+panels, remains visible when another app is active, and gives keyboard focus to
+the panel under the pointer without activating Saywing's Settings or dictation
+windows. Escape still cancels through the selection view; cancellation closes
+every selection panel.
+
+The native panel regression failed before the correction (activating style and
+`hidesOnDeactivate == true`) and passed afterward. The 115-test app run had one
+queue-timeout test fail under the full run; that test and the panel regression
+both passed in an isolated rerun (2 tests). The Release build passed. These
+checks do not by themselves establish end-to-end OCR/speech success. The owner
+then physically pressed Option-R and confirmed that the region selection appears.
+During UI investigation, opening the separate setup window
+also produced an AppKit constraints crash; that remains a separate issue.
+
+The corrected Release executable was installed in `/Applications/Saywing.app`
+with the existing model resources retained; signature and Audio Input entitlement
+verification passed. After replacing stale TCC entries, the running app confirmed
+Screen Recording, Input Monitoring, and Accessibility access. The old Microphone
+entry still had a mismatched code requirement; its app-specific approval was reset
+and requested again. The system permission dialog is blocked from Computer Use,
+so final microphone consent remains for the owner. No recording was started.
+
 ## Behavior
 
 The menu bar's Settings window offers Command, Shift, Option, and Control checkboxes plus a key picker (A–Z, 0–9, Space). At least Command, Option, or Control is required. Escape stays reserved for cancellation. Apply registers and saves the choice; Restore Default selects ⌘⇧Y. During selection, capture, or recognition, both the UI and model reject changes so the active cancellation shortcut cannot disappear.

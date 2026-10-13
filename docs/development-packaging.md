@@ -5,7 +5,7 @@ This is a local development artifact, not a release or a redistribution approval
 Build the Release target, then run:
 
 ```sh
-ruby scripts/package-development-app.rb /absolute/path/to/Release/OpenScreenReader.app --development-only --dmg
+ruby scripts/package-development-app.rb /absolute/path/to/Release/Saywing.app --development-only --dmg
 ```
 
 The script refuses other modes. It creates a new ignored `.build/packaging-*` staging directory, optionally a sibling DMG, and never overwrites the installed app. Existing model/worker/dependency files must match their installation receipt and the pinned model manifest. Nothing is downloaded.
@@ -25,3 +25,7 @@ The package uses ad-hoc signatures. No certificate purchase, Developer ID signin
 On the development Mac, isolated imports resolved inside the bundle. A relocated bundle's real local speech, three-second pause/resume and playback/loading cancellation passed under the worker's deny-network/deny-write sandbox. Deep strict signature verification passed. See `everyday-reading-verification.md` for measurements and the GUI blocker.
 
 Before distribution, obtain a reproducible, independently pinned interpreter source/build provenance record, audit every native and transitive license/notice (including any notices not present in wheel metadata), verify load-command resolution and signing on a fresh Mac, audit offline/data flows, and complete the selected distribution signing/notarization workflow. Existing licenses are retained; their presence alone is not a complete legal/redistribution audit. Do not publish this development DMG as an end-user release.
+
+## Integrated local dictation
+
+The 2026-10-13 build also bundles selectable Qwen3-ASR and Whisper Turbo through `scripts/bundle-dictation-runtime.py`. It accepts existing verified resources only, preserves notices, creates a hash inventory and re-signs the app. See [dictation packaging, setup and actual verification](dictation-integration-verification.md). `--speech-from` can reuse a receipt-verified self-contained Speech runtime when an external development interpreter has changed. This is still a private build, not a public-release approval.

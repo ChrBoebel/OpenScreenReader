@@ -1,3 +1,5 @@
+> **Historische Markenentwicklung:** Die Namens-, Logo- und Farbentscheidungen wurden am 13.10.2026 durch [Saywing / Quiet Owl](BRAND_SYSTEM.md) ersetzt. Frühere Produkt- und Modellannahmen sind keine aktuelle Freigabe.
+
 # OpenScreenReader Brandbook
 
 - Status: evidence-based working draft

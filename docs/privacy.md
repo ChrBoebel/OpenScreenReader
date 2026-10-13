@@ -2,7 +2,7 @@
 
 ## Grundsatz
 
-OpenScreenReader verarbeitet möglicherweise hochsensible Bildschirmdaten. Datenschutz ist deshalb keine Marketingoption, sondern eine technische Invariante.
+Saywing (bisher OpenScreenReader) verarbeitet möglicherweise hochsensible Bildschirmdaten. Datenschutz ist deshalb keine Marketingoption, sondern eine technische Invariante. Die Umbenennung ändert diese Vorgaben nicht. Seit der Eigentümerentscheidung vom 2026-10-13 ist lokales Diktieren als eigener Ablauf integriert; nur für dessen ausdrücklich gestartetes Einfügen gilt die unten beschriebene Zwischenablage-Ausnahme.
 
 ## Verbindliche Standardwerte
 
@@ -10,7 +10,7 @@ OpenScreenReader verarbeitet möglicherweise hochsensible Bildschirmdaten. Daten
 - Kein Konto und keine Anmeldung.
 - Keine Telemetrie im offiziellen Build.
 - Keine Cloud-Synchronisation.
-- Kein automatisches Schreiben in die Zwischenablage.
+- Kein automatisches Schreiben in die Zwischenablage beim Vorlesen. Diktieren darf für eine ausdrücklich gestartete Aufnahme über Cmd+V einfügen und die vollständig gesicherte Zwischenablage nach 1–2 s wiederherstellen, solange kein neuer Inhalt kopiert wurde. Keine Wiederholung bei unklarem Ergebnis.
 - Keine dauerhafte Speicherung von Screenshots, OCR-Text oder Audio.
 - Keine stillen Netzwerk-Fallbacks, wenn ein lokales Modell fehlschlägt.
 - Berechtigungen werden erst angefragt, wenn die dazugehörige Funktion verwendet wird.
@@ -75,3 +75,25 @@ Zulässige Aussagen sind beispielsweise:
 - „No telemetry in the official build.“
 
 Nicht verwendet werden sollen absolute, nicht beweisbare Aussagen wie „100 % sicher“.
+
+## Diktieren — Freigabe 2026-10-13
+
+Mikrofonfreigabe und Aufnahme sind getrennte Aktionen. Kein Mikrofonstart beim App-Start, Laden oder Freigeben. Maximal 60 s PCM bleiben im RAM und laufen über anonyme Pipes an das ausgewählte lokale Diktiermodell. Der Worker hat ein OS-Verbot für Netzwerk und Dateischreiben (außer `/dev/null`). Er lädt ausschließlich mitgelieferte, hashgeprüfte Modelle; kein Cloud- oder Entwicklerpfad-Fallback. Modellauswahl, Sprache und Restore-Verzögerung sind die gespeicherten Diktiereinstellungen. Das sichtbare letzte Ergebnis/Testfeld bleibt bis Verwerfen/Leeren/Beenden im RAM, ohne Verlauf.
+
+Beim Diktat werden Feldinhalt und Cursorposition, sofern verfügbar, nur zur Zielvalidierung im RAM gehalten. Passwortfelder und nicht erkannte Felder werden abgewiesen. Alle lesbaren Clipboard-Formate werden vor dem Einfügen bis 16 MiB gesichert; nicht vollständig sicherbare Daten verhindern automatisches Einfügen. Eine neue Kopie hat Vorrang. Abbruch/normaler App-Exit stellt eine noch eigene Zwischenablage sofort wieder her; ein harter Absturz im kurzen Einfügefenster kann dies verhindern. Clipboard-Manager können den Text trotz Concealed-Kennzeichnung sehen. Die manuelle Aktion „Ergebnis kopieren“ behält die ausdrücklich angeforderte Kopie.
+
+Mikrofon und Bedienungshilfen werden ausschließlich per Einrichtungsbutton angefragt; keine Liveaufnahme durch Demos oder Selbsttests. Vorlesen stoppt vor einer Aufnahme, ein Vorlesestart verwirft aktives Diktieren. Esc, Verwerfen, Systemruhe/Sitzungswechsel und App-Ende räumen aktive Aufträge auf und invalidieren verspätete Ergebnisse. [Details und Nachweise](research/qwen-dictation-runtime.md).
+
+## Fn-Diktiersteuerung — 2026-10-13
+
+Auf Wunsch des Eigentümers unterstützt Diktieren Fn-Halten, Fn-Doppeldruck und Fn+Leertaste. Mit Bedienungshilfenfreigabe beobachtet ein Event-Tap Fn-/Modifier-Übergänge und Tastendruck-/Loslass-Ereignisse, damit er Fn+Leertaste übernehmen und andere Fn-Kombinationen durchlassen kann. Er liest keine Zeichen, speichert keine Tastaturtexte und überträgt keine Tastendaten; sein Zustand umfasst ausschließlich Fn-Gesten, Zeitpunkte und die zugehörige Leertaste. Andere Tasteneingaben werden unverändert durchgereicht. Der Tap läuft während der verfügbaren Fn-Steuerung, wird bei Ruhezustand/Sitzungswechsel/Beenden entfernt und bricht eine aktive Fn-Aufnahme bei Verlust der Beobachtung ab. Anders als die bisherige Escape-Beobachtung besteht er deshalb auch zwischen Aufnahmen. Freigaben werden nicht automatisch angefragt. ⌥⇧Leertaste bleibt ohne Fn-Beobachtung nutzbar.
+
+## Auswahl des Diktiermodells — 2026-10-13
+
+Qwen3-ASR und Whisper Turbo verwenden dieselbe Offline-Sandbox und die bestehende
+flüchtige Audio-/Clipboard-Pipeline. `dictationModel.v1` speichert nur die Wahl des
+Modells. Laden und Wechsel starten kein Mikrofon. Fehlende oder beschädigte
+Modelldateien erzeugen einen sichtbaren Fehler; die App lädt nichts aus dem Netz
+und wechselt nicht automatisch auf einen anderen Provider. Wechsel invalidieren
+Callbacks des alten Workers. [Quelle, Revision, Prüfsummen und Lizenz von Whisper
+Turbo](research/whisper-turbo-dictation.md).

@@ -40,7 +40,7 @@ final class MenuBarSmokeUITests: XCTestCase {
         XCTAssertTrue(app.groups["Screen region selection"].firstMatch.waitForExistence(timeout: 3))
         app.typeKey(.escape, modifierFlags: [])
         XCTAssertTrue(app.descendants(matching: .statusItem)
-            .matching(NSPredicate(format: "title == 'OpenScreenReader, Stopped'"))
+            .matching(NSPredicate(format: "title == 'Saywing, Stopped'"))
             .firstMatch.waitForExistence(timeout: 3))
     }
 
@@ -55,7 +55,7 @@ final class MenuBarSmokeUITests: XCTestCase {
         defer { app.terminate() }
 
         let statusItem = app.descendants(matching: .statusItem)
-            .matching(NSPredicate(format: "title == 'OpenScreenReader, Ready'"))
+            .matching(NSPredicate(format: "title == 'Saywing, Ready'"))
             .firstMatch
 
         XCTAssertTrue(
@@ -76,7 +76,7 @@ final class MenuBarSmokeUITests: XCTestCase {
             ].exists
         )
         XCTAssertTrue(app.menuItems["Settings…"].exists)
-        XCTAssertTrue(app.menuItems["Quit OpenScreenReader"].exists)
+        XCTAssertTrue(app.menuItems["Quit Saywing"].exists)
 
         readRegion.click()
 
@@ -89,7 +89,7 @@ final class MenuBarSmokeUITests: XCTestCase {
         app.typeKey(.escape, modifierFlags: [])
 
         let stoppedStatus = app.descendants(matching: .statusItem)
-            .matching(NSPredicate(format: "title == 'OpenScreenReader, Stopped'"))
+            .matching(NSPredicate(format: "title == 'Saywing, Stopped'"))
             .firstMatch
         XCTAssertTrue(stoppedStatus.waitForExistence(timeout: 2))
     }
@@ -114,11 +114,11 @@ final class MenuBarSmokeUITests: XCTestCase {
         start.press(forDuration: 0.1, thenDragTo: end)
 
         let finishedStatus = app.descendants(matching: .statusItem)
-            .matching(NSPredicate(format: "title IN {'OpenScreenReader, Ready', 'OpenScreenReader, Error', 'OpenScreenReader, Preparing voice', 'OpenScreenReader, Speaking'}"))
+            .matching(NSPredicate(format: "title IN {'Saywing, Ready', 'Saywing, Error', 'Saywing, Preparing voice', 'Saywing, Speaking'}"))
             .firstMatch
         XCTAssertTrue(finishedStatus.waitForExistence(timeout: 17), statusDescription(in: app))
-        let failed = finishedStatus.title == "OpenScreenReader, Error"
-        let reading = finishedStatus.title == "OpenScreenReader, Preparing voice" || finishedStatus.title == "OpenScreenReader, Speaking"
+        let failed = finishedStatus.title == "Saywing, Error"
+        let reading = finishedStatus.title == "Saywing, Preparing voice" || finishedStatus.title == "Saywing, Speaking"
         finishedStatus.click()
         if reading {
             XCTAssertTrue(app.menuItems["Stop Reading"].exists)
@@ -141,15 +141,25 @@ final class MenuBarSmokeUITests: XCTestCase {
         let app = makeApplication()
         app.launch()
         defer { app.terminate() }
-        openMenu(in: app, status: "Ready")
+        // Settings and branding must remain available even when this machine
+        // cannot register the global shortcut. Pipeline tests still require Ready.
+        let status = app.descendants(matching: .statusItem)
+            .matching(NSPredicate(format: "title BEGINSWITH 'Saywing, '")).firstMatch
+        XCTAssertTrue(status.waitForExistence(timeout: 5), statusDescription(in: app))
+        status.click()
         app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
         XCTAssertTrue(app.buttons["Allow Screen Recording…"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.images["OpenScreenReader Owl Frame app logo"].exists)
-        XCTAssertTrue(app.staticTexts["Select. Listen. Stay private."].exists)
+        XCTAssertTrue(app.images["Saywing Quiet Owl app logo"].exists)
+        XCTAssertTrue(app.staticTexts["Diktieren · in Erprobung"].exists)
+        XCTAssertTrue(app.staticTexts["Vorlesen & Diktieren für macOS."].exists)
         XCTAssertTrue(app.buttons["Allow Input Monitoring…"].exists)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(
             format: "value CONTAINS 'Images, text, and audio are not saved'"
         )).firstMatch.exists)
+        let preview = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+        preview.name = "Saywing-settings"
+        preview.lifetime = .keepAlways
+        add(preview)
     }
 
     @MainActor
@@ -196,7 +206,12 @@ final class MenuBarSmokeUITests: XCTestCase {
         expectation(for: vertical, evaluatedWith: control)
         waitForExpectations(timeout: 3)
         XCTAssertLessThan(control.frame.midX, visible.minX + 100)
-        XCTAssertEqual(app.buttons["readingStatusAction"].frame.width, 44, accuracy: 1)
+        // AppKit expands this borderless NSButton's accessibility frame by
+        // 1 pt on each side (44 pt view → 46 pt AX frame). The native view
+        // tests assert exact geometry; here verify the accessible hit target.
+        let stopFrame = app.buttons["readingStatusAction"].frame
+        XCTAssertGreaterThanOrEqual(stopFrame.width, 44)
+        XCTAssertGreaterThanOrEqual(stopFrame.height, 44)
         let side = control.frame
         let grip = control.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.42))
         let right = grip.withOffset(CGVector(dx: visible.maxX - 40 - side.midX, dy: 0))
@@ -230,7 +245,7 @@ final class MenuBarSmokeUITests: XCTestCase {
         waitForExpectations(timeout: 3)
         let picker = app.popUpButtons["readingPanelPosition"]
         picker.click()
-        app.menuItems["Left"].click()
+        picker.menuItems["Left"].firstMatch.click()
         expectation(for: NSPredicate { _, _ in control.frame.height > control.frame.width && control.frame.midX < visible.minX + 100 },
                     evaluatedWith: control)
         waitForExpectations(timeout: 3)
@@ -266,7 +281,7 @@ final class MenuBarSmokeUITests: XCTestCase {
         defer { app.terminate() }
         openMenu(in: app, status: "Ready")
         app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
-        XCTAssertTrue(app.staticTexts["Select. Listen. Stay private."].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Vorlesen & Diktieren für macOS."].waitForExistence(timeout: 5))
         try XCTSkipUnless(app.staticTexts["Installed for local development"].exists,
                           "Install the pinned development runtime for this real Supertonic test.")
         XCTAssertTrue(app.staticTexts["Supertonic 3 · M1"].exists)
@@ -293,7 +308,7 @@ final class MenuBarSmokeUITests: XCTestCase {
         start.press(forDuration: 0.1, thenDragTo: end)
         fixture.activate()
         let speaking = app.descendants(matching: .statusItem)
-            .matching(NSPredicate(format: "title == 'OpenScreenReader, Speaking'")).firstMatch
+            .matching(NSPredicate(format: "title == 'Saywing, Speaking'")).firstMatch
         XCTAssertTrue(speaking.waitForExistence(timeout: 90), statusDescription(in: app))
         let action = app.buttons["readingStatusAction"]
         if !action.waitForExistence(timeout: 3) {
@@ -313,7 +328,7 @@ final class MenuBarSmokeUITests: XCTestCase {
         XCTAssertEqual(fixture.state, .runningForeground, "Showing and updating the panel must not activate OpenScreenReader.")
         if ending == .complete {
             let ready = app.descendants(matching: .statusItem)
-                .matching(NSPredicate(format: "title == 'OpenScreenReader, Ready'")).firstMatch
+                .matching(NSPredicate(format: "title == 'Saywing, Ready'")).firstMatch
             XCTAssertTrue(ready.waitForExistence(timeout: 30), statusDescription(in: app))
             XCTAssertTrue(action.waitForNonExistence(timeout: 4))
             XCTAssertEqual(fixture.state, .runningForeground,
@@ -340,14 +355,14 @@ final class MenuBarSmokeUITests: XCTestCase {
             let finder = XCUIApplication(bundleIdentifier: "com.apple.finder")
             finder.activate()
             if ending == .shortcut {
-                finder.typeKey("y", modifierFlags: [.command, .shift])
+                finder.typeKey("r", modifierFlags: [.option])
                 XCTAssertTrue(app.groups["Screen region selection"].firstMatch.waitForExistence(timeout: 3))
                 app.typeKey(.escape, modifierFlags: [])
             }
             else { finder.typeKey(.escape, modifierFlags: []) }
         }
         let stopped = app.descendants(matching: .statusItem)
-            .matching(NSPredicate(format: "title == 'OpenScreenReader, Stopped'")).firstMatch
+            .matching(NSPredicate(format: "title == 'Saywing, Stopped'")).firstMatch
         XCTAssertTrue(stopped.waitForExistence(timeout: 3), statusDescription(in: app))
         XCTAssertTrue(action.waitForNonExistence(timeout: 4), "The stopped panel should disappear automatically.")
     }
@@ -364,7 +379,7 @@ final class MenuBarSmokeUITests: XCTestCase {
         key.click()
         app.menuItems["J"].click()
         app.buttons["applyShortcut"].click()
-        XCTAssertTrue(app.staticTexts["Shortcut ⌘⇧J is active and saved."].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Shortcut ⌥J is active and saved."].waitForExistence(timeout: 3))
         app.terminate()
         app.launch()
         openMenu(in: app, status: "Ready")
@@ -374,15 +389,15 @@ final class MenuBarSmokeUITests: XCTestCase {
 
         let finder = XCUIApplication(bundleIdentifier: "com.apple.finder")
         finder.activate()
-        finder.typeKey("j", modifierFlags: [.command, .shift])
+        finder.typeKey("j", modifierFlags: [.option])
         XCTAssertTrue(app.groups["Screen region selection"].firstMatch.waitForExistence(timeout: 3))
-        app.typeKey("j", modifierFlags: [.command, .shift])
+        app.typeKey("j", modifierFlags: [.option])
         XCTAssertTrue(app.groups["Screen region selection"].firstMatch.exists)
         app.typeKey(.escape, modifierFlags: [])
         openMenu(in: app, status: "Stopped")
         app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
         app.buttons["Restore Default"].click()
-        XCTAssertTrue(app.staticTexts["Shortcut ⌘⇧Y is active and saved."].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Shortcut ⌥R is active and saved."].waitForExistence(timeout: 3))
     }
 
     @MainActor
@@ -393,16 +408,15 @@ final class MenuBarSmokeUITests: XCTestCase {
         openMenu(in: app, status: "Ready")
         app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
         XCTAssertTrue(app.checkBoxes["Command ⌘"].waitForExistence(timeout: 3))
-        app.checkBoxes["Command ⌘"].click()
+        app.checkBoxes["Option ⌥"].click()
         XCTAssertFalse(app.buttons["applyShortcut"].isEnabled)
         app.checkBoxes["Command ⌘"].click()
-        app.checkBoxes["Shift ⇧"].click()
         app.buttons["applyShortcut"].click()
         XCTAssertTrue(app.buttons["Use Shortcut"].waitForExistence(timeout: 3))
         app.sheets.buttons["Cancel"].click()
-        XCTAssertFalse(app.staticTexts["Shortcut ⌘Y is active and saved."].exists)
+        XCTAssertFalse(app.staticTexts["Shortcut ⌘R is active and saved."].exists)
         app.buttons["Restore Default"].click()
-        XCTAssertTrue(app.staticTexts["Shortcut ⌘⇧Y is active and saved."].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Shortcut ⌥R is active and saved."].waitForExistence(timeout: 3))
     }
 
     @MainActor
@@ -421,13 +435,13 @@ final class MenuBarSmokeUITests: XCTestCase {
         defer { app.terminate() }
 
         let readyStatus = app.descendants(matching: .statusItem)
-            .matching(NSPredicate(format: "title == 'OpenScreenReader, Ready'"))
+            .matching(NSPredicate(format: "title == 'Saywing, Ready'"))
             .firstMatch
         XCTAssertTrue(readyStatus.waitForExistence(timeout: 5))
 
         let finder = XCUIApplication(bundleIdentifier: "com.apple.finder")
         finder.activate()
-        finder.typeKey("y", modifierFlags: [.command, .shift])
+        finder.typeKey("r", modifierFlags: [.option])
 
         let overlay = app.groups["Screen region selection"].firstMatch
         XCTAssertTrue(
@@ -437,12 +451,12 @@ final class MenuBarSmokeUITests: XCTestCase {
 
         // The overlay owns focus after starting. Do not activate Finder again:
         // XCTest may click through the overlay while activating another app.
-        app.typeKey("y", modifierFlags: [.command, .shift])
+        app.typeKey("r", modifierFlags: [.option])
 
         XCTAssertTrue(overlay.exists, statusDescription(in: app))
         app.typeKey(.escape, modifierFlags: [])
         let stoppedStatus = app.descendants(matching: .statusItem)
-            .matching(NSPredicate(format: "title == 'OpenScreenReader, Stopped'"))
+            .matching(NSPredicate(format: "title == 'Saywing, Stopped'"))
             .firstMatch
         XCTAssertTrue(stoppedStatus.waitForExistence(timeout: 2))
     }
@@ -456,9 +470,9 @@ final class MenuBarSmokeUITests: XCTestCase {
     @MainActor
     private func openMenu(in app: XCUIApplication, status: String) {
         let statusItem = app.descendants(matching: .statusItem)
-            .matching(NSPredicate(format: "title == 'OpenScreenReader, \(status)'"))
+            .matching(NSPredicate(format: "title == 'Saywing, \(status)'"))
             .firstMatch
-        XCTAssertTrue(statusItem.waitForExistence(timeout: 5))
+        XCTAssertTrue(statusItem.waitForExistence(timeout: 5), statusDescription(in: app))
         statusItem.click()
     }
 }

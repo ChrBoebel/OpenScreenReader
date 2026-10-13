@@ -2,17 +2,21 @@
 
 ## Vision
 
-OpenScreenReader soll sich wie eine kleine native macOS-Systemfunktion anfühlen: Hotkey drücken, sichtbaren Text markieren und ihn ohne weiteren Dialog mit einer natürlichen Stimme hören.
+Saywing soll sich wie eine kleine native macOS-Systemfunktion anfühlen: Hotkey drücken, sichtbaren Text markieren und ihn ohne weiteren Dialog mit einer natürlichen Stimme hören.
 
 ## Positionierung
 
-> **Markieren. Zuhören. Komplett lokal und Open Source.**
+> **Vorlesen & Diktieren für macOS.**
+>
+> **Text hören. Mit der Stimme schreiben.**
 
 Englisch:
 
-> **Select. Listen. Stay private.**
+> **Read aloud & dictate on your Mac.**
+>
+> **Hear text. Write with your voice.**
 
-Das Projekt ist weder ein vollständiger Screenreader noch eine Dokumentbibliothek oder Cloud-TTS-Plattform. Es konzentriert sich auf einen einzigen schnellen Ablauf für beliebigen sichtbaren Bildschirmtext.
+Das Projekt ist weder ein vollständiger Screenreader noch eine Dokumentbibliothek oder Cloud-TTS-Plattform. Die gemeinsame Produktidee umfasst zwei explizite Aktionen: Vorlesen und Diktieren. Vorlesen und lokales Deutsch-/Englisch-Diktieren sind im privaten Entwicklungsbuild integriert. Die Freigabe der Diktierintegration erfolgte am 2026-10-13; breitere Kompatibilität und Veröffentlichung bleiben zu prüfen. Es gibt keine automatische Aufnahme, keine zugesicherte Unterstützung aller Textfelder und keinen zugesicherten Veröffentlichungstermin.
 
 ## Kernversprechen
 
@@ -31,7 +35,7 @@ Das Projekt ist weder ein vollständiger Screenreader noch eine Dokumentbiblioth
 
 ## Bewusste Abgrenzung
 
-OpenScreenReader soll nicht als Ersatz für VoiceOver vermarktet werden. Semantische Navigation, Bedienelementerkennung und vollständig blinde Systembedienung bleiben außerhalb des ersten Produktumfangs.
+Saywing soll nicht als Ersatz für VoiceOver vermarktet werden. Semantische Navigation, Bedienelementerkennung und vollständig blinde Systembedienung bleiben außerhalb des ersten Produktumfangs.
 
 ## MVP-Erfolgskriterien
 

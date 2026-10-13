@@ -1,0 +1,40 @@
+import AppKit
+@main struct Tests {
+ @MainActor static func main() throws {
+  var count=0
+  func check(_ condition: @autoclosure ()->Bool,_ name:String){precondition(condition(),name);print("PASS \(name)");count+=1}
+  let board=NSPasteboard.withUniqueName()
+  defer{board.releaseGlobally()}
+  let item=NSPasteboardItem();item.setString("Original",forType:.string);item.setData(Data([0,1,2,255]),forType:NSPasteboard.PasteboardType("test.binary"))
+  let second=NSPasteboardItem();second.setString("Second clipboard item",forType:.string)
+  board.writeObjects([item,second])
+  let snapshot=try ClipboardSnapshot.capture(board)
+  let lease=try ClipboardLease.begin("Grüße 👩🏽‍💻\nHello",on:board)
+  check(board.string(forType:.string)=="Grüße 👩🏽‍💻\nHello","transcript available for paste")
+  check(lease.restore()==true,"owned clipboard restored")
+  let restored=try ClipboardSnapshot.capture(board)
+  check(restored==snapshot,"all original formats restored")
+  check(lease.restore()==false,"restoration runs at most once")
+  let changed=try ClipboardLease.begin("Dictation",on:board)
+  board.clearContents();board.setString("New user copy",forType:.string)
+  check(changed.restore()==false,"new user copy wins")
+  check(board.string(forType:.string)=="New user copy","new copy retained")
+  board.clearContents()
+  let empty=try ClipboardLease.begin("Temporary",on:board)
+  check(empty.restore(),"empty clipboard restored")
+  check(board.pasteboardItems?.isEmpty != false,"empty remains empty")
+  board.setData(Data(repeating:7,count:64),forType:.string)
+  let before=board.changeCount
+  do{_ = try ClipboardSnapshot.capture(board,limit:32);preconditionFailure("size cap missing")}catch{}
+  check(board.changeCount==before,"oversize capture leaves clipboard unchanged")
+  let gate=GenerationGate();let old=gate.begin();check(gate.accepts(old),"current generation accepted")
+  gate.cancel();check(!gate.accepts(old),"cancel rejects stale result")
+  let next=gate.begin();check(!gate.accepts(old) && gate.accepts(next),"new request rejects prior result")
+  let audio=AudioAccumulator();audio.start(sampleRate:16000)
+  audio.append([Float](repeating:0.1,count:1600));let packet=audio.finish()
+  check(packet.samples.count==1600 && packet.rate==16000,"recording retained in memory")
+  audio.start(sampleRate:16000);audio.append([0.2]);audio.cancel();check(audio.finish().samples.isEmpty,"cancel discards audio")
+  audio.start(sampleRate:16000);audio.append([Float](repeating:0.1,count:16000*61));check(audio.finish().samples.count==16000*60,"recording length bounded")
+  print("\(count) core checks passed")
+ }
+}

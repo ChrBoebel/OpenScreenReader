@@ -205,6 +205,26 @@ struct SpeechBufferingTests {
 @MainActor
 struct InteractionTests {
     @Test
+    func regionSelectionUsesNonactivatingPanelsAndRemovesThemOnCancel() throws {
+        let controller = RegionSelectionOverlayController()
+        let existing = Set(NSApp.windows.map(\.windowNumber))
+        controller.start(onSelection: { _ in }, onCancel: {})
+        defer { controller.cancel() }
+        let panels = NSApp.windows.filter { !existing.contains($0.windowNumber) }
+        #expect(panels.count == NSScreen.screens.count)
+        #expect(!panels.isEmpty)
+        for window in panels {
+            let panel = try #require(window as? NSPanel)
+            #expect(panel.styleMask.contains(.nonactivatingPanel))
+            #expect(!panel.hidesOnDeactivate)
+            #expect(panel.canBecomeKey)
+            #expect(!panel.canBecomeMain)
+        }
+        controller.cancel()
+        #expect(panels.allSatisfy { !$0.isVisible })
+    }
+
+    @Test
     func explicitStopWhileIdleNeverStartsSelection() async {
         let f = QueueFixture()
         f.model.enqueueStopRequest()
@@ -728,6 +748,31 @@ struct InteractionTests {
     }
 
     @Test
+    func sameShortcutRecoversAfterAnotherInstanceReleasesIt() async {
+        let configuration = ShortcutConfiguration(key: "7", modifiers: UInt32(controlKey | optionKey | shiftKey))
+        let competitor = GlobalHotkeyManager()
+        let manager = GlobalHotkeyManager()
+        defer { competitor.unregister(); manager.unregister() }
+        #expect(competitor.register(configuration.resolvedShortcut()) == .registered)
+        let store = MemoryShortcutStore()
+        store.saved = configuration
+        let model = AppModel(shortcutStore: store, hotkeyManager: manager)
+        #expect(model.hotkeyRegistration == .conflict)
+        #expect(model.status == .error)
+        #expect(model.errorMessage?.contains("Saywing or OpenScreenReader") == true)
+        #expect(model.errorMessage?.contains("Apply Shortcut") == true)
+
+        // Applying the same shortcut must retry; no preference reset or new key is needed.
+        competitor.unregister()
+        model.enqueueShortcutChange(configuration)
+        await model.waitForInteractionToSettle()
+        #expect(model.hotkeyRegistration == .registered)
+        #expect(model.status == .ready)
+        #expect(model.errorMessage == nil)
+        #expect(store.saved == configuration)
+    }
+
+    @Test
     func changingShortcutRecoversFromStartupConflict() async {
         let hotkey = HotkeyManagerFake(registrationResult: .conflict)
         let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: hotkey)
@@ -943,8 +988,8 @@ struct InteractionTests {
 
     @Test
     func defaultShortcutIsExplicitAndReadable() {
-        #expect(HotkeyShortcut.readScreenRegion.carbonModifiers == UInt32(cmdKey | shiftKey))
-        #expect(HotkeyShortcut.readScreenRegion.displayName == "⌘⇧Y")
+        #expect(HotkeyShortcut.readScreenRegion.carbonModifiers == UInt32(optionKey))
+        #expect(HotkeyShortcut.readScreenRegion.displayName == "⌥R")
     }
 
     @Test(arguments: [("com.apple.keylayout.German", UInt32(kVK_ANSI_Z)),
@@ -1042,7 +1087,7 @@ struct InteractionTests {
 
         #expect(model.hotkeyRegistration == .conflict)
         #expect(model.status == .error)
-        #expect(model.errorMessage == "The shortcut ⌘⇧Y is already in use.")
+        #expect(model.errorMessage == "The shortcut ⌥R is already in use. Quit any other Saywing or OpenScreenReader copy, then click Apply Shortcut in Settings to retry, or choose a different shortcut.")
         #expect(selection.startCount == 0)
     }
 
@@ -1148,6 +1193,168 @@ struct InteractionTests {
 @MainActor
 struct ReadingPanelTests {
     @Test
+    func hoverControlsSeparateClicksFromDraggingAndRejectCancelledPresses() throws {
+        let window = ReadingStatusPanel()
+        window.setFrame(CGRect(x: 100, y: 100, width: 300, height: 92), display: false)
+        let view = ReadingControlView(frame: CGRect(x: 0, y: 0, width: 300, height: 92))
+        window.contentView = view
+        defer { view.stopAnimating(); window.close() }
+        var pauses = 0, opens = 0, drags = 0, stops = 0
+        view.onTogglePause = { [weak view] in pauses += 1; view?.setPaused(pauses % 2 == 1) }
+        view.onOpenControls = { _ in opens += 1 }
+        view.onDragMove = { _ in drags += 1 }
+        view.present(.speaking, opening: false, action: { stops += 1 })
+        let children = view.subviews.flatMap(\.subviews)
+        let pause = try #require(children.first { $0.accessibilityIdentifier() == "readingPauseAction" } as? NSButton)
+        let options = try #require(children.first { $0.accessibilityIdentifier() == "readingQueueCount" } as? NSButton)
+        pause.superview?.mouseEntered(with: NSEvent())
+        for index in 0..<240 { view.tick(now: CACurrentMediaTime() + Double(index) / 60) }
+        func send(_ control: NSButton, drag: Bool, cancel: Bool = false) throws {
+            let start = control.convert(CGPoint(x: control.bounds.midX, y: control.bounds.midY), to: nil)
+            func event(_ type: NSEvent.EventType, _ point: CGPoint) throws -> NSEvent {
+                try #require(NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: 0,
+                    windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 0.5))
+            }
+            control.mouseDown(with: try event(.leftMouseDown, start))
+            let end = CGPoint(x: start.x + (drag ? 12 : 2), y: start.y)
+            control.mouseDragged(with: try event(.leftMouseDragged, end))
+            if cancel { view.retract() }
+            control.mouseUp(with: try event(.leftMouseUp, end))
+        }
+        try send(pause, drag: false)
+        #expect(pauses == 1 && pause.title == "resume")
+        try send(pause, drag: true)
+        #expect(pauses == 1 && drags == 1)
+        try send(options, drag: true)
+        #expect(opens == 0 && drags == 2)
+        try send(options, drag: false)
+        #expect(opens == 1 && stops == 0)
+        try send(pause, drag: false, cancel: true)
+        #expect(pauses == 1)
+        #expect(view.accessibilityCustomActions()?.isEmpty == true)
+    }
+
+    @Test
+    func popoverAndAccessibilityKeepControlsReachableWithoutHover() throws {
+        let view = ReadingControlView(frame: CGRect(origin: .zero, size: ReadingControlView.Metrics.surface))
+        defer { view.stopAnimating() }
+        var opens = 0, pauses = 0
+        view.onOpenControls = { _ in opens += 1 }
+        view.onTogglePause = { pauses += 1 }
+        view.present(.speaking, opening: false, action: {})
+        for index in 0..<240 { view.tick(now: CACurrentMediaTime() + Double(index) / 60) }
+        let actions = try #require(view.accessibilityCustomActions())
+        #expect(actions.first?.handler?() == true)
+        #expect(actions.last?.handler?() == true)
+        #expect(opens == 1 && pauses == 1)
+        let options = try #require(view.subviews.flatMap(\.subviews).first { $0.accessibilityIdentifier() == "readingQueueCount" })
+        let popover = NSPopover()
+        view.holdControls(for: popover)
+        #expect(options.alphaValue > 0.99, "Keyboard/VoiceOver opening synchronously reveals the popover anchor.")
+        for index in 0..<240 { view.tick(now: CACurrentMediaTime() + Double(index) / 60) }
+        #expect(options.alphaValue > 0.99)
+        view.popoverDidClose(Notification(name: NSPopover.didCloseNotification, object: popover))
+        for index in 0..<240 { view.tick(now: CACurrentMediaTime() + Double(index) / 60) }
+        #expect(options.alphaValue < 0.01)
+        view.present(.preparing, opening: false, action: {})
+        #expect(view.accessibilityCustomActions()?.count == 1)
+        view.retract()
+        #expect(actions.last?.handler?() == false, "A retained accessibility action cannot pause after Stop.")
+    }
+
+    @Test
+    func controlsPopoverOpensTowardDesktopAtEachDockEdge() {
+        #expect(ReadingPanelEdge.bottom.popoverEdge == .maxY)
+        #expect(ReadingPanelEdge.left.popoverEdge == .maxX)
+        #expect(ReadingPanelEdge.right.popoverEdge == .minX)
+    }
+
+    @Test
+    func integratedControlsFitAndRemainStableOnHover() throws {
+        for vertical in [false, true] {
+            let size = vertical ? CGSize(width: 92, height: 300) : ReadingControlView.Metrics.surface
+            let view = ReadingControlView(frame: CGRect(origin: .zero, size: size))
+            defer { view.stopAnimating() }
+            view.isVertical = vertical
+            var opens = 0
+            var stops = 0
+            view.onOpenControls = { _ in opens += 1 }
+            view.present(.speaking, opening: false, action: { stops += 1 })
+            view.setQueueCount(0)
+            func settle() {
+                for index in 0..<240 { view.tick(now: CACurrentMediaTime() + Double(index) / 60) }
+            }
+            settle()
+            let children = view.subviews + view.subviews.flatMap(\.subviews)
+            let options = try #require(children.first { $0.accessibilityIdentifier() == "readingQueueCount" } as? NSButton)
+            let stop = try #require(children.compactMap { $0 as? ReadingStopButton }.first)
+            let body = try #require(stop.superview)
+            #expect(options.superview === body, "Options belong inside the capsule, not above it.")
+            #expect(abs((vertical ? body.frame.height : body.frame.width) - 136) < 0.1)
+            #expect(body.bounds.contains(options.frame))
+            #expect(options.frame.width >= 40 && options.frame.height >= 40)
+            #expect(stop.frame.size == CGSize(width: 44, height: 44))
+            #expect(!options.frame.intersects(stop.frame))
+            #expect(options.alphaValue < 0.01, "Resting capsule shows only waveform and Stop.")
+            #expect(view.hitTest(view.convert(CGPoint(x: options.bounds.midX, y: options.bounds.midY), from: options)) === body)
+            #expect(view.hitTest(view.convert(CGPoint(x: 22, y: 22), from: stop)) === stop)
+            #expect(options.toolTip?.contains("Wiedergabe") == true)
+            let frame = body.frame
+            let stopFrame = stop.frame
+            body.mouseEntered(with: NSEvent())
+            settle()
+            #expect(options.alphaValue > 0.99)
+            let pause = try #require(children.first { $0.accessibilityIdentifier() == "readingPauseAction" } as? NSButton)
+            #expect(pause.alphaValue > 0.99)
+            #expect(pause.frame.width >= 40 && pause.frame.height >= 40)
+            #expect(!pause.frame.intersects(options.frame))
+            #expect(!pause.frame.intersects(stop.frame))
+            #expect(view.hitTest(view.convert(CGPoint(x: options.bounds.midX, y: options.bounds.midY), from: options)) === options)
+            #expect(abs(body.frame.width - frame.width) < 0.1)
+            #expect(abs(body.frame.height - frame.height) < 0.1)
+            #expect(abs(stop.frame.origin.x - stopFrame.origin.x) < 0.1)
+            #expect(abs(stop.frame.origin.y - stopFrame.origin.y) < 0.1)
+            options.performClick(nil)
+            #expect(opens == 1 && stops == 0)
+            view.setQueueCount(5)
+            settle()
+            #expect(options.title == "+5")
+            #expect(abs(body.frame.width - frame.width) < 0.1)
+            #expect(abs(body.frame.height - frame.height) < 0.1)
+            body.mouseExited(with: NSEvent())
+            settle()
+            #expect(options.alphaValue < 0.01 && pause.alphaValue < 0.01)
+            #expect((view.accessibilityCustomActions()?.count ?? 0) >= 2, "VoiceOver does not depend on hover.")
+            view.retract()
+            #expect(options.isEnabled == false)
+            #expect(pause.isEnabled == false)
+        }
+    }
+
+    @Test
+    func integratedOptionsTrackTerminalStatesWithoutAnotherQueueUpdate() throws {
+        let view = ReadingControlView(frame: CGRect(origin: .zero, size: ReadingControlView.Metrics.surface))
+        defer { view.stopAnimating() }
+        view.present(.speaking, opening: false, action: {})
+        view.setQueueCount(2)
+        let children = view.subviews + view.subviews.flatMap(\.subviews)
+        let options = try #require(children.first { $0.accessibilityIdentifier() == "readingQueueCount" } as? NSButton)
+        for state in [ReadingPanelState.finished, .stopped, .noText, .positioning] {
+            view.present(state, opening: false, action: {})
+            #expect(options.isHidden)
+        }
+        view.present(.failed, opening: false, action: {})
+        #expect(!options.isHidden)
+        #expect(options.title == "?")
+        for index in 0..<240 { view.tick(now: CACurrentMediaTime() + Double(index) / 60) }
+        let body = try #require(options.superview)
+        #expect(body.bounds.insetBy(dx: -0.01, dy: -0.01).contains(options.frame))
+        view.present(.speaking, opening: false, action: {})
+        #expect(!options.isHidden)
+        #expect(options.title == "+2")
+    }
+
+    @Test
     func returningFromQueueCaptureIsSilentAndShowsQueueCount() throws {
         let screen = try #require(NSScreen.screens.first)
         let number = try #require(screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)
@@ -1160,7 +1367,8 @@ struct ReadingPanelTests {
         controller.restore(.speaking, displayID: number.uint32Value, onStop: {})
         controller.updateQueueCount(2)
         #expect(sounds.cues.isEmpty)
-        let badge = controller.panel?.contentView?.subviews.compactMap { $0 as? NSButton }.first
+        let children = controller.panel?.contentView?.subviews ?? []
+        let badge = (children + children.flatMap(\.subviews)).first { $0.accessibilityIdentifier() == "readingQueueCount" } as? NSButton
         #expect(badge?.title == "+2")
         #expect(badge?.isHidden == false)
         controller.updateQueueCount(0)
@@ -1195,6 +1403,7 @@ struct ReadingPanelTests {
         try await Task.sleep(for: .milliseconds(300))
         let saved = ReadingPanelPlacement.load(from: defaults)
         #expect(saved.edge == .left)
+        #expect((panel.contentView as? ReadingControlView)?.dockEdge == .left)
         // Other suites synthesize cue buffers on MainActor. Give the animation's next tick a turn.
         for _ in 0..<40 {
             if panel.frame == saved.frame(in: screen.visibleFrame) { break }
@@ -1328,16 +1537,26 @@ struct ReadingPanelTests {
         let directory = URL(fileURLWithPath: path)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         for edge in ReadingPanelEdge.allCases {
+          for (name, state, count) in [("speaking", ReadingPanelState.speaking, 0), ("hover", .speaking, 0), ("paused", .speaking, 0), ("queue", .speaking, 5),
+                                       ("preparing", .preparing, 0), ("failed", .failed, 0), ("finished", .finished, 0)] {
             let size = edge == .bottom ? CGSize(width: 300, height: 92) : CGSize(width: 92, height: 300)
             let view = ReadingControlView(frame: CGRect(origin: .zero, size: size))
             view.isVertical = edge != .bottom
-            view.present(.positioning, opening: false, action: {})
+            view.present(state, opening: false, action: {})
+            view.setQueueCount(count)
+            view.setLevel(0.6)
+            if ["hover", "paused", "queue"].contains(name) {
+                let stop = try #require(view.subviews.flatMap(\.subviews).compactMap { $0 as? ReadingStopButton }.first)
+                stop.superview?.mouseEntered(with: NSEvent())
+                if name == "paused" { view.setPaused(true) }
+            }
             for index in 0..<120 { view.tick(now: CACurrentMediaTime() + Double(index) / 60) }
             let bitmap = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
             view.cacheDisplay(in: view.bounds, to: bitmap)
             let data = try #require(bitmap.representation(using: .png, properties: [:]))
-            try data.write(to: directory.appendingPathComponent("\(edge.rawValue).png"))
+            try data.write(to: directory.appendingPathComponent("\(edge.rawValue)-\(name).png"))
             view.stopAnimating()
+          }
         }
     }
 
@@ -1781,5 +2000,600 @@ private final class RegionSelectionControllerFake: RegionSelectionControlling {
         let completion = completion
         self.completion = nil
         completion?(selection)
+    }
+}
+
+@Suite("Local dictation lifecycle", .serialized)
+@MainActor
+struct DictationIntegrationTests {
+    private func fixture(preferences: UserDefaults? = nil) -> (DictationController, DictationWorkerFake, HotkeyManagerFake) {
+        let worker = DictationWorkerFake()
+        let escape = HotkeyManagerFake(registrationResult: .registered)
+        let controller = DictationController(resources: URL(fileURLWithPath: "/missing-dictation"),
+            worker: worker, shortcut: HotkeyManagerFake(registrationResult: .registered), escape: escape,
+            preferences: preferences ?? UserDefaults(suiteName: "com.christopherbobel.OpenScreenReader.dictation-tests")!, registerHotkey: false)
+        return (controller, worker, escape)
+    }
+
+    @Test func microphoneCallbackAcceptsBackgroundAudioAndDiscardsAfterCancel() async throws {
+        let recorder = MicrophoneRecorder()
+        let audio = recorder.audio
+        audio.start(sampleRate: 48000)
+        let tap = AudioTapInvocation(block: recorder.makeInputTap())
+        let ranOffMain = try await Task.detached { try tap.invokeStereoBuffer() }.value
+        #expect(ranOffMain)
+        let packet = audio.finish()
+        #expect(packet.rate == 48000)
+        #expect(packet.samples == [0.5, -0.25, 0, 0.75])
+        audio.start(sampleRate: 48000)
+        audio.cancel()
+        _ = try await Task.detached { try tap.invokeStereoBuffer() }.value
+        #expect(audio.finish().samples.isEmpty)
+        #expect(audio.rms == 0)
+    }
+
+    @Test func ownTestFieldRetainsItsExplicitTargetAndRejectsEdits() {
+        let (controller, _, _) = fixture()
+        defer { controller.shutdown() }
+        controller.scratch.string = "Anfang MARKER Ende"
+        controller.scratch.setSelectedRange((controller.scratch.string as NSString).range(of: "MARKER"))
+        controller.window.makeFirstResponder(controller.scratch)
+        let target = InsertionTarget(local: controller.scratch)
+        #expect(target.isCurrent())
+        controller.scratch.setSelectedRange(NSRange(location: 0, length: 0))
+        #expect(!target.isCurrent())
+        controller.scratch.setSelectedRange((controller.scratch.string as NSString).range(of: "MARKER"))
+        controller.scratch.string = "New user text"
+        #expect(!target.isCurrent())
+    }
+
+    @Test func constructingControllerDoesNotRecord() {
+        let (controller, worker, _) = fixture()
+        defer { controller.shutdown() }
+        #expect(worker.starts == 0)
+        #expect(controller.record == nil)
+        #expect(!controller.isActive)
+    }
+
+    @Test func modelChoiceRestoresAndSwitchInvalidatesPreviousWorkerMessages() throws {
+        let suite = "com.christopherbobel.OpenScreenReader.dictation-model-tests.\(UUID())"
+        let preferences = try #require(UserDefaults(suiteName: suite))
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let (controller, worker, _) = fixture(preferences: preferences)
+        defer { controller.shutdown() }
+        controller.loadModel()
+        let oldCallback = try #require(worker.onMessage)
+        controller.selectModel(.whisperTurbo)
+        #expect(controller.selectedModel == .whisperTurbo)
+        #expect(worker.models == [.qwen, .whisperTurbo])
+        #expect(worker.stops > 0)
+        #expect(controller.record == nil)
+        #expect(!controller.isActive)
+        oldCallback(.init(type: "fatal", message: "Old worker failed"))
+        oldCallback(.init(type: "ready", version: 1))
+        #expect(controller.phase == "loading")
+        #expect(controller.selectedModel == .whisperTurbo)
+        let (restored, restoredWorker, _) = fixture(preferences: preferences)
+        defer { restored.shutdown() }
+        restored.loadModel()
+        #expect(restoredWorker.models == [.whisperTurbo])
+        restored.screenLockedOrSleeping(Notification(name: NSWorkspace.willSleepNotification))
+        restored.screenBecameAvailable(Notification(name: NSWorkspace.didWakeNotification))
+        #expect(restoredWorker.models == [.whisperTurbo, .whisperTurbo])
+    }
+
+    @Test func modelCannotSwitchDuringDictationAndFailureDoesNotFallback() throws {
+        let (controller, worker, _) = fixture()
+        defer { controller.shutdown() }
+        controller.loadModel()
+        worker.ready = true
+        controller.receive(.init(type: "ready", version: 1))
+        try controller.begin(target: InsertionTarget(local: controller.scratch))
+        let selected = controller.selectedModel
+        controller.selectModel(selected == .qwen ? .whisperTurbo : .qwen)
+        #expect(controller.selectedModel == selected)
+        #expect(worker.starts == 1)
+        #expect(controller.isActive)
+        controller.receive(.init(type: "fatal", message: "Selected model missing"))
+        #expect(worker.starts == 1)
+        #expect(controller.selectedModel == selected)
+        #expect(!controller.isActive)
+    }
+
+    @Test func automaticPreparationLoadsOnceWithoutRecording() {
+        let (controller, worker, _) = fixture()
+        defer { controller.shutdown() }
+        controller.loadModel()
+        controller.loadModel()
+        #expect(worker.starts == 1)
+        #expect(controller.record == nil)
+        #expect(!controller.isActive)
+        worker.ready = true
+        controller.receive(.init(type: "ready", version: 1))
+        controller.loadModel()
+        #expect(worker.starts == 1)
+        #expect(controller.phase == "ready")
+    }
+
+    @Test func readingKeepsAnIdleDictationModelWarm() {
+        let (controller, worker, _) = fixture()
+        defer { controller.shutdown() }
+        controller.loadModel()
+        worker.ready = true
+        controller.receive(.init(type: "ready", version: 1))
+        controller.cancelForReading()
+        #expect(worker.ready)
+        #expect(worker.stops == 0)
+        #expect(controller.phase == "ready")
+    }
+
+    @Test func wakeWaitsForActiveSessionThenLoadsWithoutRecording() {
+        let (controller, worker, _) = fixture()
+        defer { controller.shutdown() }
+        controller.loadModel()
+        controller.screenLockedOrSleeping(Notification(name: NSWorkspace.willSleepNotification))
+        controller.screenLockedOrSleeping(Notification(name: NSWorkspace.sessionDidResignActiveNotification))
+        controller.loadModel()
+        #expect(worker.starts == 1)
+        NSWorkspace.shared.notificationCenter.post(name: NSWorkspace.didWakeNotification, object: nil)
+        #expect(worker.starts == 1)
+        NSWorkspace.shared.notificationCenter.post(name: NSWorkspace.sessionDidBecomeActiveNotification, object: nil)
+        #expect(worker.starts == 2)
+        #expect(controller.record == nil)
+        #expect(!controller.isActive)
+    }
+
+    @Test func shutdownPreventsDeferredPreparationAndWake() {
+        let (controller, worker, _) = fixture()
+        controller.shutdown()
+        controller.loadModel()
+        NSWorkspace.shared.notificationCenter.post(name: NSWorkspace.didWakeNotification, object: nil)
+        #expect(worker.starts == 0)
+        #expect(controller.record == nil)
+    }
+
+    @Test func cancelInferencePreparesNextDictationAndRejectsOldResult() throws {
+        let (controller, worker, _) = fixture()
+        defer { controller.shutdown() }
+        controller.loadModel()
+        worker.ready = true
+        controller.receive(.init(type: "ready", version: 1))
+        try controller.begin(target: InsertionTarget(local: controller.scratch))
+        let old = try #require(controller.request)
+        controller.send(AudioPacket(samples: [0.1], rate: 16000))
+        controller.cancel()
+        #expect(worker.starts == 2)
+        #expect(!controller.isActive)
+        #expect(controller.record == nil)
+        controller.receive(.init(type: "result", id: old.uuidString, text: "Old result"))
+        #expect(controller.latestText.isEmpty)
+    }
+
+    @Test func cancellationRejectsLateTranscriptAndReleasesColdAudio() throws {
+        let (controller, worker, _) = fixture()
+        defer { controller.shutdown() }
+        try controller.begin(target: InsertionTarget(local: controller.scratch))
+        let old = try #require(controller.request)
+        controller.send(AudioPacket(samples: [0.1, 0.2], rate: 16000))
+        #expect(worker.requests.isEmpty)
+        controller.cancel(restart: false)
+        worker.ready = true
+        controller.receive(.init(type: "ready", version: 1))
+        controller.receive(.init(type: "result", id: old.uuidString, text: "Stale transcript"))
+        #expect(worker.requests.isEmpty)
+        #expect(controller.latestText.isEmpty)
+        #expect(controller.scratch.string.isEmpty)
+        #expect(!controller.isActive)
+    }
+
+    @Test func coldAudioIsSentOnlyOnceModelIsReady() throws {
+        let (controller, worker, _) = fixture()
+        defer { controller.shutdown() }
+        try controller.begin(target: InsertionTarget(local: controller.scratch))
+        let id = try #require(controller.request)
+        controller.send(AudioPacket(samples: [0.1, 0.2], rate: 48000))
+        #expect(worker.requests.isEmpty)
+        worker.ready = true
+        controller.receive(.init(type: "ready", version: 1))
+        #expect(worker.requests == [id])
+        #expect(worker.lastRate == 48000)
+        controller.cancel(restart: false)
+        #expect(worker.stops > 0)
+    }
+
+    @Test func escapeConflictPreventsAudioJob() throws {
+        let (controller, _, escape) = fixture()
+        defer { controller.shutdown() }
+        escape.registrationResult = .conflict
+        #expect(throws: DictationError.self) { try controller.begin(target: InsertionTarget(local: controller.scratch)) }
+        #expect(controller.request == nil)
+        #expect(controller.record == nil)
+    }
+
+    @Test func failedModelStartDiscardsJob() throws {
+        let (controller, worker, _) = fixture()
+        defer { controller.shutdown() }
+        try controller.begin(target: InsertionTarget(local: controller.scratch))
+        controller.send(AudioPacket(samples: [0.1], rate: 16000))
+        controller.receive(.init(type: "fatal", message: "Synthetic failure"))
+        #expect(!controller.isActive)
+        #expect(controller.record == nil)
+        #expect(controller.phase == "unloaded")
+        #expect(worker.stops > 0)
+    }
+
+    @Test func readingCancelsDictationAndStopsItsModelBeforeSelection() async throws {
+        let (controller, worker, _) = fixture()
+        let selection = RegionSelectionControllerFake()
+        let model = AppModel(shortcutStore: MemoryShortcutStore(),
+            hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+            selectionController: selection, escapeMonitor: EscapeFake(), dictation: controller)
+        defer { controller.shutdown() }
+        worker.ready = true
+        try controller.begin(target: InsertionTarget(local: controller.scratch))
+        controller.send(AudioPacket(samples: [0.1], rate: 16000))
+        model.enqueuePrimaryShortcut()
+        #expect(!controller.isActive)
+        #expect(!worker.ready)
+        await model.waitForInteractionToSettle()
+        #expect(selection.startCount == 1)
+        model.enqueueStopRequest()
+        await model.waitForInteractionToSettle()
+    }
+
+    @Test func dictationStopsReadingBeforeItsActivationCallback() async {
+        let (controller, _, _) = fixture()
+        let selection = RegionSelectionControllerFake(), speech = SpeechFake()
+        let model = AppModel(shortcutStore: MemoryShortcutStore(),
+            hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+            selectionController: selection, escapeMonitor: EscapeFake(), speechService: speech, dictation: controller)
+        defer { controller.shutdown() }
+        await model.handleReadRequest()
+        #expect(model.status == .selecting)
+        var callback = false
+        controller.onActivation? {
+            #expect(speech.stopped)
+            #expect(model.status == .stopped)
+            #expect(selection.cancelCount > 0)
+            callback = true
+        }
+        await model.waitForInteractionToSettle()
+        #expect(callback)
+    }
+
+    @Test func dictationShortcutCannotBeReassignedToReading() async {
+        let store = MemoryShortcutStore()
+        let model = AppModel(shortcutStore: store,
+            hotkeyManager: HotkeyManagerFake(registrationResult: .registered))
+        model.enqueueShortcutChange(.dictationDefault)
+        await model.waitForInteractionToSettle()
+        #expect(model.shortcutConfiguration == .default)
+        #expect(store.saved == nil)
+        #expect(model.shortcutNotice?.contains("dictation") == true)
+    }
+}
+
+@MainActor
+private final class DictationWorkerFake: DictationTranscribing {
+    var onMessage: ((DictationWorkerMessage) -> Void)?
+    var ready = false
+    var running = false
+    var starts = 0, stops = 0
+    var models: [DictationModel] = []
+    var requests: [UUID] = []
+    var lastRate = 0.0
+    func start(resources: URL, model: DictationModel) { starts += 1; running = true; models.append(model) }
+    func stop() { stops += 1; ready = false; running = false }
+    func transcribe(_ audio: AudioPacket, id: UUID, language: String?) {
+        requests.append(id); lastRate = audio.rate
+    }
+}
+
+// The tap is an Objective-C callback type without Sendable conformance. This
+// test transfers only the callback; each PCM buffer is created/consumed on its
+// invoking background thread, as AVAudioEngine does. No microphone is opened.
+private final class AudioTapInvocation: @unchecked Sendable {
+    let block: AVAudioNodeTapBlock
+    init(block: @escaping AVAudioNodeTapBlock) { self.block = block }
+    func invokeStereoBuffer() throws -> Bool {
+        let format = try #require(AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 2))
+        let buffer = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 4))
+        buffer.frameLength = 4
+        let channels = try #require(buffer.floatChannelData)
+        let left: [Float] = [1, -0.5, 0.25, 0.5]
+        let right: [Float] = [0, 0, -0.25, 1]
+        for i in 0..<4 { channels[0][i] = left[i]; channels[1][i] = right[i] }
+        block(buffer, AVAudioTime(sampleTime: 0, atRate: 48000))
+        return !Thread.isMainThread
+    }
+}
+
+@Suite("Fn dictation gestures")
+struct FnDictationGestureTests {
+    @Test func holdReleasesToInsert() {
+        var state = FnDictationGesture()
+        #expect(state.press(at: 0) == [.start])
+        #expect(state.release(at: 0.7) == [.finish])
+        #expect(state.expire(at: 2).isEmpty)
+    }
+    @Test func singleTapCancelsWithoutPasting() {
+        var state = FnDictationGesture()
+        _ = state.press(at: 0)
+        #expect(state.release(at: 0.1).isEmpty)
+        #expect(state.expire(at: 0.49).isEmpty)
+        #expect(state.expire(at: 0.5) == [.cancel])
+    }
+    @Test func doubleTapLocksAndNextTapFinishes() {
+        var state = FnDictationGesture()
+        _ = state.press(at: 0); _ = state.release(at: 0.1)
+        #expect(state.press(at: 0.2) == [.lock])
+        #expect(state.release(at: 0.3).isEmpty)
+        #expect(state.expire(at: 2).isEmpty)
+        #expect(state.press(at: 3).isEmpty)
+        #expect(state.release(at: 3.1) == [.finish])
+    }
+    @Test func thirdQuickTapDiscards() {
+        var state = FnDictationGesture()
+        _ = state.press(at: 0); _ = state.release(at: 0.1)
+        _ = state.press(at: 0.2); _ = state.release(at: 0.25)
+        _ = state.press(at: 0.3)
+        #expect(state.release(at: 0.35) == [.cancel])
+    }
+    @Test func fnSpaceLocksAndTogglesWithoutReleaseInsertion() {
+        var state = FnDictationGesture()
+        _ = state.press(at: 0)
+        #expect(state.space(at: 0.1) == [.lock])
+        #expect(state.release(at: 0.2).isEmpty)
+        _ = state.press(at: 3)
+        #expect(state.space(at: 3.1) == [.finish])
+        #expect(state.release(at: 3.2).isEmpty)
+    }
+    @Test func otherFnCombinationsDoNotDictate() {
+        var state = FnDictationGesture()
+        _ = state.press(at: 0)
+        #expect(state.otherKey() == [.cancel])
+        #expect(state.release(at: 1).isEmpty)
+        #expect(state.expire(at: 2).isEmpty)
+    }
+    @Test func resetRejectsLateReleaseAndTimeout() {
+        var state = FnDictationGesture()
+        _ = state.press(at: 0); _ = state.release(at: 0.1)
+        state.reset()
+        #expect(state.release(at: 1).isEmpty)
+        #expect(state.expire(at: 2).isEmpty)
+    }
+    @Test @MainActor func readingDefaultUsesTwoKeysAndPreservesSavedShortcuts() {
+        #expect(ShortcutConfiguration.default == ShortcutConfiguration(key: "R", modifiers: UInt32(optionKey)))
+        let store = MemoryShortcutStore()
+        store.save(ShortcutConfiguration(key: "Y", modifiers: UInt32(cmdKey | shiftKey)))
+        let model = AppModel(shortcutStore: store, hotkeyManager: HotkeyManagerFake(registrationResult: .registered))
+        #expect(model.shortcutConfiguration == .previousDefault)
+        #expect(store.saved == .previousDefault)
+        let custom = ShortcutConfiguration(key: "K", modifiers: UInt32(controlKey | shiftKey))
+        store.save(custom)
+        let customModel = AppModel(shortcutStore: store, hotkeyManager: HotkeyManagerFake(registrationResult: .registered))
+        #expect(customModel.shortcutConfiguration == custom)
+    }
+}
+
+@Suite(.serialized)
+@MainActor
+struct DictationCapsuleTests {
+    @Test func bothActivitiesShareTheQuietMeterAndVisualHeight() {
+        let reading = ReadingControlView(frame: CGRect(origin: .zero, size: ReadingControlView.Metrics.surface))
+        let dictation = DictationCapsuleView(frame: CGRect(origin: .zero, size: DictationCapsuleView.surface))
+        defer { reading.stopAnimating(); dictation.stopAnimating() }
+        reading.present(.speaking, opening: true, action: {})
+        dictation.present(.recording, title: "", detail: "")
+        dictation.updateRecording(rms: 0.08)
+        reading.setLevel(dictation.inputLevel)
+        let start = CACurrentMediaTime()
+        for frame in 1...120 {
+            let time = start + Double(frame) / 60
+            reading.tick(now: time)
+            dictation.drawFrame(now: time, reducedMotion: false)
+        }
+        #expect(reading.visualBodyFrame.height == dictation.bodyFrame.height)
+        for (a, b) in zip(reading.barHeights, dictation.barHeights) {
+            #expect(abs(a - Double(b)) < 0.01)
+        }
+        reading.setLevel(0)
+        dictation.updateRecording(rms: 0)
+        for frame in 121...360 {
+            let time = start + Double(frame) / 60
+            reading.tick(now: time)
+            dictation.drawFrame(now: time, reducedMotion: false)
+        }
+        #expect(reading.barHeights.allSatisfy { abs($0 - 2) < 0.01 })
+        #expect(dictation.barHeights.allSatisfy { abs($0 - 2) < 0.01 })
+    }
+
+    @Test func meterResponseDoesNotDependOnRefreshRate() {
+        func response(hz: Int) -> Double {
+            var level = 0.0
+            for _ in 0..<hz / 4 {
+                level = SaywingCapsuleStyle.smooth(level, toward: 0.8, dt: 1 / Double(hz))
+            }
+            for _ in 0..<hz / 4 {
+                level = SaywingCapsuleStyle.smooth(level, toward: 0, dt: 1 / Double(hz))
+            }
+            return level
+        }
+        #expect(abs(response(hz: 60) - response(hz: 120)) < 0.000001)
+    }
+
+    @Test func dictationDisplayClockDoesNotRetainItsView() async throws {
+        weak var released: DictationCapsuleView?
+        do {
+            let view = DictationCapsuleView(frame: CGRect(origin: .zero, size: DictationCapsuleView.surface))
+            released = view
+            view.present(.recording, title: "", detail: "")
+            view.show()
+            try await Task.sleep(for: .milliseconds(35))
+        }
+        try await Task.sleep(for: .milliseconds(35))
+        #expect(released == nil)
+    }
+
+    /// Actual AppKit views at equal scale, using synthetic levels only.
+    @Test func renderSharedCapsuleSpecimen() throws {
+        guard let path = ProcessInfo.processInfo.environment["SAYWING_DICTATION_RENDER_DIR"] else { return }
+        let canvas = NSView(frame: CGRect(x: 0, y: 0, width: 520, height: 330))
+        canvas.wantsLayer = true
+        canvas.layer?.backgroundColor = ReadingPalette.paper.cgColor
+        func label(_ text: String, x: CGFloat, y: CGFloat, size: CGFloat) {
+            let label = NSTextField(labelWithString: text)
+            label.font = .systemFont(ofSize: size, weight: .medium)
+            label.textColor = ReadingPalette.ink
+            label.frame = CGRect(x: x, y: y, width: size > 12 ? 460 : 180, height: 22)
+            canvas.addSubview(label)
+        }
+        label("Saywing · Eine gemeinsame Form", x: 30, y: 285, size: 17)
+        label("Vorlesen", x: 100, y: 250, size: 12)
+        label("Diktieren", x: 332, y: 250, size: 12)
+        for (index, pair) in [(ReadingPanelState.speaking, DictationCapsuleState.recording),
+                              (.preparing, .processing), (.finished, .inserted)].enumerated() {
+            let y = CGFloat(175 - index * 72)
+            let reading = ReadingControlView(frame: CGRect(x: -4, y: y, width: 300, height: 92))
+            let dictation = DictationCapsuleView(frame: CGRect(x: 293, y: y + 16, width: 152, height: 60))
+            canvas.addSubview(reading)
+            canvas.addSubview(dictation)
+            reading.present(pair.0, opening: false, action: {})
+            dictation.present(pair.1, title: "", detail: "")
+            dictation.updateRecording(rms: 0.08)
+            reading.setLevel(dictation.inputLevel)
+            let start = CACurrentMediaTime()
+            for frame in 1...120 {
+                reading.tick(now: start + Double(frame) / 60)
+                dictation.drawFrame(now: start + Double(frame) / 60, reducedMotion: false)
+            }
+            reading.stopAnimating()
+            dictation.stopAnimating()
+        }
+        let rep = try #require(canvas.bitmapImageRepForCachingDisplay(in: canvas.bounds))
+        canvas.cacheDisplay(in: canvas.bounds, to: rep)
+        let directory = URL(fileURLWithPath: path)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try #require(rep.representation(using: .png, properties: [:])).write(to: directory.appendingPathComponent("saywing-together.png"))
+    }
+
+    @Test func recordingControlsStaySeparateAndNeverTakeFocus() {
+        let panel = DictationStatusPanel(contentRect: CGRect(origin: .zero, size: DictationCapsuleView.surface),
+            styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        let view = DictationCapsuleView(frame: CGRect(origin: .zero, size: DictationCapsuleView.surface))
+        panel.contentView = view
+        defer { panel.orderOut(nil) }
+        var finished = 0, discarded = 0
+        view.onFinish = { finished += 1 }
+        view.onDismiss = { discarded += 1 }
+        view.present(.recording, title: "Aufnahme", detail: "Esc verwirft.")
+        #expect(!panel.canBecomeKey && !panel.canBecomeMain)
+        #expect(view.finishButton.frame.size == CGSize(width: 32, height: 44))
+        #expect(view.dismissButton.frame.size == CGSize(width: 32, height: 44))
+        #expect(!view.finishButton.frame.intersects(view.dismissButton.frame))
+        view.finishButton.performClick(nil)
+        view.dismissButton.performClick(nil)
+        #expect(finished == 1 && discarded == 1)
+        view.present(.processing, title: "Text wird erkannt …", detail: "Lokal auf deinem Mac")
+        view.finishButton.performClick(nil)
+        #expect(finished == 1, "Late clicks must not finish a different phase.")
+        #expect(view.finishButton.isHidden)
+    }
+
+    @Test func miniBarHasNoVisibleTextAndKeepsItsSizeAcrossStates() {
+        let view = DictationCapsuleView(frame: CGRect(origin: .zero, size: DictationCapsuleView.surface))
+        func descendants(_ view: NSView) -> [NSView] { view.subviews + view.subviews.flatMap(descendants) }
+        for state in DictationCapsuleState.allCases {
+            view.present(state, title: "Status", detail: "Details")
+            #expect(view.bodyFrame.size == CGSize(width: 120, height: 28))
+            #expect(!descendants(view).contains { $0 is NSTextField }, "No text or timer in the floating bar.")
+            #expect(!view.finishButton.frame.intersects(view.dismissButton.frame))
+        }
+    }
+
+    @Test func inputMeterUsesAudioAndRejectsStaleOrInvalidLevels() {
+        let view = DictationCapsuleView(frame: CGRect(origin: .zero, size: DictationCapsuleView.surface))
+        view.present(.recording, title: "Aufnahme", detail: "")
+        view.updateRecording(rms: 0)
+        #expect(view.inputLevel == 0)
+        #expect(view.accessibilityLabel()?.contains("Aufnahme") == true)
+        view.updateRecording(rms: 0.1)
+        #expect(view.inputLevel > 0 && view.inputLevel <= 1)
+        view.updateRecording(rms: .nan)
+        #expect(view.inputLevel == 0)
+        view.present(.processing, title: "Text wird erkannt …", detail: "")
+        view.updateRecording(rms: 1)
+        #expect(view.inputLevel == 0)
+        #expect(view.accessibilityLabel()?.contains("Text wird erkannt") == true)
+    }
+
+    @Test func terminalFeedbackDoesNotImplyUnverifiedInsertion() {
+        let view = DictationCapsuleView(frame: CGRect(origin: .zero, size: DictationCapsuleView.surface))
+        view.present(.unconfirmed, title: "Einfügen ausgelöst", detail: "Bitte Zielfeld prüfen.")
+        #expect(view.state == .unconfirmed)
+        #expect(view.accessibilityHelp() == "Bitte Zielfeld prüfen.")
+        #expect(view.accessibilityLabel()?.contains("Einfügen ausgelöst") == true)
+        view.present(.inserted, title: "Eingefügt", detail: "Bereit für die nächste Aufnahme.")
+        #expect(view.state == .inserted)
+        #expect(view.finishButton.isHidden)
+        #expect(view.dismissButton.accessibilityLabel() == "Hinweis schließen")
+    }
+
+    @Test func controllerDismissalPreservesResultsAndOldDismissalCannotHideActiveWork() throws {
+        let worker = DictationWorkerFake()
+        let controller = DictationController(resources: URL(fileURLWithPath: "/missing-dictation"),
+            worker: worker, shortcut: HotkeyManagerFake(registrationResult: .registered),
+            escape: HotkeyManagerFake(registrationResult: .registered), registerHotkey: false)
+        defer { controller.shutdown() }
+        controller.latestText = "Synthetic retained result"
+        controller.result.string = controller.latestText
+        controller.setStatus("Eingefügt", floating: true, capsuleState: .inserted)
+        controller.capsule.dismissButton.performClick(nil)
+        #expect(!controller.panel.isVisible)
+        #expect(controller.latestText == "Synthetic retained result")
+        controller.setStatus("Hinweis", floating: true)
+        controller.hidePanelLater()
+        let oldHide = try #require(controller.panelHide)
+        try controller.begin(target: InsertionTarget(local: controller.scratch))
+        controller.phase = "processing"
+        oldHide.perform()
+        #expect(controller.panel.isVisible, "An old timer cannot hide an active request.")
+        controller.setStatus("Text wird erkannt …", floating: true)
+        controller.hidePanelLater()
+        #expect(controller.capsule.state == .processing)
+        controller.capsule.dismissButton.performClick(nil)
+        #expect(!controller.isActive && !controller.panel.isVisible)
+        #expect(!controller.capsule.isAnimating)
+    }
+
+    @Test func reducedMotionAndHiddenPanelStopAnimation() {
+        let view = DictationCapsuleView(frame: CGRect(origin: .zero, size: DictationCapsuleView.surface))
+        view.present(.processing, title: "Text wird erkannt …", detail: "")
+        view.show()
+        #expect(view.isAnimating == !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+        view.drawFrame(now: 1, reducedMotion: true)
+        let first = view.barHeights
+        view.drawFrame(now: 20, reducedMotion: true)
+        #expect(view.barHeights == first)
+        view.stopAnimating()
+        #expect(!view.isAnimating)
+    }
+
+    /// Native view-only design specimens. Synthetic levels, no microphone/screen capture.
+    @Test func renderDictationStates() throws {
+        guard let path = ProcessInfo.processInfo.environment["SAYWING_DICTATION_RENDER_DIR"] else { return }
+        let directory = URL(fileURLWithPath: path)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        for state in DictationCapsuleState.allCases {
+            let view = DictationCapsuleView(frame: CGRect(origin: .zero, size: DictationCapsuleView.surface))
+            view.present(state, title: state == .attention ? "Aufnahme nicht gestartet" : "", detail: "Bitte das Diktierfenster öffnen.")
+            view.updateRecording(rms: 0.08)
+            view.drawFrame(now: 1, reducedMotion: false)
+            view.layoutSubtreeIfNeeded()
+            let rep = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+            view.cacheDisplay(in: view.bounds, to: rep)
+            try #require(rep.representation(using: .png, properties: [:])).write(to: directory.appendingPathComponent("dictation-\(state.rawValue).png"))
+            view.stopAnimating()
+        }
     }
 }
