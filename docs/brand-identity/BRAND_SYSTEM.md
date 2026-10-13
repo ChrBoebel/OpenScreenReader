@@ -1,112 +1,66 @@
-# OpenScreenReader Brand System
+# Saywing — verbindliche Markenidentität
 
-**Status:** Approved direction
-**Decision date:** 2026-09-04
-**Canonical app-logo artwork:** [`assets/open-screen-reader-app-icon.png`](assets/open-screen-reader-app-icon.png)
+Vom Eigentümer am **13.10.2026** ausgewählt. Dieses Dokument ersetzt frühere OpenScreenReader-/Owl-Frame-Entscheidungen. [Frühere Regeln und Prüfergebnisse](BRAND_SYSTEM_2026-09.md) bleiben als Historie erhalten.
 
-## Decision
+## Name und Sprache
 
-The original **Owl Frame** concept is the selected OpenScreenReader app logo. Later owl and text-to-wave explorations remain in `animal-concepts/` as design history, but they are not approved brand assets.
-
-The selected mark is a clearly recognisable owl built from the product's region-selection geometry. Its almond-shaped eyes, light central beak, forehead arches, and contained lower voice curve are essential recognition anchors. The result should feel calm, capable, friendly, and distinctly macOS-native without becoming a cartoon mascot.
-
-## Source of truth
-
-- **Product name:** `OpenScreenReader` (no approved rename).
-- **Current concise claim:** `Select. Listen. Stay private.` as used in the README. Alternative lines in the brandbook remain proposals.
-- **Canonical approved raster:** `docs/brand-identity/assets/open-screen-reader-app-icon.png`
-- **Machine-readable tokens:** `docs/brand-identity/assets/brand-tokens.json`
-- **Original concept file:** `docs/brand-identity/animal-concepts/01-owl-frame.png`
-- **Explorations:** `docs/brand-identity/animal-concepts/owl-round-2/`, `owl-round-3/`, and `owl-b-refinements/`
-- **Current limitation:** the approved artwork is a generated RGB PNG, not yet a production vector or layered Icon Composer source.
-
-Do not silently replace the canonical artwork with an exploration. A future redraw may improve geometry and rendering, but it must preserve the selected silhouette and the four recognition anchors above and requires an explicit design decision.
-
-## Core palette
-
-The palette values below are normative. Colours sampled from the rendered PNG may differ slightly because it contains shading and material effects.
-
-| Token | Hex | Primary role |
+| | Deutsch | English |
 |---|---|---|
-| **Local Ink** | `#0B1724` | Dark foundation, primary text, dark icon base |
-| **Voice Mint** | `#55E0BE` | Owl/frame mark, selection state, primary brand accent |
-| **Mint Light** | `#B8F7E7` | Soft highlight, secondary tint, light-detail support |
-| **Warm Paper** | `#F7F4ED` | Beak and eye details, light canvas, warm neutral |
+| Name | Saywing | Saywing |
+| Zusatz | Vorlesen & Diktieren für macOS. | Read aloud & dictate on your Mac. |
+| Leitgedanke | Text hören. Mit der Stimme schreiben. | Hear text. Write with your voice. |
+| Aktion 1 | Vorlesen — Bildschirmbereich wählen. Zuhören. | Read aloud — Select a screen region. Listen. |
+| Aktion 2 | Diktieren — Sprechen. Text einfügen. | Dictate — Speak. Insert text. |
 
-### Contrast guardrails
+Eine native Menüleisten-App, eine Marke, zwei ausdrücklich gewählte Aktionen. Die Eule steht für Aufmerksamkeit; der Zusatz erklärt die Funktion. Schreibweise immer **Saywing**, nicht SayWing oder Saywring.
 
-Measured WCAG contrast ratios:
+**Aktueller Funktionsstand:** experimentelles lokales Vorlesen ist implementiert. Diktieren wird separat erprobt und ist in dieser App noch nicht verfügbar. Die gemeinsame Positionierung wird immer mit „Diktieren · in Erprobung“ beziehungsweise „Dictation · in testing“ verbunden. Kein aktiver Diktierknopf, kein zugesicherter Termin und kein Versprechen, dass jedes Textfeld funktioniert.
 
-- Local Ink / Voice Mint: **11.01:1**
-- Local Ink / Mint Light: **15.05:1**
-- Local Ink / Warm Paper: **16.45:1**
-- Voice Mint / Warm Paper: **1.49:1**
+Datenschutz bleibt eine Produkteigenschaft: kein Cloud-OCR/TTS, kein Konto, keine Standardtelemetrie und keine dauerhafte Inhaltshistorie. Expliziter Stop beendet den aktiven Vorlesevorgang. Der Vorlesepfad schreibt nicht automatisch in die Zwischenablage. Einfüge- und Datenschutzverhalten des Diktierprototyps benötigen ihre eigene Integrationsentscheidung; das Branding ändert diese Regeln nicht.
 
-Therefore:
+## Bildmarke und Assets
 
-- Use Local Ink with Voice Mint, Mint Light, or Warm Paper for high-contrast foreground/background pairings.
-- Do **not** use Voice Mint as body text, thin UI text, or an essential low-area indicator on Warm Paper.
-- On light surfaces, use Local Ink for text and reserve Voice Mint for larger accents, focus/selection states, and non-text brand moments.
-- Do not communicate state through colour alone.
+- [Flache Bildmarke](assets/saywing-logo.png): Quiet Owl in Wacholdergrün auf transparentem Grund.
+- [App-Icon](assets/saywing-app-icon.png): helle Eule auf dunkelgrüner Icon-Fläche.
+- [Menüleistenzeichen](assets/saywing-menubar.png): monochrome Eule mit offeneren Augen.
+- [Visuelle Vorschau](saywing.html) und [maschinenlesbare Tokens](assets/brand-tokens.json).
 
-## Icon usage
+Breite Silhouette, mandelförmige Augen, flache Stirnkerbe, kleiner integrierter Schnabel und weichere Spitzen bleiben erhalten. Kein Mikrofon, Dokument, Glitzern oder Wellenpaket in der Eule. Lautsprecher und Mikrofon erklären die Aktionen separat mit Text.
 
-### App icon
+Die bestätigten Master sind transparente Rasterdesigns. Native Asset-Katalog-Exporte sind implementiert. Mathematisch exakte Vektoren und ein Icon-Composer-Layerstapel bleiben eine Produktionsverbesserung; diese Dateien sind keine Vektormaster.
 
-- Use the complete Owl Frame artwork for the Dock, application bundle, release pages, and primary product avatar.
-- Preserve generous optical padding around the owl.
-- Preserve the Deep Ink/Local Ink base, mint owl geometry, light eye/beak details, and restrained material depth.
-- Do not add text, badges, sparkles, microphones, headphones, speech bubbles, or extra equaliser bars.
-- Do not stretch, rotate, recolour piecemeal, redraw the eyes as circles, or make the expression more cartoon-like.
+## Farbe und Schrift
 
-### Small sizes and menu bar
+| Token | Wert | Anwendung |
+|---|---|---|
+| Juniper | `#173C33` | Logo, Wortmarke, dunkle Markenfläche |
+| Porcelain | `#F2F4EF` | Heller Hintergrund und inverse Schrift |
+| Leaf | `#407D65` | Dekorativer Akzent |
+| Leaf Text | `#356B56` | Bedienelemente auf hellen Flächen |
+| Forest | `#0C1F1A` | Dunkle Vorlesekapsel |
+| Pale Leaf | `#A8D5BD` | Aktivität und Bedienelemente auf dunklen Flächen |
+| Porcelain Light | `#E1EFE5` | Helle Kapselakzente |
 
-The full raster artwork is not the final menu-bar glyph. Produce and test a separate monochrome derivative before implementation. It should retain the selection-frame silhouette and owl recognition without relying on colour or fine facial detail.
+Berechnete Kontraste: Juniper/Porcelain **10,96:1**, Pale Leaf/Forest **10,53:1**. Leaf/Porcelain hat nur **4,37:1** und wird nicht für kleine normale Schrift verwendet. Stattdessen Juniper oder Leaf Text verwenden. Auf wechselndem Bildschirminhalt garantiert eine einzelne Rahmenfarbe keinen Kontrast; Abdunklung und Auswahlgeometrie bleiben wichtig. Zustände nie ausschließlich durch Farbe vermitteln.
 
-Required production tests: `16`, `20`, `32`, `64`, `128`, `256`, `512`, and `1024` px; light and dark appearance; monochrome; increased contrast; and reduced transparency.
+Schrift: native macOS-Systemschrift in der App; lokale System-Sans-Serif in der Vorschau. Keine extern geladenen Fonts. Rundum mindestens eine Augenhöhe Freiraum um die sichtbare Bildmarke. Für kleine Darstellungen das separate Menüleistenzeichen verwenden. Name und erklärender Zusatz stehen bei Erstkontakt zusammen.
 
-### Product UI
+## Native Umsetzung
 
-- Region selection and primary focus moments: Voice Mint against sufficiently dark surroundings.
-- Quiet surfaces and primary typography: Local Ink or system semantic colours.
-- Light brand canvas: Warm Paper rather than pure white where brand styling is appropriate.
-- Decorative highlight only: Mint Light.
-- Use macOS semantic colours for standard controls and states instead of forcing brand colours into every interface element.
+- Buildprodukt **Saywing.app**, Programmdatei **Saywing**.
+- Einstellungen und Einrichtung zeigen Namen, App-Icon, Zusatz und ehrlichen Entwicklungsstand.
+- Menüleiste: Template-Eule mit vom System gewählter Hell-/Dunkelfarbe. Tooltip und zugänglicher Name enthalten den aktuellen Zustand; im Menü bleibt er sichtbar lesbar.
+- Vorlesekapsel: neue Grünpalette, bestehende Interaktion, Klänge, Bewegung, Stop-Zielfläche und Accessibility-Verhalten. Amber bleibt Hinweis-/Fehlerfarbe.
+- `sh scripts/export-app-icon.sh` erzeugt App-Icon-Größen und 22-pt-Menüvorlagen in 1×/2×/3× aus den bestätigten Mastern.
+- Bundle-ID `com.christopherbobel.OpenScreenReader`, Einstellungsschlüssel und `Application Support/OpenScreenReader` bleiben kompatibel. Xcode-Projekt, Scheme und Swift-Module behalten technische Namen.
+- Das Entwicklungspackaging verarbeitet und erzeugt Saywing.app. Die Markenumstellung lädt keine Modelle und veröffentlicht keine Pakete.
 
-### Reading-control motion and sound, 2026-09-05
+## Tonalität
 
-Two earlier passes were rejected by the owner: a restrained notification-style card and a hand-drawn "Reading Lens" frame. A third, island-style pass with title text was then reset again after the owner pointed at Wispr Flow's text-free bar and asked for a control that communicates through animation, colour and sound and is "super aesthetic". See [the research brief](../research/reading-control-motion-study.md) and [native verification](../reading-panel-verification.md). Final subjective acceptance remains the owner's call. The canonical Owl Frame artwork and palette remain approved.
+Ruhig, direkt, konkret. Handlung und Ergebnis erklären. Keine unbelegten Produktivitätszahlen, autonome Aufnahmen, automatisches Senden, universelle Kompatibilität oder erfundene Nutzerstimmen versprechen.
 
-**Owner-approved exceptions to the shape rules below:** the reading control is a **capsule** (fully round ends) and its voice is a row of **rounded bars**. The bars are not a frequency equaliser: they follow one travelling wave driven by the rendered speech level. These exceptions apply to this control only, not to icons, the app logo or other surfaces.
+## Noch zu validieren
 
-The control is a text-free capsule 44 pt tall over a system blur, tinted deeper than Local Ink so mint reads as light. Nine Voice Mint bars are the living centre; their colour rises with height from dimmed mint through Voice Mint to Mint Light with a near-white core. After capture the selection frame collapses as a mint ghost into a glowing dot and springs open into the capsule, with the opening sound landing on the same beat. Recognition shows a travelling light, preparation lets the bars rise one by one. Terminal states draw a mint check, a paper stop square or a warm amber attention ring; amber is an attention accent only. Text appears only as an Esc keycap on hover and as two words for attention states; accessibility labels and VoiceOver announcements always carry the full status. The round 44 pt stop control compresses on press and springs back with haptic, key-down and key-up sounds. Reduce Motion, Reduce Transparency and Increase Contrast each have a defined static or opaque alternative.
+[Namensrecherche](SAYWING_RESEARCH.md): vorhandener spanischer Firmenname, registrierte .com-Domain, kein .app-RDAP-Eintrag zum Prüfzeitpunkt, null TMview-Treffer für die Basisabfrage. Das ist keine rechtliche Freigabe oder Garantie der Domainverfügbarkeit.
 
-Sound is one original stereo family of **wood and water**, chosen after a research pass on satisfying interface sound (short, warm and simple for frequent cues, richer only for rewards, physical models rather than beeps): marimba-style bars with 1 : 4 : 10 partials, water drops as entrained-bubble chirps, a low log-drum thud and a small synthetic room. Opening (thud, two rising bars, one drop at landing), completion (a quiet deep root and three rising drops, deliberately the most restrained reward), attention (two muted falling knocks), key down and key up; opening and completion alternate between two voicings. Volume and Off are independent of speech; cancellation itself is silent and no cue overlays speech. This does not approve earlier text-to-wave app-logo explorations or copying competitor artwork/audio.
-
-## Typography and shape language
-
-- Product UI: system font / SF Pro through native macOS APIs.
-- Brand and website shortlist: Geist Sans or Instrument Sans; final choice remains open.
-- Rounded or subtly tapered terminals; friendly but not pill-like corner radii. Sole exception: the reading control capsule (see above).
-- Reuse the logo's selection-corner geometry in the region-selection overlay.
-- Motion should communicate an event or actual playback: one opening gesture and a level-driven voice, not an arbitrary permanent equaliser.
-
-## Production handoff
-
-Before shipping, reconstruct the selected PNG as auditable vector geometry and layered Icon Composer artwork. The production package should include:
-
-1. layered macOS app icon with appearance variants;
-2. flat one- and two-colour brand marks;
-3. monochrome menu-bar glyph;
-4. export set and asset-catalog entries for the actual app target;
-5. documented clear space, minimum sizes, colour tokens, and export procedure.
-
-The native app target now includes `OpenScreenReaderApp/Assets.xcassets/AppIcon.appiconset`. Run `sh scripts/export-app-icon.sh` to reproduce its raster sizes from the canonical approved PNG. These are size exports only; the original geometry, colours, and padding are preserved. The app bundle uses `AppIcon`. Layered Icon Composer artwork, appearance variants, the monochrome menu-bar derivative, and the complete production appearance/accessibility matrix remain pending.
-
-The Settings header displays the installed app icon, product name, current concise claim, and version. `CFBundleName` and `CFBundleDisplayName` both use the existing `OpenScreenReader` product name. The bundle identifier is unchanged so this branding adjustment does not create a new app identity for macOS permissions. The menu bar continues using semantic status symbols until a separate approved monochrome mark is available; the full-colour raster is not used as a tiny menu-bar glyph.
-
-### Implementation verification, 2026-09-05
-
-The new bundle-identity test first failed because `CFBundleDisplayName` was absent and passed after adding it. The 00:18:04 full run passed all 37 app-unit tests, both live permission tests, and the native Settings test, including the named logo image and claim. Three other UI tests failed: the two Finder shortcut checks did not see the overlay, and the drag check encountered an XCTest non-finite-coordinate exception. The total was 42 passed, three failed, zero skipped; it is not a clean full regression result. Release build and plist validation passed. Computer Use attachment to the exact Debug app timed out, so no additional live screenshot inspection is claimed.
-
-In the targeted no-rebuild rerun, the custom shortcut/persistence test passed (51.611 seconds), and the drag test passed (9.595 seconds). The default-shortcut test reached its repeated-cancellation check but failed to observe Stopped. This leaves shortcut UI reliability unresolved; it does not invalidate or replace the earlier full-run failures, and no cause is inferred solely from the branding change.
+Der Name ist vom Eigentümer ausgewählt. Ein echter Verständlichkeitstest bleibt offen; das [lokale Testblatt](name-test.html) ist vorbereitet, es wurden keine Personen befragt. Domainregistrierung, Markenanmeldung, Veröffentlichung und Outreach wurden nicht ausgeführt. Tatsächliche technische Ergebnisse stehen in [SAYWING_VERIFICATION.md](SAYWING_VERIFICATION.md).

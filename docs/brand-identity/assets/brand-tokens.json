@@ -1,38 +1,34 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "status": "approved",
-  "decisionDate": "2026-09-04",
+  "decisionDate": "2026-10-13",
   "product": {
-    "name": "OpenScreenReader",
-    "currentTagline": "Select. Listen. Stay private."
+    "name": "Saywing",
+    "descriptorDE": "Vorlesen & Diktieren für macOS.",
+    "descriptorEN": "Read aloud & dictate on your Mac.",
+    "taglineDE": "Text hören. Mit der Stimme schreiben.",
+    "taglineEN": "Hear text. Write with your voice.",
+    "dictationStatus": "separate-prototype-not-integrated"
   },
   "appLogo": {
-    "name": "Owl Frame",
-    "canonicalRaster": "open-screen-reader-app-icon.png",
+    "name": "Quiet Owl",
+    "canonicalRaster": "saywing-app-icon.png",
+    "flatMark": "saywing-logo.png",
+    "menuBarTemplate": "saywing-menubar.png",
     "productionVectorStatus": "pending"
   },
   "colors": {
-    "localInk": {
-      "hex": "#0B1724",
-      "role": "dark foundation and primary dark text"
-    },
-    "voiceMint": {
-      "hex": "#55E0BE",
-      "role": "primary brand accent and selection state"
-    },
-    "mintLight": {
-      "hex": "#B8F7E7",
-      "role": "soft highlight and secondary tint"
-    },
-    "warmPaper": {
-      "hex": "#F7F4ED",
-      "role": "light canvas and warm detail"
-    }
+    "juniper": "#173C33",
+    "porcelain": "#F2F4EF",
+    "leaf": "#407D65",
+    "leafText": "#356B56",
+    "forest": "#0C1F1A",
+    "paleLeaf": "#A8D5BD",
+    "porcelainLight": "#E1EFE5"
   },
   "contrastRatios": {
-    "localInkOnVoiceMint": 11.01,
-    "localInkOnMintLight": 15.05,
-    "localInkOnWarmPaper": 16.45,
-    "voiceMintOnWarmPaper": 1.49
+    "juniperOnPorcelain": 10.96,
+    "leafOnPorcelain": 4.37,
+    "paleLeafOnForest": 10.53
   }
 }

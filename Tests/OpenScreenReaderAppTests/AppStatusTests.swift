@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 import Testing
 @testable import OpenScreenReader
 
@@ -6,9 +6,18 @@ import Testing
 struct AppStatusTests {
     @Test
     func appBundleUsesApprovedProductNameAndIcon() {
-        #expect(Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String == "OpenScreenReader")
-        #expect(Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String == "OpenScreenReader")
+        #expect(Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String == "Saywing")
+        #expect(Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String == "Saywing")
+        #expect(Bundle.main.bundleIdentifier == "com.christopherbobel.OpenScreenReader")
         #expect(Bundle.main.object(forInfoDictionaryKey: "CFBundleIconName") as? String == "AppIcon")
+    }
+
+    @Test @MainActor
+    func menuBarArtworkLoadsAsSystemColoredTemplate() throws {
+        let image = try #require(NSImage(named: "SaywingMenuBar"))
+        #expect(image.isTemplate)
+        #expect(image.size == NSSize(width: 22, height: 22))
+        #expect(image.tiffRepresentation != nil)
     }
     @Test
     func userFacingTitlesCoverEveryPipelineState() {

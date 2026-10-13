@@ -13,8 +13,17 @@ struct OpenScreenReaderApp: App {
         MenuBarExtra {
             MenuBarContent(model: model)
         } label: {
-            Label("OpenScreenReader", systemImage: model.status.symbolName)
-                .accessibilityLabel("OpenScreenReader, \(model.status.title)")
+            Label {
+                Text("Saywing")
+            } icon: {
+                Image("SaywingMenuBar")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 22, height: 22)
+            }
+                .accessibilityLabel("Saywing, \(model.isPaused ? "Paused" : model.status.title)")
+                .help("Saywing · \(model.isPaused ? "Paused" : model.status.title)")
                 .task { model.offerSetupIfNeeded() }
         }
         .menuBarExtraStyle(.menu)

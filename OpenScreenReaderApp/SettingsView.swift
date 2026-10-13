@@ -23,16 +23,26 @@ struct SettingsView: View {
                         .resizable()
                         .scaledToFit()
                         .frame(width: 64, height: 64)
-                        .accessibilityLabel("OpenScreenReader Owl Frame app logo")
+                        .accessibilityLabel("Saywing Quiet Owl app logo")
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("OpenScreenReader").font(.title2.weight(.semibold))
-                        Text("Select. Listen. Stay private.")
+                        Text("Saywing").font(.title2.weight(.semibold))
+                        Text("Vorlesen & Diktieren für macOS.")
                             .font(.subheadline).foregroundStyle(.secondary)
                         Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—")")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }
                 .padding(.vertical, 4)
+            }
+            Section("Text und Stimme") {
+                Label("Vorlesen", systemImage: "speaker.wave.2")
+                    .font(.headline)
+                Text("Bildschirmbereich wählen. Zuhören.")
+                Label("Diktieren · in Erprobung", systemImage: "mic")
+                    .font(.headline)
+                Text("Sprache ins Textfeld übertragen. Wird separat getestet und ist in dieser App noch nicht verfügbar.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Section("General") {
                 Button("Set Up & Test…") { model.showSetup() }
@@ -146,12 +156,12 @@ struct SettingsView: View {
                 Button("Allow Screen Recording…") {
                     let granted = CGRequestScreenCaptureAccess()
                     permissionNotice = granted ? "Screen Recording is allowed. Select a region to retry."
-                        : "Enable OpenScreenReader under System Settings → Privacy & Security → Screen & System Audio Recording, then reopen the app if requested."
+                        : "Enable Saywing under System Settings → Privacy & Security → Screen & System Audio Recording, then reopen the app if requested."
                 }
                 Button("Allow Input Monitoring…") {
                     let granted = CGRequestListenEventAccess()
                     permissionNotice = granted ? "Input Monitoring is allowed. Select a region to retry."
-                        : "Enable OpenScreenReader under System Settings → Privacy & Security → Input Monitoring, then reopen the app if requested."
+                        : "Enable Saywing under System Settings → Privacy & Security → Input Monitoring, then reopen the app if requested."
                 }
                 if let permissionNotice {
                     Text(permissionNotice).fixedSize(horizontal: false, vertical: true)
@@ -164,14 +174,14 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .frame(width: 500, height: 680)
         .padding()
-        .navigationTitle("OpenScreenReader Settings")
-        .accessibilityLabel("OpenScreenReader settings")
+        .navigationTitle("Saywing Settings")
+        .accessibilityLabel("Saywing settings")
         .onAppear { draftShortcut = editingQueueShortcut ? model.queueShortcutConfiguration : model.shortcutConfiguration }
         .alert("Override app commands?", isPresented: $confirmCommonShortcut) {
             Button("Use Shortcut") { applyDraftShortcut() }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("\(draftShortcut.displayName) may replace a familiar command in other apps while OpenScreenReader is running. Use it anyway?")
+            Text("\(draftShortcut.displayName) may replace a familiar command in other apps while Saywing is running. Use it anyway?")
         }
     }
 
@@ -245,7 +255,7 @@ struct PlaybackControlsView: View {
             Text("Nur für diese Sitzung · nichts wird gespeichert").font(.caption).foregroundStyle(.secondary)
         }
         .padding(20).frame(width: 340)
-        .tint(Color(red: 0.12, green: 0.65, blue: 0.55))
+        .tint(Color("AccentColor"))
         .accessibilityIdentifier("playbackControls")
     }
 }
@@ -257,20 +267,31 @@ struct SetupView: View {
     @State private var notice = ""
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("Markieren. Zuhören. Lokal.").font(.title2.bold())
+            HStack(spacing: 12) {
+                Image(nsImage: NSApplication.shared.applicationIconImage)
+                    .resizable().scaledToFit().frame(width: 56, height: 56)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Saywing").font(.title2.bold())
+                    Text("Vorlesen & Diktieren für macOS.").font(.subheadline)
+                }
+            }
+            Text("Vorlesen einrichten").font(.headline)
+            Text("Diktieren ist in Erprobung und in dieser App noch nicht verfügbar.")
+                .font(.caption).foregroundStyle(.secondary)
             Text("Zwei Berechtigungen, dann ein echter Vorlesetest. Kein Konto und kein Cloud-Dienst.")
                 .foregroundStyle(.secondary)
             permissionRow("1 · Bildschirmaufnahme", allowed: screenAllowed,
                           explanation: "Nur der von dir markierte Bereich wird für die lokale Texterkennung erfasst.") {
                 _ = CGRequestScreenCaptureAccess()
                 refresh()
-                notice = "Aktiviere OpenScreenReader in Datenschutz & Sicherheit → Aufnahme von Bildschirm & Systemaudio. Öffne die App danach erneut, falls macOS dazu auffordert."
+                notice = "Aktiviere Saywing in Datenschutz & Sicherheit → Aufnahme von Bildschirm & Systemaudio. Öffne die App danach erneut, falls macOS dazu auffordert."
             }
             permissionRow("2 · Eingabeüberwachung", allowed: inputAllowed,
                           explanation: "Damit Esc auch in anderen Apps sofort stoppt. Keine Tastatureingaben werden gespeichert.") {
                 _ = CGRequestListenEventAccess()
                 refresh()
-                notice = "Aktiviere OpenScreenReader in Datenschutz & Sicherheit → Eingabeüberwachung. Verwende die App unter /Applications/OpenScreenReader.app, nicht den UI-Tests-Runner."
+                notice = "Aktiviere Saywing in Datenschutz & Sicherheit → Eingabeüberwachung. Verwende die App unter /Applications/Saywing.app, nicht den UI-Tests-Runner."
             }
             Label(LocalSpeechService.installationSummary, systemImage: "waveform")
             Button("Status erneut prüfen") { refresh() }

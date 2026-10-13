@@ -96,7 +96,7 @@ final class AppModel: ObservableObject {
         if setupWindow == nil {
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 530),
                                   styleMask: [.titled, .closable], backing: .buffered, defer: false)
-            window.title = "OpenScreenReader · Einrichtung"
+            window.title = "Saywing · Einrichtung"
             window.isReleasedWhenClosed = false
             window.contentViewController = NSHostingController(rootView: SetupView(model: self))
             window.center()

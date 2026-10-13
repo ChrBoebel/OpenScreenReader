@@ -470,12 +470,12 @@ final class SelectionFlightWindow: NSWindow {
 }
 
 enum ReadingPalette {
-    static let ink = NSColor(srgbRed: 11 / 255, green: 23 / 255, blue: 36 / 255, alpha: 1)
+    static let ink = NSColor(srgbRed: 23 / 255, green: 60 / 255, blue: 51 / 255, alpha: 1)
     /// Deeper than Local Ink so mint reads as light, not paint.
-    static let void = NSColor(srgbRed: 5 / 255, green: 11 / 255, blue: 19 / 255, alpha: 1)
-    static let paper = NSColor(srgbRed: 247 / 255, green: 244 / 255, blue: 237 / 255, alpha: 1)
-    static let mint = NSColor(srgbRed: 85 / 255, green: 224 / 255, blue: 190 / 255, alpha: 1)
-    static let mintLight = NSColor(srgbRed: 184 / 255, green: 247 / 255, blue: 231 / 255, alpha: 1)
+    static let void = NSColor(srgbRed: 12 / 255, green: 31 / 255, blue: 26 / 255, alpha: 1)
+    static let paper = NSColor(srgbRed: 242 / 255, green: 244 / 255, blue: 239 / 255, alpha: 1)
+    static let mint = NSColor(srgbRed: 168 / 255, green: 213 / 255, blue: 189 / 255, alpha: 1)
+    static let mintLight = NSColor(srgbRed: 225 / 255, green: 239 / 255, blue: 229 / 255, alpha: 1)
     /// Attention accent. Warm, not alarming; never used as body text.
     static let amber = NSColor(srgbRed: 1, green: 0.72, blue: 0.4, alpha: 1)
 

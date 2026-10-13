@@ -5,7 +5,7 @@ This is a local development artifact, not a release or a redistribution approval
 Build the Release target, then run:
 
 ```sh
-ruby scripts/package-development-app.rb /absolute/path/to/Release/OpenScreenReader.app --development-only --dmg
+ruby scripts/package-development-app.rb /absolute/path/to/Release/Saywing.app --development-only --dmg
 ```
 
 The script refuses other modes. It creates a new ignored `.build/packaging-*` staging directory, optionally a sibling DMG, and never overwrites the installed app. Existing model/worker/dependency files must match their installation receipt and the pinned model manifest. Nothing is downloaded.

@@ -2,7 +2,7 @@
 
 ## Grundsatz
 
-OpenScreenReader verarbeitet möglicherweise hochsensible Bildschirmdaten. Datenschutz ist deshalb keine Marketingoption, sondern eine technische Invariante.
+Saywing (bisher OpenScreenReader) verarbeitet möglicherweise hochsensible Bildschirmdaten. Datenschutz ist deshalb keine Marketingoption, sondern eine technische Invariante. Die Umbenennung ändert diese Vorgaben nicht; der separate Diktierprototyp ist noch nicht Bestandteil des hier beschriebenen Vorlesepfads.
 
 ## Verbindliche Standardwerte
 

@@ -310,9 +310,9 @@ private final class SelectionOverlayView: NSView {
         context.restoreGState()
 
         context.setStrokeColor(NSColor(
-            calibratedRed: 0x55 / 255,
-            green: 0xE0 / 255,
-            blue: 0xBE / 255,
+            calibratedRed: 0xA8 / 255,
+            green: 0xD5 / 255,
+            blue: 0xBD / 255,
             alpha: 1
         ).cgColor)
         context.setLineWidth(2)

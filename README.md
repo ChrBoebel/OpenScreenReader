@@ -1,12 +1,20 @@
-# OpenScreenReader
+# Saywing
 
 <p align="center">
-  <img src="docs/brand-identity/assets/open-screen-reader-app-icon.png" alt="OpenScreenReader owl app logo" width="160">
+  <img src="docs/brand-identity/assets/saywing-app-icon.png" alt="Saywing Quiet Owl app icon" width="160">
 </p>
 
-**Select. Listen. Stay private.**
+**Vorlesen & Diktieren für macOS.**
 
-OpenScreenReader is a planned open-source macOS menu bar app that reads any visible text aloud with natural, fully local AI voices.
+**Text hören. Mit der Stimme schreiben.**
+
+*Read aloud & dictate on your Mac. Hear text. Write with your voice.*
+
+Saywing is an open-source macOS menu bar app for screen reading, with local dictation being explored separately. Select a screen region and hear its text in a natural local voice. Dictation is not integrated or available in this build.
+
+Previously OpenScreenReader. The Xcode project/scheme, Swift modules, bundle identifier and existing development-runtime directory retain their technical names so existing settings and installations remain compatible.
+
+See the [approved Saywing identity](docs/brand-identity/BRAND_SYSTEM.md) and [visual brand preview](docs/brand-identity/saywing.html).
 
 > Status: experimental native macOS menu bar app with a configurable global hotkey, region selection, in-memory ScreenCaptureKit capture, local German/English Apple Vision OCR, and automatic local Supertonic 3 speech. The owner selected Supertonic after the German listening comparison; M1 is the initial default voice. The pinned development worker and model are installed separately, not bundled for distribution. Verification and remaining limitations are recorded in the [Supertonic integration notes](docs/research/supertonic-integration.md). Finder-hotkey start tests have been intermittent, and the broader permission/display/layout matrix remains open. No application has been released yet.
 
@@ -30,7 +38,7 @@ With the development runtime installed, selecting text starts speech automatical
 
 A small floating reading panel appears after capture on the selected display. Choose **Bottom, Left or Right** in Settings → **Control position**, or drag its waveform to dock at the nearest edge. Side positions use an upright vertical layout. The edge and relative offset are remembered locally; **Preview & move control** lets you position it without OCR or speech. Dragging never activates the separate stop/close button or takes keyboard focus. Its stop button cancels the whole operation. Completed/stopped feedback disappears automatically; empty-text and error notices remain until dismissed or a new selection starts. The panel contains status only, never the selected text. See [panel behavior and verification](docs/reading-panel-verification.md).
 
-The reading control is a small text-free capsule. After capture, the selection frame visibly collapses into a glowing dot at the saved edge of the display and springs open into the capsule; the opening sound lands with it. Nine Voice Mint bars answer the rendered speech level, brighten towards Mint Light at their peaks and pass a light along the row on each syllable. Recognition shows a travelling light, preparation lets the bars rise one by one, and finished, stopped and attention states draw their own symbol. Hover reveals an Esc keycap; attention states show two words for a moment. The round 44 pt stop button compresses on press with haptic, click and release feedback. VoiceOver hears every state change. Everything follows macOS Reduce Motion, Reduce Transparency and Increase Contrast. Five original, locally synthesized stereo cues (opening, completion, attention, key down, key up) share one wood-and-water sound family (marimba bars, water drops, a low thud, a small room); while the voice is prepared the bars breathe and a drop ripples through them; volume and Off live in Settings → **Interface sounds**. Cancellation itself is silent and cues stop before speech.
+The reading control is a small text-free capsule. After capture, the selection frame visibly collapses into a glowing dot at the saved edge of the display and springs open into the capsule; the opening sound lands with it. Nine pale leaf-green bars answer the rendered speech level, brighten towards Porcelain Light at their peaks and pass a light along the row on each syllable. Recognition shows a travelling light, preparation lets the bars rise one by one, and finished, stopped and attention states draw their own symbol. Hover reveals an Esc keycap; attention states show two words for a moment. The round 44 pt stop button compresses on press with haptic, click and release feedback. VoiceOver hears every state change. Everything follows macOS Reduce Motion, Reduce Transparency and Increase Contrast. Five original, locally synthesized stereo cues (opening, completion, attention, key down, key up) share one wood-and-water sound family (marimba bars, water drops, a low thud, a small room); while the voice is prepared the bars breathe and a drop ripples through them; volume and Off live in Settings → **Interface sounds**. Cancellation itself is silent and cues stop before speech.
 
 - Press a global keyboard shortcut.
 - Drag a rectangle over any visible text.
@@ -42,7 +50,7 @@ The official macOS release is intended to include its default local speech model
 
 ## Why this project?
 
-Existing tools generally offer either fast local screen OCR with macOS system voices or natural cloud speech. OpenScreenReader explores the missing combination:
+Existing tools generally offer either fast local screen OCR with macOS system voices or natural cloud speech. Saywing explores the missing combination:
 
 - TextSniper-like one-gesture UX;
 - modern on-device neural speech;

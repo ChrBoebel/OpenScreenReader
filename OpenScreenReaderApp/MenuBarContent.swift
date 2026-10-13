@@ -56,7 +56,7 @@ struct MenuBarContent: View {
 
         Button("Set Up & Test…") { model.showSetup() }
 
-        Button("Quit OpenScreenReader") {
+        Button("Quit Saywing") {
             NSApplication.shared.terminate(nil)
         }
         .keyboardShortcut("q")
