@@ -30,3 +30,7 @@ Abschließende Prüfung: Nach der Korrektur des erneuten Einblendens weitere 32 
 ## Feinschliff nach Rückmeldung zum vorherigen Design
 
 Mehr Nähe zur früheren Farb- und Formensprache: tieferer Wacholder-Verlauf mit sanfter oberer Lichtkante, 2,5-pt-Balken mit helleren Mint-Spitzen und dezenter pegelabhängiger Lichtstreuung, kreisförmig hinterlegte primäre Stop-Taste. Beide Kapseln behalten dieselbe gemeinsame Bewegung und ihre kleinen Maße. Die vorhandenen 32 Tests der beiden Ansichten und der Release-Build bestehen; native Vergleichsansichten erneut gerendert und visuell geprüft. Keine Änderung am Aufnahme-, Einfüge- oder Abbruchablauf.
+
+## Zweites Review und Umsetzung — 14.10.2026
+
+Ein zweites Review nach demselben Skill fand 16 weitere Punkte: Sprache, Lesbarkeit, Einrichtung, Einstellungen, Kurzbefehlsfeld, Menü, Auswahl-Overlay (⌘⇧4-Modifikatoren, Einblendung, Hinweis, Klick liest Absatz), Andock-Physik (Wurf-Projektion, Federn mit Geschwindigkeitsübergabe, Gummiband, Haptik beim Einrasten), Flugkurve und Klänge der Stop-Taste. Der Eigentümer hat alle Punkte freigegeben. Die drei offenen Punkte oben (eine Sprache, ein Einrichtungsablauf, Einstellungen statt Diagnosefenster) sind damit umgesetzt; die gemeinsame Positionierung beider Kapseln bleibt offen. Umsetzung, Tests und Grenzen: [Apple-Design-Verfeinerung](../apple-design-refinements-verification.md).
