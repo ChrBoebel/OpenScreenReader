@@ -10,9 +10,10 @@ final class MenuBarSmokeUITests: XCTestCase {
         let status = app.descendants(matching: .statusItem).firstMatch
         XCTAssertTrue(status.waitForExistence(timeout: 5))
         status.click()
-        XCTAssertTrue(app.menuItems["Add Screen Region to Queue…"].exists)
-        XCTAssertTrue(app.menuItems["Next Text"].exists)
-        XCTAssertFalse(app.menuItems["Next Text"].isEnabled)
+        // Playback controls appear only while something is reading.
+        XCTAssertTrue(app.menuItems["Read Screen Region…"].waitForExistence(timeout: 2))
+        XCTAssertFalse(app.menuItems["Add Screen Region to Queue…"].exists)
+        XCTAssertFalse(app.menuItems["Next Text"].exists)
         // macOS can expose an infinite frame for SettingsLink inside a status
         // menu. Exercise the native Settings command instead of guessed points.
         app.typeKey(.escape, modifierFlags: [])
@@ -72,11 +73,6 @@ final class MenuBarSmokeUITests: XCTestCase {
         XCTAssertTrue(readRegion.exists)
         XCTAssertTrue(readRegion.isEnabled)
 
-        XCTAssertTrue(
-            app.menuItems[
-                "Select a region to recognize and read text locally."
-            ].exists
-        )
         XCTAssertTrue(app.menuItems["Settings…"].exists)
         XCTAssertTrue(app.menuItems["Quit Saywing"].exists)
 

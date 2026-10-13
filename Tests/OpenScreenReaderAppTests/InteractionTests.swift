@@ -838,11 +838,27 @@ struct InteractionTests {
         #expect(speech.receivedText == "Hello world")
         #expect(model.status == .ready)
         #expect(model.lastOCRSummary == OCRSummary(characterCount: 11, lineCount: 1))
-        #expect(model.captureFeedback.contains("11 characters"))
+        #expect(model.captureFeedback?.contains("11 characters") == true)
         #expect(!escape.isActive)
         #expect(await model.pipelineCoordinator.snapshot().lastTerminal?.reason == .completed)
         await model.handleReadRequest()
         #expect(model.lastOCRSummary == nil)
+    }
+
+    @Test
+    func menuShowsFeedbackOnlyWhenItAddsInformation() async {
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+                             selectionController: RegionSelectionControllerFake())
+        #expect(model.captureFeedback == nil, "The idle menu needs no instructions.")
+        #expect(!model.isReadingActive)
+        #expect(model.readActionTitle == "Read Screen Region…")
+        await model.handleReadRequest()
+        #expect(model.isReadingActive)
+        #expect(model.captureFeedback == nil, "The status line already says Selecting.")
+        #expect(model.readActionTitle == "Stop Reading")
+        #expect(ShortcutConfiguration.default.keyboardShortcut == KeyboardShortcut("r", modifiers: [.option]))
+        #expect(ShortcutConfiguration(key: "Space", modifiers: UInt32(cmdKey | shiftKey | controlKey)).keyboardShortcut
+            == KeyboardShortcut(.space, modifiers: [.command, .shift, .control]))
     }
 
     @Test

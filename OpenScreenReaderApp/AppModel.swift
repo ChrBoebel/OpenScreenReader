@@ -250,7 +250,11 @@ final class AppModel: ObservableObject {
 
     }
 
-    var readActionTitle: String { activeContext == nil ? "Read Screen Region…" : "Stop Reading" }
+    var readActionTitle: String {
+        activeContext == nil ? String(localized: "Read Screen Region…") : String(localized: "Stop Reading")
+    }
+    /// Playback controls appear in the menu only while there is something to control.
+    var isReadingActive: Bool { activeContext != nil }
     var canChangeShortcut: Bool { activeContext == nil && dictation?.isActive != true }
     var canAddToQueue: Bool {
         !isAddingToQueue && queuedTextCount < Self.queueLimit
@@ -346,17 +350,21 @@ final class AppModel: ObservableObject {
         readingPanel?.show(.positioning, displayID: number.uint32Value, onStop: nil)
     }
 
-    var captureFeedback: String {
-        if status == .capturing { return "Capturing selected region locally…" }
-        if status == .recognizing { return "Recognizing German and English text locally…" }
-        if status == .synthesizing { return "Preparing the local Supertonic voice…" }
-        if status == .speaking { return "Reading locally. Press the shortcut again to add text; Escape stops everything." }
-        if status == .waiting { return "Waiting for the new selection or its text recognition. Escape stops everything." }
-        guard let summary = lastOCRSummary else {
-            return "Select a region to recognize and read text locally."
+    /// Only what the status line cannot say: how to add or stop while reading,
+    /// and what the last recognition found. Nil keeps the idle menu short.
+    var captureFeedback: String? {
+        switch status {
+        case .speaking:
+            return String(localized: "Press \(shortcutConfiguration.displayName) to add text. Escape stops.")
+        case .waiting:
+            return String(localized: "Waiting for the next text. Escape stops.")
+        case .selecting, .capturing, .recognizing, .synthesizing:
+            return nil
+        case .ready, .stopped, .error:
+            guard let summary = lastOCRSummary else { return nil }
+            if summary.characterCount == 0 { return String(localized: "No readable text found. Select a clearer region.") }
+            return String(localized: "Recognized \(summary.characterCount) characters in \(summary.lineCount) lines.")
         }
-        if summary.characterCount == 0 { return "No readable text found. Select a clearer region." }
-        return "Recognized \(summary.characterCount) characters in \(summary.lineCount) lines locally."
     }
 
     // Serialize only short control transitions. Never queue cancellation behind capture.
