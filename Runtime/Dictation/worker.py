@@ -77,11 +77,11 @@ def main():
    recognize=load_transcriber(root,model_id)
   send({'type':'ready','version':1})
  except Exception:
-  send({'type':'fatal','message':'Modell oder lokale Laufzeit konnte nicht geladen werden.'});return 1
+  send({'type':'fatal','code':'load_failed','message':'The model or local runtime could not be loaded.'});return 1
  while True:
   line=sys.stdin.buffer.readline(MAX_LINE+1)
   if not line:return 0
-  if len(line)>MAX_LINE:send({'type':'fatal','message':'Audioauftrag ist zu groß.'});return 1
+  if len(line)>MAX_LINE:send({'type':'fatal','code':'request_too_large','message':'The recording is too large to process.'});return 1
   identifier=None
   try:
    packet=json.loads(line);identifier=packet.get('id')
@@ -94,5 +94,5 @@ def main():
    send({'type':'result','id':identifier,'text':text})
    del packet,audio,text,line
   except Exception:
-   send({'type':'error','id':identifier,'message':'Die Aufnahme konnte nicht verarbeitet werden. Bitte erneut versuchen.'})
+   send({'type':'error','id':identifier,'code':'processing_failed','message':'The recording could not be processed. Please try again.'})
 if __name__=='__main__':raise SystemExit(main())

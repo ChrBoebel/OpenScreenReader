@@ -7,6 +7,17 @@ struct DictationWorkerMessage: Decodable, Sendable {
   var text: String? = nil
   var message: String? = nil
   var version: Int? = nil
+  /// Stable worker codes map to localized text; older workers send only `message`.
+  var code: String? = nil
+
+  var localizedDetail: String? {
+    switch code {
+    case "load_failed": String(localized: "The model or local runtime could not be loaded.")
+    case "request_too_large": String(localized: "The recording is too large to process.")
+    case "processing_failed": String(localized: "The recording could not be processed. Please try again.")
+    default: message
+    }
+  }
 }
 
 @MainActor

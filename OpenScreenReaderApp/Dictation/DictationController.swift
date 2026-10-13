@@ -557,7 +557,7 @@ final class DictationController: NSObject, ObservableObject {
       )
       if smoke { runSmoke() }
     case "fatal":
-      let detail = message.message ?? String(localized: "The local dictation process is not available.")
+      let detail = message.localizedDetail ?? String(localized: "The local dictation process is not available.")
       cancel(restart: false)
       worker.stop()
       phase = "unloaded"
@@ -572,7 +572,7 @@ final class DictationController: NSObject, ObservableObject {
       if message.type == "error" {
         complete()
         setStatus(
-          String(localized: "Recognition failed"), message.message ?? String(localized: "Please try again."), floating: true)
+          String(localized: "Recognition failed"), message.localizedDetail ?? String(localized: "Please try again."), floating: true)
         if smoke { finishSmoke(error: "worker error") }
         return
       }

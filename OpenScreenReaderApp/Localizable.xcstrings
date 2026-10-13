@@ -2551,6 +2551,16 @@
         }
       }
     },
+    "The model or local runtime could not be loaded.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modell oder lokale Laufzeit konnte nicht geladen werden."
+          }
+        }
+      }
+    },
     "The next text could not start. Please select it again.": {
       "localizations": {
         "de": {
@@ -2567,6 +2577,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Die Aufnahme und ihr Ergebnis wurden verworfen."
+          }
+        }
+      }
+    },
+    "The recording could not be processed. Please try again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Aufnahme konnte nicht verarbeitet werden. Bitte versuche es erneut."
+          }
+        }
+      }
+    },
+    "The recording is too large to process.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Aufnahme ist zu groß für die Verarbeitung."
           }
         }
       }

@@ -2291,6 +2291,14 @@ struct DictationIntegrationTests {
         #expect(DictationLanguage.allCases.map(\.workerValue) == [nil, "German", "English"])
     }
 
+    @Test func workerCodesBecomeLocalizedTextAndLegacyMessagesPassThrough() throws {
+        let coded = try JSONDecoder().decode(DictationWorkerMessage.self,
+            from: Data(#"{"type":"error","id":"x","code":"processing_failed","message":"raw"}"#.utf8))
+        #expect(coded.localizedDetail == "The recording could not be processed. Please try again.")
+        let legacy = DictationWorkerMessage(type: "fatal", message: "Legacy worker text")
+        #expect(legacy.localizedDetail == "Legacy worker text")
+    }
+
     @Test func modelCannotSwitchDuringDictationAndFailureDoesNotFallback() throws {
         let (controller, worker, _) = fixture()
         defer { controller.shutdown() }
