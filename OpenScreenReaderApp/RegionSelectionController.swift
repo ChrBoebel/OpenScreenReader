@@ -111,9 +111,11 @@ final class RegionSelectionOverlayController: NSObject, RegionSelectionControlli
             )
         }
 
-        NSApplication.shared.activate(ignoringOtherApps: true)
+        // Take keyboard input through the panel without activating Saywing:
+        // activation also raises its Settings/dictation windows over the source app.
         panels.forEach { $0.orderFrontRegardless() }
-        panels.first?.makeKey()
+        let pointer = NSEvent.mouseLocation
+        (panels.first { $0.frame.contains(pointer) } ?? panels.first)?.makeKey()
         if !panels.isEmpty {
             NSCursor.crosshair.push()
             cursorIsPushed = true
@@ -171,6 +173,7 @@ final class RegionSelectionOverlayController: NSObject, RegionSelectionControlli
 @MainActor
 private final class SelectionOverlayPanel: NSPanel {
     override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
 
     init(
         screen: NSScreen,
@@ -179,16 +182,18 @@ private final class SelectionOverlayPanel: NSPanel {
     ) {
         super.init(
             contentRect: screen.frame,
-            styleMask: [.borderless],
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
 
         level = .screenSaver
+        title = "Saywing · Bereich auswählen"
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         backgroundColor = .clear
         isOpaque = false
         hasShadow = false
+        hidesOnDeactivate = false
         ignoresMouseEvents = false
         becomesKeyOnlyIfNeeded = false
         animationBehavior = .none

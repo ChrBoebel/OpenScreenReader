@@ -4,6 +4,7 @@ import QuartzCore
 enum ReadingPanelEdge: String, CaseIterable {
     case bottom, left, right
     var title: String { switch self { case .bottom: "Bottom"; case .left: "Left"; case .right: "Right" } }
+    var popoverEdge: NSRectEdge { switch self { case .bottom: .maxY; case .left: .maxX; case .right: .minX } }
 }
 
 /// Only an edge and a normalized offset are persisted, never screen contents or display IDs.
@@ -92,6 +93,8 @@ enum ReadingPanelState: Hashable {
 @MainActor
 protocol ReadingStatusPresenting: AnyObject {
     func configureControls(_ onOpen: @escaping (NSView) -> Void)
+    func configurePause(_ onToggle: @escaping () -> Void)
+    func openControls()
     func updatePaused(_ paused: Bool)
     /// `origin` is the captured region in screen points. When present on the first
     /// visible state, the frame visibly collapses into the control before it opens.
@@ -104,6 +107,8 @@ protocol ReadingStatusPresenting: AnyObject {
 
 extension ReadingStatusPresenting {
     func configureControls(_ onOpen: @escaping (NSView) -> Void) {}
+    func configurePause(_ onToggle: @escaping () -> Void) {}
+    func openControls() {}
     func updatePaused(_ paused: Bool) {}
     func restore(_ state: ReadingPanelState, displayID: UInt32, onStop: (() -> Void)?) {
         show(state, displayID: displayID, origin: nil, onStop: onStop)
@@ -117,7 +122,10 @@ extension ReadingStatusPresenting {
 @MainActor
 final class ReadingPanelController: NSObject, ReadingStatusPresenting {
     private var onOpenControls: ((NSView) -> Void)?
+    private var onTogglePause: (() -> Void)?
     func configureControls(_ onOpen: @escaping (NSView) -> Void) { onOpenControls = onOpen }
+    func configurePause(_ onToggle: @escaping () -> Void) { onTogglePause = onToggle }
+    func openControls() { content?.openControls() }
     func updatePaused(_ paused: Bool) { content?.setPaused(paused) }
     private(set) var state: ReadingPanelState?
     private(set) var panel: ReadingStatusPanel?
@@ -177,8 +185,10 @@ final class ReadingPanelController: NSObject, ReadingStatusPresenting {
         let frame = dragStart != nil ? panel.frame : placement.frame(in: screen.visibleFrame)
         let view = content ?? ReadingControlView(frame: NSRect(origin: .zero, size: frame.size))
         view.isVertical = placement.edge != .bottom
+        view.dockEdge = placement.edge
         content = view
         view.onOpenControls = { [weak self] view in self?.onOpenControls?(view) }
+        view.onTogglePause = { [weak self] in self?.onTogglePause?() }
         if appearing { panel.contentView = view }
         panel.setFrame(frame, display: true)
         view.onPress = { [weak self] in self?.interfaceSounds?.play(.tap) }
@@ -319,6 +329,7 @@ final class ReadingPanelController: NSObject, ReadingStatusPresenting {
         guard next != placement else { return }
         placement = next
         content?.isVertical = placement.edge != .bottom
+        content?.dockEdge = placement.edge
         displayLayoutChanged()
         content?.tick(now: CACurrentMediaTime())
     }
@@ -488,33 +499,104 @@ enum ReadingPalette {
     }
 }
 
+/// Shared visual and motion language for listening and speaking. Audio sources normalize
+/// their own amplitude; this layer receives only a bounded, ephemeral level.
+enum SaywingCapsuleStyle {
+    static let height: CGFloat = 28
+    static let barWidth: CGFloat = 2.5
+    static let barGap: CGFloat = 3
+    static let depthColors = [ReadingPalette.mintLight.withAlphaComponent(0.10).cgColor,
+                              ReadingPalette.ink.withAlphaComponent(0.25).cgColor,
+                              NSColor.black.withAlphaComponent(0.22).cgColor]
+
+    static func voiceColor(height: Double) -> NSColor {
+        ReadingPalette.mix(ReadingPalette.mint, ReadingPalette.mintLight,
+                           min(1, max(0, (height - 2) / 16)) * 0.85)
+    }
+
+    @MainActor static func shadeVoice(_ bar: CAShapeLayer, height: Double, contrast: Bool) {
+        bar.fillColor = voiceColor(height: height).cgColor
+        bar.shadowColor = ReadingPalette.mint.cgColor
+        bar.shadowOffset = .zero
+        bar.shadowRadius = 3
+        bar.shadowOpacity = contrast ? 0 : Float(min(1, max(0, (height - 2) / 16))) * 0.28
+    }
+
+    static func smooth(_ current: Double, toward target: Double, dt: Double) -> Double {
+        current + (target - current) * (1 - exp(-max(0, dt) * (target > current ? 24 : 9)))
+    }
+
+    static func barHeight(index: Int, level: Double, reduced: Bool) -> Double {
+        reduced ? 4 : 2 + 16 * min(1, max(0, level)) * (1 - abs(Double(index) - 4) * 0.16)
+    }
+
+    static func waitingOpacity(index: Int, now: TimeInterval, reduced: Bool) -> Float {
+        reduced ? 1 : Float(0.35 + 0.65 * pow((sin(now * 3 - Double(index) * 0.55) + 1) / 2, 2))
+    }
+
+    @MainActor static func materialize(_ layer: CALayer?, reduced: Bool) {
+        guard let layer else { return }
+        let fade = CABasicAnimation(keyPath: "opacity")
+        fade.fromValue = layer.animation(forKey: "entryOpacity") == nil ? 0 : layer.presentation()?.opacity ?? 0
+        fade.toValue = 1
+        fade.duration = 0.14
+        layer.add(fade, forKey: "entryOpacity")
+        guard !reduced else { layer.removeAnimation(forKey: "entryScale"); return }
+        let spring = CASpringAnimation(keyPath: "transform.scale")
+        spring.fromValue = layer.animation(forKey: "entryScale") == nil ? 0.96
+            : layer.presentation()?.value(forKeyPath: "transform.scale") ?? 0.96
+        spring.toValue = 1
+        spring.stiffness = 400
+        spring.damping = 40 // Critical damping: settle without decorative overshoot.
+        spring.duration = spring.settlingDuration
+        layer.add(spring, forKey: "entryScale")
+    }
+}
+
 /// A text-free capsule: nine voice bars that answer the rendered speech level,
 /// one round stop control, and shape, colour and motion for every state.
-/// Text appears only on hover (Esc hint) and briefly for attention states;
+/// Secondary controls stay inside the capsule; text appears briefly for attention states.
 /// accessibility labels and announcements always carry the full status.
 @MainActor
-final class ReadingControlView: NSView {
+final class ReadingControlView: NSView, NSPopoverDelegate {
     var onOpenControls: ((NSView) -> Void)?
+    var onTogglePause: (() -> Void)?
+    private weak var controlsPopover: NSPopover?
+    func holdControls(for popover: NSPopover) {
+        controlsPopover = popover
+        popover.delegate = self
+        // Menu/VoiceOver can open this before a hover frame reveals the anchor.
+        if queueBadge.alphaValue < 0.5 {
+            controlsBlend = 1
+            tick(now: CACurrentMediaTime())
+        }
+        resumeClock()
+    }
+    func popoverDidClose(_ notification: Notification) {
+        guard notification.object as? NSPopover === controlsPopover else { return }
+        controlsPopover = nil
+        resumeClock()
+    }
     private var paused = false
     func setPaused(_ value: Bool) {
         paused = value
         if value { setLevel(0) }
         setAccessibilityLabel(value ? "Vorlesen pausiert" : "Vorlesestatus: " + state.title)
+        updateOptions()
         tick(now: CACurrentMediaTime())
     }
     enum Metrics {
         static let surface = CGSize(width: 300, height: 92)
         static let height: CGFloat = 44
         static let bodyBottom: CGFloat = 24
-        static let padding: CGFloat = 22
+        static let padding: CGFloat = 29
         static let barCount = 9
-        static let barWidth: CGFloat = 3
-        static let barGap: CGFloat = 3.5
-        static let barMaxHeight: CGFloat = 30
+        static let barWidth = SaywingCapsuleStyle.barWidth
+        static let barGap = SaywingCapsuleStyle.barGap
         static let button: CGFloat = 44
-        static let keycapWidth: CGFloat = 40
+        static let options: CGFloat = 40
         static var barsWidth: CGFloat { CGFloat(barCount) * barWidth + CGFloat(barCount - 1) * barGap }
-        static var activeWidth: CGFloat { padding + barsWidth + 15 + button }
+        static let activeWidth: CGFloat = 136
         static var terminalWidth: CGFloat { 18 + 24 + 14 + button }
     }
 
@@ -522,29 +604,28 @@ final class ReadingControlView: NSView {
     var onRelease: (() -> Void)?
     var currentAction: () -> Void { action ?? {} }
     var isVertical = false
+    var dockEdge: ReadingPanelEdge = .bottom
     var onDragStart: ((CGPoint) -> Void)?
     var onDragMove: ((CGPoint) -> Void)?
     var onDragEnd: (() -> Void)?
 
     private let shadowHost = NSView()
     private let softShadow = CALayer()
-    private let contactShadow = CALayer()
     private let body = HoverView()
+    /// Visible surface is smaller than the 44 pt interaction surface.
+    var visualBodyFrame: CGRect { body.convert(effect.frame, to: self) }
+    var barHeights: [Double] { heights }
     private let effect = NSVisualEffectView()
     private let canvas = NSView()
     private let tint = CALayer()
     private let depth = CAGradientLayer()
-    private let rim = CAShapeLayer()
-    private let glow = CAGradientLayer()
     private var bars: [CAShapeLayer] = []
-    private let comet = CAGradientLayer()
     private let icon = CAShapeLayer()
-    private let bloom = CAShapeLayer()
-    private let keycap = CAShapeLayer()
-    private let keycapText = CATextLayer()
     private let border = CAShapeLayer()
     private let note = NSTextField(labelWithString: "")
-    private let queueBadge = NSButton(title: "···", target: nil, action: nil)
+    private let queueBadge = ReadingInlineButton(frame: .zero)
+    private let pauseButton = ReadingInlineButton(frame: .zero)
+    private var queueCount = 0
     private let button = ReadingStopButton(frame: NSRect(x: 0, y: 0, width: Metrics.button, height: Metrics.button))
 
     private var clock: CADisplayLink?
@@ -553,23 +634,20 @@ final class ReadingControlView: NSView {
     private var width = Metrics.height
     private var widthVelocity = 0.0
     private var exitStart: TimeInterval?
-    private var bumpStart: TimeInterval?
-    private var pulseStart: TimeInterval?
-    private var changed: TimeInterval = 0
     private var noteUntil: TimeInterval = 0
     private var content = 0.0
     private var level = 0.0
     private var targetLevel = 0.0
-    private var previousLevel = 0.0
     private var terminal = 0.0
     private var hover = 0.0
+    private var controlsBlend = 0.0
+    private var trackingPointer = false
     private var noteBlend = 0.0
     private var press = 0.0
     private var hovering = false
     private var pressing = false
     private var opened = false
     private var heights = [Double](repeating: 3, count: Metrics.barCount)
-    private var phase = 0.0
     private var lastTick: TimeInterval?
     private var reduced: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
 
@@ -584,16 +662,13 @@ final class ReadingControlView: NSView {
 
         shadowHost.wantsLayer = true
         shadowHost.autoresizingMask = [.width, .height]
-        for shadow in [softShadow, contactShadow] {
+        for shadow in [softShadow] {
             shadow.shadowColor = NSColor.black.cgColor
             shadowHost.layer?.addSublayer(shadow)
         }
-        softShadow.shadowOpacity = 0.5
-        softShadow.shadowRadius = 16
-        softShadow.shadowOffset = CGSize(width: 0, height: -6)
-        contactShadow.shadowOpacity = 0.45
-        contactShadow.shadowRadius = 2.5
-        contactShadow.shadowOffset = CGSize(width: 0, height: -1)
+        softShadow.shadowOpacity = 0.3
+        softShadow.shadowRadius = 8
+        softShadow.shadowOffset = CGSize(width: 0, height: -2)
         addSubview(shadowHost)
 
         body.wantsLayer = true
@@ -618,62 +693,18 @@ final class ReadingControlView: NSView {
         body.addSubview(canvas)
 
         tint.backgroundColor = ReadingPalette.void.cgColor
-        depth.colors = [ReadingPalette.paper.withAlphaComponent(0.09).cgColor, NSColor.clear.cgColor,
-                        NSColor.black.withAlphaComponent(0.3).cgColor]
+        depth.colors = SaywingCapsuleStyle.depthColors
         depth.locations = [0, 0.45, 1]
         depth.startPoint = CGPoint(x: 0.5, y: 1)
         depth.endPoint = CGPoint(x: 0.5, y: 0)
-        rim.fillColor = nil
-        rim.lineWidth = 1
-        rim.strokeColor = ReadingPalette.paper.withAlphaComponent(0.06).cgColor
-        glow.type = .radial
-        glow.startPoint = CGPoint(x: 0.5, y: 0.5)
-        glow.endPoint = CGPoint(x: 1, y: 1)
-        for _ in 0..<Metrics.barCount {
-            let bar = CAShapeLayer()
-            bar.shadowColor = ReadingPalette.mint.cgColor
-            bar.shadowOffset = .zero
-            bar.shadowRadius = 4
-            bars.append(bar)
-        }
-        comet.colors = [NSColor.clear.cgColor, ReadingPalette.mintLight.cgColor, NSColor.clear.cgColor]
-        comet.locations = [0, 0.5, 1]
-        comet.startPoint = CGPoint(x: 0, y: 0.5)
-        comet.endPoint = CGPoint(x: 1, y: 0.5)
-        comet.bounds = CGRect(x: 0, y: 0, width: 36, height: 3)
-        comet.cornerRadius = 1.5
-        comet.shadowColor = ReadingPalette.mintLight.cgColor
-        comet.shadowOffset = .zero
-        comet.shadowRadius = 5
-        comet.shadowOpacity = 0.9
-        comet.shadowPath = CGPath(roundedRect: comet.bounds, cornerWidth: 1.5, cornerHeight: 1.5, transform: nil)
+        for _ in 0..<Metrics.barCount { bars.append(CAShapeLayer()) }
         icon.fillColor = nil
         icon.lineWidth = 2.4
         icon.lineCap = .round
         icon.lineJoin = .round
         icon.bounds = CGRect(x: 0, y: 0, width: 24, height: 24)
-        bloom.fillColor = nil
-        bloom.lineWidth = 2
-        bloom.bounds = CGRect(x: 0, y: 0, width: 40, height: 40)
-        bloom.path = CGPath(ellipseIn: bloom.bounds.insetBy(dx: 1, dy: 1), transform: nil)
-        bloom.opacity = 0
-        keycap.fillColor = ReadingPalette.paper.withAlphaComponent(0.08).cgColor
-        keycap.strokeColor = ReadingPalette.paper.withAlphaComponent(0.3).cgColor
-        keycap.lineWidth = 1
-        keycap.bounds = CGRect(x: 0, y: 0, width: 30, height: 18)
-        keycap.path = CGPath(roundedRect: keycap.bounds.insetBy(dx: 0.5, dy: 0.5), cornerWidth: 4.5, cornerHeight: 4.5, transform: nil)
-        keycapText.string = "esc"
-        keycapText.font = NSFont.systemFont(ofSize: 9, weight: .semibold)
-        keycapText.fontSize = 9
-        keycapText.alignmentMode = .center
-        keycapText.foregroundColor = ReadingPalette.paper.withAlphaComponent(0.75).cgColor
-        keycapText.contentsScale = 2
-        keycapText.bounds = CGRect(x: 0, y: 0, width: 30, height: 11)
-        keycap.addSublayer(keycapText)
-        keycapText.position = CGPoint(x: 15, y: 8)
         border.fillColor = nil
-        border.lineWidth = 1
-        for layer in [tint, depth, glow] + bars + [comet, icon, bloom, keycap, rim, border] { canvas.layer?.addSublayer(layer) }
+        for layer in [tint, depth] + bars + [icon, border] { canvas.layer?.addSublayer(layer) }
         setAccent(ReadingPalette.mint)
 
         note.font = .systemFont(ofSize: 11.5, weight: .semibold)
@@ -697,38 +728,92 @@ final class ReadingControlView: NSView {
         button.setAccessibilityIdentifier("readingStatusAction")
         body.addSubview(button)
         queueBadge.font = .monospacedDigitSystemFont(ofSize: 11, weight: .semibold)
-        queueBadge.contentTintColor = ReadingPalette.mintLight
+        queueBadge.contentTintColor = ReadingPalette.paper
         queueBadge.isBordered = false
         queueBadge.target = self
         queueBadge.action = #selector(openControls)
         queueBadge.alignment = .center
         queueBadge.wantsLayer = true
-        queueBadge.layer?.backgroundColor = ReadingPalette.void.cgColor
-        queueBadge.layer?.cornerRadius = 8
         queueBadge.isHidden = true
         queueBadge.setAccessibilityIdentifier("readingQueueCount")
-        addSubview(queueBadge)
-        body.toolTip = "Wellenform ziehen: links, rechts oder unten einrasten"
+        body.addSubview(queueBadge)
+        pauseButton.target = self
+        pauseButton.action = #selector(togglePause)
+        pauseButton.setAccessibilityIdentifier("readingPauseAction")
+        body.addSubview(pauseButton)
+        for control in [pauseButton, queueBadge] {
+            control.onDragStart = { [weak self] point in
+                self?.trackingPointer = true
+                self?.onDragStart?(point)
+            }
+            control.onDragMove = { [weak self] in self?.onDragMove?($0) }
+            control.onDragEnd = { [weak self] in
+                self?.trackingPointer = false
+                self?.onDragEnd?()
+                self?.resumeClock()
+            }
+        }
+        body.toolTip = "Darüberfahren: Pause und Optionen · Ziehen: Position ändern · Esc: alles stoppen"
         body.onDragStart = { [weak self] in self?.onDragStart?($0) }
         body.onDragMove = { [weak self] in self?.onDragMove?($0) }
         body.onDragEnd = { [weak self] in self?.onDragEnd?() }
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(accessibilityChanged),
+            name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil)
     }
     required init?(coder: NSCoder) { nil }
     isolated deinit { clock?.invalidate() }
 
     func setQueueCount(_ count: Int) {
-        queueBadge.title = state == .failed ? "?" : count > 0 ? "+\(count)" : "···"
-        queueBadge.setAccessibilityLabel(state == .failed ? "Einrichtung und Fehlerhilfe öffnen" : "Wiedergabe und Warteschlange · \(count) Texte")
-        queueBadge.isHidden = !state.isActive && state != .failed
+        queueCount = min(5, max(0, count))
+        updateOptions()
         tick(now: CACurrentMediaTime())
     }
 
-    @objc private func openControls() { onOpenControls?(queueBadge) }
+    private func updateOptions() {
+        queueBadge.title = state == .failed ? "?" : queueCount > 0 ? "+\(queueCount)" : "···"
+        let label = state == .failed ? "Einrichtung und Fehlerhilfe öffnen" : "Wiedergabe und Warteschlange · \(queueCount) Texte"
+        queueBadge.setAccessibilityLabel(label)
+        queueBadge.toolTip = label
+        queueBadge.isHidden = !state.isActive && state != .failed
+        queueBadge.isEnabled = exitStart == nil
+        queueBadge.needsDisplay = true
+        pauseButton.title = paused ? "resume" : "pause"
+        pauseButton.setAccessibilityLabel(paused ? "Vorlesen fortsetzen" : "Vorlesen pausieren")
+        pauseButton.toolTip = state == .speaking ? (paused ? "Vorlesen fortsetzen" : "Vorlesen pausieren") : "Pause verfügbar, sobald die Wiedergabe startet"
+        pauseButton.isHidden = !state.isActive
+        pauseButton.isEnabled = state == .speaking && exitStart == nil
+        pauseButton.needsDisplay = true
+        setAccessibilityValue(queueCount > 0 ? "\(queueCount) Texte in der Warteschlange" : "Warteschlange leer")
+        var actions: [NSAccessibilityCustomAction] = []
+        if state.isActive || state == .failed {
+            actions.append(NSAccessibilityCustomAction(name: label, handler: { [weak self] in
+                guard let self, self.queueBadge.isEnabled else { return false }
+                self.openControls(); return true
+            }))
+        }
+        if state == .speaking {
+            actions.append(NSAccessibilityCustomAction(name: paused ? "Vorlesen fortsetzen" : "Vorlesen pausieren", handler: { [weak self] in
+                guard let self, self.pauseButton.isEnabled else { return false }
+                self.togglePause(); return true
+            }))
+        }
+        setAccessibilityCustomActions(actions)
+    }
+
+    @objc func openControls() {
+        guard exitStart == nil, !queueBadge.isHidden, queueBadge.isEnabled else { return }
+        onOpenControls?(queueBadge)
+    }
+    @objc private func togglePause() {
+        guard exitStart == nil, state == .speaking, pauseButton.isEnabled else { return }
+        onTogglePause?()
+    }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard let hit = super.hitTest(point) else { return nil }
         if hit === queueBadge || hit.isDescendant(of: queueBadge) { return hit }
+        if hit === pauseButton || hit.isDescendant(of: pauseButton) { return hit }
         if hit === button || hit.isDescendant(of: button) { return hit }
         // Decorative layers and status labels are one drag surface, not a stop target.
         if hit === body || hit.isDescendant(of: body) { return body }
@@ -736,8 +821,7 @@ final class ReadingControlView: NSView {
     }
     override func layout() {
         super.layout()
-        for shadow in [softShadow, contactShadow] { shadow.frame = bounds }
-        glow.bounds = CGRect(x: 0, y: 0, width: 220, height: 150)
+        for shadow in [softShadow] { shadow.frame = bounds }
     }
 
     // MARK: State
@@ -747,16 +831,18 @@ final class ReadingControlView: NSView {
         let now = CACurrentMediaTime()
         self.state = state
         self.action = action
+        for control in [pauseButton, queueBadge] { control.suppressClick() }
         exitStart = nil
+        updateOptions()
         alphaValue = 1
         if opening {
-            width = Metrics.height; widthVelocity = 0; content = 0; opened = true
-            level = 0; previousLevel = 0; terminal = 0; hover = 0; noteBlend = 0; press = 0
+            width = state.showsWaveform ? Metrics.activeWidth : Metrics.terminalWidth
+            widthVelocity = 0; content = 1; opened = true
+            level = 0; terminal = 0; hover = 0; noteBlend = 0; press = 0
             heights = [Double](repeating: 3, count: Metrics.barCount)
-            bumpStart = nil; pulseStart = nil
+            SaywingCapsuleStyle.materialize(layer, reduced: reduced)
             lastTick = nil
         }
-        if previous != state || opening { changed = now }
         if state != .speaking { targetLevel = 0 }
         toolTip = state.detail
         setAccessibilityLabel("Vorlesestatus: " + state.title)
@@ -770,10 +856,6 @@ final class ReadingControlView: NSView {
         noteUntil = state.needsAttention ? now + 2.4 : 0
         if !state.isActive {
             showIcon(for: state, drawn: opened && !opening && previous.isActive && !reduced)
-            if state == .finished && !opening && !reduced {
-                bumpStart = now
-                runBloom()
-            }
         }
         resumeClock()
         tick(now: now)
@@ -787,6 +869,9 @@ final class ReadingControlView: NSView {
         exitStart = CACurrentMediaTime()
         action = nil
         button.isEnabled = false
+        queueBadge.isEnabled = false
+        pauseButton.isEnabled = false
+        setAccessibilityCustomActions([])
         resumeClock()
     }
 
@@ -795,15 +880,27 @@ final class ReadingControlView: NSView {
         targetLevel = 0
         level = 0
         action = nil
+        queueBadge.isEnabled = false
+        pauseButton.isEnabled = false
+        for control in [pauseButton, queueBadge] { control.suppressClick() }
+        let popover = controlsPopover
+        controlsPopover = nil
+        popover?.delegate = nil
+        popover?.close()
+        setAccessibilityCustomActions([])
     }
 
     @objc private func activate() { action?() }
 
+    @objc private func accessibilityChanged() {
+        if reduced { layer?.removeAllAnimations(); icon.removeAllAnimations() }
+        resumeClock()
+        tick(now: CACurrentMediaTime())
+    }
+
     private func setAccent(_ color: NSColor) {
-        glow.colors = [color.withAlphaComponent(0.55).cgColor, color.withAlphaComponent(0).cgColor]
         icon.strokeColor = color.cgColor
-        bloom.strokeColor = color.cgColor
-        for bar in bars { bar.shadowColor = color.cgColor }
+        for bar in bars { bar.fillColor = color.cgColor }
     }
 
     private func showIcon(for state: ReadingPanelState, drawn: Bool) {
@@ -812,7 +909,7 @@ final class ReadingControlView: NSView {
         case .finished:
             path.move(to: CGPoint(x: 4, y: 12))
             path.addLine(to: CGPoint(x: 9.5, y: 6.5))
-            path.addLine(to: CGPoint(x: 20, y: 17.5))
+            path.addLine(to: CGPoint(x: 20, y: 19))
         case .stopped:
             path.addRoundedRect(in: CGRect(x: 5.5, y: 5.5, width: 13, height: 13), cornerWidth: 3, cornerHeight: 3)
         default:
@@ -832,21 +929,6 @@ final class ReadingControlView: NSView {
         draw.fillMode = .backwards
         draw.timingFunction = CAMediaTimingFunction(name: .easeOut)
         icon.add(draw, forKey: "draw")
-    }
-
-    private func runBloom() {
-        bloom.removeAllAnimations()
-        let scale = CABasicAnimation(keyPath: "transform.scale")
-        scale.fromValue = 0.5
-        scale.toValue = 1.9
-        let fade = CAKeyframeAnimation(keyPath: "opacity")
-        fade.values = [0, 0.85, 0]
-        fade.keyTimes = [0, 0.2, 1]
-        let group = CAAnimationGroup()
-        group.animations = [scale, fade]
-        group.duration = 0.6
-        group.timingFunction = CAMediaTimingFunction(name: .easeOut)
-        bloom.add(group, forKey: "bloom")
     }
 
     // MARK: Clock
@@ -870,104 +952,51 @@ final class ReadingControlView: NSView {
         }
         approach(&terminal, state.showsWaveform ? 0 : 1, rate: 10)
         approach(&hover, hovering && !exiting ? 1 : 0, rate: 12)
+        let showControls = state.isActive && !exiting && (hovering || trackingPointer || controlsPopover != nil)
+        approach(&controlsBlend, showControls ? 1 : 0, rate: 22)
         approach(&press, pressing ? 1 : 0, rate: 30)
         let noteWanted = !isVertical && state.needsAttention && !exiting && (now < noteUntil || hovering)
         approach(&noteBlend, noteWanted ? 1 : 0, rate: 10)
 
-        // Width spring: one perceptible overshoot on opening, none on closing.
+        // State changes retarget the existing critically damped spring.
         let widthGoal: Double
         if exiting { widthGoal = Metrics.height }
-        else if state.showsWaveform { widthGoal = Metrics.activeWidth + Metrics.keycapWidth * hover }
-        else if state.needsAttention { widthGoal = Metrics.terminalWidth + noteBlend * max(0, noteWidth()) }
+        else if state.showsWaveform { widthGoal = Metrics.activeWidth }
+        else if state.needsAttention { widthGoal = Metrics.terminalWidth + (state == .failed ? Metrics.options : 0) + noteBlend * max(0, noteWidth()) }
         else { widthGoal = Metrics.terminalWidth }
-        let goal = widthGoal * (1 - 0.02 * press)
+        let goal = widthGoal
         if reduced {
             width = goal; widthVelocity = 0
         } else {
             let stiffness = exiting ? 340.0 : 190.0
-            let damping = exiting ? 38.0 : 17.0
+            let damping = 2 * sqrt(stiffness)
             widthVelocity += (-stiffness * (width - goal) - damping * widthVelocity) * dt
             width += widthVelocity * dt
         }
         let contentGoal = exiting ? 0.0 : (width > Metrics.height + 20 ? 1.0 : 0.0)
         approach(&content, contentGoal, rate: exiting ? 24 : 14)
 
-        if reduced {
-            level = state == .speaking ? 0.35 : 0
-        } else {
-            let levelGoal = state == .speaking ? targetLevel : 0
-            approach(&level, levelGoal, rate: levelGoal > level ? 45 : 9)
-            if state == .speaking && targetLevel - previousLevel > 0.22 && (pulseStart.map { now - $0 > 0.18 } ?? true) {
-                pulseStart = now
-            }
-            previousLevel += (targetLevel - previousLevel) * (1 - exp(-dt * 20))
-            phase += dt * (3.2 + level * 4)
-        }
-        updateBars(now: now, dt: dt, reduced: reduced)
-        if let bumpStart, now - bumpStart > 0.45 { self.bumpStart = nil }
+        level = SaywingCapsuleStyle.smooth(level, toward: state == .speaking ? targetLevel : 0, dt: dt)
+        updateBars(reduced: reduced)
         layoutFrame(now: now, reduced: reduced)
         if let exitStart { alphaValue = max(0, 1 - (now - exitStart) / 0.22) }
 
         let settled = abs(width - goal) < 0.05 && abs(widthVelocity) < 0.5 && abs(content - contentGoal) < 0.01
             && abs(terminal - (state.showsWaveform ? 0 : 1)) < 0.01 && abs(hover - (hovering ? 1 : 0)) < 0.01
-            && abs(noteBlend - (noteWanted ? 1 : 0)) < 0.01 && bumpStart == nil && press < 0.01
+            && abs(noteBlend - (noteWanted ? 1 : 0)) < 0.01 && press < 0.01
             && (!state.needsAttention || now >= noteUntil)
-        if !state.isActive && settled && !exiting { clock?.isPaused = true }
+        if (reduced || !state.isActive) && settled && !exiting { clock?.isPaused = true }
     }
 
     private func noteWidth() -> Double {
         note.sizeThatFits(NSSize(width: 400, height: 20)).width + 12
     }
 
-    private func updateBars(now: TimeInterval, dt: Double, reduced: Bool) {
-        let shape: [Double] = [0.2, 0.45, 0.7, 0.9, 1, 0.9, 0.7, 0.45, 0.2]
-        let sinceChange = now - changed
-        for index in 0..<Metrics.barCount {
-            var goal = 3.0
-            switch state {
-            case .recognizing:
-                goal = 3
-            case .positioning:
-                goal = 6 + shape[index] * 14
-            case .preparing:
-                if reduced {
-                    goal = 6 + shape[index] * 8
-                } else {
-                    // The voice takes a breath: 1.2 s in, a short hold, 1.3 s out. A drop falls into the
-                    // middle when preparation starts and at the top of every breath, and ripples outward.
-                    let cycle = 2.6
-                    let t = sinceChange.truncatingRemainder(dividingBy: cycle)
-                    let breath: Double
-                    if t < 1.2 { let u = t / 1.2; breath = u * u * (3 - 2 * u) }
-                    else if t < 1.3 { breath = 1 }
-                    else { let u = (t - 1.3) / 1.3; breath = 1 - u * u * (3 - 2 * u) }
-                    let age = sinceChange < 1.2 ? sinceChange : (t >= 1.2 ? t - 1.2 : t + cycle - 1.2)
-                    let distance = abs(Double(index) - Double(Metrics.barCount - 1) / 2)
-                    let ripple = max(0, 1 - abs(age * 14 - distance) / 1.3) * 7 * exp(-age * 2.2)
-                    goal = 4 + shape[index] * (3 + 12 * breath) + ripple
-                }
-            case .speaking:
-                if reduced {
-                    goal = 4 + shape[index] * 22
-                } else {
-                    let wave = 0.55 + 0.45 * sin(phase + Double(index) * 0.85)
-                    let kick = pulseStart.map { start -> Double in
-                        let travel = (now - start) * 32 - Double(index)
-                        return max(0, 1 - abs(travel) / 2.2) * 9
-                    } ?? 0
-                    goal = 4 + (level * 24 + 1.5) * wave * (0.55 + 0.45 * shape[index]) + kick * level
-                }
-            default:
-                goal = 3
-            }
-            if pressing { goal = 3 }
-            goal = min(goal, Metrics.barMaxHeight)
-            if reduced {
-                heights[index] = goal
-            } else {
-                let rate = goal > heights[index] ? 40.0 : 11.0
-                heights[index] += (goal - heights[index]) * (1 - exp(-dt * rate))
-            }
+    private func updateBars(reduced: Bool) {
+        for index in heights.indices {
+            heights[index] = state == .speaking || state == .positioning
+                ? SaywingCapsuleStyle.barHeight(index: index, level: state == .positioning ? 0.5 : level, reduced: reduced)
+                : 2
         }
     }
 
@@ -976,30 +1005,28 @@ final class ReadingControlView: NSView {
         CATransaction.setDisableActions(true)
         defer { CATransaction.commit() }
 
-        let bump = bumpStart.map { sin(min(1, (now - $0) / 0.45) * .pi) * 0.04 } ?? 0
-        // Squash: a fast-moving body flattens slightly and settles back.
-        let squash = reduced ? 0 : min(3, abs(widthVelocity) * 0.006)
-        let w = min((isVertical ? bounds.height : bounds.width) - 8, max(Metrics.height, width)) * (1 + bump)
-        let h = (Metrics.height - squash) * (1 + bump * 0.7)
-        let cross = Metrics.bodyBottom - (h - Metrics.height) / 2
+        let w = min((isVertical ? bounds.height : bounds.width) - 8, max(Metrics.height, width))
+        let h = Metrics.height // Invisible interaction surface, not visual thickness.
         let bodyRect = isVertical
-            ? CGRect(x: cross, y: (bounds.height - w) / 2, width: h, height: w)
-            : CGRect(x: (bounds.width - w) / 2, y: cross, width: w, height: h)
-        let radius = h / 2
-        body.frame = bodyRect
-        queueBadge.frame = CGRect(x: bodyRect.midX - 20, y: min(bounds.height - 24, bodyRect.maxY), width: 40, height: 24)
-        body.layer?.cornerRadius = radius
-        effect.layer?.cornerRadius = radius
-        let transparencyReduced = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
-        effect.isHidden = transparencyReduced
-        tint.opacity = transparencyReduced ? 1 : 0.9
-        let shadowPath = CGPath(roundedRect: bodyRect, cornerWidth: radius, cornerHeight: radius, transform: nil)
-        softShadow.shadowPath = shadowPath
-        contactShadow.shadowPath = shadowPath
-        softShadow.opacity = Float(alphaValue)
-        contactShadow.opacity = Float(alphaValue)
-
+            ? CGRect(x: Metrics.bodyBottom, y: (bounds.height - w) / 2, width: h, height: w)
+            : CGRect(x: (bounds.width - w) / 2, y: Metrics.bodyBottom, width: w, height: h)
+        let inset = (h - SaywingCapsuleStyle.height) / 2
         let local = CGRect(origin: .zero, size: bodyRect.size)
+        let visual = local.insetBy(dx: isVertical ? inset : 0, dy: isVertical ? 0 : inset)
+        let radius = SaywingCapsuleStyle.height / 2
+        body.frame = bodyRect
+        effect.frame = visual
+        effect.layer?.cornerRadius = radius
+        canvas.frame = local
+        let solid = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
+            || NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+        effect.isHidden = solid
+        tint.opacity = solid ? 1 : 0.94
+        let shadowPath = CGPath(roundedRect: visual.offsetBy(dx: bodyRect.minX, dy: bodyRect.minY),
+                                cornerWidth: radius, cornerHeight: radius, transform: nil)
+        softShadow.shadowPath = shadowPath
+        softShadow.opacity = Float(alphaValue)
+
         // Map the horizontal layout into a top-to-bottom stack; glyphs themselves stay upright.
         let centerY = h / 2
         func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
@@ -1009,58 +1036,44 @@ final class ReadingControlView: NSView {
             isVertical ? CGRect(x: y, y: w - x - width, width: height, height: width)
                 : CGRect(x: x, y: y, width: width, height: height)
         }
-        tint.frame = local
-        depth.frame = local
-        rim.frame = local
-        rim.path = CGPath(roundedRect: local.insetBy(dx: 1.5, dy: 1.5), cornerWidth: radius - 1.5, cornerHeight: radius - 1.5, transform: nil)
+        tint.frame = visual
+        tint.cornerRadius = radius
+        depth.frame = visual
+        depth.cornerRadius = radius
         border.frame = local
-        border.path = CGPath(roundedRect: local.insetBy(dx: 0.5, dy: 0.5), cornerWidth: radius - 0.5, cornerHeight: radius - 0.5, transform: nil)
+        border.path = CGPath(roundedRect: visual.insetBy(dx: 0.5, dy: 0.5),
+                             cornerWidth: radius - 0.5, cornerHeight: radius - 0.5, transform: nil)
         let contrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
-        let accent = state.needsAttention ? ReadingPalette.amber : ReadingPalette.paper
-        border.strokeColor = accent.withAlphaComponent(contrast ? 0.9 : (state.needsAttention ? 0.5 : 0.14) + hover * 0.1).cgColor
+        let accent = state.needsAttention ? ReadingPalette.amber : ReadingPalette.mint
+        border.lineWidth = contrast ? 1.5 : 0.75
+        border.strokeColor = accent.withAlphaComponent(contrast ? 0.9 : 0.16).cgColor
 
-        // Bars sit left; the Esc keycap slides in on hover; terminal symbols take the bars' place.
-        let keycapShift = Metrics.keycapWidth * hover
-        let barsX = Metrics.padding + keycapShift
-        let barsCenter = point(barsX + Metrics.barsWidth / 2, centerY)
-        let visible = Float(content * (1 - terminal))
-        var energy = 0.0
+        // Stable slots: waveform, quiet options, stop. Hover never moves their targets.
+        let barsX = Metrics.padding
+        let visible = Float(content * (1 - terminal) * (1 - controlsBlend))
         for (index, bar) in bars.enumerated() {
             let height = heights[index]
-            let t = CGFloat(min(1, max(0, (height - 3) / (Metrics.barMaxHeight - 3))))
-            energy += Double(t)
             let x = barsX + CGFloat(index) * (Metrics.barWidth + Metrics.barGap)
             bar.frame = rect(x, centerY - height / 2, Metrics.barWidth, height)
             bar.path = CGPath(roundedRect: CGRect(origin: .zero, size: bar.frame.size),
                               cornerWidth: Metrics.barWidth / 2, cornerHeight: Metrics.barWidth / 2, transform: nil)
-            let base = state.needsAttention ? ReadingPalette.amber : ReadingPalette.mint
-            let dim = ReadingPalette.mix(base.withAlphaComponent(0.5), base, min(1, t * 3))
-            let lit = ReadingPalette.mix(dim, ReadingPalette.mintLight, pow(t, 1.4))
-            bar.fillColor = ReadingPalette.mix(lit, ReadingPalette.paper, max(0, t - 0.8) * 3).cgColor
-            bar.shadowOpacity = Float(t) * 0.9
-            bar.opacity = visible
+            SaywingCapsuleStyle.shadeVoice(bar, height: height, contrast: contrast)
+            let waiting = state == .recognizing || state == .preparing || state == .waiting
+            bar.opacity = visible * (waiting ? SaywingCapsuleStyle.waitingOpacity(index: index, now: now, reduced: reduced) : 1)
         }
-        energy /= Double(Metrics.barCount)
-        glow.position = barsCenter
-        glow.opacity = Float(content) * Float((1 - terminal) * (0.1 + energy * 0.8)
-            + terminal * (state == .finished ? 0.25 : state.needsAttention ? 0.18 : 0.05))
-            + Float((1 - content) * 0.9)
-
-        let travel = reduced ? 0.5 : (now * 0.9).truncatingRemainder(dividingBy: 1)
-        comet.position = point(barsX + Metrics.barsWidth * travel, centerY)
-        comet.opacity = reduced ? 0 : Float((state == .recognizing ? 1 : 0) * content * (1 - terminal))
 
         icon.position = point(18 + 12, centerY)
         icon.opacity = Float(terminal * terminal * (3 - 2 * terminal) * content)
-        bloom.position = icon.position
-
-        keycap.position = point(Metrics.padding - 4 + 15, centerY)
-        keycapText.string = state == .positioning ? (isVertical ? "↕" : "↔") : "esc"
-        keycap.opacity = Float(hover * content * (1 - terminal))
+        icon.setAffineTransform(CGAffineTransform(scaleX: 14 / 24, y: 14 / 24))
 
         let buttonX = w - Metrics.button
+        let optionsX = buttonX - Metrics.options
+        queueBadge.frame = rect(optionsX, (h - Metrics.button) / 2, Metrics.options, Metrics.button)
+        pauseButton.frame = rect(optionsX - Metrics.options - 4, (h - Metrics.button) / 2, Metrics.options, Metrics.button)
+        queueBadge.alphaValue = content * (state == .failed ? 1 : controlsBlend)
+        pauseButton.alphaValue = content * controlsBlend
         let noteX = 18 + 24 + 10.0
-        note.frame = CGRect(x: noteX, y: centerY - 8, width: max(0, buttonX - noteX - 6), height: 16)
+        note.frame = CGRect(x: noteX, y: centerY - 8, width: max(0, (queueBadge.isHidden ? buttonX : optionsX) - noteX - 6), height: 16)
         note.alphaValue = isVertical ? 0 : noteBlend * content
         button.frame = rect(buttonX, (h - Metrics.button) / 2, Metrics.button, Metrics.button)
         button.alphaValue = content
@@ -1108,6 +1121,133 @@ private final class HoverView: NSView {
     }
 }
 
+/// A quiet native button: no resting badge background, a generous independent hit area,
+/// upright glyphs at every dock edge, and no extra sound competing with speech.
+@MainActor
+private final class ReadingInlineButton: NSButton {
+    private var tracking: NSTrackingArea?
+    private var hovered = false
+    private var pointerStart: CGPoint?
+    private var dragged = false
+    private var clickAllowed = false
+    var onDragStart: ((CGPoint) -> Void)?
+    var onDragMove: ((CGPoint) -> Void)?
+    var onDragEnd: (() -> Void)?
+
+    func suppressClick() { clickAllowed = false; highlight(false) }
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        title = "···"
+        isBordered = false
+        setButtonType(.momentaryChange)
+        wantsLayer = true
+        layer?.cornerRadius = 20
+        focusRingType = .exterior
+    }
+    required init?(coder: NSCoder) { nil }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard alphaValue >= 0.5 else { return nil }
+        return super.hitTest(point)
+    }
+    // Normal responder events, not a nested tracking loop: cancellation and drawing
+    // remain live. Moving 5 pt always drags, even if the pointer started on an icon.
+    override func mouseDown(with event: NSEvent) {
+        guard let window else { return }
+        let point = window.convertPoint(toScreen: event.locationInWindow)
+        pointerStart = point
+        dragged = false
+        clickAllowed = isEnabled
+        highlight(isEnabled)
+        onDragStart?(point)
+    }
+    override func mouseDragged(with event: NSEvent) {
+        guard let window, let start = pointerStart else { return }
+        let point = window.convertPoint(toScreen: event.locationInWindow)
+        if hypot(point.x - start.x, point.y - start.y) >= 5 { dragged = true }
+        if dragged {
+            highlight(false)
+            NSCursor.closedHand.set()
+            onDragMove?(point)
+        }
+    }
+    override func mouseUp(with event: NSEvent) {
+        guard pointerStart != nil else { return }
+        let clicked = clickAllowed && !dragged && isEnabled && !isHidden
+            && bounds.contains(convert(event.locationInWindow, from: nil))
+        pointerStart = nil
+        clickAllowed = false
+        highlight(false)
+        onDragEnd?()
+        NSCursor.arrow.set()
+        if clicked, isEnabled { sendAction(action, to: target) }
+    }
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let tracking { removeTrackingArea(tracking) }
+        let area = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self)
+        addTrackingArea(area)
+        tracking = area
+    }
+    override func mouseEntered(with event: NSEvent) { hovered = true; updateHighlight() }
+    override func mouseExited(with event: NSEvent) { hovered = false; updateHighlight() }
+    override func highlight(_ flag: Bool) {
+        super.highlight(flag)
+        updateHighlight()
+    }
+    private func updateHighlight() {
+        needsDisplay = true
+    }
+    override func draw(_ dirtyRect: NSRect) {
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        let center = CGPoint(x: bounds.midX, y: bounds.midY)
+        if hovered || isHighlighted {
+            ReadingPalette.paper.withAlphaComponent(isHighlighted ? 0.18 : 0.09).setFill()
+            NSBezierPath(ovalIn: CGRect(x: center.x - 11, y: center.y - 11, width: 22, height: 22)).fill()
+        }
+        if isHighlighted && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            let transform = NSAffineTransform()
+            transform.translateX(by: center.x, yBy: center.y)
+            transform.scale(by: 0.92)
+            transform.translateX(by: -center.x, yBy: -center.y)
+            transform.concat()
+        }
+        let contrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+        let color = ReadingPalette.paper.withAlphaComponent(!isEnabled ? 0.3 : contrast || hovered || isHighlighted ? 1 : 0.72)
+        if title == "pause" {
+            color.setFill()
+            for offset in [-3.5, 1.5] {
+                NSBezierPath(roundedRect: CGRect(x: center.x + offset, y: center.y - 4, width: 2, height: 8), xRadius: 1, yRadius: 1).fill()
+            }
+        } else if title == "resume" {
+            color.setFill()
+            let path = NSBezierPath()
+            path.move(to: CGPoint(x: center.x - 4, y: center.y - 6))
+            path.line(to: CGPoint(x: center.x + 6, y: center.y))
+            path.line(to: CGPoint(x: center.x - 4, y: center.y + 6))
+            path.close()
+            path.fill()
+        } else if title == "···" {
+            color.setFill()
+            for offset in [-5.0, 0, 5] {
+                NSBezierPath(ovalIn: CGRect(x: center.x + offset - 1.25, y: center.y - 1.25, width: 2.5, height: 2.5)).fill()
+            }
+        } else {
+            let attributes: [NSAttributedString.Key: Any] = [.font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold), .foregroundColor: color]
+            let size = (title as NSString).size(withAttributes: attributes)
+            (title as NSString).draw(at: CGPoint(x: center.x - size.width / 2, y: center.y - size.height / 2), withAttributes: attributes)
+        }
+    }
+    override var focusRingMaskBounds: NSRect {
+        CGRect(x: bounds.midX - 11, y: bounds.midY - 11, width: 22, height: 22)
+    }
+    override func drawFocusRingMask() {
+        NSBezierPath(roundedRect: focusRingMaskBounds, xRadius: 18, yRadius: 18).fill()
+    }
+}
+
 /// A 44 pt control whose visible face compresses on press and springs back.
 /// The hit area and screen position never move.
 @MainActor
@@ -1133,9 +1273,9 @@ final class ReadingStopButton: NSButton {
             layer.position = center
             self.layer?.addSublayer(layer)
         }
-        face.path = CGPath(ellipseIn: CGRect(x: 6, y: 6, width: 32, height: 32), transform: nil)
+        face.path = CGPath(ellipseIn: CGRect(x: 11, y: 11, width: 22, height: 22), transform: nil)
         face.lineWidth = 1
-        glyph.lineWidth = 2
+        glyph.lineWidth = 1.4
         glyph.lineCap = .round
         updateGlyph()
         updateFace()
@@ -1166,7 +1306,7 @@ final class ReadingStopButton: NSButton {
 
     private func press(_ down: Bool) {
         pressed = down
-        let scale = down ? 0.84 : 1.0
+        let scale = down ? 0.92 : 1.0
         let reduced = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         for layer in [face, glyph] {
             if !reduced {
@@ -1174,7 +1314,7 @@ final class ReadingStopButton: NSButton {
                 spring.fromValue = (layer.presentation() ?? layer).value(forKeyPath: "transform.scale")
                 spring.toValue = scale
                 spring.stiffness = down ? 640 : 260
-                spring.damping = down ? 32 : 12
+                spring.damping = 2 * sqrt(spring.stiffness)
                 spring.duration = spring.settlingDuration
                 layer.add(spring, forKey: "press")
             }
@@ -1183,8 +1323,9 @@ final class ReadingStopButton: NSButton {
     }
 
     private func updateFace() {
-        face.fillColor = ReadingPalette.paper.withAlphaComponent(pressed ? 0.3 : hovered ? 0.19 : 0.11).cgColor
-        face.strokeColor = ReadingPalette.paper.withAlphaComponent(hovered ? 0.38 : 0.2).cgColor
+        let contrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+        face.fillColor = ReadingPalette.paper.withAlphaComponent(pressed ? 0.26 : hovered ? 0.19 : 0.10).cgColor
+        face.strokeColor = ReadingPalette.mintLight.withAlphaComponent(contrast ? 0.75 : 0.18).cgColor
     }
 
     private func updateGlyph() {
@@ -1192,12 +1333,12 @@ final class ReadingStopButton: NSButton {
         CATransaction.setDisableActions(true)
         let path = CGMutablePath()
         if terminal {
-            path.move(to: CGPoint(x: 17.5, y: 17.5)); path.addLine(to: CGPoint(x: 26.5, y: 26.5))
-            path.move(to: CGPoint(x: 17.5, y: 26.5)); path.addLine(to: CGPoint(x: 26.5, y: 17.5))
+            path.move(to: CGPoint(x: 19, y: 19)); path.addLine(to: CGPoint(x: 25, y: 25))
+            path.move(to: CGPoint(x: 19, y: 25)); path.addLine(to: CGPoint(x: 25, y: 19))
             glyph.fillColor = nil
             glyph.strokeColor = ReadingPalette.paper.cgColor
         } else {
-            path.addRoundedRect(in: CGRect(x: 16.5, y: 16.5, width: 11, height: 11), cornerWidth: 3, cornerHeight: 3)
+            path.addRoundedRect(in: CGRect(x: 18.5, y: 18.5, width: 7, height: 7), cornerWidth: 1.5, cornerHeight: 1.5)
             glyph.fillColor = ReadingPalette.paper.cgColor
             glyph.strokeColor = nil
         }

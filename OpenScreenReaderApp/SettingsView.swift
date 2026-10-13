@@ -38,11 +38,17 @@ struct SettingsView: View {
                 Label("Vorlesen", systemImage: "speaker.wave.2")
                     .font(.headline)
                 Text("Bildschirmbereich wählen. Zuhören.")
-                Label("Diktieren · in Erprobung", systemImage: "mic")
+                Label("Diktieren", systemImage: "mic")
                     .font(.headline)
-                Text("Sprache ins Textfeld übertragen. Wird separat getestet und ist in dieser App noch nicht verfügbar.")
+                Text("Deutsch und Englisch lokal diktieren. Fn halten zum Diktieren, loslassen zum Einfügen. Fn doppelt oder Fn + Leertaste startet freihändig; Fn beendet, Esc verwirft. ⌥⇧Leertaste bleibt als Alternative. Beim Einfügen wird die Zwischenablage kurz benutzt und danach wiederhergestellt.")
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+            Section("Diktieren") {
+                Button("Diktieren einrichten & testen…") { model.dictation?.showWindow() }
+                    .disabled(model.dictation == nil)
+                Text("Mikrofon für die Aufnahme; Bedienungshilfen zum Einfügen in andere Apps. Freigaben werden nur auf deinen Klick angefragt. Vorlesen stoppt vor einer Aufnahme.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Section("General") {
                 Button("Set Up & Test…") { model.showSetup() }
@@ -129,7 +135,7 @@ struct SettingsView: View {
                 }
                 Text("Choose A–Z, 0–9, or Space with Command, Option, or Control; Shift is optional. Escape always cancels. Changes are saved locally.")
                     .font(.caption)
-                Text("Shortcuts can override commands in other apps. Not all conflicts can be detected. The default ⌘⇧Y overlaps macOS’s Make Sticky service.")
+                Text("Shortcuts can override commands in other apps. Not all conflicts can be detected. Default: ⌥R (Option + R) reads a screen region; press again to add another region.")
                     .font(.caption).foregroundStyle(.secondary)
                 if !model.canChangeShortcut {
                     Text("Stop the current operation before changing its shortcut.")
@@ -146,7 +152,7 @@ struct SettingsView: View {
             .disabled(!model.canChangeShortcut)
 
             Section("Privacy") {
-                Text("Apple Vision recognizes the selected region locally; Supertonic reads the text on this Mac. Images, text, and audio are not saved. Only character and line counts remain after reading. Nothing is copied to the clipboard. The speech worker is blocked from network access and file writes. There is no cloud, Qwen, or system-voice fallback.")
+                Text("Apple Vision recognizes the selected region locally; Supertonic reads the text on this Mac. Images, text, and audio are not saved. Only character and line counts remain after reading. Reading leaves the clipboard unchanged. Explicit dictation uses the selected local model (Qwen3-ASR or Whisper Turbo) and temporarily pastes through the clipboard, restoring it unless a newer copy exists. Both workers are blocked from network access and file writes. No cloud or substitute voice is used.")
                     .fixedSize(horizontal: false, vertical: true)
             }
 

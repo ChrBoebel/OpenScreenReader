@@ -93,8 +93,9 @@ File.write(File.join(target, 'Contents/Resources/DEVELOPMENT-PREVIEW.txt'),
   "Private packaging experiment. Not notarized or approved for distribution.\n" +
   "Model: Supertonic 3, #{manifest.fetch('revision')}, BigScience Open RAIL-M.\n" +
   "Full CPython/native-library provenance and license-chain review remain release gates.\n")
-abort 'Bundle signing failed' unless system('/usr/bin/codesign', '--force', '--sign', '-', '--options', 'runtime', target)
+abort 'Bundle signing failed' unless system('/usr/bin/codesign', '--force', '--sign', '-', '--options', 'runtime', '--entitlements', File.join(repo, 'OpenScreenReaderApp/Saywing.entitlements'), target)
 abort 'Bundle verification failed' unless system('/usr/bin/codesign', '--verify', '--deep', '--strict', target)
+abort 'Microphone signing prerequisites missing' unless system('python3', File.join(repo, 'scripts/verify-app-permissions.py'), target)
 puts "PRIVATE DEVELOPMENT BUNDLE: #{target}"
 puts 'No download or publication. Test relocation and offline speech before installation.'
 if ARGV[2] == '--dmg'

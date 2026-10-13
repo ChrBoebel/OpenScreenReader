@@ -16,7 +16,7 @@ Englisch:
 >
 > **Hear text. Write with your voice.**
 
-Das Projekt ist weder ein vollständiger Screenreader noch eine Dokumentbibliothek oder Cloud-TTS-Plattform. Die gemeinsame Produktidee umfasst zwei explizite Aktionen: Vorlesen und Diktieren. Vorlesen ist als experimenteller Entwicklungspfad vorhanden; Diktieren in Textfelder wird separat erprobt und ist noch nicht Teil der App. Es gibt keine automatische Aufnahme, keine zugesicherte Unterstützung aller Textfelder und keinen zugesicherten Veröffentlichungstermin.
+Das Projekt ist weder ein vollständiger Screenreader noch eine Dokumentbibliothek oder Cloud-TTS-Plattform. Die gemeinsame Produktidee umfasst zwei explizite Aktionen: Vorlesen und Diktieren. Vorlesen und lokales Deutsch-/Englisch-Diktieren sind im privaten Entwicklungsbuild integriert. Die Freigabe der Diktierintegration erfolgte am 2026-10-13; breitere Kompatibilität und Veröffentlichung bleiben zu prüfen. Es gibt keine automatische Aufnahme, keine zugesicherte Unterstützung aller Textfelder und keinen zugesicherten Veröffentlichungstermin.
 
 ## Kernversprechen
 

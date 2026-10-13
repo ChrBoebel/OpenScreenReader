@@ -37,6 +37,7 @@ final class AppModel: ObservableObject {
     }
     var canPause: Bool { status == .speaking && activeContext != nil }
     func enqueueStopRequest() {
+        dictation?.cancelForReading()
         guard let context = activeContext else { return }
         enqueue { await $0.cancel(context: context) }
     }
@@ -89,8 +90,15 @@ final class AppModel: ObservableObject {
         popover.behavior = .transient
         popover.contentViewController = NSHostingController(rootView: PlaybackControlsView(model: self))
         controlsPopover = popover
-        popover.show(relativeTo: view.bounds, of: view, preferredEdge: .maxY)
+        // Open toward the desktop, including the upright left/right capsule layouts.
+        var ancestor: NSView? = view
+        while let current = ancestor, !(current is ReadingControlView) { ancestor = current.superview }
+        let edge = (ancestor as? ReadingControlView)?.dockEdge.popoverEdge ?? .maxY
+        (ancestor as? ReadingControlView)?.holdControls(for: popover)
+        popover.show(relativeTo: view.bounds, of: view, preferredEdge: edge)
     }
+
+    func openPlaybackControls() { readingPanel?.openControls() }
 
     func showSetup() {
         if setupWindow == nil {
@@ -133,6 +141,12 @@ final class AppModel: ObservableObject {
     private var queueInputTimeout: Task<Void, Never>?
     private var queueOverlayVisible = false
     private var sessionGeneration: UInt64 = 0
+    private var dictationObservation: AnyCancellable?
+    var activityTitle: String {
+        if let dictation, dictation.isActive { return dictation.statusText }
+        return isPaused ? "Paused" : status.title
+    }
+    let dictation: DictationController?
     private let preferences: UserDefaults
     private let queueHotkeyManager: (any HotkeyManaging)?
     private let queueShortcutStore: any ShortcutStoring
@@ -159,6 +173,7 @@ final class AppModel: ObservableObject {
     private var speechTimeoutGeneration: UInt64 = 0
 
     isolated deinit {
+        dictation?.shutdown()
         readingPanel?.hide()
         stopResources()
         hotkeyManager.unregister()
@@ -180,8 +195,10 @@ final class AppModel: ObservableObject {
         speechStartupTimeout: Duration = .seconds(90),
         preferences: UserDefaults = InterfaceSoundPlayer.defaults,
         queueHotkeyManager: (any HotkeyManaging)? = nil,
-        queueShortcutStore: any ShortcutStoring = UserDefaultsShortcutStore(preferenceKey: "enqueueShortcut.v1")
+        queueShortcutStore: any ShortcutStoring = UserDefaultsShortcutStore(preferenceKey: "enqueueShortcut.v1"),
+        dictation: DictationController? = nil
     ) {
+        self.dictation = dictation
         self.pipelineCoordinator = pipelineCoordinator
         self.shortcutStore = shortcutStore
         self.shortcutConfiguration = shortcutStore.load() ?? .default
@@ -202,6 +219,7 @@ final class AppModel: ObservableObject {
         self.playbackRate = SpeechSpeed.validated(preferences.object(forKey: SpeechSpeed.preferenceKey) as? Double ?? 1)
         speechService.playbackRate = playbackRate
         readingPanel?.configureControls { [weak self] view in self?.showPlaybackControls(from: view) }
+        readingPanel?.configurePause { [weak self] in self?.togglePause() }
         hotkeyManager.onPress = { [weak self] in self?.enqueuePrimaryShortcut() }
         hotkeyRegistration = hotkeyManager.register(shortcutConfiguration.resolvedShortcut())
         if hotkeyRegistration != .registered {
@@ -214,10 +232,22 @@ final class AppModel: ObservableObject {
         } else if let result = queueHotkeyManager?.register(queueShortcutConfiguration.resolvedShortcut()), result != .registered {
             queueShortcutNotice = Self.registrationErrorMessage(for: result, shortcut: queueShortcutConfiguration)
         }
+        dictationObservation = dictation?.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
+        dictation?.onActivation = { [weak self] start in
+            self?.enqueue { model in
+                if let context = model.activeContext { await model.cancel(context: context) }
+                model.interfaceSounds?.stop()
+                model.readingPanel?.hide()
+                start()
+            }
+        }
+
     }
 
     var readActionTitle: String { activeContext == nil ? "Read Screen Region…" : "Stop Reading" }
-    var canChangeShortcut: Bool { activeContext == nil }
+    var canChangeShortcut: Bool { activeContext == nil && dictation?.isActive != true }
     var canAddToQueue: Bool {
         !isAddingToQueue && queuedTextCount < Self.queueLimit
             && (activeContext == nil || status == .synthesizing || status == .speaking || status == .waiting)
@@ -232,6 +262,10 @@ final class AppModel: ObservableObject {
 
     func enqueueQueueShortcutChange(_ configuration: ShortcutConfiguration) {
         enqueue { model in
+            guard configuration != .dictationDefault else {
+                model.queueShortcutNotice = "⌥⇧Space is reserved for dictation."
+                return
+            }
             guard model.canChangeShortcut else { return }
             guard configuration.isValid, configuration != model.shortcutConfiguration else {
                 model.queueShortcutNotice = "Choose a valid additional shortcut different from the primary shortcut."
@@ -256,6 +290,10 @@ final class AppModel: ObservableObject {
     private func changeShortcut(_ configuration: ShortcutConfiguration) {
         guard canChangeShortcut else {
             shortcutNotice = "Stop the current operation before changing its shortcut."
+            return
+        }
+        guard configuration != .dictationDefault else {
+            shortcutNotice = "⌥⇧Space is reserved for dictation. Choose another reading shortcut."
             return
         }
         guard configuration.isValid else {
@@ -312,9 +350,9 @@ final class AppModel: ObservableObject {
 
     // The shortcut always selects/adds; the menu's explicit Stop Reading action
     // remains separate so it never opens a selection instead of stopping.
-    func enqueuePrimaryShortcut() { enqueue { await $0.addToQueue() } }
-    func enqueueReadRequest() { enqueue { await $0.processReadRequest() } }
-    func enqueueAddRequest() { enqueue { await $0.addToQueue() } }
+    func enqueuePrimaryShortcut() { dictation?.cancelForReading(); enqueue { await $0.addToQueue() } }
+    func enqueueReadRequest() { dictation?.cancelForReading(); enqueue { await $0.processReadRequest() } }
+    func enqueueAddRequest() { dictation?.cancelForReading(); enqueue { await $0.addToQueue() } }
     func enqueueSkipRequest() {
         enqueue { model in
             guard model.canSkipText, let context = model.activeContext else { return }
@@ -750,7 +788,7 @@ final class AppModel: ObservableObject {
     ) -> String? {
         switch registration {
         case .inactive, .registered: nil
-        case .conflict: "The shortcut \(shortcut.displayName) is already in use."
+        case .conflict: "The shortcut \(shortcut.displayName) is already in use. Quit any other Saywing or OpenScreenReader copy, then click Apply Shortcut in Settings to retry, or choose a different shortcut."
         case let .failed(status): "The global shortcut could not be registered (error \(status))."
         }
     }

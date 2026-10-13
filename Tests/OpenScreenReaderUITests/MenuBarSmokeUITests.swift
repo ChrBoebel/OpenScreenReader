@@ -206,7 +206,12 @@ final class MenuBarSmokeUITests: XCTestCase {
         expectation(for: vertical, evaluatedWith: control)
         waitForExpectations(timeout: 3)
         XCTAssertLessThan(control.frame.midX, visible.minX + 100)
-        XCTAssertEqual(app.buttons["readingStatusAction"].frame.width, 44, accuracy: 1)
+        // AppKit expands this borderless NSButton's accessibility frame by
+        // 1 pt on each side (44 pt view → 46 pt AX frame). The native view
+        // tests assert exact geometry; here verify the accessible hit target.
+        let stopFrame = app.buttons["readingStatusAction"].frame
+        XCTAssertGreaterThanOrEqual(stopFrame.width, 44)
+        XCTAssertGreaterThanOrEqual(stopFrame.height, 44)
         let side = control.frame
         let grip = control.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.42))
         let right = grip.withOffset(CGVector(dx: visible.maxX - 40 - side.midX, dy: 0))
@@ -240,7 +245,7 @@ final class MenuBarSmokeUITests: XCTestCase {
         waitForExpectations(timeout: 3)
         let picker = app.popUpButtons["readingPanelPosition"]
         picker.click()
-        app.menuItems["Left"].click()
+        picker.menuItems["Left"].firstMatch.click()
         expectation(for: NSPredicate { _, _ in control.frame.height > control.frame.width && control.frame.midX < visible.minX + 100 },
                     evaluatedWith: control)
         waitForExpectations(timeout: 3)
@@ -350,7 +355,7 @@ final class MenuBarSmokeUITests: XCTestCase {
             let finder = XCUIApplication(bundleIdentifier: "com.apple.finder")
             finder.activate()
             if ending == .shortcut {
-                finder.typeKey("y", modifierFlags: [.command, .shift])
+                finder.typeKey("r", modifierFlags: [.option])
                 XCTAssertTrue(app.groups["Screen region selection"].firstMatch.waitForExistence(timeout: 3))
                 app.typeKey(.escape, modifierFlags: [])
             }
@@ -374,7 +379,7 @@ final class MenuBarSmokeUITests: XCTestCase {
         key.click()
         app.menuItems["J"].click()
         app.buttons["applyShortcut"].click()
-        XCTAssertTrue(app.staticTexts["Shortcut ⌘⇧J is active and saved."].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Shortcut ⌥J is active and saved."].waitForExistence(timeout: 3))
         app.terminate()
         app.launch()
         openMenu(in: app, status: "Ready")
@@ -384,15 +389,15 @@ final class MenuBarSmokeUITests: XCTestCase {
 
         let finder = XCUIApplication(bundleIdentifier: "com.apple.finder")
         finder.activate()
-        finder.typeKey("j", modifierFlags: [.command, .shift])
+        finder.typeKey("j", modifierFlags: [.option])
         XCTAssertTrue(app.groups["Screen region selection"].firstMatch.waitForExistence(timeout: 3))
-        app.typeKey("j", modifierFlags: [.command, .shift])
+        app.typeKey("j", modifierFlags: [.option])
         XCTAssertTrue(app.groups["Screen region selection"].firstMatch.exists)
         app.typeKey(.escape, modifierFlags: [])
         openMenu(in: app, status: "Stopped")
         app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
         app.buttons["Restore Default"].click()
-        XCTAssertTrue(app.staticTexts["Shortcut ⌘⇧Y is active and saved."].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Shortcut ⌥R is active and saved."].waitForExistence(timeout: 3))
     }
 
     @MainActor
@@ -403,16 +408,15 @@ final class MenuBarSmokeUITests: XCTestCase {
         openMenu(in: app, status: "Ready")
         app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
         XCTAssertTrue(app.checkBoxes["Command ⌘"].waitForExistence(timeout: 3))
-        app.checkBoxes["Command ⌘"].click()
+        app.checkBoxes["Option ⌥"].click()
         XCTAssertFalse(app.buttons["applyShortcut"].isEnabled)
         app.checkBoxes["Command ⌘"].click()
-        app.checkBoxes["Shift ⇧"].click()
         app.buttons["applyShortcut"].click()
         XCTAssertTrue(app.buttons["Use Shortcut"].waitForExistence(timeout: 3))
         app.sheets.buttons["Cancel"].click()
-        XCTAssertFalse(app.staticTexts["Shortcut ⌘Y is active and saved."].exists)
+        XCTAssertFalse(app.staticTexts["Shortcut ⌘R is active and saved."].exists)
         app.buttons["Restore Default"].click()
-        XCTAssertTrue(app.staticTexts["Shortcut ⌘⇧Y is active and saved."].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Shortcut ⌥R is active and saved."].waitForExistence(timeout: 3))
     }
 
     @MainActor
@@ -437,7 +441,7 @@ final class MenuBarSmokeUITests: XCTestCase {
 
         let finder = XCUIApplication(bundleIdentifier: "com.apple.finder")
         finder.activate()
-        finder.typeKey("y", modifierFlags: [.command, .shift])
+        finder.typeKey("r", modifierFlags: [.option])
 
         let overlay = app.groups["Screen region selection"].firstMatch
         XCTAssertTrue(
@@ -447,7 +451,7 @@ final class MenuBarSmokeUITests: XCTestCase {
 
         // The overlay owns focus after starting. Do not activate Finder again:
         // XCTest may click through the overlay while activating another app.
-        app.typeKey("y", modifierFlags: [.command, .shift])
+        app.typeKey("r", modifierFlags: [.option])
 
         XCTAssertTrue(overlay.exists, statusDescription(in: app))
         app.typeKey(.escape, modifierFlags: [])

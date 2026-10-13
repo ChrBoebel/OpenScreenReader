@@ -13,6 +13,8 @@ struct MenuBarContent: View {
 
         Button(model.isPaused ? "Resume Reading" : "Pause Reading") { model.togglePause() }
             .disabled(!model.canPause)
+        Button("Playback Controls…") { model.openPlaybackControls() }
+            .disabled(model.canChangeShortcut)
 
         Button(model.readActionTitle) {
             model.enqueueReadRequest()
@@ -50,6 +52,11 @@ struct MenuBarContent: View {
 
         Divider()
 
+        if let dictation = model.dictation {
+            DictationMenuContent(controller: dictation)
+            Divider()
+        }
+
         SettingsLink {
             Text("Settings…")
         }
@@ -60,5 +67,16 @@ struct MenuBarContent: View {
             NSApplication.shared.terminate(nil)
         }
         .keyboardShortcut("q")
+    }
+}
+
+struct DictationMenuContent: View {
+    @ObservedObject var controller: DictationController
+    var body: some View {
+        Text("Diktieren · \(controller.statusText)")
+        Button("Diktieren einrichten & testen…") { controller.showWindow() }
+        Text("Fn halten · Fn doppelt / Fn + Leertaste: freihändig")
+        Button("Diktat verwerfen") { controller.cancel() }
+            .disabled(!controller.isActive)
     }
 }

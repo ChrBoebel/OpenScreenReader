@@ -27,6 +27,11 @@
 		A00000000000000000000028 /* GlobalHotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000019 /* GlobalHotkeyManager.swift */; };
 		A00000000000000000000029 /* RegionSelectionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001A /* RegionSelectionController.swift */; };
 		A00000000000000000000082 /* OpenScreenReaderCore in Frameworks */ = {isa = PBXBuildFile; productRef = A00000000000000000000081 /* OpenScreenReaderCore */; };
+		AA2000000000000000000000 = {isa = PBXBuildFile; fileRef = AA1000000000000000000000; };
+		AA2000000000000000000001 = {isa = PBXBuildFile; fileRef = AA1000000000000000000001; };
+		AA2000000000000000000002 = {isa = PBXBuildFile; fileRef = AA1000000000000000000002; };
+		AA2000000000000000000003 = {isa = PBXBuildFile; fileRef = AA1000000000000000000003; };
+		AA2000000000000000000004 = {isa = PBXBuildFile; fileRef = AA1000000000000000000004; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -70,6 +75,11 @@
 		A00000000000000000000018 /* InteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractionTests.swift; sourceTree = "<group>"; };
 		A00000000000000000000019 /* GlobalHotkeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalHotkeyManager.swift; sourceTree = "<group>"; };
 		A0000000000000000000001A /* RegionSelectionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegionSelectionController.swift; sourceTree = "<group>"; };
+		AA1000000000000000000000 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Dictation/DictationCore.swift; sourceTree = "<group>"; };
+		AA1000000000000000000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Dictation/DictationInput.swift; sourceTree = "<group>"; };
+		AA1000000000000000000002 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Dictation/DictationWorker.swift; sourceTree = "<group>"; };
+		AA1000000000000000000003 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Dictation/DictationController.swift; sourceTree = "<group>"; };
+		AA1000000000000000000004 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Dictation/DictationCapsuleView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -121,6 +131,11 @@
 		A00000000000000000000004 /* OpenScreenReaderApp */ = {
 			isa = PBXGroup;
 			children = (
+				AA1000000000000000000003,
+				AA1000000000000000000004,
+				AA1000000000000000000002,
+				AA1000000000000000000001,
+				AA1000000000000000000000,
 				A00000000000000000000010 /* OpenScreenReaderApp.swift */,
 				C00000000000000000000002 /* Assets.xcassets */,
 				A00000000000000000000011 /* AppStatus.swift */,
@@ -297,6 +312,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AA2000000000000000000003,
+				AA2000000000000000000004,
+				AA2000000000000000000002,
+				AA2000000000000000000001,
+				AA2000000000000000000000,
 				A00000000000000000000020 /* OpenScreenReaderApp.swift in Sources */,
 				A00000000000000000000022 /* AppStatus.swift in Sources */,
 				A00000000000000000000023 /* AppModel.swift in Sources */,
@@ -401,6 +421,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = OpenScreenReaderApp/Info.plist;
+				CODE_SIGN_ENTITLEMENTS = OpenScreenReaderApp/Saywing.entitlements;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -426,6 +447,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = OpenScreenReaderApp/Info.plist;
+				CODE_SIGN_ENTITLEMENTS = OpenScreenReaderApp/Saywing.entitlements;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

@@ -1,5 +1,7 @@
 # Saywing implementation verification
 
+**Follow-up:** the branding and capsule work are now integrated in the primary checkout. See [integration, startup diagnosis and private test package](../saywing-integration-verification.md). The isolated-worktree findings below describe the earlier branding-only run.
+
 Date: 2026-10-13, Europe/Berlin. Branch: `codex/saywing-brand` in the attached isolated worktree. The original checkout's existing capsule-control changes were not modified. No commit, push, PR, merge, domain purchase or publication was performed.
 
 ## Delivered

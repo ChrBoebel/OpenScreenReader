@@ -14,9 +14,9 @@ Vom Eigentümer am **13.10.2026** ausgewählt. Dieses Dokument ersetzt frühere 
 
 Eine native Menüleisten-App, eine Marke, zwei ausdrücklich gewählte Aktionen. Die Eule steht für Aufmerksamkeit; der Zusatz erklärt die Funktion. Schreibweise immer **Saywing**, nicht SayWing oder Saywring.
 
-**Aktueller Funktionsstand:** experimentelles lokales Vorlesen ist implementiert. Diktieren wird separat erprobt und ist in dieser App noch nicht verfügbar. Die gemeinsame Positionierung wird immer mit „Diktieren · in Erprobung“ beziehungsweise „Dictation · in testing“ verbunden. Kein aktiver Diktierknopf, kein zugesicherter Termin und kein Versprechen, dass jedes Textfeld funktioniert.
+**Aktueller Funktionsstand:** lokales Vorlesen und ausdrücklich gestartetes lokales Diktieren sind im privaten Entwicklungsbuild integriert. Keine universelle Textfeld-Kompatibilität oder öffentliche Release-Reife versprechen. Modellwahl, Berechtigungen und die noch offenen Prüfungen stehen im [Diktier-Prüfprotokoll](../dictation-integration-verification.md).
 
-Datenschutz bleibt eine Produkteigenschaft: kein Cloud-OCR/TTS, kein Konto, keine Standardtelemetrie und keine dauerhafte Inhaltshistorie. Expliziter Stop beendet den aktiven Vorlesevorgang. Der Vorlesepfad schreibt nicht automatisch in die Zwischenablage. Einfüge- und Datenschutzverhalten des Diktierprototyps benötigen ihre eigene Integrationsentscheidung; das Branding ändert diese Regeln nicht.
+Datenschutz bleibt eine Produkteigenschaft: kein Cloud-OCR/TTS/ASR, kein Konto, keine Standardtelemetrie und keine dauerhafte Inhaltshistorie. Der Vorlesepfad schreibt nicht automatisch in die Zwischenablage. Beim expliziten Diktieren wird sie zum Einfügen kurz verwendet und nur bei unveränderter Eigentümerschaft wiederhergestellt; neuere Kopien haben Vorrang. Keine Mikrofonaufnahme beim App-Start.
 
 ## Bildmarke und Assets
 
@@ -50,10 +50,24 @@ Schrift: native macOS-Systemschrift in der App; lokale System-Sans-Serif in der 
 - Buildprodukt **Saywing.app**, Programmdatei **Saywing**.
 - Einstellungen und Einrichtung zeigen Namen, App-Icon, Zusatz und ehrlichen Entwicklungsstand.
 - Menüleiste: Template-Eule mit vom System gewählter Hell-/Dunkelfarbe. Tooltip und zugänglicher Name enthalten den aktuellen Zustand; im Menü bleibt er sichtbar lesbar.
-- Vorlesekapsel: neue Grünpalette, bestehende Interaktion, Klänge, Bewegung, Stop-Zielfläche und Accessibility-Verhalten. Amber bleibt Hinweis-/Fehlerfarbe.
+- Vorlese- und Diktierkapsel: gemeinsame Grünpalette, Oberfläche und Bewegungsregeln; eigenständige Aktionen und zugängliche Beschreibungen. Amber bleibt Hinweis-/Fehlerfarbe.
 - `sh scripts/export-app-icon.sh` erzeugt App-Icon-Größen und 22-pt-Menüvorlagen in 1×/2×/3× aus den bestätigten Mastern.
 - Bundle-ID `com.christopherbobel.OpenScreenReader`, Einstellungsschlüssel und `Application Support/OpenScreenReader` bleiben kompatibel. Xcode-Projekt, Scheme und Swift-Module behalten technische Namen.
 - Das Entwicklungspackaging verarbeitet und erzeugt Saywing.app. Die Markenumstellung lädt keine Modelle und veröffentlicht keine Pakete.
+
+## Vorlesekapsel und Bedienung
+
+Die sichtbare aktive Kapsel ist **136 × 28 pt** groß; die transparente Interaktionsfläche bleibt 136 × 44 pt. In Ruhe zeigt sie Wellenform und Stop; bei Hover wechselt die Wellenform zu Pause/Fortsetzen und Optionen. Keine abgesetzte Schaltfläche und keine Größenänderung bei Hover. Solange das Popover offen ist, bleiben seine Bedienelemente sichtbar. Menü und VoiceOver bieten Zugang ohne Hover; seitliche Popover öffnen sich zum Bildschirm hin. Die neue Saywing-Palette gilt auch für diese kompakte Variante. Vorlesen und Diktieren teilen neun 2,5-pt-Balken mit 3-pt-Abstand, denselben Pegelverlauf und dieselben flachen Wartepunkte. Dekoratives Leuchten, Aufblühen und Überschwingen entfallen. Klänge und sofortiges Stop-Verhalten bleiben erhalten. Siehe [Prüfprotokoll](../integrated-capsule-verification.md).
+
+## Diktierkapsel und Aufnahme
+
+Nach Eigentümerkorrektur am 13.10.2026 ist die Diktieranzeige eine **textfreie Mini-Leiste mit 120 × 28 pt**. Sie ersetzt die zu große 360 × 44-pt-Fassung. Referenz sind die schwebende Flow Bar und ihre Kreuz-/Quadrat-Aktionen aus [Wispr Flows Bedienhinweisen](https://docs.wisprflow.ai/articles/6391241694-use-flow-hands-free). Die Maße sind unsere Implementierungsentscheidung, keine behaupteten Wispr-Messwerte.
+
+Links steht ein kleines Kreuz zum Verwerfen, mittig reagieren neun Pale-Leaf-Balken auf den tatsächlichen Eingangspegel, rechts beendet ein kleines Quadrat die Aufnahme und startet Erkennung/Einfügung. Keine sichtbaren Texte, Daueranzeige oder Mikrofon-Illustration während der Aufnahme. Die primäre Beenden-Taste sitzt wieder in einer kleinen, sanft aufgehellten Kreisfläche; das Verwerfen-Kreuz bleibt zurückhaltend. Die getrennten unsichtbaren Zielflächen sind 32 × 44 pt groß, ohne sich zu überlagern.
+
+Der Forest-Hintergrund, die feine Lichtkante und gedämpfte Schatten verbinden sie mit der Vorlesekapsel. Stille bleibt flach. Während der lokalen Erkennung wandert nur die Helligkeit flacher Punkte. Erfolg, unbestätigtes Einfügen und Fehler erhalten unterschiedliche kleine Symbole; alle Zustände behalten dieselbe Größe. Beschreibungen stehen über VoiceOver, optionale Tooltips und das Diktierfenster zur Verfügung.
+
+Die Kapsel nimmt dem ursprünglichen Textfeld keinen Fokus. Beide Kapseln erscheinen mit einem 140-ms-Einblender und einer dezenten, kritisch gedämpften Skalierung von 96 auf 100 Prozent; bei reduzierter Bewegung bleibt nur der kurze Einblender. Die Pegelanzeige ist über CADisplayLink an die Bildwiederholrate gebunden; ihre Reaktion hängt von der verstrichenen Zeit ab. Reduzierte Bewegung setzt die Pegelanzeige statisch; reduzierte Transparenz oder erhöhter Kontrast macht die Fläche deckend. Verwerfen blendet sofort aus und beendet die Animationsuhr. Keine zusätzlichen Aufnahme-Klänge, kein Audio-/Textinhalt in der Darstellung und keine versteckte Hintergrundaufnahme.
 
 ## Tonalität
 
@@ -64,3 +78,11 @@ Ruhig, direkt, konkret. Handlung und Ergebnis erklären. Keine unbelegten Produk
 [Namensrecherche](SAYWING_RESEARCH.md): vorhandener spanischer Firmenname, registrierte .com-Domain, kein .app-RDAP-Eintrag zum Prüfzeitpunkt, null TMview-Treffer für die Basisabfrage. Das ist keine rechtliche Freigabe oder Garantie der Domainverfügbarkeit.
 
 Der Name ist vom Eigentümer ausgewählt. Ein echter Verständlichkeitstest bleibt offen; das [lokale Testblatt](name-test.html) ist vorbereitet, es wurden keine Personen befragt. Domainregistrierung, Markenanmeldung, Veröffentlichung und Outreach wurden nicht ausgeführt. Tatsächliche technische Ergebnisse stehen in [SAYWING_VERIFICATION.md](SAYWING_VERIFICATION.md).
+
+## Gemeinsame Bewegungsregeln
+
+Der [Apple-Design-Review](APPLE_DESIGN_REVIEW.md) dokumentiert die Umsetzung nach dem vom Eigentümer genannten Skill. Die Materialtiefe, 28-pt-Höhe, feine Mint-Kante, Schatten und Wartebewegung sind identisch. Unterschiedliche Breiten entstehen durch die jeweiligen Aktionen. Vorlesen behält Pause, Warteschlange und Docking; Diktieren bleibt 120 × 28 pt ohne Text oder Timer. Die Bereichs-Auswahlreise erklärt nur den Vorlesepfad und bleibt eine eigene kontextbezogene Rückmeldung. Abbruch reagiert weiterhin sofort.
+
+### Feinschliff nach Eigentümerfeedback
+
+Der Wunsch nach mehr Nähe zur vorherigen Gestaltung bringt etwas Materialtiefe zurück: weichere mintfarbene Lichtkante, sattes Wacholdergrün im Verlauf, etwas breitere und rundere Balken mit helleren Spitzen und dezenter pegelabhängiger Lichtstreuung. Die runde primäre Taste greift die frühere Vorleseform auf. Beide Aktivitäten teilen diese Behandlung; die 28-pt-Höhe, kleinen Diktiermaße und gemeinsame ruhige Bewegung bleiben bestehen. Keine zusätzlichen Lichtspuren, Abschlussringe oder Dauertexte.
