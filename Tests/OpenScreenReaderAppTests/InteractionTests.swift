@@ -690,6 +690,41 @@ struct InteractionTests {
     }
 
     @Test
+    func recordedKeystrokesBecomeShortcutConfigurations() {
+        let option = ShortcutConfiguration.recorded(character: "j", flags: [.option])
+        #expect(option == ShortcutConfiguration(key: "J", modifiers: UInt32(optionKey)))
+        #expect(option?.isValid == true)
+        let all = ShortcutConfiguration.recorded(character: "7", flags: [.command, .shift, .control, .option, .capsLock])
+        #expect(all == ShortcutConfiguration(key: "7", modifiers: UInt32(cmdKey | shiftKey | controlKey | optionKey)))
+        #expect(ShortcutConfiguration.recorded(character: " ", flags: [.control])?.key == "Space")
+        // Shift alone is recorded, so the field can explain why it is not enough.
+        #expect(ShortcutConfiguration.recorded(character: "y", flags: [.shift])?.isValid == false)
+        #expect(ShortcutConfiguration.recorded(character: "ß", flags: [.option]) == nil)
+        #expect(ShortcutConfiguration.recorded(character: "\u{1b}", flags: [.command]) == nil)
+    }
+
+    @Test
+    func recordingAShortcutSuspendsBothGlobalShortcuts() async {
+        let hotkey = HotkeyManagerFake(registrationResult: .registered)
+        let queue = HotkeyManagerFake(registrationResult: .registered)
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: hotkey,
+                             queueHotkeyManager: queue, queueShortcutStore: MemoryShortcutStore())
+        #expect(hotkey.registeredShortcut == ShortcutConfiguration.default.resolvedShortcut())
+        model.setRecordingShortcut(true)
+        #expect(hotkey.registeredShortcut == nil)
+        #expect(queue.registeredShortcut == nil)
+        model.setRecordingShortcut(false)
+        #expect(hotkey.registeredShortcut == ShortcutConfiguration.default.resolvedShortcut())
+        #expect(queue.registeredShortcut == ShortcutConfiguration.queueDefault.resolvedShortcut())
+        model.setRecordingShortcut(true)
+        let custom = ShortcutConfiguration(key: "J", modifiers: UInt32(optionKey))
+        model.enqueueShortcutChange(custom)
+        await model.waitForInteractionToSettle()
+        model.setRecordingShortcut(false)
+        #expect(hotkey.registeredShortcut == custom.resolvedShortcut())
+    }
+
+    @Test
     func shortcutCannotChangeDuringSelectionAndInvalidSettingsAreRejected() async {
         let store = MemoryShortcutStore()
         let model = AppModel(shortcutStore: store,
@@ -761,7 +796,7 @@ struct InteractionTests {
         #expect(model.hotkeyRegistration == .conflict)
         #expect(model.status == .error)
         #expect(model.errorMessage?.contains("Saywing or OpenScreenReader") == true)
-        #expect(model.errorMessage?.contains("Apply Shortcut") == true)
+        #expect(model.errorMessage?.contains("Settings › Shortcuts") == true)
 
         // Applying the same shortcut must retry; no preference reset or new key is needed.
         competitor.unregister()
@@ -1088,7 +1123,7 @@ struct InteractionTests {
 
         #expect(model.hotkeyRegistration == .conflict)
         #expect(model.status == .error)
-        #expect(model.errorMessage == "The shortcut ⌥R is already in use. Quit any other Saywing or OpenScreenReader copy, then click Apply Shortcut in Settings to retry, or choose a different shortcut.")
+        #expect(model.errorMessage == "The shortcut ⌥R is already in use. Quit any other Saywing or OpenScreenReader copy, then choose it again under Settings › Shortcuts, or record a different one.")
         #expect(selection.startCount == 0)
     }
 
@@ -1968,7 +2003,7 @@ private final class HotkeyManagerFake: HotkeyManaging {
         return registrationResult
     }
 
-    func unregister() {}
+    func unregister() { registeredShortcut = nil }
 }
 
 @MainActor

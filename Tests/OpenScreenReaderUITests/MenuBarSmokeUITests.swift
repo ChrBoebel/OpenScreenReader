@@ -381,18 +381,19 @@ final class MenuBarSmokeUITests: XCTestCase {
         defer { app.terminate() }
         openMenu(in: app, status: "Ready")
         app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
-        let key = app.popUpButtons["shortcutKey"]
-        XCTAssertTrue(key.waitForExistence(timeout: 3))
-        key.click()
-        app.menuItems["J"].click()
-        app.buttons["applyShortcut"].click()
+        openSettingsTab("Shortcuts", in: app)
+        let recorder = app.buttons["shortcutRecorder"]
+        XCTAssertTrue(recorder.waitForExistence(timeout: 3))
+        recorder.click()
+        app.typeKey("j", modifierFlags: [.option])
         XCTAssertTrue(app.staticTexts["Shortcut ⌥J is active and saved."].waitForExistence(timeout: 3))
         app.terminate()
         app.launch()
         openMenu(in: app, status: "Ready")
         app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
-        XCTAssertTrue(app.popUpButtons["shortcutKey"].waitForExistence(timeout: 3))
-        XCTAssertEqual(app.popUpButtons["shortcutKey"].value as? String, "J")
+        openSettingsTab("Shortcuts", in: app)
+        XCTAssertTrue(recorder.waitForExistence(timeout: 3))
+        XCTAssertEqual(recorder.value as? String, "⌥J")
 
         let finder = XCUIApplication(bundleIdentifier: "com.apple.finder")
         finder.activate()
@@ -403,7 +404,8 @@ final class MenuBarSmokeUITests: XCTestCase {
         app.typeKey(.escape, modifierFlags: [])
         openMenu(in: app, status: "Stopped")
         app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
-        app.buttons["Restore Default"].click()
+        openSettingsTab("Shortcuts", in: app)
+        app.buttons["Restore Default"].firstMatch.click()
         XCTAssertTrue(app.staticTexts["Shortcut ⌥R is active and saved."].waitForExistence(timeout: 3))
     }
 
@@ -414,16 +416,18 @@ final class MenuBarSmokeUITests: XCTestCase {
         defer { app.terminate() }
         openMenu(in: app, status: "Ready")
         app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
-        XCTAssertTrue(app.checkBoxes["Command ⌘"].waitForExistence(timeout: 3))
-        app.checkBoxes["Option ⌥"].click()
-        XCTAssertFalse(app.buttons["applyShortcut"].isEnabled)
-        app.checkBoxes["Command ⌘"].click()
-        app.buttons["applyShortcut"].click()
+        openSettingsTab("Shortcuts", in: app)
+        let recorder = app.buttons["shortcutRecorder"]
+        XCTAssertTrue(recorder.waitForExistence(timeout: 3))
+        recorder.click()
+        app.typeKey("r", modifierFlags: [.shift])
+        XCTAssertTrue(app.staticTexts["Use a letter, digit or Space with ⌘, ⌥ or ⌃. Shift is optional."]
+            .waitForExistence(timeout: 3))
+        app.typeKey("r", modifierFlags: [.command])
         XCTAssertTrue(app.buttons["Use Shortcut"].waitForExistence(timeout: 3))
         app.sheets.buttons["Cancel"].click()
         XCTAssertFalse(app.staticTexts["Shortcut ⌘R is active and saved."].exists)
-        app.buttons["Restore Default"].click()
-        XCTAssertTrue(app.staticTexts["Shortcut ⌥R is active and saved."].waitForExistence(timeout: 3))
+        XCTAssertEqual(recorder.value as? String, "⌥R")
     }
 
     @MainActor

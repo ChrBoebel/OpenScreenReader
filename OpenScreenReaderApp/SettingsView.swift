@@ -47,9 +47,9 @@ struct DictationSettingsSection: View {
 struct SettingsView: View {
     @ObservedObject var model: AppModel
     @StateObject private var permissions = PermissionStatus()
-    @State private var draftShortcut = ShortcutConfiguration.default
+    @State private var pendingShortcut: (shortcut: ShortcutConfiguration, queue: Bool)?
     @State private var confirmCommonShortcut = false
-    @State private var editingQueueShortcut = false
+    @State private var rejectedKeystroke = false
     @State private var tab: SettingsTab
 
     init(model: AppModel, initialTab: SettingsTab = .general) {
@@ -80,12 +80,14 @@ struct SettingsView: View {
         }
         .frame(width: 540)
         .accessibilityLabel("Saywing settings")
-        .onAppear { draftShortcut = editingQueueShortcut ? model.queueShortcutConfiguration : model.shortcutConfiguration }
-        .alert("Override app commands?", isPresented: $confirmCommonShortcut) {
-            Button("Use Shortcut") { applyDraftShortcut() }
+        .alert("Override app commands?", isPresented: $confirmCommonShortcut, presenting: pendingShortcut) { pending in
+            Button("Use Shortcut") {
+                if pending.queue { model.enqueueQueueShortcutChange(pending.shortcut) }
+                else { model.enqueueShortcutChange(pending.shortcut) }
+            }
             Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("\(draftShortcut.displayName) may replace a familiar command in other apps while Saywing is running. Use it anyway?")
+        } message: { pending in
+            Text("\(pending.shortcut.displayName) may replace a familiar command in other apps while Saywing is running. Use it anyway?")
         }
     }
 
@@ -197,82 +199,76 @@ struct SettingsView: View {
     private var shortcutsTab: some View {
         Form {
             Section {
-                LabeledContent("Current shortcut", value: model.shortcutConfiguration.displayName)
-                    .accessibilityIdentifier("activeShortcut")
-                Picker("Action", selection: $editingQueueShortcut) {
-                    Text("Read / Add to queue").tag(false)
-                    Text("Additional queue shortcut").tag(true)
-                }
-                .accessibilityIdentifier("shortcutAction")
-                .onChange(of: editingQueueShortcut) { _, queue in
-                    draftShortcut = queue ? model.queueShortcutConfiguration : model.shortcutConfiguration
-                }
                 HStack {
-                    modifierToggle("Command ⌘", flag: UInt32(cmdKey))
-                    modifierToggle("Shift ⇧", flag: UInt32(shiftKey))
+                    Text("Read screen region")
+                    Spacer()
+                    recorder(for: model.shortcutConfiguration, queue: false, identifier: "shortcutRecorder")
                 }
-                HStack {
-                    modifierToggle("Option ⌥", flag: UInt32(optionKey))
-                    modifierToggle("Control ⌃", flag: UInt32(controlKey))
-                }
-                Picker("Key", selection: $draftShortcut.key) {
-                    ForEach(ShortcutConfiguration.availableKeys, id: \.self) { key in
-                        Text(key).tag(key)
-                    }
-                }
-                .accessibilityIdentifier("shortcutKey")
-                LabeledContent("New shortcut", value: draftShortcut.displayName)
-                HStack {
-                    Button("Apply Shortcut") {
-                        if draftShortcut.modifiers == UInt32(cmdKey) {
-                            confirmCommonShortcut = true
-                        } else {
-                            applyDraftShortcut()
-                        }
-                    }
-                    .disabled(!draftShortcut.isValid)
-                    .accessibilityIdentifier("applyShortcut")
-                    Button("Restore Default") {
-                        draftShortcut = editingQueueShortcut ? .queueDefault : .default
-                        applyDraftShortcut()
-                    }
+                if rejectedKeystroke {
+                    Text("Use a letter, digit or Space with ⌘, ⌥ or ⌃. Shift is optional.")
+                        .font(.callout).foregroundStyle(.orange)
                 }
                 if !model.canChangeShortcut {
                     Text("Stop the current operation before changing its shortcut.")
+                        .font(.callout).foregroundStyle(.secondary)
                 }
                 if let notice = model.shortcutNotice {
-                    Text(notice).fixedSize(horizontal: false, vertical: true)
+                    Text(notice).font(.callout).fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("shortcutNotice")
                 }
-                LabeledContent("Add to queue", value: model.queueShortcutConfiguration.displayName)
-                if let notice = model.queueShortcutNotice { Text(notice).font(.callout) }
-            } header: {
-                Text("Read Screen Region")
+                LabeledContent("") {
+                    Button("Restore Default") { apply(.default, queue: false) }
+                        .disabled(model.shortcutConfiguration == .default)
+                }
             } footer: {
-                Text("Press the shortcut again while Saywing reads to add another region. Escape stops everything.")
+                Text("Click the field and press a new combination. Press the shortcut again while Saywing reads to add another region; Escape stops everything.")
                     .font(.callout).foregroundStyle(.secondary)
             }
-            .disabled(!model.canChangeShortcut)
+            Section {
+                DisclosureGroup("Advanced") {
+                    HStack {
+                        Text("Add to queue")
+                        Spacer()
+                        recorder(for: model.queueShortcutConfiguration, queue: true, identifier: "queueShortcutRecorder")
+                    }
+                    Text("Optional. Pressing the reading shortcut again already adds a region.")
+                        .font(.callout).foregroundStyle(.secondary)
+                    if let notice = model.queueShortcutNotice { Text(notice).font(.callout) }
+                    LabeledContent("") {
+                        Button("Restore Default") { apply(.queueDefault, queue: true) }
+                            .disabled(model.queueShortcutConfiguration == .queueDefault)
+                    }
+                }
+            }
         }
         .formStyle(.grouped)
         .fixedSize(horizontal: false, vertical: true)
+        .disabled(!model.canChangeShortcut)
     }
 
-    private func applyDraftShortcut() {
-        if editingQueueShortcut { model.enqueueQueueShortcutChange(draftShortcut) }
-        else { model.enqueueShortcutChange(draftShortcut) }
+    private func recorder(for shortcut: ShortcutConfiguration, queue: Bool, identifier: String) -> some View {
+        ShortcutRecorder(shortcut: shortcut, identifier: identifier,
+                         onRecordingChange: { recording in
+                             if recording { rejectedKeystroke = false }
+                             model.setRecordingShortcut(recording)
+                         },
+                         onRecord: { apply($0, queue: queue) },
+                         onRejected: { rejectedKeystroke = true })
+            .frame(width: 150, height: 24)
     }
 
-    private func modifierToggle(_ title: String, flag: UInt32) -> some View {
-        Toggle(title, isOn: Binding(
-            get: { draftShortcut.modifiers & flag != 0 },
-            set: { enabled in
-                if enabled { draftShortcut.modifiers |= flag }
-                else { draftShortcut.modifiers &= ~flag }
-            }
-        ))
-        .toggleStyle(.checkbox)
+    /// Command alone replaces familiar app commands, so it needs confirmation.
+    private func apply(_ shortcut: ShortcutConfiguration, queue: Bool) {
+        if shortcut.modifiers == UInt32(cmdKey) {
+            pendingShortcut = (shortcut, queue)
+            confirmCommonShortcut = true
+        } else if queue {
+            model.enqueueQueueShortcutChange(shortcut)
+        } else {
+            model.enqueueShortcutChange(shortcut)
+        }
     }
+
 }
 
 struct PlaybackControlsView: View {

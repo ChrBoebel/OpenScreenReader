@@ -264,6 +264,23 @@ final class AppModel: ObservableObject {
         preferences.set(playbackRate, forKey: SpeechSpeed.preferenceKey)
     }
 
+    /// While a shortcut field records, the global shortcuts must not swallow the
+    /// keystroke the user is trying to assign. Recording ends before a change applies.
+    private var isRecordingShortcut = false
+    func setRecordingShortcut(_ recording: Bool) {
+        guard recording != isRecordingShortcut else { return }
+        isRecordingShortcut = recording
+        if recording {
+            hotkeyManager.unregister()
+            queueHotkeyManager?.unregister()
+            return
+        }
+        hotkeyRegistration = hotkeyManager.register(shortcutConfiguration.resolvedShortcut())
+        if queueShortcutConfiguration != shortcutConfiguration {
+            _ = queueHotkeyManager?.register(queueShortcutConfiguration.resolvedShortcut())
+        }
+    }
+
     func enqueueQueueShortcutChange(_ configuration: ShortcutConfiguration) {
         enqueue { model in
             guard configuration != .dictationDefault else {
@@ -792,7 +809,7 @@ final class AppModel: ObservableObject {
     ) -> String? {
         switch registration {
         case .inactive, .registered: nil
-        case .conflict: "The shortcut \(shortcut.displayName) is already in use. Quit any other Saywing or OpenScreenReader copy, then click Apply Shortcut in Settings to retry, or choose a different shortcut."
+        case .conflict: "The shortcut \(shortcut.displayName) is already in use. Quit any other Saywing or OpenScreenReader copy, then choose it again under Settings › Shortcuts, or record a different one."
         case let .failed(status): "The global shortcut could not be registered (error \(status))."
         }
     }
