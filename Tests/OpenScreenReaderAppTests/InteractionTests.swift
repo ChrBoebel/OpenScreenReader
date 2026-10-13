@@ -1562,6 +1562,78 @@ struct ReadingPanelTests {
     }
 
     @Test
+    func flickedControlLandsWhereItsMomentumPoints() {
+        let visible = CGRect(x: 0, y: 40, width: 1440, height: 860)
+        #expect(abs(PanelMotion.project(1000) - 499) < 0.01, "Apple's projection with a 0.998 deceleration rate.")
+        let nearBottom = CGPoint(x: 600, y: 160)
+        #expect(ReadingPanelPlacement.dropped(at: nearBottom, in: visible).edge == .bottom)
+        // A quick throw to the left wins over the closer bottom edge.
+        let thrown = ReadingPanelPlacement.dropped(at: nearBottom, velocity: CGVector(dx: -2400, dy: 0), in: visible)
+        #expect(thrown.edge == .left)
+        let slowly = ReadingPanelPlacement.dropped(at: nearBottom, velocity: CGVector(dx: -80, dy: 0), in: visible)
+        #expect(slowly.edge == .bottom, "A slow release is not a throw.")
+        // Along the bottom edge the throw also carries the offset.
+        let along = ReadingPanelPlacement.dropped(at: CGPoint(x: 600, y: 60), velocity: CGVector(dx: 900, dy: 0), in: visible)
+        #expect(along.edge == .bottom && along.fraction > ReadingPanelPlacement.dropped(at: CGPoint(x: 600, y: 60), in: visible).fraction)
+    }
+
+    @Test
+    func dragVelocityUsesOnlyTheLastMomentBeforeRelease() {
+        var velocity = DragVelocity()
+        velocity.add(CGPoint(x: 0, y: 0), at: 10.00)
+        velocity.add(CGPoint(x: 30, y: 10), at: 10.03)
+        velocity.add(CGPoint(x: 60, y: 20), at: 10.06)
+        let moving = velocity.velocity(at: 10.07)
+        #expect(abs(moving.dx - 1000) < 1 && abs(moving.dy - 333.3) < 1)
+        #expect(velocity.velocity(at: 10.40) == .zero, "Holding still before release cancels the throw.")
+        var instant = DragVelocity()
+        instant.add(.zero, at: 5)
+        instant.add(CGPoint(x: 400, y: 0), at: 5)
+        #expect(instant.velocity(at: 5) == .zero, "Synthetic moves without elapsed time carry no speed.")
+        var fast = DragVelocity()
+        fast.add(.zero, at: 1)
+        fast.add(CGPoint(x: 900, y: 0), at: 1.02)
+        #expect(fast.velocity(at: 1.02).dx == PanelMotion.maximumSpeed)
+    }
+
+    @Test
+    func springsSettleFromTheirCurrentVelocityWithoutDecorativeOvershoot() {
+        var calm = PanelSpring(position: 0, velocity: 0, target: 100)
+        var peak: CGFloat = 0
+        var time: CGFloat = 0
+        while !calm.isSettled && time < 2 { calm.step(1.0 / 120); peak = max(peak, calm.position); time += 1.0 / 120 }
+        #expect(calm.isSettled && time < 0.8)
+        #expect(peak <= 100.5, "Critically damped: no overshoot.")
+        var handedOff = PanelSpring(position: 0, velocity: 1500, target: 100)
+        var resting = PanelSpring(position: 0, velocity: 0, target: 100)
+        handedOff.step(1.0 / 60); resting.step(1.0 / 60)
+        #expect(handedOff.position > resting.position + 15, "The release velocity continues without a seam.")
+        var flick = PanelSpring(position: 0, velocity: 2500, target: 100, dampingRatio: 0.85)
+        var flickPeak: CGFloat = 0
+        for _ in 0..<240 { flick.step(1.0 / 120); flickPeak = max(flickPeak, flick.position) }
+        #expect(flickPeak > 100 && flickPeak < 130 && flick.isSettled, "A throw may overshoot a little, then rests.")
+    }
+
+    @Test
+    func selectionFlightRespondsImmediately() {
+        var first: [Float] = [0, 0]
+        SelectionFlightWindow.timing.getControlPoint(at: 1, values: &first)
+        // Ease-out: the frame leaves the selection at once instead of hesitating.
+        #expect(first[1] > first[0] * 2)
+        #expect(SelectionFlightWindow.durationMilliseconds <= 400)
+    }
+
+    @Test
+    func edgesResistProgressivelyInsteadOfStoppingHard() {
+        #expect(PanelMotion.rubberband(0, dimension: 300) == 0)
+        let small = PanelMotion.rubberband(20, dimension: 300)
+        let large = PanelMotion.rubberband(200, dimension: 300)
+        #expect(small > 0 && small < 20)
+        #expect(large > small && large < 300 * 0.55)
+        #expect(PanelMotion.rubberband(-20, dimension: 300) == -small)
+    }
+
+    @Test
     func placementFitsEveryEdgeAndRemembersOnlyNormalizedGeometry() throws {
         let suite = "com.christopherbobel.OpenScreenReader.placement-tests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: suite))
