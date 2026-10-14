@@ -6,6 +6,8 @@ import SwiftUI
 struct ShortcutRecorder: NSViewRepresentable {
     let shortcut: ShortcutConfiguration
     let identifier: String
+    /// What the shortcut does; two recorders must not both be called "Shortcut".
+    var label = String(localized: "Shortcut")
     var onRecordingChange: (Bool) -> Void
     var onRecord: (ShortcutConfiguration) -> Void
     var onRejected: () -> Void
@@ -20,6 +22,7 @@ struct ShortcutRecorder: NSViewRepresentable {
     func updateNSView(_ field: ShortcutRecorderField, context: Context) {
         field.shortcut = shortcut
         field.isEnabled = context.environment.isEnabled
+        field.setAccessibilityLabel(label)
         field.onRecordingChange = onRecordingChange
         field.onRecord = onRecord
         field.onRejected = onRejected
@@ -135,8 +138,10 @@ final class ShortcutRecorderField: NSView {
     private func refresh() {
         setAccessibilityValue(isRecording ? String(localized: "Recording. Type the new shortcut or press Escape.") : shortcut.displayName)
         setAccessibilityHelp(String(localized: "Click, then type a new shortcut."))
+        NSAccessibility.post(element: self, notification: .valueChanged)
         needsDisplay = true
     }
+    override func isAccessibilityEnabled() -> Bool { isEnabled }
 
     override func draw(_ dirtyRect: NSRect) {
         let shape = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 6, yRadius: 6)

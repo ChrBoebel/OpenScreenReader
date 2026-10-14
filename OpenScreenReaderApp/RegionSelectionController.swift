@@ -232,6 +232,10 @@ final class RegionSelectionOverlayController: NSObject, RegionSelectionControlli
             panels.forEach { $0.animator().alphaValue = 1 }
         }
         (panels.first { $0.frame.contains(pointer) } ?? panels.first)?.makeKey()
+        // Saywing stays inactive, so VoiceOver focus does not move to the overlay by itself.
+        NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested, userInfo: [
+            .announcement: String(localized: "Select a screen region. Return reads the paragraph under the pointer; Escape cancels."),
+        ])
         if !panels.isEmpty {
             NSCursor.crosshair.push()
             cursorIsPushed = true
@@ -360,8 +364,8 @@ private final class SelectionOverlayView: NSView {
 
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
-        setAccessibilityLabel("Screen region selection")
-        setAccessibilityHelp(String(localized: "Drag over the text to read, or click a paragraph. Hold Space to move the selection, Shift to lock an edge, Option to grow it from the centre. Press Escape to cancel."))
+        setAccessibilityLabel(String(localized: "Screen region selection"))
+        setAccessibilityHelp(String(localized: "Drag over the text to read, click a paragraph, or press Return to read the paragraph under the pointer. Hold Space to move the selection, Shift to lock an edge, Option to grow it from the centre. Press Escape to cancel."))
         if showsHint { addHint(screen: screen) }
     }
 
@@ -447,6 +451,11 @@ private final class SelectionOverlayView: NSView {
         switch event.keyCode {
         case 53: onCancel()
         case 49: if !event.isARepeat { gesture?.setMoving(true) }
+        case 36, 76:
+            // Without a mouse gesture, Return reads the paragraph under the pointer, like a click.
+            guard gesture == nil, !event.isARepeat, let window, window.frame.contains(NSEvent.mouseLocation) else { return NSSound.beep() }
+            let point = convert(window.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil)
+            if let selection = geometry.clickSelection(at: point) { onSelection(selection) } else { NSSound.beep() }
         default: super.keyDown(with: event)
         }
     }
@@ -472,7 +481,12 @@ private final class SelectionOverlayView: NSView {
         context.fill(selectionRect)
         context.restoreGState()
 
-        context.setStrokeColor(NSColor(
+        // A dark outer line keeps the mint edge visible on white pages; Increase Contrast goes black and white.
+        let contrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+        context.setStrokeColor(NSColor.black.withAlphaComponent(contrast ? 1 : 0.55).cgColor)
+        context.setLineWidth(4)
+        context.stroke(selectionRect.insetBy(dx: 2, dy: 2))
+        context.setStrokeColor(contrast ? NSColor.white.cgColor : NSColor(
             calibratedRed: 0xA8 / 255,
             green: 0xD5 / 255,
             blue: 0xBD / 255,

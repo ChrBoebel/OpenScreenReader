@@ -147,10 +147,13 @@ final class MenuBarSmokeUITests: XCTestCase {
         status.click()
         app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
         openSettingsTab("General", in: app)
-        XCTAssertTrue(app.images["Saywing Quiet Owl app logo"].waitForExistence(timeout: 3))
+        // The logo is decorative and hidden from VoiceOver; the title carries the name.
+        XCTAssertTrue(app.staticTexts["Saywing"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["Read aloud and dictate on your Mac."].exists)
         openSettingsTab("Privacy", in: app)
-        for permission in ["Screen Recording", "Input Monitoring", "Microphone", "Accessibility"] {
+        // macOS 15 renamed the pane to "Screen & System Audio Recording".
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH 'Screen'")).firstMatch.waitForExistence(timeout: 3))
+        for permission in ["Input Monitoring", "Microphone", "Accessibility"] {
             XCTAssertTrue(app.staticTexts[permission].waitForExistence(timeout: 3), permission)
         }
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(

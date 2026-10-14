@@ -95,7 +95,9 @@ final class ScreenCaptureService: ScreenCapturing {
                 throw ScreenCaptureFailure.displayChanged
             }
             let ownApps = content.applications.filter { $0.processID == ProcessInfo.processInfo.processIdentifier }
-            let filter = SCContentFilter(display: target, excludingApplications: ownApps, exceptingWindows: [])
+            let readable = Self.readableWindowIDs(in: NSApp.windows)
+            let filter = SCContentFilter(display: target, excludingApplications: ownApps,
+                                         exceptingWindows: content.windows.filter { readable.contains($0.windowID) })
             if #available(macOS 14.2, *) { filter.includeMenuBar = true }
             let image = try await SCScreenshotManager.captureImage(
                 contentFilter: filter, configuration: request.makeConfiguration()
@@ -119,6 +121,12 @@ final class ScreenCaptureService: ScreenCapturing {
         }
     }
 
+    /// Saywing's own windows stay out of every capture, except a visible window
+    /// that opted in, such as setup with its sample sentence.
+    static func readableWindowIDs(in windows: [NSWindow]) -> Set<CGWindowID> {
+        Set(windows.filter { $0.identifier == .readableBySaywing && $0.isVisible }.map { CGWindowID($0.windowNumber) })
+    }
+
     static func currentDisplays() -> [DisplaySelectionGeometry] {
         NSScreen.screens.compactMap { screen in
             guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
@@ -128,4 +136,8 @@ final class ScreenCaptureService: ScreenCapturing {
                 frameInScreenPoints: screen.frame, backingScaleFactor: screen.backingScaleFactor)
         }.sorted { $0.displayID < $1.displayID }
     }
+}
+
+extension NSUserInterfaceItemIdentifier {
+    static let readableBySaywing = Self("readableBySaywing")
 }

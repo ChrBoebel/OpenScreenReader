@@ -1304,6 +1304,155 @@ struct InteractionTests {
         #expect(clipped?.rectInScreenPoints == CGRect(x: 900, y: 600, width: 100, height: 100))
         #expect(geometry.selection(from: CGPoint(x: 10, y: 10), to: CGPoint(x: 11, y: 11)) == nil)
     }
+
+    /// A missing grant opens its setup step instead of letting the user drag a
+    /// region that can only fail afterwards. Nothing is requested automatically.
+    @Test
+    func missingReadingPermissionOpensSetupBeforeSelection() async throws {
+        let suite = "com.christopherbobel.OpenScreenReader.setup-tests.\(UUID())"
+        let preferences = try #require(UserDefaults(suiteName: suite))
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let selection = RegionSelectionControllerFake()
+        final class Grants { var missing: SaywingPermission? = .screenRecording }
+        let grants = Grants()
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+                             selectionController: selection, captureService: CaptureFake(), escapeMonitor: EscapeFake(),
+                             ocrService: OCRFake(), speechService: SpeechFake(), preferences: preferences,
+                             missingReadingPermission: { grants.missing })
+        defer { model.closeSetup() }
+        model.enqueuePrimaryShortcut()
+        await model.waitForInteractionToSettle()
+        #expect(selection.startCount == 0)
+        #expect(model.isSetupOpen)
+        #expect(model.status == .ready)
+        #expect(!preferences.bool(forKey: "setupDismissed.v1"))
+        grants.missing = nil
+        model.enqueueReadRequest()
+        await model.waitForInteractionToSettle()
+        #expect(selection.startCount == 1)
+    }
+}
+
+/// Follow-ups from the Apple design review: help at the source of an error,
+/// dictation feedback where the text goes, and status in the menu bar.
+@Suite("Feedback at its source", .serialized)
+@MainActor
+struct FeedbackAtSourceTests {
+    /// The question mark explains the failure in place; setup only when a grant is missing.
+    @Test func errorHelpExplainsInPlaceAndOffersSetupOnlyForMissingGrants() throws {
+        final class Grants { var missing: SaywingPermission? }
+        let grants = Grants()
+        let suite = "com.christopherbobel.OpenScreenReader.error-help-tests.\(UUID())"
+        let preferences = try #require(UserDefaults(suiteName: suite))
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .conflict),
+                             preferences: preferences, missingReadingPermission: { grants.missing })
+        defer { model.closeSetup(); model.closeErrorHelp() }
+        #expect(model.status == .error)
+        // A taken shortcut is fixed in Settings, not by trying again.
+        #expect(model.errorHelp == .shortcut)
+        let window = NSWindow(contentRect: NSRect(x: 200, y: 200, width: 200, height: 80), styleMask: [.titled], backing: .buffered, defer: false)
+        let anchor = NSView(frame: NSRect(x: 80, y: 20, width: 40, height: 40))
+        window.contentView?.addSubview(anchor)
+        window.orderFront(nil)
+        defer { window.orderOut(nil) }
+        model.showPlaybackControls(from: anchor)
+        #expect(model.isShowingErrorHelp)
+        #expect(!model.isSetupOpen)
+        grants.missing = .inputMonitoring
+        #expect(model.errorHelp == .allow(.inputMonitoring))
+        let working = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+                               preferences: preferences)
+        #expect(working.errorHelp == .retry)
+    }
+
+    @Test func dictationCapsuleAppearsBelowTheCaretAndFallsBackToTheReadingPlace() {
+        let visible = CGRect(x: 0, y: 0, width: 1440, height: 875)
+        let docked = CGRect(x: 570, y: 4, width: 300, height: 92)
+        let size = DictationCapsuleView.surface
+        // Below the insertion point, centred on it.
+        let caret = CGRect(x: 600, y: 500, width: 2, height: 18)
+        let below = DictationCapsulePlacement.origin(caret: caret, visible: visible, docked: docked, size: size)
+        #expect(below.y + size.height <= caret.minY)
+        #expect(abs(below.x + size.width / 2 - caret.midX) < 1)
+        // Above it when there is no room below, and always on screen.
+        let low = DictationCapsulePlacement.origin(caret: CGRect(x: 1435, y: 20, width: 2, height: 18), visible: visible, docked: docked, size: size)
+        #expect(low.y >= 38)
+        #expect(low.x + size.width <= visible.maxX)
+        // Without a caret, the same place the reading control was docked.
+        let fallback = DictationCapsulePlacement.origin(caret: nil, visible: visible, docked: docked, size: size)
+        #expect(abs(fallback.x + size.width / 2 - docked.midX) < 1)
+        #expect(abs(fallback.y + size.height / 2 - docked.midY) < 1)
+        let offscreen = DictationCapsulePlacement.origin(caret: CGRect(x: 5000, y: 5000, width: 2, height: 18), visible: visible, docked: docked, size: size)
+        #expect(offscreen == fallback)
+    }
+
+    @Test func testFieldCaretIsInScreenCoordinates() {
+        let window = NSWindow(contentRect: NSRect(x: 300, y: 300, width: 300, height: 120), styleMask: [.titled], backing: .buffered, defer: false)
+        let field = NSTextView(frame: NSRect(x: 0, y: 0, width: 300, height: 120))
+        window.contentView?.addSubview(field)
+        field.string = "Hallo"
+        field.setSelectedRange(NSRange(location: 5, length: 0))
+        let caret = InsertionTarget(local: field).caretRect()
+        #expect(caret.map { window.frame.insetBy(dx: -1, dy: -1).contains(CGPoint(x: $0.midX, y: $0.midY)) } == true)
+    }
+
+    /// Dictation uses the reading cues, at the same moment as its visible result,
+    /// and never while the microphone records.
+    @Test func dictationCuesMatchItsVisibleResult() {
+        let sounds = InterfaceSoundsFake()
+        let controller = DictationController(resources: URL(fileURLWithPath: "/missing-dictation"), worker: DictationWorkerFake(),
+            shortcut: HotkeyManagerFake(registrationResult: .registered), escape: HotkeyManagerFake(registrationResult: .registered),
+            registerHotkey: false, interfaceSounds: sounds)
+        defer { controller.shutdown() }
+        controller.setStatus("Pasted", floating: true, capsuleState: .inserted)
+        controller.setStatus("Paste sent", floating: true, capsuleState: .unconfirmed)
+        controller.setStatus("Target changed", floating: true)
+        controller.setStatus("Ready", floating: false)
+        controller.phase = "recording"
+        controller.setStatus("Recording · 0 s", floating: true)
+        controller.setStatus("Notice", floating: true, capsuleState: .attention)
+        #expect(sounds.cues == [.completion, .attention, .attention])
+        controller.panel.orderOut(nil)
+    }
+
+    /// The window shows the result only when it could not be pasted.
+    @Test func dictationResultAppearsOnlyWhenNotPasted() throws {
+        let worker = DictationWorkerFake()
+        let controller = DictationController(resources: URL(fileURLWithPath: "/missing-dictation"), worker: worker,
+            shortcut: HotkeyManagerFake(registrationResult: .registered), escape: HotkeyManagerFake(registrationResult: .registered),
+            registerHotkey: false)
+        defer { controller.shutdown(); controller.panel.orderOut(nil) }
+        #expect(controller.resultSection.isHidden)
+        controller.window.makeFirstResponder(controller.scratch)
+        worker.ready = true
+        controller.receive(.init(type: "ready", version: 1))
+        try controller.begin(target: InsertionTarget(local: controller.scratch))
+        let id = try #require(controller.request)
+        controller.send(AudioPacket(samples: [0.1], rate: 16000))
+        controller.scratch.string = "Edited meanwhile"
+        controller.receive(.init(type: "result", id: id.uuidString, text: "Kept result"))
+        #expect(!controller.resultSection.isHidden)
+        #expect(controller.result.string == "Kept result")
+        try controller.begin(target: InsertionTarget(local: controller.scratch))
+        #expect(controller.resultSection.isHidden)
+        controller.cancel(restart: false)
+    }
+
+    @Test func menuBarIconShowsReadingAndAttentionByShape() throws {
+        let idle = MenuBarIcon.image(for: .idle)
+        let reading = MenuBarIcon.image(for: .reading)
+        let attention = MenuBarIcon.image(for: .attention)
+        for image in [idle, reading, attention] { #expect(image.isTemplate) }
+        let pngs = try [idle, reading, attention].map { image in
+            let tiff = try #require(image.tiffRepresentation)
+            return try #require(NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]))
+        }
+        #expect(Set(pngs).count == 3)
+        #expect(MenuBarIcon.image(for: .reading) === reading, "Images are cached, not redrawn per update")
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .conflict))
+        #expect(model.menuBarIndicator == .attention)
+    }
 }
 
 @Suite("Reading status presentation", .serialized)
@@ -2210,6 +2359,24 @@ struct DictationIntegrationTests {
             worker: worker, shortcut: HotkeyManagerFake(registrationResult: .registered), escape: escape,
             preferences: preferences ?? UserDefaults(suiteName: "com.christopherbobel.OpenScreenReader.dictation-tests")!, registerHotkey: false)
         return (controller, worker, escape)
+    }
+
+    @Test func dictationWindowFitsOnPresentationAndKeepsItsPositionOnReopen() throws {
+        let (controller, worker, _) = fixture()
+        defer { controller.window.orderOut(nil); controller.shutdown() }
+        let content = try #require(controller.window.contentView)
+        #expect(content.frame.height == 600, "Construction must not force window layout during StateObject initialization.")
+        #expect(!controller.window.isVisible)
+        worker.ready = true
+        controller.showWindow()
+        let stack = try #require(content.subviews.first as? NSStackView)
+        #expect(abs(content.frame.height - (stack.fittingSize.height + 42)) < 1)
+        controller.window.setFrameOrigin(NSPoint(x: 120, y: 150))
+        let frame = controller.window.frame
+        controller.window.orderOut(nil)
+        controller.showWindow()
+        #expect(controller.window.frame == frame)
+        #expect(controller.record == nil)
     }
 
     @Test func microphoneCallbackAcceptsBackgroundAudioAndDiscardsAfterCancel() async throws {
@@ -3133,8 +3300,19 @@ struct WindowPreviewTests {
         for tab in [SettingsTab.general, .reading, .dictation, .shortcuts, .privacy] {
             try render(SettingsView(model: model, initialTab: tab), "settings-\(tab)")
         }
-        try render(SetupView(model: model), "setup")
-        try render(PlaybackControlsView(model: model), "playback-controls")
+        for step in [SetupStep.welcome, .permission(.screenRecording), .permission(.inputMonitoring), .tryReading,
+                     .dictationOffer, .permission(.microphone), .permission(.accessibility), .tryDictation, .done] {
+            try render(SetupView(model: model, flow: SetupFlowController(model: model, permissions: PermissionStatus { _ in false }, start: step)),
+                       "setup-\(step.previewName)")
+        }
+        try render(SetupView(model: model, flow: SetupFlowController(model: model, permissions: PermissionStatus { $0 == .screenRecording },
+                                                                    start: .permission(.screenRecording))), "setup-screenRecording-granted")
+        try render(PlaybackControlsView(model: model).background(Color(nsColor: .windowBackgroundColor)), "playback-controls")
+        try render(SystemSettingsGuideView(permission: .accessibility, onClose: {}), "setup-guide")
+        let failing = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .conflict),
+                               preferences: preferences)
+        // Popovers bring their own material; offscreen they need a background to be legible.
+        try render(ReadingErrorView(model: failing).background(Color(nsColor: .windowBackgroundColor)), "reading-error-help")
         let overlay = RegionSelectionOverlayController(defaults: preferences)
         overlay.start(onSelection: { _ in }, onCancel: {})
         if let view = NSApp.windows.first(where: { $0.title == "Select Screen Region" && $0.isVisible })?.contentView,
