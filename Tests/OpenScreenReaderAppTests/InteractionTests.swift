@@ -2282,6 +2282,34 @@ struct DictationIntegrationTests {
         #expect(worker.models == [.whisperTurbo])
     }
 
+    @Test func vocabularyIsParsedPersistedAndSentWithEachRecording() throws {
+        let suite = "com.christopherbobel.OpenScreenReader.dictation-vocabulary-tests.\(UUID())"
+        let preferences = try #require(UserDefaults(suiteName: suite))
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let (controller, worker, _) = fixture(preferences: preferences)
+        defer { controller.shutdown() }
+        #expect(controller.vocabulary.isEmpty)
+        controller.setVocabulary(" Saywing \nBöbel, Owl Frame\n\nsaywing\n\(String(repeating: "x", count: 61))")
+        #expect(controller.vocabulary == ["Saywing", "Böbel", "Owl Frame"])
+        let (restored, _, _) = fixture(preferences: preferences)
+        defer { restored.shutdown() }
+        #expect(restored.vocabulary == ["Saywing", "Böbel", "Owl Frame"])
+        worker.ready = true
+        try controller.begin(target: InsertionTarget(local: controller.scratch))
+        controller.send(AudioPacket(samples: [0], rate: 16_000))
+        #expect(worker.vocabularies == [["Saywing", "Böbel", "Owl Frame"]])
+        controller.setVocabulary("")
+        #expect(controller.vocabulary.isEmpty)
+        #expect(preferences.object(forKey: "dictationVocabulary.v1") == nil)
+    }
+
+    @Test func vocabularyKeepsAtMostFiftyTerms() {
+        let terms = DictationVocabulary.parse((1...80).map { "Term \($0)" }.joined(separator: "\n"))
+        #expect(terms.count == DictationVocabulary.maximumTerms)
+        #expect(terms.first == "Term 1")
+        #expect(DictationVocabulary.parse("a\u{7}b\nok") == ["ok"])
+    }
+
     @Test func languageAndClipboardDelayArePersistedPreferences() throws {
         let suite = "com.christopherbobel.OpenScreenReader.dictation-preference-tests.\(UUID())"
         let preferences = try #require(UserDefaults(suiteName: suite))
@@ -2514,8 +2542,9 @@ private final class DictationWorkerFake: DictationTranscribing {
     func start(resources: URL, model: DictationModel) { starts += 1; running = true; models.append(model) }
     func stop() { stops += 1; ready = false; running = false }
     var languages: [String?] = []
-    func transcribe(_ audio: AudioPacket, id: UUID, language: String?) {
-        requests.append(id); lastRate = audio.rate; languages.append(language)
+    var vocabularies: [[String]] = []
+    func transcribe(_ audio: AudioPacket, id: UUID, language: String?, vocabulary: [String]) {
+        requests.append(id); lastRate = audio.rate; languages.append(language); vocabularies.append(vocabulary)
     }
 }
 

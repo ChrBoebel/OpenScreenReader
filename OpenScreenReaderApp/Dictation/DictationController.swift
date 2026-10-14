@@ -21,6 +21,7 @@ final class DictationController: NSObject, ObservableObject {
   private var modelGeneration = UUID()
   @Published private(set) var selectedModel: DictationModel
   @Published private(set) var language: DictationLanguage
+  @Published private(set) var vocabulary: [String]
   /// Two seconds instead of one before the clipboard is restored, for slow target apps.
   @Published private(set) var restoresClipboardSlowly: Bool
   var canChangeModel: Bool { !isActive && canPrepareModel }
@@ -72,6 +73,8 @@ final class DictationController: NSObject, ObservableObject {
     self.selectedModel = DictationModel(rawValue: preferences.string(forKey: "dictationModel.v1") ?? "") ?? .whisperTurbo
     self.language = DictationLanguage(rawValue: preferences.integer(forKey: "dictationLanguage.v1")) ?? .automatic
     self.restoresClipboardSlowly = preferences.bool(forKey: "dictationSlowPaste.v1")
+    self.vocabulary = DictationVocabulary.parse(
+      (preferences.stringArray(forKey: "dictationVocabulary.v1") ?? []).joined(separator: "\n"))
     self.monitorFn = registerHotkey
     super.init()
     buildWindow()
@@ -136,6 +139,14 @@ final class DictationController: NSObject, ObservableObject {
   func setLanguage(_ value: DictationLanguage) {
     language = value
     preferences.set(value.rawValue, forKey: "dictationLanguage.v1")
+  }
+  func setVocabulary(_ text: String) {
+    vocabulary = DictationVocabulary.parse(text)
+    if vocabulary.isEmpty {
+      preferences.removeObject(forKey: "dictationVocabulary.v1")
+    } else {
+      preferences.set(vocabulary, forKey: "dictationVocabulary.v1")
+    }
   }
   func setRestoresClipboardSlowly(_ value: Bool) {
     restoresClipboardSlowly = value
@@ -526,7 +537,7 @@ final class DictationController: NSObject, ObservableObject {
       floating: true)
     let lang = language.workerValue
     if worker.ready {
-      worker.transcribe(audio, id: id, language: lang)
+      worker.transcribe(audio, id: id, language: lang, vocabulary: vocabulary)
     } else {
       pendingAudio = audio
     }

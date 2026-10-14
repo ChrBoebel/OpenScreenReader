@@ -26,7 +26,7 @@ protocol DictationTranscribing: AnyObject {
   var ready: Bool { get }
   var running: Bool { get }
   func start(resources: URL, model: DictationModel)
-  func transcribe(_ audio: AudioPacket, id: UUID, language: String?)
+  func transcribe(_ audio: AudioPacket, id: UUID, language: String?, vocabulary: [String])
   func stop()
 }
 
@@ -131,7 +131,7 @@ final class DictationWorker: DictationTranscribing {
     }
   }
 
-  func transcribe(_ audio: AudioPacket, id: UUID, language: String?) {
+  func transcribe(_ audio: AudioPacket, id: UUID, language: String?, vocabulary: [String]) {
     guard ready, let input else {
       onMessage?(.init(type: "error", id: id.uuidString, message: String(localized: "The model is not ready yet.")))
       return
@@ -142,6 +142,7 @@ final class DictationWorker: DictationTranscribing {
       let request: [String: Any] = [
         "id": id.uuidString, "rate": audio.rate,
         "language": language as Any? ?? NSNull(), "pcm": bytes.base64EncodedString(),
+        "vocabulary": vocabulary,
       ]
       do {
         var encoded = try JSONSerialization.data(withJSONObject: request)
