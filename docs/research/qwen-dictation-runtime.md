@@ -31,7 +31,7 @@ Build the app, run the existing offline Supertonic packager, then attach the alr
 
 ```sh
 ruby scripts/package-development-app.rb /absolute/Release/Saywing.app --development-only
-python3 scripts/bundle-dictation-runtime.py /absolute/staged/Saywing.app /absolute/existing/DictationResources --whisper-model /absolute/verified/WhisperTurbo --development-only
+python3 scripts/bundle-dictation-runtime.py /absolute/staged/Saywing.app /absolute/existing/DictationResources --whisper-model /absolute/verified/WhisperTurbo [--with-qwen] [--whisper-large-model /absolute/verified/WhisperLargeV3] --development-only
 ```
 
 Alternatively, pass `--speech-from /Applications/Saywing.app` to the dictation packager with a fresh built app to reuse an already bundled Speech runtime. It verifies that app’s signature, receipt, revision and worker before copying; this avoids depending on a changed development-venv interpreter. Build-time pkgconfig and manual-alias symlinks are omitted from Python resources.

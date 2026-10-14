@@ -1,5 +1,43 @@
 # Geführte Einrichtung — Verifikation
 
+## Integration mit PR #6 — 2026-10-14
+
+`main` bei `e968ddb` wurde in den bestehenden PR-Branch integriert, ohne dessen
+veröffentlichte Historie umzuschreiben. Die Konflikte im Diktiercontroller und im
+String-Katalog sind aufgelöst: gemeinsame Hinweisklänge und geführte Einrichtung
+bleiben zusammen mit dem Modell-Store, den bestätigten Modellinstallationen und
+allen neuen Übersetzungen erhalten.
+
+Der zuvor nur lokal vorhandene Startup-Fix ist ebenfalls übernommen: Das
+Diktierfenster wird erst beim Öffnen explizit eingepasst und einmalig zentriert,
+damit AppKit während der SwiftUI-`StateObject`-Initialisierung kein Layout erzwingt.
+Spätere Öffnungen erhalten die Fensterposition; das dynamische Einpassen des
+Ergebnisbereichs bleibt bestehen. Der neue Regressionstest schlug vor dem Fix
+fehl und besteht danach; er prüft auch, dass keine Mikrofonaufnahme startet.
+
+Tatsächlich auf dem integrierten Stand ausgeführt:
+
+- Native App-Tests: **173 Tests in 12 Suites bestanden**. Zwei zusätzliche
+  berechtigungsabhängige XCTest-Prüfungen wurden wegen fehlender Bildschirmaufnahme
+  und Eingabeüberwachung übersprungen; der ausdrücklich aktivierbare
+  Live-Modelldownload-Test blieb deaktiviert.
+- `swift test`: **1 Test bestanden**.
+- Python-Protokolltests mit der vorhandenen gebündelten Python-Runtime:
+  **19 Tests bestanden**. Keine Modellinferenz und kein Download.
+- `scripts/check-localization.py` und `git diff --check`: bestanden.
+- Unsigned Release-Build: **BUILD SUCCEEDED**.
+- Nativer UI-Test `testSettingsExplainCapturePrivacyAndPermissionActions`:
+  **bestanden** (Allgemein-/Datenschutz-Einstellungen und Berechtigungsanzeige).
+- Der gebaute Release-Prozess blieb sowohl beim normalen Start als auch mit
+  `--dictation-setup` fünf Sekunden aktiv und wurde anschließend gezielt beendet.
+  Diese Starts verwendeten keine Testhost-Flags und ersetzen keine Prüfung mit
+  vollständig gebündelten Modellen. Die installierte App wurde nicht ersetzt.
+
+Die unten aufgeführten manuellen Freigabe-, VoiceOver-, Ziel-App- und
+Distributionsprüfungen bleiben offen. Die UI-Test-Ausführung oben ersetzt nur
+die frühere Einschränkung für diesen einen Smoke-Test. Lokale Logs liegen unter
+`/tmp/saywing-pr5-*.log`.
+
 Stand 14.10.2026, Branch `codex/guided-setup`. Grundlage ist der Vorschlag nach dem [Apple-Design-Skill von Emil Kowalski](https://github.com/emilkowalski/skills/blob/main/skills/apple-design/SKILL.md), den der Eigentümer zur Umsetzung freigegeben hat. Die Prinzipien wurden auf SwiftUI/AppKit übertragen; kein fremder Code wurde übernommen. Verhalten und Gestaltung: [UX-Anforderungen › Geführte Einrichtung](ux-requirements.md#geführte-einrichtung).
 
 ## Korrigierter Widerspruch

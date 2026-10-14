@@ -28,6 +28,19 @@ Der MVP-Runtimepfad darf keine Netzwerkverbindung benötigen oder selbstständig
 
 Updateprüfungen sind später nur transparent und abschaltbar zulässig. Eine fehlende Verbindung darf den lokalen Betrieb nicht blockieren.
 
+**Ausnahme Diktiermodelle (Eigentümerentscheidung 2026-10-14):** Builds bringen nur
+Whisper Turbo mit. Qwen3-ASR und Whisper Large v3 lädt die App ausschließlich, wenn
+der Nutzer in Einstellungen → Diktieren „… installieren“ wählt und den Dialog mit
+Größe und Quelle bestätigt. Dann ruft die App per HTTPS nur die im mitgelieferten
+Manifest gepinnte Hugging-Face-Revision ab; Weiterleitungen sind nur zu
+`huggingface.co`/`*.hf.co` erlaubt. Die Anfrage enthält keine Nutzerdaten, keine
+Cookies und keinen Cache. Jede Datei wird vor der Nutzung gegen Größe und SHA-256
+aus dem Manifest geprüft und erst danach nach
+`~/Library/Application Support/Saywing/DictationModels` verschoben; Abbruch oder
+Prüffehler hinterlassen nichts. Lizenztexte stammen aus dem App-Bundle. Der
+Diktier-Worker selbst bleibt ohne Netzwerk und prüft die Hashes beim Laden erneut.
+Kein automatischer Download, kein Download beim Start, kein Fallback.
+
 ## Speicher- und Lebenszyklus
 
 - Die neue explizit geöffnete Wiedergabeansicht darf bis zu 100 Zeichen je wartendem Text anzeigen. Die geschlossene Kapsel bleibt textfrei. Einträge werden über flüchtige UUIDs bearbeitet; Entfernen/Umsortieren ersetzt gegebenenfalls auch das vorbereitete Audio. Stop leert weiterhin alles und schließt die Ansicht. Pause hält nur die vorhandenen begrenzten RAM-Puffer und die aktive Sitzung, ohne Dateien zu schreiben. Einrichtung speichert ausschließlich `setupDismissed.v1`, niemals ein angeblich bestandenes Berechtigungsergebnis oder einen Fortschritt; der Schritt wird bei jedem Öffnen aus den aktuellen Freigaben abgeleitet.
@@ -84,7 +97,7 @@ Nicht verwendet werden sollen absolute, nicht beweisbare Aussagen wie „100 % s
 
 ## Diktieren — Freigabe 2026-10-13
 
-Mikrofonfreigabe und Aufnahme sind getrennte Aktionen. Kein Mikrofonstart beim App-Start, Laden oder Freigeben. Maximal 60 s PCM bleiben im RAM und laufen über anonyme Pipes an das ausgewählte lokale Diktiermodell. Der Worker hat ein OS-Verbot für Netzwerk und Dateischreiben (außer `/dev/null`). Er lädt ausschließlich mitgelieferte, hashgeprüfte Modelle; kein Cloud- oder Entwicklerpfad-Fallback. Modellauswahl, Sprache und Restore-Verzögerung sind die gespeicherten Diktiereinstellungen. Das sichtbare letzte Ergebnis/Testfeld bleibt bis Verwerfen/Leeren/Beenden im RAM, ohne Verlauf.
+Mikrofonfreigabe und Aufnahme sind getrennte Aktionen. Kein Mikrofonstart beim App-Start, Laden oder Freigeben. Maximal 60 s PCM bleiben im RAM und laufen über anonyme Pipes an das ausgewählte lokale Diktiermodell. Der Worker hat ein OS-Verbot für Netzwerk und Dateischreiben (außer `/dev/null`). Er lädt ausschließlich mitgelieferte oder ausdrücklich installierte, hashgeprüfte Modelle; kein Cloud- oder Entwicklerpfad-Fallback. Modellauswahl, Sprache und Restore-Verzögerung sind die gespeicherten Diktiereinstellungen. Das sichtbare letzte Ergebnis/Testfeld bleibt bis Verwerfen/Leeren/Beenden im RAM, ohne Verlauf.
 
 Beim Diktat werden Feldinhalt und Cursorposition, sofern verfügbar, nur zur Zielvalidierung im RAM gehalten. Passwortfelder und nicht erkannte Felder werden abgewiesen. Alle lesbaren Clipboard-Formate werden vor dem Einfügen bis 16 MiB gesichert; nicht vollständig sicherbare Daten verhindern automatisches Einfügen. Eine neue Kopie hat Vorrang. Abbruch/normaler App-Exit stellt eine noch eigene Zwischenablage sofort wieder her; ein harter Absturz im kurzen Einfügefenster kann dies verhindern. Clipboard-Manager können den Text trotz Concealed-Kennzeichnung sehen. Die manuelle Aktion „Ergebnis kopieren“ behält die ausdrücklich angeforderte Kopie.
 
@@ -96,13 +109,16 @@ Auf Wunsch des Eigentümers unterstützt Diktieren Fn-Halten, Fn-Doppeldruck und
 
 ## Auswahl des Diktiermodells — 2026-10-13
 
-Qwen3-ASR und Whisper Turbo verwenden dieselbe Offline-Sandbox und die bestehende
+Qwen3-ASR, Whisper Turbo und Whisper Large v3 verwenden dieselbe Offline-Sandbox und die bestehende
 flüchtige Audio-/Clipboard-Pipeline. `dictationModel.v1` speichert nur die Wahl des
 Modells. Laden und Wechsel starten kein Mikrofon. Fehlende oder beschädigte
-Modelldateien erzeugen einen sichtbaren Fehler; die App lädt nichts aus dem Netz
-und wechselt nicht automatisch auf einen anderen Provider. Wechsel invalidieren
-Callbacks des alten Workers. [Quelle, Revision, Prüfsummen und Lizenz von Whisper
-Turbo](research/whisper-turbo-dictation.md).
+Modelldateien erzeugen einen sichtbaren Fehler; die App lädt nichts automatisch aus
+dem Netz und wechselt nicht automatisch auf einen anderen Provider. Nicht
+mitgelieferte Modelle werden nur nach ausdrücklicher Bestätigung installiert (siehe
+„Netzwerkzugriffe“). Wechsel invalidieren
+Callbacks des alten Workers. Quelle, Revision, Prüfsummen und Lizenz von [Whisper
+Turbo](research/whisper-turbo-dictation.md) und [Whisper Large
+v3](research/whisper-large-v3-dictation.md).
 
 ## Standardmodell und eigenes Vokabular — 2026-10-14
 

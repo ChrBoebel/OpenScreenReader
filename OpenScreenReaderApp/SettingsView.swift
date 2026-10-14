@@ -7,22 +7,29 @@ enum SettingsTab: Hashable { case general, reading, dictation, shortcuts, privac
 /// Dictation preferences live here; the dictation window is only for trying it out.
 struct DictationSettingsSection: View {
     @ObservedObject var controller: DictationController
+    @ObservedObject private var models: DictationModelStore
+    @State private var pendingInstall: DictationModel?
     /// Edited as free text; the controller keeps only the parsed terms.
     @State private var vocabularyText: String
 
     init(controller: DictationController) {
         self.controller = controller
+        _models = ObservedObject(wrappedValue: controller.models)
         _vocabularyText = State(initialValue: controller.vocabulary.joined(separator: "\n"))
     }
 
     var body: some View {
         Form {
             Section {
-                Picker("Model", selection: Binding(get: { controller.selectedModel }, set: { controller.selectModel($0) })) {
-                    ForEach(DictationModel.allCases, id: \.self) { Text($0.displayName).tag($0) }
+                Picker("Model", selection: Binding(get: { controller.selectedModel }, set: { choose($0) })) {
+                    ForEach(DictationModel.allCases, id: \.self) { model in
+                        Text(models.isInstalled(model) ? model.displayName
+                             : String(localized: "Install \(model.displayName)… (\(downloadSize(model)))")).tag(model)
+                    }
                 }
                 .disabled(!controller.canChangeModel)
                 .accessibilityIdentifier("dictationModel")
+                ForEach(DictationModel.allCases, id: \.self) { model in installRow(model) }
                 Picker("Language", selection: Binding(get: { controller.language }, set: { controller.setLanguage($0) })) {
                     ForEach(DictationLanguage.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
@@ -61,6 +68,58 @@ struct DictationSettingsSection: View {
         }
         .formStyle(.grouped)
         .fixedSize(horizontal: false, vertical: true)
+        .confirmationDialog(
+            String(localized: "Install \(pendingInstall?.displayName ?? "")?"),
+            isPresented: Binding(get: { pendingInstall != nil }, set: { if !$0 { pendingInstall = nil } })
+        ) {
+            Button("Download and Install") {
+                if let model = pendingInstall { controller.install(model) }
+                pendingInstall = nil
+            }
+            Button("Cancel", role: .cancel) { pendingInstall = nil }
+        } message: {
+            Text("Saywing downloads about \(pendingInstall.map { downloadSize($0) } ?? "") once from Hugging Face and checks every file. Your recordings and text are never sent; dictation stays on this Mac.")
+        }
+    }
+
+    /// Installed models switch immediately; missing ones are only downloaded after confirmation.
+    private func choose(_ model: DictationModel) {
+        if models.isInstalled(model) {
+            controller.selectModel(model)
+        } else if models.availability[model] == .notInstalled || isFailed(model) {
+            pendingInstall = model
+        }
+    }
+
+    private func isFailed(_ model: DictationModel) -> Bool {
+        if case .failed = models.availability[model] { return true }
+        return false
+    }
+
+    private func downloadSize(_ model: DictationModel) -> String {
+        ByteCountFormatter.string(fromByteCount: models.downloadSize(of: model) ?? 0, countStyle: .file)
+    }
+
+    @ViewBuilder private func installRow(_ model: DictationModel) -> some View {
+        switch models.availability[model] {
+        case .installing(let fraction):
+            LabeledContent(String(localized: "Installing \(model.displayName)…")) {
+                HStack {
+                    ProgressView(value: fraction).frame(width: 140)
+                        .accessibilityLabel(String(localized: "Download progress"))
+                    Button("Cancel") { controller.cancelInstall(model) }
+                }
+            }
+        case .failed(let message):
+            LabeledContent(String(localized: "\(model.displayName) not installed")) {
+                HStack {
+                    Text(message).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    Button("Try Again") { controller.install(model) }
+                }
+            }
+        default:
+            EmptyView()
+        }
     }
 }
 
@@ -218,6 +277,7 @@ struct SettingsView: View {
         Form {
             Section {
                 Label("Text recognition, speech and dictation run on this Mac. Nothing is sent to a server.", systemImage: "lock.laptopcomputer")
+                Label("Additional dictation models are downloaded from Hugging Face only when you choose to install one.", systemImage: "arrow.down.circle")
                 Label("Screenshots, recognized text and audio are never saved.", systemImage: "externaldrive.badge.xmark")
                 Label("Reading never touches the clipboard. Dictation uses it briefly to paste and then restores it.", systemImage: "doc.on.clipboard")
             }

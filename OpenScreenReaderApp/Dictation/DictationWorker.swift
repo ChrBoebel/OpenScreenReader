@@ -25,7 +25,8 @@ protocol DictationTranscribing: AnyObject {
   var onMessage: ((DictationWorkerMessage) -> Void)? { get set }
   var ready: Bool { get }
   var running: Bool { get }
-  func start(resources: URL, model: DictationModel)
+  /// `modelRoot` holds an installed model's folder; `nil` uses the bundled one.
+  func start(resources: URL, model: DictationModel, modelRoot: URL?)
   func transcribe(_ audio: AudioPacket, id: UUID, language: String?, vocabulary: [String])
   func stop()
 }
@@ -42,7 +43,7 @@ final class DictationWorker: DictationTranscribing {
   private(set) var ready = false
   var running: Bool { process?.isRunning ?? false }
 
-  func start(resources: URL, model: DictationModel) {
+  func start(resources: URL, model: DictationModel, modelRoot: URL?) {
     stop()
     let token = UUID()
     session = token
@@ -56,7 +57,7 @@ final class DictationWorker: DictationTranscribing {
       resources.appendingPathComponent("Python/bin/python3").path, "-I", "-B", "-u",
       resources.appendingPathComponent("worker.py").path,
       "--model", model.rawValue,
-    ]
+    ] + (modelRoot.map { ["--model-root", $0.path] } ?? [])
     child.currentDirectoryURL = resources
     child.environment = [
       "PATH": "/usr/bin:/bin", "HOME": resources.path,

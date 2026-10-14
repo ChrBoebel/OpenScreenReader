@@ -32,6 +32,7 @@
 		AA2000000000000000000002 = {isa = PBXBuildFile; fileRef = AA1000000000000000000002; };
 		AA2000000000000000000003 = {isa = PBXBuildFile; fileRef = AA1000000000000000000003; };
 		AA2000000000000000000004 = {isa = PBXBuildFile; fileRef = AA1000000000000000000004; };
+		AA2000000000000000000005 = {isa = PBXBuildFile; fileRef = AA1000000000000000000005; };
 		BB2000000000000000000001 /* Permissions.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB1000000000000000000001 /* Permissions.swift */; };
 		C52000000000000000000001 /* SetupFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = C51000000000000000000001 /* SetupFlow.swift */; };
 		C52000000000000000000002 /* SetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C51000000000000000000002 /* SetupView.swift */; };
@@ -86,6 +87,7 @@
 		AA1000000000000000000002 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Dictation/DictationWorker.swift; sourceTree = "<group>"; };
 		AA1000000000000000000003 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Dictation/DictationController.swift; sourceTree = "<group>"; };
 		AA1000000000000000000004 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Dictation/DictationCapsuleView.swift; sourceTree = "<group>"; };
+		AA1000000000000000000005 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Dictation/DictationModelStore.swift; sourceTree = "<group>"; };
 		BB1000000000000000000001 /* Permissions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Permissions.swift; sourceTree = "<group>"; };
 		C51000000000000000000001 /* SetupFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupFlow.swift; sourceTree = "<group>"; };
 		C51000000000000000000002 /* SetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupView.swift; sourceTree = "<group>"; };
@@ -151,6 +153,7 @@
 				C51000000000000000000002 /* SetupView.swift */,
 				AA1000000000000000000003,
 				AA1000000000000000000004,
+				AA1000000000000000000005,
 				AA1000000000000000000002,
 				AA1000000000000000000001,
 				AA1000000000000000000000,
@@ -339,6 +342,7 @@
 				C52000000000000000000002 /* SetupView.swift in Sources */,
 				AA2000000000000000000003,
 				AA2000000000000000000004,
+				AA2000000000000000000005,
 				AA2000000000000000000002,
 				AA2000000000000000000001,
 				AA2000000000000000000000,
