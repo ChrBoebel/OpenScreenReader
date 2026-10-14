@@ -1,6 +1,16 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "%@ is in use by another app; choose another shortcut in Settings.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ wird von einer anderen App verwendet. Wähle in den Einstellungen einen anderen Kurzbefehl."
+          }
+        }
+      }
+    },
     "%@ loads automatically and stays ready while Saywing is open.": {
       "localizations": {
         "de": {
@@ -17,6 +27,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ kann einen vertrauten Befehl in anderen Apps ersetzen, solange Saywing läuft. Trotzdem verwenden?"
+          }
+        }
+      }
+    },
+    "%@ not installed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ nicht installiert"
           }
         }
       }
@@ -71,6 +91,26 @@
         }
       }
     },
+    "A downloaded model file did not match its pinned checksum.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine geladene Modelldatei stimmt nicht mit ihrer festgelegten Prüfsumme überein."
+          }
+        }
+      }
+    },
+    "Access is allowed. Use the test to check that everything works.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Zugriff ist erlaubt. Prüfe mit dem Test, ob alles funktioniert."
+          }
+        }
+      }
+    },
     "Accessibility": {
       "localizations": {
         "de": {
@@ -87,6 +127,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Bedienungshilfen nicht freigegeben – Text kann nur in dieses Fenster eingefügt werden."
+          }
+        }
+      }
+    },
+    "Activity": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktivität"
           }
         }
       }
@@ -127,6 +177,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Zur Warteschlange hinzugefügt."
+          }
+        }
+      }
+    },
+    "Additional dictation models are downloaded from Hugging Face only when you choose to install one.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weitere Diktiermodelle werden nur dann von Hugging Face geladen, wenn du eines installierst."
           }
         }
       }
@@ -181,6 +241,16 @@
         }
       }
     },
+    "Allow access in System Settings, then return here. Saywing checks automatically.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erlaube den Zugriff in den Systemeinstellungen und kehre hierher zurück. Saywing prüft die Freigabe automatisch."
+          }
+        }
+      }
+    },
     "Allow the microphone": {
       "localizations": {
         "de": {
@@ -221,6 +291,26 @@
         }
       }
     },
+    "Already allowed access, but it still does not work?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zugriff schon erlaubt, aber es funktioniert noch nicht?"
+          }
+        }
+      }
+    },
+    "Also dictate with Fn": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auch mit Fn diktieren"
+          }
+        }
+      }
+    },
     "Audio and text stay in memory until you discard them or quit. Pasting briefly uses the clipboard and then restores it, unless you copied something newer. Up to 60 seconds per recording.": {
       "localizations": {
         "de": {
@@ -247,6 +337,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Automatisch (Deutsch / Englisch)"
+          }
+        }
+      }
+    },
+    "Back": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zurück"
           }
         }
       }
@@ -341,6 +441,16 @@
         }
       }
     },
+    "Checking model files…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modelldateien werden geprüft …"
+          }
+        }
+      }
+    },
     "Choose a key and at least Command, Option, or Control. Escape is reserved for cancellation.": {
       "localizations": {
         "de": {
@@ -381,12 +491,32 @@
         }
       }
     },
+    "Choose your shortcuts": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle deine Kurzbefehle"
+          }
+        }
+      }
+    },
     "Clear": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Leeren"
+          }
+        }
+      }
+    },
+    "Click a shortcut field and press your combination. Escape cancels the change; activation shortcuts are paused while you choose.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klicke auf ein Kurzbefehl-Feld und drücke deine Tastenkombination. Escape bricht die Änderung ab. Während der Auswahl sind die Aktivierungskurzbefehle ausgesetzt."
           }
         }
       }
@@ -461,6 +591,16 @@
         }
       }
     },
+    "Continue": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weiter"
+          }
+        }
+      }
+    },
     "Control position": {
       "localizations": {
         "de": {
@@ -491,6 +631,26 @@
         }
       }
     },
+    "Dictate into other apps": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In andere Apps diktieren"
+          }
+        }
+      }
+    },
+    "Dictate · %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diktieren · %@"
+          }
+        }
+      }
+    },
     "Dictate, release to paste": {
       "localizations": {
         "de": {
@@ -511,6 +671,16 @@
         }
       }
     },
+    "Dictation Settings…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diktiereinstellungen…"
+          }
+        }
+      }
+    },
     "Dictation is not available in this build.": {
       "localizations": {
         "de": {
@@ -521,22 +691,22 @@
         }
       }
     },
+    "Dictation on your Mac": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diktieren auf deinem Mac"
+          }
+        }
+      }
+    },
     "Dictation paused": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Diktieren pausiert"
-          }
-        }
-      }
-    },
-    "Dictation Settings…": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Diktiereinstellungen…"
           }
         }
       }
@@ -621,6 +791,56 @@
         }
       }
     },
+    "Download %@ from Hugging Face (%@). Every file is checked before use. Recordings and text stay on your Mac.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lade %@ von Hugging Face (%@). Jede Datei wird vor der Verwendung geprüft. Aufnahmen und Text bleiben auf deinem Mac."
+          }
+        }
+      }
+    },
+    "Download and Install": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Laden und installieren"
+          }
+        }
+      }
+    },
+    "Download progress": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Download-Fortschritt"
+          }
+        }
+      }
+    },
+    "Downloading %@…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ wird geladen …"
+          }
+        }
+      }
+    },
+    "Download…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Laden …"
+          }
+        }
+      }
+    },
     "Drag over text or click a paragraph  ·  Space moves  ·  Esc cancels": {
       "localizations": {
         "de": {
@@ -651,6 +871,26 @@
         }
       }
     },
+    "Enables Fn dictation and pastes text into the app you were using.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ermöglicht Diktieren mit Fn und fügt Text in die zuvor verwendete App ein."
+          }
+        }
+      }
+    },
+    "Entirely on this Mac": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alles lokal auf diesem Mac"
+          }
+        }
+      }
+    },
     "Error": {
       "localizations": {
         "de": {
@@ -667,6 +907,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Esc"
+          }
+        }
+      }
+    },
+    "Escape always stops reading or discards dictation.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escape stoppt jederzeit das Vorlesen oder verwirft das Diktat."
           }
         }
       }
@@ -731,6 +981,26 @@
         }
       }
     },
+    "Finish Setup": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einrichtung abschließen"
+          }
+        }
+      }
+    },
+    "Finish or stop the current activity before restarting.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beende oder stoppe den laufenden Vorgang vor dem Neustart."
+          }
+        }
+      }
+    },
     "Finish recording and paste": {
       "localizations": {
         "de": {
@@ -747,6 +1017,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Schließe die aktuelle Auswahl oder Erkennung ab, bevor du einen weiteren Text hinzufügst."
+          }
+        }
+      }
+    },
+    "Fn is not available; use %@.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fn ist nicht verfügbar. Verwende %@."
           }
         }
       }
@@ -811,12 +1091,32 @@
         }
       }
     },
+    "Hold Fn to dictate and release to paste, or use %@ to start and finish. Escape discards.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Halte Fn zum Diktieren gedrückt und lasse die Taste zum Einfügen los. Oder nutze %@ zum Starten und Beenden. Escape verwirft das Diktat."
+          }
+        }
+      }
+    },
     "Hold Fn to dictate, or press Fn twice for hands-free. The model loads automatically.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Fn halten zum Diktieren, zweimal Fn für freihändig. Das Modell lädt automatisch."
+          }
+        }
+      }
+    },
+    "Hold Fn to speak and release to paste. Press Fn twice for hands-free dictation.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Halte Fn zum Sprechen gedrückt und lasse die Taste zum Einfügen los. Drücke Fn zweimal, um freihändig zu diktieren."
           }
         }
       }
@@ -841,6 +1141,26 @@
         }
       }
     },
+    "If macOS asks you to quit and reopen Saywing, you will continue here afterward.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Falls macOS dich auffordert, Saywing zu beenden und erneut zu öffnen, geht es danach hier weiter."
+          }
+        }
+      }
+    },
+    "Included with Saywing": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In Saywing enthalten"
+          }
+        }
+      }
+    },
     "Input Monitoring": {
       "localizations": {
         "de": {
@@ -851,12 +1171,52 @@
         }
       }
     },
+    "Install %@?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ installieren?"
+          }
+        }
+      }
+    },
+    "Install %@… (%@)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ installieren… (%@)"
+          }
+        }
+      }
+    },
+    "Installed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installiert"
+          }
+        }
+      }
+    },
     "Installed for local development": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Für lokale Entwicklung installiert"
+          }
+        }
+      }
+    },
+    "Installing %@…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ wird installiert…"
           }
         }
       }
@@ -881,6 +1241,16 @@
         }
       }
     },
+    "Last Result": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Letztes Ergebnis"
+          }
+        }
+      }
+    },
     "Last dictation result": {
       "localizations": {
         "de": {
@@ -891,12 +1261,12 @@
         }
       }
     },
-    "Last Result": {
+    "Later": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Letztes Ergebnis"
+            "value": "Später"
           }
         }
       }
@@ -1131,6 +1501,16 @@
         }
       }
     },
+    "Not enough free disk space for this model.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Für dieses Modell ist nicht genug Speicherplatz frei."
+          }
+        }
+      }
+    },
     "Not installed": {
       "localizations": {
         "de": {
@@ -1161,6 +1541,26 @@
         }
       }
     },
+    "Open Setup…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einrichtung öffnen…"
+          }
+        }
+      }
+    },
+    "Open System Settings": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Systemeinstellungen öffnen"
+          }
+        }
+      }
+    },
     "Open details in the dictation window": {
       "localizations": {
         "de": {
@@ -1181,16 +1581,6 @@
         }
       }
     },
-    "Open Setup…": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Einrichtung öffnen…"
-          }
-        }
-      }
-    },
     "Open some text in another app, then select a sentence. Press Escape while it reads.": {
       "localizations": {
         "de": {
@@ -1201,22 +1591,22 @@
         }
       }
     },
-    "Open System Settings": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Systemeinstellungen öffnen"
-          }
-        }
-      }
-    },
     "Optional. Pressing the reading shortcut again already adds a region.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Optional. Der Vorlese-Kurzbefehl fügt bei erneutem Drücken bereits einen Bereich hinzu."
+          }
+        }
+      }
+    },
+    "Other Models": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weitere Modelle"
           }
         }
       }
@@ -1291,22 +1681,22 @@
         }
       }
     },
-    "Pause becomes available when playback starts": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pause ist verfügbar, sobald die Wiedergabe startet"
-          }
-        }
-      }
-    },
     "Pause Reading": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Vorlesen pausieren"
+          }
+        }
+      }
+    },
+    "Pause becomes available when playback starts": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pause ist verfügbar, sobald die Wiedergabe startet"
           }
         }
       }
@@ -1341,22 +1731,22 @@
         }
       }
     },
-    "Playback and queue · %lld waiting": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wiedergabe und Warteschlange · %lld wartend"
-          }
-        }
-      }
-    },
     "Playback Controls…": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Wiedergabesteuerung…"
+          }
+        }
+      }
+    },
+    "Playback and queue · %lld waiting": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiedergabe und Warteschlange · %lld wartend"
           }
         }
       }
@@ -1441,6 +1831,16 @@
         }
       }
     },
+    "Press %@ to start dictating and press it again to paste. Escape discards.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drücke %@ zum Diktieren und erneut zum Einfügen. Escape verwirft das Diktat."
+          }
+        }
+      }
+    },
     "Press Fn twice": {
       "localizations": {
         "de": {
@@ -1521,32 +1921,12 @@
         }
       }
     },
-    "Read aloud and dictate on your Mac.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vorlesen und Diktieren auf deinem Mac."
-          }
-        }
-      }
-    },
     "Read Now": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Jetzt lesen"
-          }
-        }
-      }
-    },
-    "Read screen region": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bildschirmbereich vorlesen"
           }
         }
       }
@@ -1561,12 +1941,42 @@
         }
       }
     },
+    "Read aloud and dictate on your Mac.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorlesen und Diktieren auf deinem Mac."
+          }
+        }
+      }
+    },
+    "Read screen region": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildschirmbereich vorlesen"
+          }
+        }
+      }
+    },
     "Read screen text aloud and dictate – entirely on this Mac.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Bildschirmtext vorlesen und diktieren – vollständig auf diesem Mac."
+          }
+        }
+      }
+    },
+    "Read text from your screen": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Text auf deinem Bildschirm vorlesen"
           }
         }
       }
@@ -1811,6 +2221,16 @@
         }
       }
     },
+    "Restart and Continue": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neu starten und fortfahren"
+          }
+        }
+      }
+    },
     "Restore Default": {
       "localizations": {
         "de": {
@@ -1841,7 +2261,7 @@
         }
       }
     },
-    "Resume reading": {
+    "Resume Reading": {
       "localizations": {
         "de": {
           "stringUnit": {
@@ -1851,7 +2271,7 @@
         }
       }
     },
-    "Resume Reading": {
+    "Resume reading": {
       "localizations": {
         "de": {
           "stringUnit": {
@@ -1911,6 +2331,16 @@
         }
       }
     },
+    "Saywing could not restart. Quit and reopen it to continue here.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saywing konnte nicht neu starten. Beende und öffne die App erneut, um hier fortzufahren."
+          }
+        }
+      }
+    },
     "Saywing dictation: %@": {
       "localizations": {
         "de": {
@@ -1931,12 +2361,12 @@
         }
       }
     },
-    "Saywing Quiet Owl app logo": {
+    "Saywing downloads about %@ once from Hugging Face and checks every file. Your recordings and text are never sent; dictation stays on this Mac.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Saywing-Logo (Eule)"
+            "value": "Saywing lädt einmalig etwa %@ von Hugging Face und prüft jede Datei. Deine Aufnahmen und Texte werden nie gesendet; das Diktieren bleibt auf diesem Mac."
           }
         }
       }
@@ -1947,6 +2377,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Saywing-Einstellungen"
+          }
+        }
+      }
+    },
+    "Saywing text-to-voice app logo": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saywing-Logo: Text und Stimme"
           }
         }
       }
@@ -1991,6 +2431,16 @@
         }
       }
     },
+    "Select Screen Region": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildschirmbereich auswählen"
+          }
+        }
+      }
+    },
     "Select a region with text.": {
       "localizations": {
         "de": {
@@ -2021,12 +2471,12 @@
         }
       }
     },
-    "Select Screen Region": {
+    "Selected": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bildschirmbereich auswählen"
+            "value": "Ausgewählt"
           }
         }
       }
@@ -2047,6 +2497,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Einrichten & testen…"
+          }
+        }
+      }
+    },
+    "Set Up Dictation": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diktieren einrichten"
           }
         }
       }
@@ -2131,6 +2591,36 @@
         }
       }
     },
+    "Show Model": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modell anzeigen"
+          }
+        }
+      }
+    },
+    "Size unavailable": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Größe nicht verfügbar"
+          }
+        }
+      }
+    },
+    "Skip for Now": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorerst überspringen"
+          }
+        }
+      }
+    },
     "Speaking": {
       "localizations": {
         "de": {
@@ -2171,6 +2661,16 @@
         }
       }
     },
+    "Start or finish dictation": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diktat starten oder beenden"
+          }
+        }
+      }
+    },
     "Start or finish without Fn": {
       "localizations": {
         "de": {
@@ -2187,6 +2687,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Status"
+          }
+        }
+      }
+    },
+    "Stop Reading": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorlesen stoppen"
           }
         }
       }
@@ -2231,22 +2741,22 @@
         }
       }
     },
-    "Stop Reading": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vorlesen stoppen"
-          }
-        }
-      }
-    },
     "Stop reading and clear the queue. Escape also stops.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Vorlesen stoppen und Warteschlange leeren. Esc stoppt ebenfalls."
+          }
+        }
+      }
+    },
+    "Stop reading with Escape": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorlesen mit Escape stoppen"
           }
         }
       }
@@ -2271,12 +2781,32 @@
         }
       }
     },
+    "Supertonic 3 · M1": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supertonic 3 · M1"
+          }
+        }
+      }
+    },
     "Target changed": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Ziel hat sich geändert"
+          }
+        }
+      }
+    },
+    "Target: %@.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ziel: %@."
           }
         }
       }
@@ -2471,12 +3001,32 @@
         }
       }
     },
+    "The download was interrupted. Choose Download to try again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Download wurde unterbrochen. Wähle „Laden“, um es erneut zu versuchen."
+          }
+        }
+      }
+    },
     "The global shortcut could not be registered (error %d).": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Der globale Kurzbefehl konnte nicht registriert werden (Fehler %d)."
+          }
+        }
+      }
+    },
+    "The local Supertonic development runtime is not installed. No text was sent to a server.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die lokale Supertonic-Entwicklungslaufzeit ist nicht installiert. Es wurde kein Text an einen Server gesendet."
           }
         }
       }
@@ -2511,12 +3061,22 @@
         }
       }
     },
-    "The local Supertonic development runtime is not installed. No text was sent to a server.": {
+    "The model could not be downloaded. Check the connection and try again.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die lokale Supertonic-Entwicklungslaufzeit ist nicht installiert. Es wurde kein Text an einen Server gesendet."
+            "value": "Das Modell konnte nicht geladen werden. Prüfe die Verbindung und versuche es erneut."
+          }
+        }
+      }
+    },
+    "The model could not be installed.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Modell konnte nicht installiert werden."
           }
         }
       }
@@ -2561,12 +3121,32 @@
         }
       }
     },
+    "The model turns your speech into text on this Mac.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Modell wandelt deine Sprache auf diesem Mac in Text um."
+          }
+        }
+      }
+    },
     "The next text could not start. Please select it again.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Der nächste Text konnte nicht starten. Bitte wähle ihn erneut aus."
+          }
+        }
+      }
+    },
+    "The reading voice is separate from the dictation model.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Vorlesestimme ist unabhängig vom Diktiermodell."
           }
         }
       }
@@ -2671,6 +3251,16 @@
         }
       }
     },
+    "This build is missing model resources. Reinstall Saywing to restore them.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In dieser Version fehlen Modelldateien. Installiere Saywing erneut, um sie wiederherzustellen."
+          }
+        }
+      }
+    },
     "This development version reads up to 8,000 characters. Select a smaller region.": {
       "localizations": {
         "de": {
@@ -2711,6 +3301,26 @@
         }
       }
     },
+    "This shortcut is already assigned to dictation.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Kurzbefehl ist bereits dem Diktieren zugewiesen."
+          }
+        }
+      }
+    },
+    "This shortcut is already assigned to reading. Choose another combination.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Kurzbefehl ist bereits dem Vorlesen zugewiesen. Wähle eine andere Kombination."
+          }
+        }
+      }
+    },
     "This text field is too large for dictation.": {
       "localizations": {
         "de": {
@@ -2731,6 +3341,16 @@
         }
       }
     },
+    "Try Again": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erneut versuchen"
+          }
+        }
+      }
+    },
     "Try Dictation": {
       "localizations": {
         "de": {
@@ -2747,6 +3367,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Diktieren ausprobieren…"
+          }
+        }
+      }
+    },
+    "Try It": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausprobieren"
+          }
+        }
+      }
+    },
+    "Try dictation": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diktieren ausprobieren"
+          }
+        }
+      }
+    },
+    "Try reading aloud": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorlesen ausprobieren"
           }
         }
       }
@@ -2781,12 +3431,12 @@
         }
       }
     },
-    "Use a letter, digit or Space with ⌘, ⌥ or ⌃. Shift is optional.": {
+    "Use Model": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Verwende einen Buchstaben, eine Ziffer oder die Leertaste mit ⌘, ⌥ oder ⌃. Umschalt ist optional."
+            "value": "Modell verwenden"
           }
         }
       }
@@ -2797,6 +3447,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kurzbefehl verwenden"
+          }
+        }
+      }
+    },
+    "Use a letter, digit or Space with ⌘, ⌥ or ⌃. Shift is optional.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verwende einen Buchstaben, eine Ziffer oder die Leertaste mit ⌘, ⌥ oder ⌃. Umschalt ist optional."
+          }
+        }
+      }
+    },
+    "Use your microphone": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mikrofon freigeben"
           }
         }
       }
@@ -2837,6 +3507,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "2 Sekunden warten, bevor die Zwischenablage wiederhergestellt wird"
+          }
+        }
+      }
+    },
+    "Waiting for %@. You can return to Model to change your choice.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warten auf %@. Unter „Modell“ kannst du deine Auswahl ändern."
           }
         }
       }
@@ -2887,6 +3567,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mit der Stimme schreiben"
+          }
+        }
+      }
+    },
+    "Your progress is saved, including when Saywing restarts.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dein Fortschritt bleibt gespeichert – auch nach einem Neustart."
+          }
+        }
+      }
+    },
+    "Your reading voice": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deine Vorlesestimme"
+          }
+        }
+      }
+    },
+    "macOS may need Saywing to restart before new access takes effect. You will continue at this step.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Möglicherweise muss Saywing neu starten, damit die neue Freigabe wirksam wird. Danach geht es an dieser Stelle weiter."
           }
         }
       }

@@ -4,43 +4,208 @@ import SwiftUI
 
 enum SettingsTab: Hashable { case general, reading, dictation, shortcuts, privacy }
 
-/// Dictation preferences live here; the dictation window is only for trying it out.
-struct DictationSettingsSection: View {
+/// Shared by Setup and Settings: a download always starts with explicit consent.
+struct DictationModelSelection: View {
     @ObservedObject var controller: DictationController
+    @ObservedObject private var models: DictationModelStore
+    @State private var pendingInstall: DictationModel?
+    @State private var showAlternatives: Bool
+
+    init(controller: DictationController) {
+        self.controller = controller
+        self.models = controller.models
+        _showAlternatives = State(initialValue: controller.selectedModel != .standard || controller.pendingInstallModel != nil)
+    }
 
     var body: some View {
-        Form {
-            Section {
-                Picker("Model", selection: Binding(get: { controller.selectedModel }, set: { controller.selectModel($0) })) {
-                    ForEach(DictationModel.allCases, id: \.self) { Text($0.displayName).tag($0) }
+        VStack(alignment: .leading, spacing: 12) {
+            Text("The model turns your speech into text on this Mac.")
+                .font(.callout).foregroundStyle(.secondary)
+            modelRow(.standard)
+            DisclosureGroup("Other Models", isExpanded: $showAlternatives) {
+                VStack(alignment: .leading, spacing: 14) {
+                    modelRow(.qwen)
+                    Divider()
+                    modelRow(.whisperLargeV3)
+                }.padding(.top, 10)
+            }.padding(.leading, 24)
+            Text(controller.statusText).font(.callout).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .confirmationDialog(String(localized: "Install \(pendingInstall?.displayName ?? "")?"),
+            isPresented: Binding(get: { pendingInstall != nil }, set: { if !$0 { pendingInstall = nil } })) {
+                Button("Download and Install") {
+                    if let pendingInstall { controller.install(pendingInstall) }
+                    pendingInstall = nil
                 }
-                .disabled(!controller.canChangeModel)
-                .accessibilityIdentifier("dictationModel")
+                Button("Cancel", role: .cancel) { pendingInstall = nil }
+            } message: {
+                if let model = pendingInstall {
+                    Text("Download \(size(model)) from Hugging Face (\(models.downloadSource(of: model) ?? "")). Every file is checked before use. Recordings and text stay on your Mac.")
+                }
+            }
+    }
+
+    private func size(_ model: DictationModel) -> String {
+        models.downloadSize(of: model).map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) }
+            ?? String(localized: "Size unavailable")
+    }
+
+    @ViewBuilder private func modelRow(_ model: DictationModel) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(model.displayName).font(.body.weight(.medium))
+                    if models.isBundled(model) { Text("Included with Saywing").font(.callout).foregroundStyle(.secondary) }
+                    else if models.isInstalled(model) { Text("Installed").font(.callout).foregroundStyle(.secondary) }
+                    else if models.canDownload(model) { Text(size(model)).font(.callout).foregroundStyle(.secondary) }
+                }
+                Spacer(minLength: 12)
+                if models.isInstalled(model) {
+                    if controller.selectedModel == model && controller.pendingInstallModel == nil {
+                        Label("Selected", systemImage: "checkmark").font(.callout).foregroundStyle(.secondary)
+                    } else {
+                        Button("Use Model") { controller.selectModel(model) }
+                            .disabled(!controller.canChangeModel)
+                            .accessibilityIdentifier("use-\(model.rawValue)")
+                    }
+                } else if models.availability[model]?.isInstalling != true && models.canDownload(model) {
+                    Button("Download…") { pendingInstall = model }
+                        .disabled(!controller.canChangeModel)
+                        .accessibilityIdentifier("download-\(model.rawValue)")
+                }
+            }
+            if !models.isInstalled(model) && !models.canDownload(model) {
+                Text("This build is missing model resources. Reinstall Saywing to restore them.")
+                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            DictationInstallStatus(controller: controller, model: model)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(model.displayName)
+    }
+}
+
+struct DictationInstallStatus: View {
+    @ObservedObject var controller: DictationController
+    @ObservedObject private var models: DictationModelStore
+    let model: DictationModel
+    init(controller: DictationController, model: DictationModel) {
+        self.controller = controller; self.models = controller.models; self.model = model
+    }
+    var body: some View {
+        switch models.availability[model] {
+        case .installing(let fraction):
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Downloading \(model.displayName)…").font(.callout)
+                HStack {
+                    ProgressView(value: fraction).accessibilityLabel("Download progress")
+                    Text(fraction, format: .percent.precision(.fractionLength(0))).monospacedDigit().font(.callout)
+                    Button("Cancel") { controller.cancelInstall(model) }
+                }
+            }
+        case .verifying:
+            HStack {
+                ProgressView().controlSize(.small)
+                Text("Checking model files…").font(.callout)
+                Spacer()
+                Button("Cancel") { controller.cancelInstall(model) }
+            }
+        case .failed(let message):
+            Text(message).font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+        case .notInstalled where controller.pendingInstallModel == model:
+            Text("The download was interrupted. Choose Download to try again.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        default: EmptyView()
+        }
+    }
+}
+
+struct DictationSettingsSection: View {
+    @ObservedObject var controller: DictationController
+    var body: some View {
+        Form {
+            Section("Model") { DictationModelSelection(controller: controller) }
+            Section {
                 Picker("Language", selection: Binding(get: { controller.language }, set: { controller.setLanguage($0) })) {
                     ForEach(DictationLanguage.allCases, id: \.self) { Text($0.title).tag($0) }
-                }
-                .accessibilityIdentifier("dictationLanguage")
+                }.accessibilityIdentifier("dictationLanguage")
                 Toggle("Wait 2 seconds before restoring the clipboard", isOn: Binding(
                     get: { controller.restoresClipboardSlowly }, set: { controller.setRestoresClipboardSlowly($0) }))
-                    .toggleStyle(.checkbox)
-                    .accessibilityIdentifier("dictationSlowPaste")
-                LabeledContent("Status", value: controller.statusText)
+                    .toggleStyle(.checkbox).accessibilityIdentifier("dictationSlowPaste")
             } footer: {
                 Text("The model loads automatically and stays ready while Saywing is open. Turn on the longer wait if an app pastes your previous clipboard instead of the dictation.")
                     .font(.callout).foregroundStyle(.secondary)
             }
             Section {
-                LabeledContent("Hold Fn", value: String(localized: "Dictate, release to paste"))
-                LabeledContent("Press Fn twice", value: String(localized: "Hands-free; Fn finishes"))
-                LabeledContent("⌥⇧Space", value: String(localized: "Start or finish without Fn"))
-                LabeledContent("Escape", value: String(localized: "Discard"))
-                LabeledContent("") {
-                    Button("Try Dictation…") { controller.showWindow() }
+                Text(controller.activationInstructions).fixedSize(horizontal: false, vertical: true)
+                Button("Try Dictation…") { controller.showWindow() }
+            }
+        }.formStyle(.grouped).fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// The same native keystroke fields in Setup and Settings; no second set of preferences.
+struct ActivationShortcutsView: View {
+    @ObservedObject var model: AppModel
+    @State private var rejected = false
+    @State private var pending: ShortcutConfiguration?
+    @State private var pendingDictation = false
+    @State private var confirm = false
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            shortcutRow(title: String(localized: "Read screen region"), configuration: model.shortcutConfiguration,
+                        dictation: false, identifier: "shortcutRecorder")
+            if let notice = model.shortcutNotice { Text(notice).font(.callout).fixedSize(horizontal: false, vertical: true) }
+            if let dictation = model.dictation {
+                shortcutRow(title: String(localized: "Start or finish dictation"), configuration: dictation.shortcutConfiguration,
+                            dictation: true, identifier: "dictationShortcutRecorder")
+                if let notice = dictation.shortcutNotice { Text(notice).font(.callout).fixedSize(horizontal: false, vertical: true) }
+                Toggle("Also dictate with Fn", isOn: Binding(get: { dictation.fnEnabled }, set: { dictation.setFnEnabled($0) }))
+                    .toggleStyle(.checkbox).accessibilityIdentifier("dictationFnEnabled")
+                if dictation.fnEnabled {
+                    Text("Hold Fn to speak and release to paste. Press Fn twice for hands-free dictation.")
+                        .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             }
+            Text("Click a shortcut field and press your combination. Escape cancels the change; activation shortcuts are paused while you choose.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            if rejected {
+                Text("Use a letter, digit or Space with ⌘, ⌥ or ⌃. Shift is optional.")
+                    .font(.callout).foregroundStyle(.orange)
+            }
+            Text("Escape always stops reading or discards dictation.")
+                .font(.callout).foregroundStyle(.secondary)
         }
-        .formStyle(.grouped)
-        .fixedSize(horizontal: false, vertical: true)
+        .disabled(!model.canChangeShortcut)
+        .onDisappear { model.setRecordingShortcut(false) }
+        .alert("Override app commands?", isPresented: $confirm) {
+            Button("Use Shortcut") { if let pending { apply(pending, dictation: pendingDictation) } }
+            Button("Cancel", role: .cancel) { pending = nil }
+        } message: {
+            Text("\(pending?.displayName ?? "") may replace a familiar command in other apps while Saywing is running. Use it anyway?")
+        }
+    }
+    private func shortcutRow(title: String, configuration: ShortcutConfiguration, dictation: Bool, identifier: String) -> some View {
+        HStack {
+            Text(title)
+            Spacer(minLength: 10)
+            ShortcutRecorder(shortcut: configuration, identifier: identifier,
+                onRecordingChange: { recording in rejected = false; model.setRecordingShortcut(recording) },
+                onRecord: { value in
+                    if value.modifiers == UInt32(cmdKey) { pending = value; pendingDictation = dictation; confirm = true }
+                    else { apply(value, dictation: dictation) }
+                }, onRejected: { rejected = true })
+                .frame(width: 150, height: 24).accessibilityLabel(title)
+            Button { apply(dictation ? .dictationDefault : .default, dictation: dictation) } label: {
+                Image(systemName: "arrow.counterclockwise")
+            }.help("Restore Default").accessibilityLabel(String(localized: "Restore Default") + " · " + title)
+                .disabled(configuration == (dictation ? .dictationDefault : .default))
+        }
+    }
+    private func apply(_ value: ShortcutConfiguration, dictation: Bool) {
+        if dictation { model.enqueueDictationShortcutChange(value) }
+        else { model.enqueueShortcutChange(value) }
     }
 }
 
@@ -99,7 +264,7 @@ struct SettingsView: View {
                         .resizable()
                         .scaledToFit()
                         .frame(width: 64, height: 64)
-                        .accessibilityLabel("Saywing Quiet Owl app logo")
+                        .accessibilityLabel("Saywing text-to-voice app logo")
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Saywing").font(.title2.weight(.semibold))
                         Text("Read aloud and dictate on your Mac.").foregroundStyle(.secondary)
@@ -180,6 +345,7 @@ struct SettingsView: View {
         Form {
             Section {
                 Label("Text recognition, speech and dictation run on this Mac. Nothing is sent to a server.", systemImage: "lock.laptopcomputer")
+                Label("Additional dictation models are downloaded from Hugging Face only when you choose to install one.", systemImage: "arrow.down.circle")
                 Label("Screenshots, recognized text and audio are never saved.", systemImage: "externaldrive.badge.xmark")
                 Label("Reading never touches the clipboard. Dictation uses it briefly to paste and then restores it.", systemImage: "doc.on.clipboard")
             }
@@ -198,32 +364,7 @@ struct SettingsView: View {
 
     private var shortcutsTab: some View {
         Form {
-            Section {
-                HStack {
-                    Text("Read screen region")
-                    Spacer()
-                    recorder(for: model.shortcutConfiguration, queue: false, identifier: "shortcutRecorder")
-                }
-                if rejectedKeystroke {
-                    Text("Use a letter, digit or Space with ⌘, ⌥ or ⌃. Shift is optional.")
-                        .font(.callout).foregroundStyle(.orange)
-                }
-                if !model.canChangeShortcut {
-                    Text("Stop the current operation before changing its shortcut.")
-                        .font(.callout).foregroundStyle(.secondary)
-                }
-                if let notice = model.shortcutNotice {
-                    Text(notice).font(.callout).fixedSize(horizontal: false, vertical: true)
-                        .accessibilityIdentifier("shortcutNotice")
-                }
-                LabeledContent("") {
-                    Button("Restore Default") { apply(.default, queue: false) }
-                        .disabled(model.shortcutConfiguration == .default)
-                }
-            } footer: {
-                Text("Click the field and press a new combination. Press the shortcut again while Saywing reads to add another region; Escape stops everything.")
-                    .font(.callout).foregroundStyle(.secondary)
-            }
+            Section { ActivationShortcutsView(model: model) }
             Section {
                 DisclosureGroup("Advanced") {
                     HStack {
@@ -333,78 +474,236 @@ struct PlaybackControlsView: View {
 /// grant is a system check only; the tests confirm the complete flow.
 struct SetupView: View {
     @ObservedObject var model: AppModel
-    @StateObject private var permissions = PermissionStatus()
+    @ObservedObject private var progress: SetupProgress
+    @ObservedObject private var permissions: PermissionStatus
+    @State private var restartHelpExpanded = false
+
+    init(model: AppModel) {
+        self.model = model
+        self.progress = model.setupProgress
+        self.permissions = model.setupPermissions
+    }
+
+    private var heading: String {
+        switch progress.step {
+        case .screenRecording: String(localized: "Read text from your screen")
+        case .inputMonitoring: String(localized: "Stop reading with Escape")
+        case .readingTest: String(localized: "Try reading aloud")
+        case .microphone: String(localized: "Use your microphone")
+        case .accessibility: String(localized: "Dictate into other apps")
+        case .dictationTest: String(localized: "Try dictation")
+        case .readingModel: String(localized: "Your reading voice")
+        case .dictationModel: String(localized: "Dictation on your Mac")
+        case .readingShortcuts, .dictationShortcuts: String(localized: "Choose your shortcuts")
+        }
+    }
+
+    static var windowHeight: CGFloat { min(640, (NSScreen.main?.visibleFrame.height ?? 720) - 80) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             HStack(spacing: 12) {
                 Image(nsImage: NSApplication.shared.applicationIconImage)
-                    .resizable().scaledToFit().frame(width: 56, height: 56)
+                    .resizable().scaledToFit().frame(width: 48, height: 48)
                     .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Welcome to Saywing").font(.title2.weight(.semibold))
-                    Text("Read screen text aloud and dictate – entirely on this Mac.")
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            GroupBox {
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(SaywingPermission.reading) { PermissionRow(permission: $0, status: permissions) }
-                    Label(LocalSpeechService.installationSummary, systemImage: "waveform")
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Set Up Saywing").font(.title2.weight(.semibold))
+                    Text("Your progress is saved, including when Saywing restarts.")
                         .font(.callout).foregroundStyle(.secondary)
-                    Divider()
-                    Text("Open some text in another app, then select a sentence. Press Escape while it reads.")
                         .fixedSize(horizontal: false, vertical: true)
-                    HStack {
-                        Button("Select Screen Region") { model.beginSetupCapture() }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(!permissions.canTestReading || !model.canChangeShortcut)
-                            .accessibilityIdentifier("setupReadingTest")
-                        Text(model.shortcutConfiguration.displayName).foregroundStyle(.secondary)
-                            .accessibilityLabel("Shortcut \(model.shortcutConfiguration.displayName)")
-                    }
-                    if permissions.canTestReading && !permissions.isGranted(.inputMonitoring) {
-                        Text("Without Input Monitoring, Escape stops reading only while Saywing is in front. The stop button always works.")
-                            .font(.callout).foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
                 }
-                .padding(8)
-            } label: {
-                Label("Read Aloud", systemImage: "speaker.wave.2")
-            }
-
-            GroupBox {
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(SaywingPermission.dictation) { PermissionRow(permission: $0, status: permissions) }
-                    Divider()
-                    Text("Hold Fn while you speak, release to paste. Try it in a test field first.")
-                        .fixedSize(horizontal: false, vertical: true)
-                    Button("Try Dictation…") { model.dictation?.showWindow() }
-                        .disabled(model.dictation == nil || !permissions.canTestDictation)
-                        .accessibilityIdentifier("setupDictationTest")
-                }
-                .padding(8)
-            } label: {
-                Label("Dictate", systemImage: "mic")
-            }
-
-            if let error = model.errorMessage {
-                Label(error, systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
-                    .fixedSize(horizontal: false, vertical: true)
             }
 
             HStack {
-                Text(model.isPaused ? String(localized: "Paused") : model.status.title).foregroundStyle(.secondary)
+                Picker("Activity", selection: Binding(get: { progress.step.isDictation }, set: { dictation in
+                    if dictation { progress.continueToDictation(granted: permissions.granted) }
+                    else { progress.showReading(granted: permissions.granted) }
+                })) {
+                    Text("Read Aloud").tag(false)
+                    Text("Dictate").tag(true)
+                }.pickerStyle(.segmented).labelsHidden().frame(width: 230)
+                    .accessibilityIdentifier("setupActivity")
                 Spacer()
-                Button("Check Again") { permissions.refresh() }
-                Button("Done") { model.finishSetup() }
-                    .keyboardShortcut(.defaultAction)
+                Text("Entirely on this Mac").font(.callout).foregroundStyle(.secondary)
+            }
+            HStack(spacing: 12) {
+                ForEach(0..<4) { index in
+                    Button { progress.visit(stage: index) } label: {
+                        VStack(spacing: 5) {
+                            Text(stageTitle(index)).font(.callout.weight(progress.step.stage == index ? .semibold : .regular))
+                            Capsule().fill(progress.step.stage == index ? Color.accentColor : Color.clear).frame(height: 2)
+                        }.frame(maxWidth: .infinity)
+                    }.buttonStyle(.plain)
+                        .accessibilityAddTraits(progress.step.stage == index ? .isSelected : [])
+                        .accessibilityIdentifier("setupStage-\(index)")
+                }
+            }
+
+            Divider()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text(heading).font(.title3.weight(.semibold))
+                        .accessibilityIdentifier("setupCurrentStep")
+                        .accessibilityAddTraits(.isHeader)
+
+                    if let permission = progress.step.permission {
+                        PermissionRow(permission: permission, status: permissions) {
+                            progress.prepareForPermission(permission)
+                        }
+                        if progress.waitingFor == permission {
+                            Label("Allow access in System Settings, then return here. Saywing checks automatically.",
+                                  systemImage: "arrow.up.forward.app")
+                                .font(.callout).foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        } else if permission == .screenRecording || permission == .inputMonitoring {
+                            Text("If macOS asks you to quit and reopen Saywing, you will continue here afterward.")
+                                .font(.callout).foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        if permission == .inputMonitoring {
+                            Button("Skip for Now") { progress.skipOptionalPermission() }
+                            Text("Without Input Monitoring, Escape stops reading only while Saywing is in front. The stop button always works.")
+                                .font(.callout).foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    } else if progress.step.stage == 1 {
+                        if progress.step.isDictation, let dictation = model.dictation {
+                            DictationModelSelection(controller: dictation)
+                        } else if progress.step.isDictation {
+                            Text("Dictation is not available in this build.")
+                        } else {
+                            Label("Supertonic 3 · M1", systemImage: "waveform")
+                            Text("The reading voice is separate from the dictation model.")
+                                .font(.callout).foregroundStyle(.secondary)
+                            Text(LocalSpeechService.installationSummary)
+                                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        }
+                    } else if progress.step.stage == 2 {
+                        ActivationShortcutsView(model: model)
+                    } else if progress.step == .readingTest {
+                        Text("Open some text in another app, then select a sentence. Press Escape while it reads.")
+                            .fixedSize(horizontal: false, vertical: true)
+                        HStack {
+                            Button("Select Screen Region") { model.beginSetupCapture() }
+                                .buttonStyle(.borderedProminent)
+                                .disabled(!permissions.canTestReading || !model.canChangeShortcut)
+                                .accessibilityIdentifier("setupReadingTest")
+                            Text(model.shortcutConfiguration.displayName).foregroundStyle(.secondary)
+                        }
+                        if !permissions.isGranted(.inputMonitoring) {
+                            Text("Without Input Monitoring, Escape stops reading only while Saywing is in front. The stop button always works.")
+                                .font(.callout).foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Label(LocalSpeechService.installationSummary, systemImage: "waveform")
+                            .font(.callout).foregroundStyle(.secondary)
+                    } else {
+                        if let dictation = model.dictation {
+                            LabeledContent("Model", value: dictation.selectedModel.displayName)
+                            Text(dictation.activationInstructions).fixedSize(horizontal: false, vertical: true)
+                            if let pending = dictation.pendingInstallModel {
+                                Text("Waiting for \(pending.displayName). You can return to Model to change your choice.")
+                                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        Button("Try Dictation…") { model.dictation?.showWindow() }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(!canTryDictation)
+                            .accessibilityIdentifier("setupDictationTest")
+                    }
+
+                    if progress.step.stage == 3 && (progress.step.isDictation
+                        ? permissions.isGranted(.microphone) && permissions.isGranted(.accessibility)
+                        : permissions.canTestReading) {
+                        Label("Access is allowed. Use the test to check that everything works.", systemImage: "checkmark.circle")
+                            .font(.callout).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    if progress.offersRestartHelp || model.errorMessage != nil {
+                        DisclosureGroup("Already allowed access, but it still does not work?", isExpanded: $restartHelpExpanded) {
+                              VStack(alignment: .leading, spacing: 10) {
+                                Text("macOS may need Saywing to restart before new access takes effect. You will continue at this step.")
+                                    .font(.callout).foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Button("Restart and Continue") { model.restartSetup() }
+                                    .disabled(!model.canRestartSetup || model.isRestartingSetup)
+                                    .accessibilityIdentifier("setupRestart")
+                                if !model.canRestartSetup {
+                                    Text("Finish or stop the current activity before restarting.")
+                                        .font(.callout).foregroundStyle(.secondary)
+                                }
+                            }.padding(.top, 6)
+                        }
+                    }
+                    if let error = model.setupRestartError ?? model.errorMessage {
+                        Label(error, systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange).font(.callout)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    if progress.step.stage != 1, let dictation = model.dictation, let pending = dictation.pendingInstallModel {
+                        VStack(alignment: .leading, spacing: 6) {
+                            DictationInstallStatus(controller: dictation, model: pending)
+                            Button("Show Model") { progress.continueToDictation(granted: permissions.granted); progress.visit(stage: 1) }
+                        }
+                    }
+                }.frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.bottom, 4)
+            }
+            Divider()
+            HStack {
+                Button("Later") { model.deferSetup() }
+                    .accessibilityIdentifier("setupLater")
+                if progress.step.permission != nil {
+                    Button("Check Again") {
+                        permissions.refresh()
+                        model.dictation?.refreshPermissions()
+                    }
+                }
+                Spacer()
+                if progress.step.stage > 0 {
+                    Button("Back") { progress.back() }.accessibilityIdentifier("setupBack")
+                }
+                if progress.step.stage == 1 || progress.step.stage == 2 {
+                    Button("Continue") { progress.advance(granted: permissions.granted) }
+                        .keyboardShortcut(.defaultAction).accessibilityIdentifier("setupContinue")
+                } else if let permission = progress.step.permission, permissions.isGranted(permission) {
+                    Button("Continue") { progress.refresh(granted: permissions.granted) }
+                        .keyboardShortcut(.defaultAction)
+                } else if progress.step == .readingTest {
+                    Button("Finish Setup") { model.finishSetup() }
+                    Button("Set Up Dictation") { progress.continueToDictation(granted: permissions.granted) }
+                        .keyboardShortcut(.defaultAction)
+                } else if progress.step == .dictationTest {
+                    Button("Finish Setup") { model.finishSetup() }
+                        .keyboardShortcut(.defaultAction)
+                }
             }
         }
         .padding(24)
-        .frame(width: 520)
+        .frame(width: 560, height: Self.windowHeight)
+        .onReceive(permissions.$granted) { granted in
+            progress.refresh(granted: granted)
+            model.dictation?.refreshPermissions()
+        }
+        .onChange(of: progress.step) { _, _ in
+            restartHelpExpanded = false
+            model.setRecordingShortcut(false)
+        }
+    }
+    private var canTryDictation: Bool {
+        guard let dictation = model.dictation else { return false }
+        return permissions.canTestDictation && permissions.isGranted(.accessibility)
+            && dictation.pendingInstallModel == nil && dictation.models.isInstalled(dictation.selectedModel)
+            && model.canChangeShortcut
+    }
+    private func stageTitle(_ index: Int) -> String {
+        switch index {
+        case 0: String(localized: "Permissions")
+        case 1: String(localized: "Model")
+        case 2: String(localized: "Shortcuts")
+        default: String(localized: "Try It")
+        }
     }
 }

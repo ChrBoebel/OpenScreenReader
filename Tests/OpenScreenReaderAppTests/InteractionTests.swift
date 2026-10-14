@@ -2194,13 +2194,40 @@ private final class RegionSelectionControllerFake: RegionSelectionControlling {
 @Suite("Local dictation lifecycle", .serialized)
 @MainActor
 struct DictationIntegrationTests {
-    private func fixture(preferences: UserDefaults? = nil) -> (DictationController, DictationWorkerFake, HotkeyManagerFake) {
+    private func fixture(preferences: UserDefaults? = nil,
+                         installed: Set<DictationModel> = Set(DictationModel.allCases))
+        -> (DictationController, DictationWorkerFake, HotkeyManagerFake) {
         let worker = DictationWorkerFake()
         let escape = HotkeyManagerFake(registrationResult: .registered)
-        let controller = DictationController(resources: URL(fileURLWithPath: "/missing-dictation"),
+        let resources = FileManager.default.temporaryDirectory.appendingPathComponent("dictation-fixture-\(UUID())")
+        for model in installed {
+            try? FileManager.default.createDirectory(
+                at: resources.appendingPathComponent(model.directoryName), withIntermediateDirectories: true)
+        }
+        let store = DictationModelStore(resources: resources,
+            installRoot: resources.appendingPathComponent("Installed"), fetcher: DictationFetcherFake())
+        let controller = DictationController(resources: resources, models: store,
             worker: worker, shortcut: HotkeyManagerFake(registrationResult: .registered), escape: escape,
             preferences: preferences ?? UserDefaults(suiteName: "com.christopherbobel.OpenScreenReader.dictation-tests")!, registerHotkey: false)
         return (controller, worker, escape)
+    }
+
+    @Test func dictationWindowFitsOnPresentationAndKeepsItsPositionOnReopen() throws {
+        let (controller, worker, _) = fixture()
+        defer { controller.window.orderOut(nil); controller.shutdown() }
+        let content = try #require(controller.window.contentView)
+        #expect(content.frame.height == 600, "Construction must not force window layout during StateObject initialization.")
+        #expect(!controller.window.isVisible)
+        worker.ready = true
+        controller.showWindow()
+        let stack = try #require(content.subviews.first as? NSStackView)
+        #expect(abs(content.frame.height - (stack.fittingSize.height + 42)) < 1)
+        controller.window.setFrameOrigin(NSPoint(x: 120, y: 150))
+        let frame = controller.window.frame
+        controller.window.orderOut(nil)
+        controller.showWindow()
+        #expect(controller.window.frame == frame)
+        #expect(controller.record == nil)
     }
 
     @Test func microphoneCallbackAcceptsBackgroundAudioAndDiscardsAfterCancel() async throws {
@@ -2251,23 +2278,94 @@ struct DictationIntegrationTests {
         defer { controller.shutdown() }
         controller.loadModel()
         let oldCallback = try #require(worker.onMessage)
-        controller.selectModel(.whisperTurbo)
-        #expect(controller.selectedModel == .whisperTurbo)
-        #expect(worker.models == [.qwen, .whisperTurbo])
+        controller.selectModel(.qwen)
+        #expect(controller.selectedModel == .qwen)
+        #expect(worker.models == [.whisperTurbo, .qwen])
         #expect(worker.stops > 0)
         #expect(controller.record == nil)
         #expect(!controller.isActive)
         oldCallback(.init(type: "fatal", message: "Old worker failed"))
         oldCallback(.init(type: "ready", version: 1))
         #expect(controller.phase == "loading")
-        #expect(controller.selectedModel == .whisperTurbo)
+        #expect(controller.selectedModel == .qwen)
         let (restored, restoredWorker, _) = fixture(preferences: preferences)
         defer { restored.shutdown() }
         restored.loadModel()
-        #expect(restoredWorker.models == [.whisperTurbo])
+        #expect(restoredWorker.models == [.qwen])
         restored.screenLockedOrSleeping(Notification(name: NSWorkspace.willSleepNotification))
         restored.screenBecameAvailable(Notification(name: NSWorkspace.didWakeNotification))
-        #expect(restoredWorker.models == [.whisperTurbo, .whisperTurbo])
+        #expect(restoredWorker.models == [.qwen, .qwen])
+    }
+
+    @Test func whisperLargeIsSelectablePersistedAndStartsItsOwnWorker() throws {
+        #expect(DictationModel.allCases == [.qwen, .whisperTurbo, .whisperLargeV3])
+        #expect(DictationModel.whisperLargeV3.rawValue == "whisper-large-v3")
+        #expect(DictationModel.whisperLargeV3.displayName == "Whisper Large v3")
+        let suite = "com.christopherbobel.OpenScreenReader.dictation-large-model-tests.\(UUID())"
+        let preferences = try #require(UserDefaults(suiteName: suite))
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let (controller, worker, _) = fixture(preferences: preferences)
+        defer { controller.shutdown() }
+        controller.loadModel()
+        controller.selectModel(.whisperLargeV3)
+        #expect(worker.models == [.whisperTurbo, .whisperLargeV3])
+        #expect(controller.record == nil)
+        let (restored, restoredWorker, _) = fixture(preferences: preferences)
+        defer { restored.shutdown() }
+        restored.loadModel()
+        #expect(restored.selectedModel == .whisperLargeV3)
+        #expect(restoredWorker.models == [.whisperLargeV3])
+    }
+
+    @Test func whisperTurboIsTheDefaultAndUninstalledModelsCannotBeSelected() throws {
+        let suite = "com.christopherbobel.OpenScreenReader.dictation-install-tests.\(UUID())"
+        let preferences = try #require(UserDefaults(suiteName: suite))
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let (controller, worker, _) = fixture(preferences: preferences, installed: [.whisperTurbo])
+        defer { controller.shutdown() }
+        #expect(controller.selectedModel == .whisperTurbo)
+        controller.loadModel()
+        controller.selectModel(.whisperLargeV3)
+        #expect(controller.selectedModel == .whisperTurbo)
+        #expect(worker.models == [.whisperTurbo])
+        #expect(worker.modelRoots == [nil], "Bundled models need no separate model root.")
+        #expect(preferences.string(forKey: "dictationModel.v1") == nil)
+    }
+
+    @Test func savedChoiceOfAMissingModelStartsTheBundledDefaultWithoutForgettingIt() throws {
+        let suite = "com.christopherbobel.OpenScreenReader.dictation-missing-tests.\(UUID())"
+        let preferences = try #require(UserDefaults(suiteName: suite))
+        defer { preferences.removePersistentDomain(forName: suite) }
+        preferences.set("qwen3-asr", forKey: "dictationModel.v1")
+        let (controller, worker, _) = fixture(preferences: preferences, installed: [.whisperTurbo])
+        defer { controller.shutdown() }
+        controller.loadModel()
+        #expect(controller.selectedModel == .whisperTurbo)
+        #expect(worker.models == [.whisperTurbo])
+        #expect(preferences.string(forKey: "dictationModel.v1") == "qwen3-asr")
+    }
+
+    @Test func installedModelIsSelectedAndStartedFromItsInstallLocation() async throws {
+        let suite = "com.christopherbobel.OpenScreenReader.dictation-installed-tests.\(UUID())"
+        let preferences = try #require(UserDefaults(suiteName: suite))
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let resources = try DictationModelFixture.resources(bundling: [.whisperTurbo])
+        let fetcher = DictationFetcherFake(files: DictationModelFixture.largeFiles)
+        let installRoot = resources.appendingPathComponent("Installed")
+        let store = DictationModelStore(resources: resources, installRoot: installRoot, fetcher: fetcher)
+        let worker = DictationWorkerFake()
+        let controller = DictationController(resources: resources, models: store, worker: worker,
+            shortcut: HotkeyManagerFake(registrationResult: .registered),
+            escape: HotkeyManagerFake(registrationResult: .registered),
+            preferences: preferences, registerHotkey: false)
+        defer { controller.shutdown() }
+        controller.loadModel()
+        await controller.install(.whisperLargeV3)?.value
+        #expect(store.availability[.whisperLargeV3] == .installed)
+        #expect(controller.selectedModel == .whisperLargeV3)
+        #expect(worker.models == [.whisperTurbo, .whisperLargeV3])
+        #expect(worker.modelRoots == [nil, installRoot])
+        #expect(controller.record == nil, "Installing never opens the microphone.")
     }
 
     @Test func languageAndClipboardDelayArePersistedPreferences() throws {
@@ -2499,7 +2597,10 @@ private final class DictationWorkerFake: DictationTranscribing {
     var models: [DictationModel] = []
     var requests: [UUID] = []
     var lastRate = 0.0
-    func start(resources: URL, model: DictationModel) { starts += 1; running = true; models.append(model) }
+    var modelRoots: [URL?] = []
+    func start(resources: URL, model: DictationModel, modelRoot: URL?) {
+        starts += 1; running = true; models.append(model); modelRoots.append(modelRoot)
+    }
     func stop() { stops += 1; ready = false; running = false }
     var languages: [String?] = []
     func transcribe(_ audio: AudioPacket, id: UUID, language: String?) {
@@ -2523,6 +2624,160 @@ private final class AudioTapInvocation: @unchecked Sendable {
         for i in 0..<4 { channels[0][i] = left[i]; channels[1][i] = right[i] }
         block(buffer, AVAudioTime(sampleTime: 0, atRate: 48000))
         return !Thread.isMainThread
+    }
+}
+
+/// Small stand-in manifests and payloads; no network and no real model weights.
+enum DictationModelFixture {
+    static let largeFiles: [String: Data] = [
+        "config.json": Data(#"{"n_mels":128}"#.utf8),
+        "model.safetensors": Data(repeating: 7, count: 4096),
+    ]
+
+    static func sha256(_ data: Data) -> String {
+        SHA256Digest.hex(of: data)
+    }
+
+    static func resources(bundling bundled: Set<DictationModel>,
+                          largeWeights: Data = largeFiles["model.safetensors"]!) throws -> URL {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("dictation-store-\(UUID())")
+        let manager = FileManager.default
+        try manager.createDirectory(at: root.appendingPathComponent("Licenses"), withIntermediateDirectories: true)
+        let license = Data("MIT License".utf8)
+        try license.write(to: root.appendingPathComponent("Licenses/LICENSE-OpenAI"))
+        for model in bundled {
+            try manager.createDirectory(at: root.appendingPathComponent(model.directoryName), withIntermediateDirectories: true)
+        }
+        let config = largeFiles["config.json"]!
+        let large: [String: Any] = [
+            "repo": "mlx-community/whisper-large-v3-8bit",
+            "revision": "7fede54fd97b154a4f5e476646484fc023b1bcdf",
+            "files": [
+                ["rfilename": ".gitattributes", "size": 3],
+                ["rfilename": "config.json", "size": config.count, "verified_sha256": sha256(config)],
+                ["rfilename": "weights.safetensors", "source_filename": "model.safetensors",
+                 "size": largeWeights.count, "verified_sha256": sha256(largeWeights)],
+                ["rfilename": "LICENSE-OpenAI", "size": license.count, "verified_sha256": sha256(license),
+                 "source": "https://raw.githubusercontent.com/openai/whisper/v20240930/LICENSE"],
+            ],
+        ]
+        try JSONSerialization.data(withJSONObject: large)
+            .write(to: root.appendingPathComponent(DictationModel.whisperLargeV3.manifestName))
+        return root
+    }
+}
+
+/// Serves fixed payloads by file name, records requests and can wait until cancelled.
+final class DictationFetcherFake: DictationModelFetching, @unchecked Sendable {
+    private let lock = NSLock()
+    private let files: [String: Data]
+    private let waitsForCancellation: Bool
+    private var recorded: [URL] = []
+    var requests: [URL] { lock.withLock { recorded } }
+
+    init(files: [String: Data] = [:], waitsForCancellation: Bool = false) {
+        self.files = files
+        self.waitsForCancellation = waitsForCancellation
+    }
+
+    func fetch(_ url: URL, to destination: URL, progress: @escaping @Sendable (Int64) -> Void) async throws {
+        lock.withLock { recorded.append(url) }
+        if waitsForCancellation { try await Task.sleep(for: .seconds(30)) }
+        guard let data = files[url.lastPathComponent] else { throw URLError(.fileDoesNotExist) }
+        try data.write(to: destination)
+        progress(Int64(data.count))
+    }
+}
+
+@Suite("Dictation model installation", .serialized)
+@MainActor
+struct DictationModelInstallationTests {
+    @Test func bundledModelsAreInstalledAndOthersCanBeInstalled() throws {
+        let resources = try DictationModelFixture.resources(bundling: [.whisperTurbo])
+        let store = DictationModelStore(resources: resources,
+            installRoot: resources.appendingPathComponent("Installed"), fetcher: DictationFetcherFake())
+        #expect(store.availability[.whisperTurbo] == .installed)
+        #expect(store.availability[.whisperLargeV3] == .notInstalled)
+        #expect(store.availability[.qwen] == .notInstalled)
+        #expect(store.modelRoot(for: .whisperTurbo) == nil)
+        #expect(store.downloadSize(of: .whisperLargeV3) == Int64(4110), "Weights plus config; bundled licenses are not downloaded.")
+    }
+
+    @Test func installDownloadsPinnedFilesVerifiesThemAndOnlyThenMovesThemIntoPlace() async throws {
+        let resources = try DictationModelFixture.resources(bundling: [.whisperTurbo])
+        let installRoot = resources.appendingPathComponent("Installed")
+        let fetcher = DictationFetcherFake(files: DictationModelFixture.largeFiles)
+        let store = DictationModelStore(resources: resources, installRoot: installRoot, fetcher: fetcher)
+        let leftover = installRoot.appendingPathComponent(".staging-WhisperLargeV3-from-a-quit-app")
+        try FileManager.default.createDirectory(at: leftover, withIntermediateDirectories: true)
+        await store.install(.whisperLargeV3).value
+        #expect(store.availability[.whisperLargeV3] == .installed)
+        #expect(store.modelRoot(for: .whisperLargeV3) == installRoot)
+        let base = "https://huggingface.co/mlx-community/whisper-large-v3-8bit/resolve/7fede54fd97b154a4f5e476646484fc023b1bcdf/"
+        #expect(fetcher.requests.map(\.absoluteString) == [base + "config.json", base + "model.safetensors"],
+                "Only pinned Hugging Face files are requested; licenses come from the app bundle.")
+        let directory = installRoot.appendingPathComponent("WhisperLargeV3")
+        #expect(try Data(contentsOf: directory.appendingPathComponent("weights.safetensors"))
+                == DictationModelFixture.largeFiles["model.safetensors"])
+        #expect(FileManager.default.fileExists(atPath: directory.appendingPathComponent("LICENSE-OpenAI").path))
+        #expect(try FileManager.default.contentsOfDirectory(atPath: installRoot.path) == ["WhisperLargeV3"],
+                "No staging data remains after a successful install.")
+    }
+
+    @Test func hashMismatchInstallsNothing() async throws {
+        let resources = try DictationModelFixture.resources(
+            bundling: [.whisperTurbo], largeWeights: Data(repeating: 1, count: 4096))
+        let installRoot = resources.appendingPathComponent("Installed")
+        let store = DictationModelStore(resources: resources, installRoot: installRoot,
+            fetcher: DictationFetcherFake(files: DictationModelFixture.largeFiles))
+        await store.install(.whisperLargeV3).value
+        guard case .failed = store.availability[.whisperLargeV3] else {
+            Issue.record("Expected a visible failure, got \(String(describing: store.availability[.whisperLargeV3]))")
+            return
+        }
+        #expect(store.modelRoot(for: .whisperLargeV3) == nil)
+        #expect(!FileManager.default.fileExists(atPath: installRoot.appendingPathComponent("WhisperLargeV3").path))
+        #expect((try? FileManager.default.contentsOfDirectory(atPath: installRoot.path)) ?? [] == [])
+    }
+
+    @Test func cancellingAnInstallLeavesNothingBehind() async throws {
+        let resources = try DictationModelFixture.resources(bundling: [.whisperTurbo])
+        let installRoot = resources.appendingPathComponent("Installed")
+        let store = DictationModelStore(resources: resources, installRoot: installRoot,
+            fetcher: DictationFetcherFake(files: DictationModelFixture.largeFiles, waitsForCancellation: true))
+        let task = store.install(.whisperLargeV3)
+        guard case .installing = store.availability[.whisperLargeV3] else {
+            Issue.record("Install did not start"); return
+        }
+        store.cancelInstall(.whisperLargeV3)
+        await task.value
+        #expect(store.availability[.whisperLargeV3] == .notInstalled)
+        #expect((try? FileManager.default.contentsOfDirectory(atPath: installRoot.path)) ?? [] == [])
+    }
+
+    /// Opt-in real download: `TEST_RUNNER_SAYWING_LIVE_MODEL_INSTALL=/abs/Saywing.app/Contents/Resources/Dictation`.
+    /// Installs Whisper Large v3 from Hugging Face into `$TMPDIR/saywing-live-install` for the worker check.
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["SAYWING_LIVE_MODEL_INSTALL"] != nil))
+    func liveInstallFromHuggingFace() async throws {
+        let resources = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["SAYWING_LIVE_MODEL_INSTALL"]))
+        let installRoot = FileManager.default.temporaryDirectory.appendingPathComponent("saywing-live-install")
+        try? FileManager.default.removeItem(at: installRoot)
+        let store = DictationModelStore(resources: resources, installRoot: installRoot)
+        #expect(store.availability[.whisperLargeV3] == .notInstalled)
+        let started = Date()
+        await store.install(.whisperLargeV3).value
+        #expect(store.availability[.whisperLargeV3] == .installed)
+        #expect(store.modelRoot(for: .whisperLargeV3) == installRoot)
+        print("LIVE INSTALL", installRoot.path, "seconds", Int(Date().timeIntervalSince(started)))
+    }
+
+    @Test func downloadsAndRedirectsStayOnHuggingFaceOverHTTPS() {
+        #expect(URLSessionModelFetcher.allows(URL(string: "https://huggingface.co/mlx-community/x")!))
+        #expect(URLSessionModelFetcher.allows(URL(string: "https://us.aws.cdn.hf.co/xet-bridge-us/abc")!))
+        #expect(URLSessionModelFetcher.allows(URL(string: "https://cas-bridge.xethub.hf.co/x")!))
+        #expect(!URLSessionModelFetcher.allows(URL(string: "http://huggingface.co/x")!))
+        #expect(!URLSessionModelFetcher.allows(URL(string: "https://evilhf.co/x")!))
+        #expect(!URLSessionModelFetcher.allows(URL(string: "https://huggingface.co.example.com/x")!))
     }
 }
 
@@ -2872,5 +3127,119 @@ struct WindowPreviewTests {
             // The frame view draws the window background behind the AppKit labels.
             try write(try #require(dictation.window.contentView?.superview), "dictation-window-\(suffix)")
         }
+    }
+}
+
+@Suite("Setup models and shortcuts", .serialized)
+@MainActor
+struct SetupConfigurationTests {
+    private func fixture(fetcher: DictationFetcherFake = DictationFetcherFake()) throws
+        -> (DictationController, HotkeyManagerFake, UserDefaults, URL) {
+        let resources = try DictationModelFixture.resources(bundling: [.whisperTurbo])
+        let defaults = UserDefaults(suiteName: "com.christopherbobel.OpenScreenReader.setup-config.\(UUID())")!
+        let hotkey = HotkeyManagerFake(registrationResult: .registered)
+        let store = DictationModelStore(resources: resources, installRoot: resources.appendingPathComponent("Installed"), fetcher: fetcher)
+        let controller = DictationController(resources: resources, models: store, worker: DictationWorkerFake(),
+            shortcut: hotkey, escape: HotkeyManagerFake(registrationResult: .registered),
+            preferences: defaults, registerHotkey: false)
+        return (controller, hotkey, defaults, resources)
+    }
+
+    @Test func dictationShortcutSavesOnlyAfterSuccessfulRegistration() throws {
+        let (controller, hotkey, defaults, root) = try fixture()
+        defer { controller.shutdown(); try? FileManager.default.removeItem(at: root) }
+        let custom = ShortcutConfiguration(key: "D", modifiers: UInt32(controlKey | optionKey))
+        controller.changeShortcut(custom)
+        #expect(controller.shortcutConfiguration == custom)
+        let stored = UserDefaultsShortcutStore(defaults: defaults, preferenceKey: "dictationShortcut.v1")
+        #expect(stored.load() == custom)
+        hotkey.registrationResult = .conflict
+        controller.changeShortcut(.dictationDefault)
+        #expect(controller.shortcutConfiguration == custom)
+        #expect(stored.load() == custom)
+        #expect(controller.shortcutNotice != nil)
+        controller.setFnEnabled(false)
+        let restored = DictationController(resources: root, models: controller.models, worker: DictationWorkerFake(),
+            shortcut: HotkeyManagerFake(registrationResult: .registered), preferences: defaults, registerHotkey: false)
+        defer { restored.shutdown() }
+        #expect(restored.shortcutConfiguration == custom)
+        #expect(!restored.fnEnabled)
+        #expect(restored.record == nil)
+    }
+
+    @Test func recordingAKeySuspendsDictationAndRejectsLateActivation() throws {
+        let (controller, hotkey, _, root) = try fixture()
+        defer { controller.shutdown(); try? FileManager.default.removeItem(at: root) }
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered), dictation: controller)
+        let activation = hotkey.onPress
+        model.setRecordingShortcut(true)
+        #expect(controller.shortcutsSuspended)
+        activation?()
+        controller.refreshPermissions()
+        #expect(!controller.isActive)
+        #expect(controller.record == nil)
+        model.setRecordingShortcut(false)
+        #expect(!controller.shortcutsSuspended)
+    }
+
+    @Test func allThreeShortcutsHaveDistinctAssignments() async throws {
+        let (controller, _, _, root) = try fixture()
+        defer { controller.shutdown(); try? FileManager.default.removeItem(at: root) }
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+            queueHotkeyManager: HotkeyManagerFake(registrationResult: .registered), queueShortcutStore: MemoryShortcutStore(), dictation: controller)
+        model.enqueueDictationShortcutChange(model.shortcutConfiguration)
+        await model.waitForInteractionToSettle()
+        #expect(controller.shortcutConfiguration == .dictationDefault)
+        let custom = ShortcutConfiguration(key: "D", modifiers: UInt32(controlKey | optionKey))
+        model.enqueueDictationShortcutChange(custom)
+        await model.waitForInteractionToSettle()
+        #expect(controller.shortcutConfiguration == custom)
+        model.enqueueShortcutChange(custom)
+        model.enqueueQueueShortcutChange(custom)
+        await model.waitForInteractionToSettle()
+        #expect(model.shortcutConfiguration == .default)
+        #expect(model.queueShortcutConfiguration == .queueDefault)
+        model.enqueueShortcutChange(.dictationDefault)
+        await model.waitForInteractionToSettle()
+        #expect(model.shortcutConfiguration == .dictationDefault, "The old dictation key is no longer reserved.")
+    }
+
+    @Test func interruptedInstallRestoresIntentWithoutStartingNetworkOrRecording() throws {
+        let fetcher = DictationFetcherFake()
+        let (controller, _, defaults, root) = try fixture(fetcher: fetcher)
+        defer { controller.shutdown(); try? FileManager.default.removeItem(at: root) }
+        defaults.set(DictationModel.whisperLargeV3.rawValue, forKey: "dictationInstallIntent.v1")
+        let restored = DictationController(resources: root, models: controller.models, worker: DictationWorkerFake(),
+            shortcut: HotkeyManagerFake(registrationResult: .registered), preferences: defaults, registerHotkey: false)
+        defer { restored.shutdown() }
+        #expect(restored.pendingInstallModel == .whisperLargeV3)
+        #expect(restored.models.availability[.whisperLargeV3] == .notInstalled)
+        #expect(fetcher.requests.isEmpty)
+        #expect(restored.record == nil)
+    }
+
+    @Test func confirmedDownloadSwitchesOnlyAfterVerificationAndClearsIntent() async throws {
+        let fetcher = DictationFetcherFake(files: DictationModelFixture.largeFiles)
+        let (controller, _, defaults, root) = try fixture(fetcher: fetcher)
+        defer { controller.shutdown(); try? FileManager.default.removeItem(at: root) }
+        let task = try #require(controller.install(.whisperLargeV3))
+        #expect(controller.pendingInstallModel == .whisperLargeV3)
+        #expect(controller.selectedModel == .whisperTurbo)
+        await task.value
+        #expect(controller.selectedModel == .whisperLargeV3)
+        #expect(controller.pendingInstallModel == nil)
+        #expect(defaults.string(forKey: "dictationInstallIntent.v1") == nil)
+        #expect(controller.record == nil)
+    }
+
+    @Test func changingChoiceWhileDownloadingCannotBeUndoneByItsCompletion() async throws {
+        let fetcher = DictationFetcherFake(files: DictationModelFixture.largeFiles)
+        let (controller, _, _, root) = try fixture(fetcher: fetcher)
+        defer { controller.shutdown(); try? FileManager.default.removeItem(at: root) }
+        let task = try #require(controller.install(.whisperLargeV3))
+        controller.selectModel(.whisperTurbo)
+        await task.value
+        #expect(controller.selectedModel == .whisperTurbo)
+        #expect(controller.pendingInstallModel == nil)
     }
 }

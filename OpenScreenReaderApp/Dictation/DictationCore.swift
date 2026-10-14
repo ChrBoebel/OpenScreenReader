@@ -3,11 +3,13 @@ import AppKit
 enum DictationModel: String, CaseIterable, Sendable {
   case qwen = "qwen3-asr"
   case whisperTurbo = "whisper-turbo"
+  case whisperLargeV3 = "whisper-large-v3"
 
   var displayName: String {
     switch self {
     case .qwen: "Qwen3-ASR"
     case .whisperTurbo: "Whisper Turbo"
+    case .whisperLargeV3: "Whisper Large v3"
     }
   }
 }

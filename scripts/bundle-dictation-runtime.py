@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Attach already installed, pinned dictation assets to a private Saywing build. No downloads."""
+"""Attach already installed, pinned dictation assets to a private Saywing build. No downloads.
+
+Only Whisper Turbo is bundled by default; the app installs the other models on request.
+`--with-qwen` and `--whisper-large-model` additionally bundle those models."""
 import argparse
 import hashlib
 import json
@@ -16,8 +19,10 @@ def sha256(stream):
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('app', type=Path)
-parser.add_argument('resources', type=Path, help='Existing verified Qwen runtime with Python/ and Model/')
+parser.add_argument('resources', type=Path, help='Existing verified runtime with Python/, Demos/ and (for --with-qwen) Model/')
 parser.add_argument('--whisper-model', type=Path, required=True, help='Verified pinned Whisper Turbo model directory')
+parser.add_argument('--whisper-large-model', type=Path, help='Also bundle this verified pinned Whisper Large v3 model directory')
+parser.add_argument('--with-qwen', action='store_true', help='Also bundle the Qwen3-ASR model from resources/Model')
 parser.add_argument('--speech-from', type=Path, help='Reuse verified self-contained Speech resources from an existing app')
 parser.add_argument('--development-only', required=True, action='store_true')
 args = parser.parse_args()
@@ -29,19 +34,28 @@ target = app/'Contents/Resources/Dictation'
 if target.exists():
     raise SystemExit('Refusing to replace an existing dictation runtime; use a fresh build')
 manifest = json.loads((repo/'Runtime/Dictation/model-manifest.json').read_text())
-whisper_manifest = json.loads((repo/'Runtime/Dictation/whisper-turbo-manifest.json').read_text())
-whisper_source = args.whisper_model.resolve(strict=True)
-for item in whisper_manifest['files']:
-    asset = (whisper_source/item['rfilename']).resolve(strict=True)
-    if not asset.is_relative_to(whisper_source):
-        raise SystemExit('Whisper path escapes source')
-    with asset.open('rb') as f:
-        digest = sha256(f)
-    if asset.stat().st_size != item['size'] or digest != item['verified_sha256']:
-        raise SystemExit('Pinned Whisper model verification failed')
-if not all((whisper_source/name).is_file() for name in ['LICENSE-OpenAI', 'LICENSE-Apache-2.0']):
-    raise SystemExit('Missing Whisper model license notice')
-for item in manifest['files']:
+# (source directory, manifest, bundled directory, provenance notice)
+whisper_models = [
+    (args.whisper_model, 'whisper-turbo-manifest.json', 'WhisperTurbo', 'whisper-turbo-dictation.md'),
+    (args.whisper_large_model, 'whisper-large-v3-manifest.json', 'WhisperLargeV3', 'whisper-large-v3-dictation.md'),
+]
+bundled_whisper = [entry for entry in whisper_models if entry[0] is not None]
+whisper_manifests = {}
+for whisper_dir, manifest_name, _, _ in bundled_whisper:
+    whisper_manifest = json.loads((repo/'Runtime/Dictation'/manifest_name).read_text())
+    whisper_source = whisper_dir.resolve(strict=True)
+    for item in whisper_manifest['files']:
+        asset = (whisper_source/item['rfilename']).resolve(strict=True)
+        if not asset.is_relative_to(whisper_source):
+            raise SystemExit('Whisper path escapes source')
+        with asset.open('rb') as f:
+            digest = sha256(f)
+        if asset.stat().st_size != item['size'] or digest != item['verified_sha256']:
+            raise SystemExit('Pinned Whisper model verification failed: '+manifest_name)
+    if not all((whisper_source/name).is_file() for name in ['LICENSE-OpenAI', 'LICENSE-Apache-2.0']):
+        raise SystemExit('Missing Whisper model license notice')
+    whisper_manifests[manifest_name] = (whisper_source, whisper_manifest)
+for item in manifest['files'] if args.with_qwen else []:
     if item['rfilename'].startswith('.'):
         continue
     asset = (source/'Model'/item['rfilename']).resolve(strict=True)
@@ -53,7 +67,8 @@ for item in manifest['files']:
         raise SystemExit('Pinned model verification failed')
 if not (source/'Python/lib/python3.12/LICENSE.txt').is_file():
     raise SystemExit('Missing CPython license')
-for component in ['Python', 'Model', 'Demos']:
+components = ['Python', 'Demos'] + (['Model'] if args.with_qwen else [])
+for component in components:
     for path in (source/component).rglob('*'):
         if 'pkgconfig' in path.parts or path.name == 'python3.1':
             continue  # Build-time metadata/manual alias from the interpreter toolchain.
@@ -85,17 +100,25 @@ if args.speech_from:
         if asset.is_file():
             shutil.copy2(asset,app/'Contents/Resources'/name)
 target.mkdir(parents=True)
-for component in ['Python', 'Model', 'Demos']:
+for component in components:
     shutil.copytree(source/component, target/component, symlinks=True,
                     ignore=shutil.ignore_patterns('__pycache__', '*.pyc', 'pkgconfig', 'python3.1'))
-(target/'WhisperTurbo').mkdir()
-for item in whisper_manifest['files']:
-    shutil.copy2(whisper_source/item['rfilename'], target/'WhisperTurbo'/item['rfilename'])
-for name in ['worker.py', 'worker.sb', 'model-manifest.json', 'whisper-turbo-manifest.json', 'requirements-lock.txt', 'installed-packages.json']:
+for _, manifest_name, directory, _ in bundled_whisper:
+    whisper_source, whisper_manifest = whisper_manifests[manifest_name]
+    (target/directory).mkdir()
+    for item in whisper_manifest['files']:
+        shutil.copy2(whisper_source/item['rfilename'], target/directory/item['rfilename'])
+# Provenance for every model, and the license texts the app copies into on-demand installs.
+for _, _, _, notice in whisper_models:
+    shutil.copy2(repo/'docs/research'/notice, target/(Path(notice).stem.removesuffix('-dictation').upper()+'-NOTICES.md'))
+(target/'Licenses').mkdir()
+for name in ['LICENSE-OpenAI', 'LICENSE-Apache-2.0']:
+    shutil.copy2(args.whisper_model.resolve(strict=True)/name, target/'Licenses'/name)
+for name in ['worker.py', 'worker.sb', 'model-manifest.json', 'whisper-turbo-manifest.json',
+             'whisper-large-v3-manifest.json', 'requirements-lock.txt', 'installed-packages.json']:
     shutil.copy2(repo/'Runtime/Dictation'/name, target/name)
 (target/'RuntimeCache/dynamo').mkdir(parents=True)
 shutil.copy2(repo/'docs/research/qwen-dictation-runtime.md', target/'MODEL-AND-RUNTIME-NOTICES.md')
-shutil.copy2(repo/'docs/research/whisper-turbo-dictation.md', target/'WHISPER-TURBO-NOTICES.md')
 macho = {b'\xcf\xfa\xed\xfe', b'\xce\xfa\xed\xfe', b'\xfe\xed\xfa\xcf',
          b'\xfe\xed\xfa\xce', b'\xca\xfe\xba\xbe', b'\xbe\xba\xfe\xca'}
 inventory = {}
@@ -115,7 +138,8 @@ for path in sorted(target.rglob('*')):
         inventory[str(path.relative_to(target))] = sha256(f)
 (target/'installation-receipt.json').write_text(json.dumps({
     'purpose': 'Private local integration build; not notarized or approved for redistribution',
-    'model_revision': manifest['revision'], 'whisper_revision': whisper_manifest['revision'],
+    'bundled_models': {name: data['revision'] for name, (_, data) in whisper_manifests.items()}
+        | ({'model-manifest.json': manifest['revision']} if args.with_qwen else {}),
     'files': inventory}, indent=2)+'\n')
 subprocess.run(['/usr/bin/codesign','--force','--sign','-','--options','runtime','--entitlements',str(repo/'OpenScreenReaderApp/Saywing.entitlements'),str(app)],check=True)
 subprocess.run(['/usr/bin/codesign','--verify','--deep','--strict',str(app)],check=True)

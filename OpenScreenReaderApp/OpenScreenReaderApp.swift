@@ -8,11 +8,24 @@ struct OpenScreenReaderApp: App {
         let testing = ProcessInfo.processInfo.arguments.contains("--uitesting")
             || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
             || ProcessInfo.processInfo.environment["OSR_SHORTCUT_TEST_SUITE"] != nil
-        let dictation = testing ? nil : DictationController()
+        let dictation: DictationController?
+        #if DEBUG
+        if testing && ProcessInfo.processInfo.arguments.contains("--test-setup") {
+            let fixture = ProcessInfo.processInfo.environment["OSR_SETUP_MODEL_RESOURCES"].map { URL(fileURLWithPath: $0) }
+            let store = fixture.map { DictationModelStore(resources: $0, installRoot: $0.appendingPathComponent("Installed")) }
+            dictation = DictationController(resources: fixture, models: store, registerHotkey: false)
+        } else { dictation = testing ? nil : DictationController() }
+        #else
+        dictation = testing ? nil : DictationController()
+        #endif
         let model = AppModel(readingPanel: ReadingPanelController(interfaceSounds: sounds), interfaceSounds: sounds,
                         queueHotkeyManager: GlobalHotkeyManager(), dictation: dictation)
         // Prepare once the SwiftUI StateObject is established; never open the microphone.
-        DispatchQueue.main.async { dictation?.loadModel() }
+        DispatchQueue.main.async {
+            if !testing { dictation?.loadModel() }
+            // Resume setup at launch, even before the menu bar item is opened.
+            model.offerSetupIfNeeded()
+        }
         if ProcessInfo.processInfo.arguments.contains("--dictation-smoke") {
             // Showing an AppKit window while SwiftUI constructs its StateObject
             // re-enters the scene graph. Begin the explicit GUI check next turn.
@@ -38,7 +51,6 @@ struct OpenScreenReaderApp: App {
             }
                 .accessibilityLabel("Saywing, \(model.activityTitle)")
                 .help("Saywing · \(model.activityTitle)")
-                .task { model.offerSetupIfNeeded() }
         }
         .menuBarExtraStyle(.menu)
 

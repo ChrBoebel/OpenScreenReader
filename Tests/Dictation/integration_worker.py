@@ -5,6 +5,8 @@ import numpy as np
 res=Path(sys.argv[1]).resolve();root=Path(sys.argv[2]).resolve();root.mkdir(parents=True,exist_ok=True)
 python=res/'Python/bin/python3';sandbox=['/usr/bin/sandbox-exec','-f',str(res/'worker.sb')]
 model_id=sys.argv[3] if len(sys.argv)>3 else 'qwen3-asr'
+# Optional folder of an on-demand installed model; the manifest still comes from the bundle.
+model_root=['--model-root',str(Path(sys.argv[4]).resolve(strict=True))] if len(sys.argv)>4 else []
 checks=[]
 def check(value,name):
  if not value:raise AssertionError(name)
@@ -25,7 +27,7 @@ def send(proc,id,audio,rate,language=None):
 env={'PATH':'/usr/bin:/bin','HOME':str(res),'HF_HUB_OFFLINE':'1','TRANSFORMERS_OFFLINE':'1','PYTHONDONTWRITEBYTECODE':'1'}
 p=None
 try:
- started=time.monotonic();p=subprocess.Popen(sandbox+[str(python),'-I','-B','-u',str(res/'worker.py'),'--model',model_id],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,env=env)
+ started=time.monotonic();p=subprocess.Popen(sandbox+[str(python),'-I','-B','-u',str(res/'worker.py'),'--model',model_id]+model_root,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,env=env)
  check(read(p,120).get('type')=='ready','packaged model loads without network or file writes');load=time.monotonic()-started
  de,rate=pcm('Deutsch');en,enrate=pcm('English')
  send(p,'de',np.repeat(de,3),rate*3);d=read(p,90);check(d.get('id')=='de' and 'hongkong' in re.sub(r'\s+', '', d.get('text','')).casefold(),'German through 48 kHz microphone-format pipeline')

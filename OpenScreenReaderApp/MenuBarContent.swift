@@ -86,7 +86,8 @@ struct DictationMenuContent: View {
             Button("Discard Dictation") { controller.cancel() }
         } else {
             // Fn cannot be shown as a menu key equivalent; name it in the title instead.
-            Text("Dictate: Hold Fn")
+            Text("Dictate · \(controller.shortcutConfiguration.displayName)")
+            if controller.fnEnabled { Text("Hold Fn").font(.caption) }
         }
     }
 }

@@ -40,6 +40,8 @@ SelectionOverlay ──► ScreenCaptureService
 
 ## Native macOS-App
 
+`SetupProgress` (2026-10-14) persists a small navigation checkpoint before every permission handoff. It restores the reading/dictation step at launch, reconciles against fresh `PermissionStatus` preflight results, and stops at explicit test actions. `AppModel` opens pending setup immediately after app initialization instead of waiting for a menu-label task. Defer retains navigation without reopening automatically; finish clears the checkpoint. `SetupRelauncher` starts a bounded local helper that waits for the old PID to exit before opening the same bundle, avoiding overlapping hotkey registrations. Failure to start the helper keeps the app open; cancelled termination cancels the helper. No permission, capture, recording or test is automatically requested by restoration. See [verification](resumable-setup-verification.md).
+
 Geplanter Stack:
 
 - SwiftUI für Einstellungen und Menüleistenoberfläche;
@@ -181,3 +183,32 @@ Fehlende oder beschädigte Modelle erzeugen einen Fehler, keinen automatischen
 Fallback oder Download. Beide verwenden die bestehende Offline-Sandbox und dieselbe
 flüchtige Audio-/Clipboard-Pipeline. Quelle, Revision, Größe, Prüfsumme und Lizenz:
 [Whisper Turbo](research/whisper-turbo-dictation.md).
+
+Seit 2026-10-14 steht zusätzlich Whisper Large v3 (8-bit, `whisper-large-v3`) zur
+Auswahl. Es nutzt dieselbe mlx-whisper-Laufzeit wie Whisper Turbo, ist genauer
+angelegt, aber langsamer; nur das gewählte Modell wird geladen. [Quelle, Revision,
+Prüfsumme und Lizenz](research/whisper-large-v3-dictation.md).
+
+### Modelle bei Bedarf installieren — 2026-10-14
+
+Builds bündeln standardmäßig nur Whisper Turbo; es ist das Standardmodell. Qwen3-ASR
+und Whisper Large v3 erscheinen in der Modellauswahl als „… installieren (Größe)“.
+`DictationModelStore` kennt mitgelieferte (`Contents/Resources/Dictation/<Ordner>`)
+und installierte Modelle (`~/Library/Application Support/Saywing/DictationModels/<Ordner>`).
+Nach Bestätigung lädt `URLSessionModelFetcher` die im gebündelten Manifest gepinnten
+Dateien (ephemere Session, nur HTTPS zu Hugging Face, auch bei Weiterleitungen) in
+einen Staging-Ordner. Größe und SHA-256 jeder Datei werden geprüft, erst dann wird
+der Ordner atomar an seinen Platz verschoben. Abbruch und Fehler entfernen das
+Staging; ein neuer Installationsversuch verwirft Ergebnisse eines abgebrochenen.
+Nach erfolgreicher Installation wird das Modell ausgewählt und geladen.
+`DictationWorker` übergibt dann `--model-root`; `worker.py` liest das Manifest weiter
+aus dem Bundle und prüft die Hashes beim Laden erneut. Eine gespeicherte Auswahl
+eines nicht installierten Modells bleibt erhalten, gestartet wird aber Whisper Turbo.
+`bundle-dictation-runtime.py` bündelt Qwen nur mit `--with-qwen` und Large v3 nur mit
+`--whisper-large-model`.
+
+### Setup configuration (2026-10-14)
+
+`SetupStep` adds model and shortcut stages for each activity while retaining existing raw checkpoint values. `DictationModelSelection` and `ActivationShortcutsView` are shared by setup and settings. `dictationShortcut.v1` stores the validated combination; `dictationFnEnabled.v1` controls Fn gestures. Registration succeeds before saving. `AppModel` checks collisions across reading, enqueue and dictation and suspends all activation paths while recording a key.
+
+`dictationInstallIntent.v1` persists only the requested model identifier. Relaunch restores an interrupted choice without network activity. Installation completion is checked against a selection generation so a later user choice wins. Verification has its own observable phase; cancellation propagates to file hashing. Completed atomic installs are recovered on relaunch before clearing the intent. Explicit retry uses the existing pinned manifest and installer. No new model source or runtime network endpoint is introduced.
