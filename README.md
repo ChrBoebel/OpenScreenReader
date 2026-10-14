@@ -1,7 +1,7 @@
 # Saywing
 
 <p align="center">
-  <img src="docs/brand-identity/assets/saywing-app-icon.png" alt="Saywing Quiet Owl app icon" width="160">
+  <img src="docs/brand-identity/assets/saywing-app-icon.png" alt="Saywing Text to Voice app icon" width="160">
 </p>
 
 **Vorlesen & Diktieren für macOS.**
@@ -48,7 +48,7 @@ With the development runtime installed, selecting text starts speech automatical
 
 A small floating reading panel appears after capture on the selected display. Choose **Bottom, Left or Right** in Settings → **Control position**, or drag its waveform to dock at the nearest edge. Side positions use an upright vertical layout. The edge and relative offset are remembered locally; **Preview & move control** lets you position it without OCR or speech. Dragging never activates the separate stop/close button or takes keyboard focus. Its stop button cancels the whole operation. Completed/stopped feedback disappears automatically; empty-text and error notices remain until dismissed or a new selection starts. The panel contains status only, never the selected text. See [panel behavior and verification](docs/reading-panel-verification.md).
 
-The reading and dictation controls share a compact Forest/Juniper capsule, rounded mint bars, a subtle light edge and a circular primary stop control. Nine bars follow the actual playback or microphone level, with the same time-based attack/decay and a quiet brightness cycle while preparing or recognizing. Both appear with a short fade and critically damped scale transition; no text or timer appears in the dictation bar. After screen capture, the selection frame still travels to the reading control to explain the spatial connection. Hover reveals reading pause/options without resizing. VoiceOver describes every state; Reduce Motion, Reduce Transparency and Increase Contrast follow macOS. The original local interface sounds remain configurable. See the [design review and native verification](docs/brand-identity/APPLE_DESIGN_REVIEW.md).
+The reading and dictation controls share a compact deep navy capsule, rounded pale petrol bars, a subtle light edge and a circular primary stop control. Nine bars follow the actual playback or microphone level, with the same time-based attack/decay and a quiet brightness cycle while preparing or recognizing. Both appear with a short fade and critically damped scale transition; no text or timer appears in the dictation bar. After screen capture, the selection frame still travels to the reading control to explain the spatial connection. Hover reveals reading pause/options without resizing. VoiceOver describes every state; Reduce Motion, Reduce Transparency and Increase Contrast follow macOS. The original local interface sounds remain configurable. See the [design review and native verification](docs/brand-identity/APPLE_DESIGN_REVIEW.md).
 
 - Press a global keyboard shortcut.
 - Drag a rectangle over any visible text.
