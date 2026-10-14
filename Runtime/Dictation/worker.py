@@ -1,13 +1,48 @@
 """Local PCM pipe worker; no microphone, clipboard, history, or network API."""
 import os
 os.environ.update(HF_HUB_OFFLINE='1',TRANSFORMERS_OFFLINE='1',HF_HUB_DISABLE_TELEMETRY='1',DO_NOT_TRACK='1',TOKENIZERS_PARALLELISM='false',PYTHONDONTWRITEBYTECODE='1')
-import sys,json,base64,hashlib,math,contextlib,signal
+import sys,json,base64,hashlib,math,contextlib,signal,unicodedata,zlib
 from pathlib import Path
 os.environ['TORCHINDUCTOR_CACHE_DIR']=str(Path(__file__).resolve().parent/'RuntimeCache')
 MAX_LINE=65*1024*1024
 MODELS={'qwen3-asr':('Model','model-manifest.json'),
         'whisper-turbo':('WhisperTurbo','whisper-turbo-manifest.json'),
         'whisper-large-v3':('WhisperLargeV3','whisper-large-v3-manifest.json')}
+MAX_TERMS=50;MAX_TERM_LENGTH=60
+
+def decode_vocabulary(value):
+ if value is None:return []
+ if not isinstance(value,list) or len(value)>MAX_TERMS:raise ValueError('invalid_vocabulary')
+ terms,seen=[],set()
+ for item in value:
+  if not isinstance(item,str):raise ValueError('invalid_vocabulary')
+  term=item.strip()
+  if not term or len(term)>MAX_TERM_LENGTH or any(unicodedata.category(c) in ('Cc','Cf') for c in term):raise ValueError('invalid_vocabulary')
+  if term.casefold() not in seen:seen.add(term.casefold());terms.append(term)
+ return terms
+
+def vocabulary_prompt(terms):
+ # A plain list with a final period kept punctuation intact; a 'Glossar:' label leaked into output.
+ return ', '.join(terms)+'.' if terms else None
+
+def fit_prompt_terms(terms,count_tokens,budget):
+ # Whisper keeps only the last prompt tokens; drop trailing terms instead of the first ones.
+ terms=list(terms)
+ while terms and count_tokens(vocabulary_prompt(terms))>budget:terms.pop()
+ return terms
+
+def looks_degenerate(text,terms):
+ raw=text.encode('utf-8')
+ if len(raw)>40 and len(raw)/len(zlib.compress(raw))>2.4:return True
+ parts=[part.strip(' .!?') for part in text.replace(';',',').split(',')]
+ known={term.casefold() for term in terms}
+ return len(parts)>2 and all(part.casefold() in known for part in parts)
+
+def recognize_with_vocabulary(run,terms):
+ # A prompt can turn noise into a loop or an echo of the list; decode once more without it.
+ text=run(terms)
+ if terms and looks_degenerate(text,terms):text=run([])
+ return text
 
 def decode_request(packet):
  import numpy as np
@@ -20,7 +55,7 @@ def decode_request(packet):
  if len(raw)%4 or len(raw)<4 or len(raw)>int(rate)*60*4:raise ValueError('invalid_audio_length')
  audio=np.frombuffer(raw,dtype='<f4').copy()
  if not np.isfinite(audio).all() or float(np.max(np.abs(audio)))>1.1:raise ValueError('invalid_samples')
- return audio,int(rate),language
+ return audio,int(rate),language,decode_vocabulary(packet.get('vocabulary'))
 
 def prepare_audio(audio,rate):
  import numpy as np
@@ -52,18 +87,27 @@ def load_transcriber(root,model_id,model_root=None):
  import mlx.core as mx
  if model_id.startswith('whisper-'):
   from mlx_whisper.transcribe import ModelHolder,transcribe
+  from mlx_whisper.tokenizer import get_tokenizer
   model=ModelHolder.get_model(str(model_path),mx.float16)
   mx.eval(model.parameters());mx.synchronize()
-  def recognize(audio,language):
-   return transcribe(audio,path_or_hf_repo=str(model_path),
-      language={'German':'de','English':'en',None:None}[language],task='transcribe',
-      temperature=0.0,condition_on_previous_text=False,word_timestamps=False,
-      verbose=None)['text'].strip()
+  tokenizer=get_tokenizer(model.is_multilingual,num_languages=model.num_languages,task='transcribe')
+  budget=model.dims.n_text_ctx//2-1
+  def recognize(audio,language,vocabulary):
+   terms=fit_prompt_terms(vocabulary,lambda text:len(tokenizer.encode(' '+text)),budget)
+   def run(terms):
+    return transcribe(audio,path_or_hf_repo=str(model_path),
+       language={'German':'de','English':'en',None:None}[language],task='transcribe',
+       temperature=0.0,condition_on_previous_text=False,word_timestamps=False,
+       initial_prompt=vocabulary_prompt(terms),verbose=None)['text'].strip()
+   return recognize_with_vocabulary(run,terms)
   return recognize
  from mlx_audio.stt.utils import load_model
  model=load_model(model_path,strict=True)
  mx.eval(model.parameters());mx.synchronize()
- return lambda audio,language:model.generate(audio,language=language,max_tokens=1024,verbose=False).text.strip()
+ def recognize(audio,language,vocabulary):
+  run=lambda terms:model.generate(audio,language=language,max_tokens=1024,verbose=False,hotwords=terms or None).text.strip()
+  return recognize_with_vocabulary(run,vocabulary)
+ return recognize
 
 def main():
  protocol=sys.stdout
@@ -89,10 +133,10 @@ def main():
   identifier=None
   try:
    packet=json.loads(line);identifier=packet.get('id')
-   audio,rate,language=decode_request(packet)
+   audio,rate,language,vocabulary=decode_request(packet)
    with contextlib.redirect_stdout(sys.stderr):
     audio=prepare_audio(audio,rate)
-    text='' if audio is None else recognize(audio,language)
+    text='' if audio is None else recognize(audio,language,vocabulary)
     mx.synchronize()
    if len(text.encode('utf-8'))>100000:raise ValueError('output_limit')
    send({'type':'result','id':identifier,'text':text})

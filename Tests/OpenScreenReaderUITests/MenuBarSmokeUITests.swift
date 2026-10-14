@@ -6,12 +6,12 @@ final class MenuBarSmokeUITests: XCTestCase {
     func testSetupResumesAtTheSameStepWithoutOpeningTheMenu() {
         let app = makeApplication()
         app.launchArguments.append("--test-setup")
+        app.launchEnvironment["OSR_SETUP_INITIAL_STEP"] = "dictationModel"
         app.launch()
         defer { app.terminate() }
         let setup = app.windows["Set Up Saywing"]
         XCTAssertTrue(setup.waitForExistence(timeout: 8))
         app.activate()
-        setup.descendants(matching: .any).matching(identifier: "Dictate").firstMatch.click()
         let step = setup.staticTexts["setupCurrentStep"]
         XCTAssertTrue(step.waitForExistence(timeout: 3))
         let before = step.label
@@ -23,7 +23,7 @@ final class MenuBarSmokeUITests: XCTestCase {
         XCTAssertTrue(setup.waitForExistence(timeout: 8))
         XCTAssertEqual(step.label, before)
         app.activate()
-        setup.buttons["setupLater"].click()
+        setup.buttons["setupDefer"].click()
         app.terminate()
         app.launch()
         XCTAssertTrue(app.descendants(matching: .statusItem).firstMatch.waitForExistence(timeout: 8))
@@ -34,12 +34,12 @@ final class MenuBarSmokeUITests: XCTestCase {
     func testSetupSavesBothShortcutsAndFnChoiceAcrossRelaunch() {
         let app = makeApplication()
         app.launchArguments.append("--test-setup")
+        app.launchEnvironment["OSR_SETUP_INITIAL_STEP"] = "readingShortcuts"
         app.launch()
         defer { app.terminate() }
         let setup = app.windows["Set Up Saywing"]
         XCTAssertTrue(setup.waitForExistence(timeout: 8))
         app.activate()
-        setup.buttons["setupStage-2"].click()
         let read = setup.buttons["shortcutRecorder"]
         let dictate = setup.buttons["dictationShortcutRecorder"]
         XCTAssertTrue(dictate.waitForExistence(timeout: 3))
@@ -76,14 +76,13 @@ final class MenuBarSmokeUITests: XCTestCase {
         try JSONSerialization.data(withJSONObject: manifest).write(to: root.appendingPathComponent("whisper-large-v3-manifest.json"))
         let app = makeApplication()
         app.launchArguments.append("--test-setup")
+        app.launchEnvironment["OSR_SETUP_INITIAL_STEP"] = "dictationModel"
         app.launchEnvironment["OSR_SETUP_MODEL_RESOURCES"] = root.path
         app.launch()
         defer { app.terminate() }
         let setup = app.windows["Set Up Saywing"]
         XCTAssertTrue(setup.waitForExistence(timeout: 8))
         app.activate()
-        setup.descendants(matching: .any).matching(identifier: "Dictate").firstMatch.click()
-        setup.buttons["setupStage-1"].click()
         app.activate()
         // macOS exposes the whole label as the disclosure element; its arrow is the hit target.
         setup.disclosureTriangles.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.04, dy: 0.5)).click()
@@ -98,6 +97,7 @@ final class MenuBarSmokeUITests: XCTestCase {
         XCTAssertTrue(setup.waitForExistence(timeout: 8))
         XCTAssertEqual(setup.staticTexts["setupCurrentStep"].label, "Dictation on your Mac")
     }
+
 
     @MainActor
     func testReadingSpeedPersistsAndQueueActionsAreAvailable() {
@@ -244,10 +244,13 @@ final class MenuBarSmokeUITests: XCTestCase {
         status.click()
         app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
         openSettingsTab("General", in: app)
-        XCTAssertTrue(app.images["Saywing text-to-voice app logo"].waitForExistence(timeout: 3))
+        // The logo is decorative and hidden from VoiceOver; the title carries the name.
+        XCTAssertTrue(app.staticTexts["Saywing"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["Read aloud and dictate on your Mac."].exists)
         openSettingsTab("Privacy", in: app)
-        for permission in ["Screen Recording", "Input Monitoring", "Microphone", "Accessibility"] {
+        // macOS 15 renamed the pane to "Screen & System Audio Recording".
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH 'Screen'")).firstMatch.waitForExistence(timeout: 3))
+        for permission in ["Input Monitoring", "Microphone", "Accessibility"] {
             XCTAssertTrue(app.staticTexts[permission].waitForExistence(timeout: 3), permission)
         }
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(
@@ -498,7 +501,7 @@ final class MenuBarSmokeUITests: XCTestCase {
         openMenu(in: app, status: "Stopped")
         app.descendants(matching: .statusItem).menuItems["Settings…"].firstMatch.click()
         openSettingsTab("Shortcuts", in: app)
-        app.buttons["Restore Default · Read screen region"].firstMatch.click()
+        app.buttons["Restore Default"].firstMatch.click()
         XCTAssertTrue(app.staticTexts["Shortcut ⌥R is active and saved."].waitForExistence(timeout: 3))
     }
 

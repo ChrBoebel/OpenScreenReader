@@ -10,7 +10,7 @@ Aktueller Entwicklungsstand: Nach der Hörentscheidung des Eigentümers vom 2026
 
 `SpeechReading.setPaused` pauses the native player without discarding scheduled buffers. `SpeechAudioPlayer` suppresses both prebuffer auto-start and short-tail start while paused; its bounded producer/drain waits remain cancellable. `AppModel.isPaused` is orthogonal to the core speaking phase, so adding regions remains available. The app-level speech watchdog is suspended during a user pause; worker packet watchdogs still cover actual inference, excluding channel backpressure. Resume restores the watchdog; Stop/skip clear pause state.
 
-Queue rows have stable UUIDs. Removal/reordering refreshes only the next prepared text; play-now moves the selected row to the head and uses the existing generation-protected skip/handoff. A transient `NSPopover` hosts `PlaybackControlsView` only after a capsule-button click. Its previews are presentation-only and remain session-local; the closed capsule gets only status/count/level and a callback. `SetupView` offers explicit permission requests and read-only preflight, not a fabricated end-to-end result.
+Queue rows have stable UUIDs. Removal/reordering refreshes only the next prepared text; play-now moves the selected row to the head and uses the existing generation-protected skip/handoff. A transient `NSPopover` hosts `PlaybackControlsView` only after a capsule-button click. Its previews are presentation-only and remain session-local; the closed capsule gets only status/count/level and a callback. `SetupView` offers explicit permission requests and read-only preflight, not a fabricated end-to-end result. Since 2026-10-14 it is a paged flow: `SetupPlan` derives the next step from live grants only, `ReadingTrial` maps the real pipeline status to the in-window reading test (success only after speech played), and `SetupFlowController` owns cancellable grant polling, a stale-protected auto-advance and the `SystemSettingsGuide`/`MenuBarPointer` panels. `AppModel` owns the window and flow and tears both down on close. `ScreenCaptureService` excepts only visible own windows with the `readableBySaywing` identifier from its own-app exclusion. An injected `missingReadingPermission` check opens setup before a selection that could only fail. After a failure, `AppModel.errorHelp` (`retry`, `shortcut`, `allow(permission)`) drives `ReadingErrorView` in the capsule's popover instead of opening setup. `DictationCapsulePlacement` anchors the dictation capsule below `InsertionTarget.caretRect()` and otherwise uses the reading control's `ReadingPanelPlacement`. `DictationController` takes the shared `InterfaceSoundPlaying` and derives result cues from the capsule presentation; the microphone cues (`listening`, `handsFree`, `captured`) are played at the recording's own events, the closing one only after `DictationRecording.finish()`. `DictationRecording` abstracts `MicrophoneRecorder` so tests can drive a recording without a microphone. `MenuBarIcon` composes cached template glyphs from `AppModel.menuBarIndicator`.
 
 `SpeechTextNormalizer` repairs explicit soft hyphens and non-breaking spaces without rewriting ordinary hyphens, numbers or codes. The Python segmenter preserves abbreviation/initial/ordinal context, honors explicit paragraph boundaries and retains the existing 240-character cap. This is deterministic segmentation, not an LLM text rewrite or a proof of audible linguistic fidelity.
 
@@ -39,8 +39,6 @@ SelectionOverlay ──► ScreenCaptureService
 ```
 
 ## Native macOS-App
-
-`SetupProgress` (2026-10-14) persists a small navigation checkpoint before every permission handoff. It restores the reading/dictation step at launch, reconciles against fresh `PermissionStatus` preflight results, and stops at explicit test actions. `AppModel` opens pending setup immediately after app initialization instead of waiting for a menu-label task. Defer retains navigation without reopening automatically; finish clears the checkpoint. `SetupRelauncher` starts a bounded local helper that waits for the old PID to exit before opening the same bundle, avoiding overlapping hotkey registrations. Failure to start the helper keeps the app open; cancelled termination cancels the helper. No permission, capture, recording or test is automatically requested by restoration. See [verification](resumable-setup-verification.md).
 
 Geplanter Stack:
 
@@ -206,6 +204,17 @@ aus dem Bundle und prüft die Hashes beim Laden erneut. Eine gespeicherte Auswah
 eines nicht installierten Modells bleibt erhalten, gestartet wird aber Whisper Turbo.
 `bundle-dictation-runtime.py` bündelt Qwen nur mit `--with-qwen` und Large v3 nur mit
 `--whisper-large-model`.
+
+## Standardmodell und Vokabular — 2026-10-14
+
+Nach Entscheidung des Eigentümers ist Whisper Turbo das Standardmodell, wenn noch
+keine Wahl gespeichert ist; Qwen3-ASR bleibt auswählbar. Jede Anfrage an den Worker
+trägt optional `vocabulary` (≤ 50 Begriffe, je ≤ 60 Zeichen, ohne Steuerzeichen;
+sonst Fehler `processing_failed`). Whisper erhält die Begriffe als `initial_prompt`
+(„A, B, C.“), gekürzt auf das Token-Budget des Prompts, Qwen3-ASR als `hotwords`.
+Ergibt die Erkennung eine Wiederholungsschleife oder nur die Begriffsliste, dekodiert
+derselbe Worker dieselbe Aufnahme einmal ohne Vokabular. Das ist kein Wechsel des
+Modells oder Providers. [Messung und Grenzen](dictation-vocabulary-verification.md).
 
 ### Setup configuration (2026-10-14)
 

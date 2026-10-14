@@ -7,6 +7,7 @@
 - [ ] Validate name comprehension with real participants; no results are implied by the naming decision.
 - [ ] Complete trademark similarity review and confirm desired domain with a registrar.
 - [x] Owner approved Qwen3-ASR dictation integration with clipboard restore (2026-10-13); implemented in the private app build.
+- [x] Whisper Turbo becomes the default dictation model with an optional local vocabulary (owner decision 2026-10-14); [measurement and gaps](dictation-vocabulary-verification.md).
 - [ ] Complete dictation target-app matrix, real microphone/Hotkey walkthrough in the integrated bundle, clean-Mac packaging and distribution gates.
 
 ## Current delivery — 2026-09-09
@@ -56,6 +57,7 @@ Each spike needs a small reproducible test or benchmark and a written decision b
 - [x] Add speed settings and session-bounded model lifecycle.
 - [ ] Add voice selection after listening review.
 - [x] Add explicit permissions onboarding; real installed-app walkthrough remains to be verified.
+- [x] Guided one-decision-per-page setup with in-window reading test, System Settings hint and just-in-time setup (2026-10-14); [verification and open manual checks](guided-setup-verification.md).
 - [ ] Add bundled-model manifest, source/license display, and integrity checks.
 - [x] Add worker packet watchdogs, fail-closed cleanup and direct setup/error help; broader recovery stress tests remain open.
 - [x] Add automated unit and integration tests; do not equate skipped permission/UI paths with success.
@@ -63,7 +65,7 @@ Each spike needs a small reproducible test or benchmark and a written decision b
 
 ## Phase 3 — First public release
 
-- [ ] Accessibility review and VoiceOver labels.
+- [ ] Accessibility review and VoiceOver labels. Code audit and fixes done on 2026-10-14 ([verification](guided-setup-verification.md#rückmeldung-am-ort-des-geschehens)); a live VoiceOver/keyboard walkthrough remains open.
 - [ ] Privacy verification guide.
 - [ ] Third-party notices and model license review.
 - [ ] Signed and notarized Apple Silicon build.

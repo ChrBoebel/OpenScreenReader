@@ -180,6 +180,12 @@ Verification on the development Mac (M4, 16 GB):
   signature and Audio Input entitlement checks passed. After launch the bundled
   Whisper Turbo worker started automatically (saved choice `whisper-turbo`).
 
+After rebasing onto main with the dictation vocabulary (PR #4): **161 app tests in
+11 suites** and **19 Python worker tests** passed; the merged worker passed all
+**12 real offline checks** (including vocabulary) for Whisper Turbo, Qwen3-ASR and
+Whisper Large v3, the latter loaded via `--model-root` from the verified download.
+The counts above were recorded before that rebase.
+
 Not verified: the install entries, confirmation dialog and progress row were not
 inspected visually (the owner build bundles every model, so no install entry is
 shown there); behaviour is covered by the controller/store tests above. No live

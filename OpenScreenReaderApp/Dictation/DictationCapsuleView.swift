@@ -27,6 +27,8 @@ final class DictationCapsuleView: NSView {
     private var visible = false
     private var smoothedLevel = 0.0
     private(set) var state: DictationCapsuleState = .idle
+    /// Recording that continues without a held key; the finish control carries it.
+    private(set) var isHandsFree = false
     private(set) var inputLevel = 0.0
     private(set) var barHeights = [CGFloat](repeating: 3, count: 9)
     var isAnimating: Bool { clock != nil }
@@ -73,7 +75,7 @@ final class DictationCapsuleView: NSView {
         body.addSubview(symbol)
         for _ in 0..<9 {
             let bar = CAShapeLayer()
-            bar.fillColor = ReadingPalette.mint.cgColor
+            bar.fillColor = ReadingPalette.voice.cgColor
             effect.layer?.addSublayer(bar)
             bars.append(bar)
         }
@@ -100,6 +102,7 @@ final class DictationCapsuleView: NSView {
         let changed = self.state != state
         self.state = state
         if changed { inputLevel = 0 }
+        if state != .recording { isHandsFree = false; finishButton.isEmphasized = false }
         finishButton.isEnabled = state == .recording
         finishButton.isHidden = state != .recording
         dismissButton.setAccessibilityLabel(state.isBusy ? String(localized: "Discard dictation") : String(localized: "Close notice"))
@@ -107,29 +110,54 @@ final class DictationCapsuleView: NSView {
         let glyph: String
         let statusTitle: String
         switch state {
-        case .recording: statusTitle = String(localized: "Recording"); glyph = "mic.fill"
+        case .recording:
+            statusTitle = isHandsFree ? String(localized: "Recording hands-free") : String(localized: "Recording")
+            glyph = "mic.fill"
         case .processing: statusTitle = String(localized: "Recognizing text"); glyph = "ellipsis"
         case .pasting: statusTitle = String(localized: "Paste sent"); glyph = "arrow.up.doc"
         case .inserted: statusTitle = String(localized: "Pasted"); glyph = "checkmark"
-        case .unconfirmed: statusTitle = String(localized: "Paste sent – check the target field"); glyph = "arrow.up.doc"
+        // Unverified insertion must not look like normal progress.
+        case .unconfirmed: statusTitle = String(localized: "Paste sent – check the target field"); glyph = "exclamationmark"
         case .attention: statusTitle = title; glyph = "exclamationmark"
         case .idle: statusTitle = title.isEmpty ? String(localized: "Ready to dictate") : title; glyph = "mic"
         }
         symbol.isHidden = state == .recording || state == .processing
-        let accent = state == .attention ? ReadingPalette.amber : ReadingPalette.mint
+        let accent = state == .attention || state == .unconfirmed ? ReadingPalette.amber : ReadingPalette.voice
         symbol.image = NSImage(systemSymbolName: glyph, accessibilityDescription: nil)?
             .withSymbolConfiguration(.init(pointSize: 12, weight: .medium))
         symbol.contentTintColor = accent
         toolTip = [statusTitle, detail].filter { !$0.isEmpty }.joined(separator: "\n")
         setAccessibilityLabel(String(localized: "Saywing dictation: \(statusTitle)"))
         setAccessibilityHelp(detail)
-        setAccessibilityCustomActions(state == .attention ? [NSAccessibilityCustomAction(
+        setAccessibilityCustomActions(state == .attention || state == .unconfirmed ? [NSAccessibilityCustomAction(
             name: String(localized: "Open details in the dictation window"), handler: { [weak self] in self?.onDetails?(); return true })] : [])
         drawFrame(now: CACurrentMediaTime(), reducedMotion: reduced)
         refreshClock()
         if changed, visible {
             NSAccessibility.post(element: self, notification: .layoutChanged)
         }
+    }
+
+    /// Latching shows on the finish control, which is now the way to end: it fills
+    /// and settles in once, like a key clicking into place. No text, no extra light.
+    func setHandsFree(_ value: Bool, animated: Bool = true) {
+        guard state == .recording, value != isHandsFree else { return }
+        isHandsFree = value
+        finishButton.isEmphasized = value
+        setAccessibilityLabel(String(localized: "Saywing dictation: \(value ? String(localized: "Recording hands-free") : String(localized: "Recording"))"))
+        guard value, animated, visible, !reduced, let layer = finishButton.layer else { return }
+        // A view's layer anchors at its corner; scale about the drawn face's centre.
+        let center = CGPoint(x: finishButton.bounds.midX, y: finishButton.bounds.midY)
+        var pressed = CATransform3DMakeTranslation(center.x, center.y, 0)
+        pressed = CATransform3DScale(pressed, 0.86, 0.86, 1)
+        pressed = CATransform3DTranslate(pressed, -center.x, -center.y, 0)
+        let spring = CASpringAnimation(keyPath: "transform")
+        spring.fromValue = NSValue(caTransform3D: pressed)
+        spring.toValue = NSValue(caTransform3D: CATransform3DIdentity)
+        spring.stiffness = 400
+        spring.damping = 40 // Critical damping, as for every capsule transition.
+        spring.duration = spring.settlingDuration
+        layer.add(spring, forKey: "latch")
     }
 
     func updateRecording(rms: Double) {
@@ -164,7 +192,7 @@ final class DictationCapsuleView: NSView {
         effect.isHidden = false
         tint.backgroundColor = ReadingPalette.void.withAlphaComponent(opaque ? 1 : 0.94).cgColor
         effect.layer?.borderWidth = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast ? 1.5 : 0.75
-        effect.layer?.borderColor = ReadingPalette.mint.withAlphaComponent(
+        effect.layer?.borderColor = ReadingPalette.voice.withAlphaComponent(
             NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast ? 0.9 : 0.16).cgColor
         CATransaction.commit()
         if reduced { layer?.removeAllAnimations() }
@@ -230,6 +258,8 @@ private final class DictationDisplayClockProxy: NSObject {
 @MainActor
 final class DictationMiniButton: NSButton {
     var isCancel = false
+    /// The finish control while recording hands-free: a filled pale petrol face.
+    var isEmphasized = false { didSet { if isEmphasized != oldValue { needsDisplay = true } } }
     private var hovered = false
     private var tracking: NSTrackingArea?
 
@@ -259,11 +289,15 @@ final class DictationMiniButton: NSButton {
         let contrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
         if !isCancel || hovered || isHighlighted {
             let opacity = isCancel ? (isHighlighted ? 0.18 : 0.09) : (isHighlighted ? 0.26 : hovered ? 0.19 : 0.10)
-            ReadingPalette.paper.withAlphaComponent(opacity).setFill()
             let face = NSBezierPath(ovalIn: CGRect(x: center.x - 11, y: center.y - 11, width: 22, height: 22))
+            if isEmphasized {
+                ReadingPalette.voice.withAlphaComponent(isHighlighted ? 0.5 : hovered ? 0.42 : 0.34).setFill()
+            } else {
+                ReadingPalette.paper.withAlphaComponent(opacity).setFill()
+            }
             face.fill()
             if !isCancel {
-                ReadingPalette.mintLight.withAlphaComponent(contrast ? 0.75 : 0.18).setStroke()
+                ReadingPalette.voiceLight.withAlphaComponent(contrast ? 0.75 : isEmphasized ? 0.55 : 0.18).setStroke()
                 face.lineWidth = 1
                 face.stroke()
             }

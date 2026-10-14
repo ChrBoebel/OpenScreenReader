@@ -1,16 +1,16 @@
 # Einrichtung: Modelle und Kurzbefehle — 2026-10-14
 
-Branch: `codex/setup-models-shortcuts`. Umsetzung des Eigentümerauftrags nach dem
+Integrationsbranch: `codex/setup-models-shortcuts-integration`. Umsetzung des Eigentümerauftrags nach dem
 [Apple-Design-Skill](https://github.com/emilkowalski/skills/blob/main/skills/apple-design/SKILL.md).
 Übernommen wurden Gestaltungsprinzipien, kein fremder Programmcode.
 
-## Verhalten
+## Verhalten nach Integration in den geführten Ablauf
 
 - Pro Aktivität: Freigaben → Modell → Kurzbefehle → Ausprobieren. Gespeicherte
   Checkpoints bleiben kompatibel. Neustarts übernehmen den aktuellen Schritt;
   tatsächliche Systemfreigaben werden erneut geprüft. Modell und Kurzbefehle
   lassen sich auch vor Erteilen der Berechtigungen konfigurieren.
-- Native Auswahl für Vorlesen/Diktieren, feste Fenstergröße, scrollbarer Inhalt
+- Geführte Navigation mit optionalem Diktierangebot, feste Fenstergröße, scrollbarer Konfigurationsinhalt
   und feste Navigation. Modellwahl und Kurzbefehlsfelder werden mit den
   Einstellungen geteilt. Deutsche und englische Texte; Hell-/Dunkelansicht.
 - Whisper Turbo zuerst, weitere Modelle aufklappbar. Installierte Modelle können
@@ -25,7 +25,41 @@ Branch: `codex/setup-models-shortcuts`. Umsetzung des Eigentümerauftrags nach d
   Warnung bei reinen Command-Kombinationen. Während der Tastenaufnahme sind
   Vorlesen, Warteschlange, Diktieren und Fn pausiert. Escape bleibt Abbruch.
 
-## Ausgeführte Prüfungen
+## Integration mit aktuellem main und abschließende Prüfung
+
+Die Umsetzung wurde mit `main` auf `31cbcac` integriert. Der aktuelle geführte
+Ablauf, echtes Testvorlesen, Berechtigungshilfe, Vokabular, Diktierklänge,
+Hands-free-Verhalten und Branding bleiben erhalten. Modell- und
+Kurzbefehlsseiten ergänzen den Ablauf; es gibt keine parallele zweite Einrichtung.
+Ein Fensterlayout-Test deckte auf, dass der Hinweistext erst nach dem Anpassen
+der Fenstergröße aktualisiert wurde. Die Präsentation aktualisiert nun zuerst
+Text und Freigaben und passt dann die Fenstergröße an.
+
+- Gesamte App-Suite: 188 von 189 Swift-Testing-Tests bestanden. Der verbleibende
+  Test `ReadingPanelTests.draggingSurvivesSpeechTransitionsButNeverSurvivesHide`
+  erwartet x=4; AppKit liefert auf diesem Desktop x=35. Ein separater Build des
+  unveränderten `main` reproduziert denselben Fehler (26 von 27 Tests der
+  Lesesteuerungs-Suite bestanden). Die PR ändert die Lesesteuerung nicht.
+- Abschließender gezielter Lauf: alle 38 Tests in `SetupConfigurationTests`,
+  `PersistentGuidedSetupTests` und `DictationIntegrationTests` bestanden.
+- Python-Protokolltests: 19 bestanden mit dem gebündelten Python-3.12-Runtime.
+  Der erste Versuch mit System-Python 3.9 war ungeeignet (`hashlib.file_digest`
+  fehlt); es wurde keine Runtime-Anpassung vorgenommen.
+- Release-Build mit `CODE_SIGNING_ALLOWED=NO`, Lokalisierungsprüfung und
+  `git diff --check` erfolgreich.
+- Die drei UI-Regressionsprüfungen für echten Prozessneustart, Kurzbefehle/Fn
+  und Downloadbestätigung wurden an den geführten Ablauf angepasst und
+  kompiliert. Sie wurden auf dem integrierten Stand nicht interaktiv erneut
+  ausgeführt, da der Desktop gleichzeitig benutzt wurde. Frühere UI-Nachweise
+  unten beziehen sich auf den Stand vor dieser Integration.
+- Große Modellgewichte, echte erstmalige macOS-Freigaben und der komplette
+  LaunchServices-Neustart bleiben ungeprüft. Fixture-Downloads prüfen
+  Bestätigung, Hash-Verifikation, Abbruch und verspätete Ergebnisse.
+
+Nachweise: `/tmp/saywing-pr-tests-final.log`, `/tmp/saywing-pr-focused.log`,
+`/tmp/saywing-pr-baseline.log`, `/tmp/saywing-pr-release-final.log`.
+
+## Frühere Prüfungen vor Integration mit main
 
 - TDD: sechs neue Konfigurationstests zunächst mit den erwarteten fehlenden APIs
   fehlgeschlagen, nach Umsetzung erfolgreich. Zusätzlich Persistenz der neuen
@@ -58,7 +92,7 @@ Dateidownload, SHA-256-Prüfung, Abbruch, Fehler und Auswahlwechsel sind mit kle
 Testdateien geprüft. Der UI-Downloadtest ist nur auf Bestätigung/Abbruch des Dialogs ausgelegt
 und startet kein Netz; er wurde nicht erfolgreich abgeschlossen. Kein Zurücksetzen bestehender TCC-Berechtigungen,
 kein signiertes Distributionsartefakt, keine Installation nach `/Applications`,
-kein Commit oder Push.
+keine Veröffentlichung eines App-Releases.
 
 Die ursprüngliche Freigabe-Neustartprüfung ist separat in
 [resumable-setup-verification.md](resumable-setup-verification.md) dokumentiert.

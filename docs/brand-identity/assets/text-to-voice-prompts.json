@@ -1,0 +1,17 @@
+{
+  "tool": "built-in image_gen",
+  "date": "2026-10-14",
+  "reference": "Owner-supplied B — Text wird Stimme board",
+  "prompts": [
+    {
+      "key": "navy-flat",
+      "prompt": "Edit image 1 only: recolor the existing Saywing text-to-voice symbol from green to a perfectly flat uniform Ink Navy #172B3A. Keep its exact geometry, placement, proportions, generous transparent padding and rounded bar ends. Remove all shading/texture from the symbol. Image 2 is the approved brand color reference only. Output one isolated monochrome navy symbol on genuine transparent background, square canvas, no words, no tiles, no additional elements.",
+      "path": "Earlier green concept master; recolored using the owner-approved navy reference."
+    },
+    {
+      "key": "navy-icon",
+      "prompt": "Edit image 1: recolor this exact Saywing app icon into the approved navy/petrol palette of image 2. Preserve exact text-to-voice glyph geometry and rounded squircle tile, proportions and transparent exterior. Tile base Ink Navy #172B3A with subtle lighter navy top-edge material lighting and deeper navy bottom edge, no green tint. Main text and tall bar warm Paper #F4F2EC. Only the rightmost shorter vertical bar Petrol #266D79 with subtle lighter teal material light like image 2. Quiet refined macOS icon, minimal depth, no outer glow, no exaggerated bevel. Square image, transparent outside icon, same margin as image 1. No text or other elements.",
+      "path": "Earlier green concept master; recolored using the owner-approved navy reference."
+    }
+  ]
+}

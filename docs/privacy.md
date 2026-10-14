@@ -43,7 +43,7 @@ Kein automatischer Download, kein Download beim Start, kein Fallback.
 
 ## Speicher- und Lebenszyklus
 
-- Die neue explizit geöffnete Wiedergabeansicht darf bis zu 100 Zeichen je wartendem Text anzeigen. Die geschlossene Kapsel bleibt textfrei. Einträge werden über flüchtige UUIDs bearbeitet; Entfernen/Umsortieren ersetzt gegebenenfalls auch das vorbereitete Audio. Stop leert weiterhin alles und schließt die Ansicht. Pause hält nur die vorhandenen begrenzten RAM-Puffer und die aktive Sitzung, ohne Dateien zu schreiben. Einrichtung speichert ausschließlich `setupDismissed.v1`, niemals ein angeblich bestandenes Berechtigungsergebnis.
+- Die neue explizit geöffnete Wiedergabeansicht darf bis zu 100 Zeichen je wartendem Text anzeigen. Die geschlossene Kapsel bleibt textfrei. Einträge werden über flüchtige UUIDs bearbeitet; Entfernen/Umsortieren ersetzt gegebenenfalls auch das vorbereitete Audio. Stop leert weiterhin alles und schließt die Ansicht. Pause hält nur die vorhandenen begrenzten RAM-Puffer und die aktive Sitzung, ohne Dateien zu schreiben. Einrichtung speichert ausschließlich `setupDismissed.v1`, niemals ein angeblich bestandenes Berechtigungsergebnis oder einen Fortschritt; der Schritt wird bei jedem Öffnen aus den aktuellen Freigaben abgeleitet.
 - Ein privates Packaging-Experiment darf das vorhandene Modell und die gepinnte Runtime als Programmbestandteile in `Contents/Resources/Speech` tragen. Kein Runtime-Download und kein Fallback auf die Entwicklerinstallation, wenn dieser Bundle-Ordner existiert, aber beschädigt ist. Redistribution, vollständige Lizenzkette und eine Prüfung auf einem frischen Mac bleiben Release-Gates.
 
 - Vorlesegeschwindigkeit wird als Zahl unter `speechPlaybackRate.v1` gespeichert; der separate Hinzufügen-Shortcut als Taste/Modifikatoren unter `enqueueShortcut.v1`. Keine Audio-, Text- oder Bildschirmdaten werden dadurch gespeichert. Bis zu fünf wartende OCR-Texte mit je maximal 8.000 Zeichen/48.000 UTF-8-Bytes bleiben nur im RAM. Sie werden nach FIFO-Wiedergabe freigegeben; Gesamtstopp, Fehler oder Beenden leeren die Liste und verwerfen verspätete Aufnahme-/OCR-Ergebnisse. Die Liste enthält Text, Auswahlgeometrie und Zählwerte, niemals Screenshots. Der Sprachservice darf ausschließlich für ihren nächsten Eintrag Audio vorab im RAM erzeugen; keine Vorab-TTS der gesamten Liste. Genau ein Worker bleibt innerhalb der Sitzung geladen und bearbeitet Texte seriell. Aktueller und nächster Transportbuffer sowie Player sind auf je acht Sekunden Quell-Audio begrenzt (zusammen rund 4,04 MiB), unabhängig vom Tempo. Dies begrenzt die Swift-PCM-Warteschlangen, nicht In-flight-Pakete, Transportkodierung oder den Gesamtspeicher von Audio-Engine und Modellworker. Stop/Esc/Beenden löschen beide Transportbuffer und die Audioqueue und beenden den warmen Worker. Ohne aktive/vorbereitete Arbeit endet Warmhalten spätestens nach 30 s. Keine neue Datei-Historie, Telemetrie oder Runtime-Netzwerkverbindung.
@@ -51,7 +51,7 @@ Kein automatischer Download, kein Download beim Start, kein Fallback.
 - Die gewählte Tastenkombination (Taste und Modifikatoren) wird lokal unter `readingShortcut.v1` in UserDefaults gespeichert. Das Kurzbefehlsfeld der Einstellungen wertet nur den einen Tastendruck aus, während es ausdrücklich angeklickt aufnimmt; es speichert keine Tastatureingaben und enthält keine Bildschirm-, OCR- oder Audioinhalte. Währenddessen sind die globalen Kurzbefehle kurz abgemeldet.
 - Klick statt Ziehen (Eigentümerfreigabe 2026-10-14, „alles umsetzen“ aus dem Apple-Design-Review): Ein einzelner Klick im Auswahl-Overlay erfasst einen begrenzten Bereich von höchstens 1200 × 800 Punkten um den Zeiger, innerhalb des angeklickten Displays. Nur der Absatz unter dem Zeiger wird vorgelesen; der übrige erkannte Text wird unmittelbar nach der lokalen Texterkennung verworfen, nie angezeigt, gesprochen, eingereiht oder gespeichert. Ein Klick fern von Text liest nichts. Dies ist die einzige Ausnahme von „nur der markierte Bereich“: Der Klick ist die ausdrückliche Markierung.
 - Der Auswahlhinweis zählt nur seine Anzeigen unter `selectionHintCount.v1` (höchstens 5).
-- Für Interface-Klänge werden nur Ein/Aus unter `interfaceSoundsEnabled.v1` und die Lautstärke unter `interfaceSoundsVolume.v1` lokal gespeichert. Die drei festen Stereo-Hinweisklänge (Öffnen, Abschluss, Hinweis, teils in zwei Voicings) werden beim Start mathematisch im Speicher erzeugt; sie verwenden keine Aufnahme, keinen OCR-Text, kein Sprachmodell und keine Netzwerkverbindung. Ihre wiederverwendbaren Puffer enthalten nur diese festen Töne, keine Nutzerinhalte; es werden keine Audiodateien geschrieben. Die Stop-Taste ist seit 2026-10-14 stumm; ihre haptische Rückmeldung nutzt nur die System-API ohne Daten.
+- Für Interface-Klänge werden nur Ein/Aus unter `interfaceSoundsEnabled.v1` und die Lautstärke unter `interfaceSoundsVolume.v1` lokal gespeichert. Die sechs festen Stereo-Hinweisklänge (Öffnen, Abschluss, Hinweis, teils in zwei Voicings, sowie seit 2026-10-14 Mikrofon an, freihändig eingerastet und Mikrofon aus) werden beim Start mathematisch im Speicher erzeugt; sie verwenden keine Aufnahme, keinen OCR-Text, kein Sprachmodell und keine Netzwerkverbindung. Ihre wiederverwendbaren Puffer enthalten nur diese festen Töne, keine Nutzerinhalte; es werden keine Audiodateien geschrieben. Die Stop-Taste ist seit 2026-10-14 stumm; ihre haptische Rückmeldung nutzt nur die System-API ohne Daten.
 - Das Flug-Fenster nach der Aufnahme zeichnet nur die Geometrie des Auswahlrechtecks als Mint-Kontur, nie den Bildinhalt; es ist klick-durchlässig und wird nach der Landung geschlossen.
 - Die Stimmbalken erhalten nur einen flüchtigen Pegelwert, keinen Audiopuffer. Dieser wird aus 20-ms-Fenstern des ohnehin abgespielten lokalen PCM berechnet und folgt der Wiedergabeposition, nicht dem Eingang neuer Synthesepakete. Vergangene Pegelfenster werden verworfen; die maximal achtsekündige Quell-Audio-Warteschlange begrenzt den Vorlauf. Abbruch setzt Warteschlange und Anzeige zurück. Keine Pegel-Historie, kein Audio-Tap und keine zusätzliche Berechtigung.
 - Screenshots bleiben im Prozessspeicher und werden nach OCR freigegeben.
@@ -63,11 +63,13 @@ Kein automatischer Download, kein Download beim Start, kein Fallback.
 
 ## macOS-Berechtigungen
 
-- `setupProgress.v1` speichert ausschließlich den aktuellen Einrichtungsschritt, die gewünschte Wiederaufnahme und die gegebenenfalls angefragte Berechtigungsart. Keine Freigabe wird als dauerhaft gültig gespeichert; nach Rückkehr und Neustart wird sie neu geprüft. Es werden weder Testinhalte noch ein vermeintlich erfolgreicher Funktionsnachweis gespeichert. „Einrichtung abschließen“ entfernt diesen Fortschritt; `setupDismissed.v1` merkt weiterhin die ausdrückliche Beendigung bzw. „Später“. Die Wiederaufnahme startet keine Aufnahme und keinen Test.
-- Der ausdrücklich angeklickte App-Neustart verwendet nur einen lokalen, auf 30 Sekunden begrenzten Helfer. Er wartet auf das Ende des aktuellen Prozesses und öffnet dieselbe App über LaunchServices. Keine Netzwerkverbindung und keine Inhaltsdatei; ein abgebrochener Beendigungsversuch beendet auch den Helfer.
 - Bildschirmaufnahme ist für die Bereichserfassung erforderlich und muss verständlich begründet werden.
 - Accessibility beziehungsweise Input Monitoring wird nur angefragt, wenn der gewählte globale Hotkey oder die Abbruchsteuerung es technisch benötigt.
 - Die App darf keine weitergehenden Berechtigungen aus Bequemlichkeit anfordern.
+- Geführte Einrichtung (2026-10-14): Jede Freigabe wird nur durch einen Klick auf ihrer eigenen Seite angefragt. Während Saywing auf eine Freigabe wartet, prüft es deren Status (Preflight, ohne Dialog) und liest aus der Fensterliste des Systems ausschließlich Prozess-ID, Ebene und Rahmen der Fenster der Systemeinstellungen, um den Hinweis daneben zu platzieren. Fenstertitel oder Inhalte anderer Apps werden nicht gelesen, nichts wird gespeichert, und das Abfragen endet mit der Freigabe, beim Wechsel der Seite oder beim Schließen.
+- Die Bildschirmerfassung schließt alle eigenen Fenster aus, mit einer Ausnahme: ein sichtbares Fenster mit der Kennung `readableBySaywing`. Das ist derzeit nur das Einrichtungsfenster mit seinem eigenen Beispielsatz, damit der Lesetest ohne privaten Bildschirminhalt auskommt. Statusfläche, Auswahl-Overlay und Hinweise bleiben ausgeschlossen.
+- Diktat am Cursor (2026-10-14): Zu Beginn eines Diktats liest Saywing über die Bedienungshilfen nur die Bildschirmposition der Einfügestelle (`AXBoundsForRange` mit Länge 0) oder, ersatzweise, Position und Größe eines kleinen Textfelds. Inhalte werden dafür nicht gelesen, und die Position wird nur bis zum nächsten Diktat im RAM gehalten.
+- „Beenden & neu öffnen“ startet `/bin/sh` mit der eigenen Prozess-ID und dem App-Pfad; die Shell wartet auf das Ende von Saywing und öffnet es mit `--resume-setup` erneut. Keine Netzwerk- oder Dateizugriffe.
 
 ## Überprüfbarkeit
 
@@ -117,6 +119,17 @@ mitgelieferte Modelle werden nur nach ausdrücklicher Bestätigung installiert (
 Callbacks des alten Workers. Quelle, Revision, Prüfsummen und Lizenz von [Whisper
 Turbo](research/whisper-turbo-dictation.md) und [Whisper Large
 v3](research/whisper-large-v3-dictation.md).
+
+## Standardmodell und eigenes Vokabular — 2026-10-14
+
+Whisper Turbo ist das Standardmodell für neue Installationen; eine gespeicherte
+Wahl bleibt erhalten. Unter Einstellungen → Diktieren kann ein eigenes Vokabular
+(höchstens 50 Begriffe zu je 60 Zeichen) eingetragen werden. Es wird nur lokal unter
+`dictationVocabulary.v1` gespeichert, enthält ausschließlich die selbst
+eingetragenen Begriffe und wird bei jedem Diktat über die anonyme Pipe an den
+Offline-Worker übergeben. Weder Worker noch App protokollieren oder übertragen es.
+Ein geleertes Feld entfernt den Eintrag. Diktierte Texte werden dadurch nicht
+gespeichert und nicht automatisch ins Vokabular übernommen.
 
 ### Setup preferences (2026-10-14)
 

@@ -1,206 +1,6 @@
 import AppKit
-import SwiftUI
 import Testing
 @testable import OpenScreenReader
-
-@Suite("Resumable setup", .serialized)
-@MainActor
-struct ResumableSetupTests {
-    @Test func modelsAndShortcutsRemainDistinctSavedStepsBeforeTesting() {
-        let (defaults, suite) = preferences()
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let setup = SetupProgress(preferences: defaults)
-        setup.continueToDictation(granted: Set(SaywingPermission.allCases))
-        #expect(setup.step == .dictationModel)
-        setup.advance(granted: Set(SaywingPermission.allCases))
-        #expect(setup.step == .dictationShortcuts)
-        let restored = SetupProgress(preferences: defaults)
-        restored.begin(granted: Set(SaywingPermission.allCases))
-        #expect(restored.step == .dictationShortcuts)
-        restored.advance(granted: Set(SaywingPermission.allCases))
-        #expect(restored.step == .dictationTest)
-        restored.back()
-        #expect(restored.step == .dictationShortcuts)
-    }
-
-    private func preferences() -> (UserDefaults, String) {
-        let suite = "com.christopherbobel.OpenScreenReader.setup-tests.\(UUID())"
-        return (UserDefaults(suiteName: suite)!, suite)
-    }
-
-    @Test func permissionHandoffSurvivesSystemInitiatedRestart() {
-        let (defaults, suite) = preferences()
-        defer { defaults.removePersistentDomain(forName: suite) }
-        // Reopening setup after an earlier dismissal must also be resumable.
-        defaults.set(true, forKey: "setupDismissed.v1")
-        let setup = SetupProgress(preferences: defaults)
-        #expect(!setup.shouldOpenOnLaunch)
-        setup.begin(granted: [])
-        setup.prepareForPermission(.screenRecording)
-        let relaunched = SetupProgress(preferences: UserDefaults(suiteName: suite)!)
-        #expect(relaunched.shouldOpenOnLaunch)
-        #expect(relaunched.step == .screenRecording)
-        #expect(relaunched.waitingFor == .screenRecording)
-        relaunched.refresh(granted: [.screenRecording])
-        #expect(relaunched.step == .inputMonitoring)
-        #expect(relaunched.waitingFor == nil)
-    }
-
-    @Test func restartSkipsGrantedPermissionsButKeepsModelAndShortcutChoices() {
-        let (defaults, suite) = preferences()
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let setup = SetupProgress(preferences: defaults)
-        setup.begin(granted: [])
-        setup.prepareForPermission(.screenRecording)
-        let restored = SetupProgress(preferences: defaults)
-        restored.refresh(granted: Set(SaywingPermission.allCases))
-        #expect(restored.step == .readingModel)
-        restored.continueToDictation(granted: Set(SaywingPermission.allCases))
-        #expect(restored.step == .dictationModel)
-    }
-
-    @Test func dictationResumesAtItsMissingPermissionAndPreservesSkippedReading() {
-        let (defaults, suite) = preferences()
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let setup = SetupProgress(preferences: defaults)
-        setup.continueToDictation(granted: [.microphone])
-        setup.prepareForPermission(.accessibility)
-        let restored = SetupProgress(preferences: defaults)
-        restored.refresh(granted: [.microphone])
-        #expect(restored.step == .accessibility)
-        restored.refresh(granted: [.microphone, .accessibility])
-        #expect(restored.step == .dictationModel)
-    }
-
-    @Test func optionalInputMonitoringDoesNotBlockReadingAndRevocationIsRechecked() {
-        let (defaults, suite) = preferences()
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let setup = SetupProgress(preferences: defaults)
-        setup.begin(granted: [.screenRecording])
-        setup.skipOptionalPermission()
-        #expect(setup.step == .readingModel)
-        setup.advance(granted: [.screenRecording])
-        setup.advance(granted: [.screenRecording])
-        #expect(setup.step == .readingTest)
-        let restored = SetupProgress(preferences: defaults)
-        restored.refresh(granted: [.screenRecording])
-        #expect(restored.step == .readingTest)
-        restored.refresh(granted: [])
-        #expect(restored.step == .screenRecording)
-    }
-
-    @Test func laterKeepsTheStepWithoutForcingSetupOnEveryLaunch() {
-        let (defaults, suite) = preferences()
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let setup = SetupProgress(preferences: defaults)
-        setup.continueToDictation(granted: [.microphone])
-        setup.deferSetup()
-        let restored = SetupProgress(preferences: defaults)
-        #expect(!restored.shouldOpenOnLaunch)
-        #expect(restored.step == .accessibility)
-        restored.begin(granted: [.microphone])
-        #expect(restored.shouldOpenOnLaunch)
-        #expect(restored.step == .accessibility)
-        restored.finish()
-        #expect(!SetupProgress(preferences: defaults).shouldOpenOnLaunch)
-        #expect(defaults.dictionary(forKey: SetupProgress.preferenceKey) == nil)
-    }
-
-    @Test func deniedPermissionAndRestartDoNotAdvanceOrLoopAutomatically() {
-        let (defaults, suite) = preferences()
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let setup = SetupProgress(preferences: defaults)
-        setup.prepareForPermission(.screenRecording)
-        setup.refresh(granted: [])
-        #expect(setup.step == .screenRecording)
-        setup.prepareForRestart()
-        let restored = SetupProgress(preferences: defaults)
-        restored.refresh(granted: [])
-        #expect(restored.shouldOpenOnLaunch)
-        #expect(restored.step == .screenRecording)
-        #expect(restored.waitingFor == .screenRecording)
-    }
-
-    @Test func restartSavesBeforeLaunchingAndNeverQuitsIfLaunchFails() {
-        let (defaults, suite) = preferences()
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: RegisteredHotkeyManagerFake(),
-                             preferences: defaults, setupPermissions: PermissionStatus { _ in false })
-        model.setupProgress.continueToDictation(granted: [.microphone])
-        var terminated = false
-        model.restartSetup(launch: {
-            let restored = SetupProgress(preferences: defaults)
-            #expect(restored.shouldOpenOnLaunch)
-            #expect(restored.step == .accessibility)
-            throw CocoaError(.executableNotLoadable)
-        }, terminate: { terminated = true })
-        #expect(!terminated)
-        #expect(!model.isRestartingSetup)
-        #expect(model.setupRestartError != nil)
-        model.restartSetup(launch: { nil }, terminate: { terminated = true })
-        #expect(terminated)
-        #expect(model.setupRestartError == nil)
-    }
-
-    @Test func restartIsBlockedWhileRecordingAShortcut() {
-        let (defaults, suite) = preferences()
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: RegisteredHotkeyManagerFake(),
-                             preferences: defaults, setupPermissions: PermissionStatus { _ in false })
-        model.setRecordingShortcut(true)
-        var launched = false
-        model.restartSetup(launch: { launched = true; return nil }, terminate: {})
-        #expect(!launched)
-        model.setRecordingShortcut(false)
-    }
-
-    /// Opt-in layout evidence, with simulated grant states clearly separated
-    /// from the real permission/relaunch UI test.
-    @Test func exportSetupStates() throws {
-        guard let path = ProcessInfo.processInfo.environment["OSR_SETUP_PREVIEW_DIR"] else { return }
-        let directory = URL(fileURLWithPath: path)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let states: [(SetupStep, Set<SaywingPermission>)] = [
-            (.screenRecording, []), (.inputMonitoring, [.screenRecording]),
-            (.readingModel, [.screenRecording, .inputMonitoring]),
-            (.readingShortcuts, [.screenRecording, .inputMonitoring]),
-            (.readingTest, [.screenRecording, .inputMonitoring]), (.microphone, []),
-            (.dictationModel, [.microphone, .accessibility]),
-            (.dictationShortcuts, [.microphone, .accessibility]),
-            (.accessibility, [.microphone]), (.dictationTest, [.microphone, .accessibility])
-        ]
-        for (step, granted) in states {
-            let (defaults, suite) = preferences()
-            defer { defaults.removePersistentDomain(forName: suite) }
-            let resources = try DictationModelFixture.resources(bundling: [.whisperTurbo])
-            defer { try? FileManager.default.removeItem(at: resources) }
-            let dictation = DictationController(resources: resources, preferences: defaults, registerHotkey: false)
-            defer { dictation.shutdown() }
-            let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: RegisteredHotkeyManagerFake(),
-                                 preferences: defaults, dictation: dictation, setupPermissions: PermissionStatus { granted.contains($0) })
-            if step.isDictation { model.setupProgress.continueToDictation(granted: granted) }
-            else { model.setupProgress.begin(granted: granted) }
-            if step.stage > 0 { model.setupProgress.visit(stage: step.stage) }
-            if let permission = step.permission { model.setupProgress.prepareForPermission(permission) }
-            for (suffix, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
-                let host = NSHostingView(rootView: SetupView(model: model)
-                    .background(Color(nsColor: .windowBackgroundColor))
-                    .environment(\.colorScheme, suffix == "light" ? .light : .dark))
-                host.appearance = NSAppearance(named: appearance)
-                host.frame.size = host.fittingSize
-                let window = NSWindow(contentRect: host.frame, styleMask: [.titled], backing: .buffered, defer: false)
-                window.appearance = NSAppearance(named: appearance)
-                window.contentView = host
-                host.layoutSubtreeIfNeeded()
-                let rep = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
-                host.cacheDisplay(in: host.bounds, to: rep)
-                try #require(rep.representation(using: .png, properties: [:]))
-                    .write(to: directory.appendingPathComponent("\(step.rawValue)-\(suffix).png"))
-                window.contentView = nil
-            }
-        }
-    }
-}
 
 @Suite("App status")
 struct AppStatusTests {
@@ -255,20 +55,93 @@ struct AppStatusTests {
         ])
         #expect(SaywingPermission.reading == [.screenRecording, .inputMonitoring])
         #expect(SaywingPermission.dictation == [.microphone, .accessibility])
-        #expect(SaywingPermission.allCases.filter { !$0.isRequired } == [.inputMonitoring])
     }
 
+    /// Capture refuses to start without Input Monitoring (global Escape, ADR 0005),
+    /// so the reading test must not be offered with Screen Recording alone.
     @Test @MainActor
-    func readingTestNeedsOnlyScreenRecording() {
+    func readingTestNeedsScreenRecordingAndInputMonitoring() {
         var granted: Set<SaywingPermission> = [.screenRecording]
         let status = PermissionStatus { granted.contains($0) }
-        #expect(status.canTestReading)
-        #expect(!status.canTestDictation)
-        granted = [.inputMonitoring, .microphone]
-        status.refresh()
         #expect(!status.canTestReading)
+        #expect(!status.canTestDictation)
+        granted = [.screenRecording, .inputMonitoring, .microphone]
+        status.refresh()
+        #expect(status.canTestReading)
         #expect(status.canTestDictation)
-        #expect(status.isGranted(.inputMonitoring))
+    }
+
+    @Test
+    func freshSetupWalksReadingThenOffersDictation() {
+        var plan = SetupPlan(dictationAvailable: true)
+        #expect(plan.first(granted: []) == .welcome)
+        #expect(plan.next(after: .welcome, granted: []) == .permission(.screenRecording))
+        #expect(plan.next(after: .permission(.screenRecording), granted: [.screenRecording]) == .permission(.inputMonitoring))
+        #expect(plan.next(after: .permission(.inputMonitoring), granted: [.screenRecording, .inputMonitoring]) == .readingModel)
+        #expect(plan.next(after: .tryReading, granted: [.screenRecording, .inputMonitoring]) == .dictationOffer)
+        #expect(plan.next(after: .dictationOffer, granted: [.screenRecording, .inputMonitoring]) == .done)
+        plan.wantsDictation = true
+        let reading: Set<SaywingPermission> = [.screenRecording, .inputMonitoring]
+        #expect(plan.next(after: .dictationOffer, granted: reading) == .permission(.microphone))
+        #expect(plan.next(after: .permission(.microphone), granted: reading.union([.microphone])) == .permission(.accessibility))
+        #expect(plan.next(after: .permission(.accessibility), granted: Set(SaywingPermission.allCases)) == .dictationModel)
+        #expect(plan.next(after: .tryDictation, granted: Set(SaywingPermission.allCases)) == .done)
+        #expect(plan.next(after: .done, granted: []) == .done)
+    }
+
+    @Test
+    func setupSkipsGrantedStepsAndTestsThatCannotRun() {
+        var plan = SetupPlan(dictationAvailable: true)
+        // Returning users start where something is still missing, never at the welcome.
+        #expect(plan.first(granted: [.inputMonitoring]) == .permission(.screenRecording))
+        #expect(plan.first(granted: [.screenRecording, .inputMonitoring]) == .readingModel)
+        // "Later" on a required grant also skips the test that would only fail.
+        #expect(plan.next(after: .permission(.inputMonitoring), granted: [.inputMonitoring]) == .readingModel)
+        plan.wantsDictation = true
+        #expect(plan.next(after: .permission(.accessibility), granted: [.accessibility]) == .dictationModel)
+        // The dictation test field works with the microphone alone.
+        #expect(plan.next(after: .permission(.accessibility), granted: [.microphone]) == .dictationModel)
+        // Dictation reached from its own error goes straight to its missing grants.
+        #expect(plan.first(granted: [], entry: .dictation) == .permission(.microphone))
+        #expect(plan.first(granted: [.microphone, .accessibility], entry: .dictation) == .dictationModel)
+        let readingOnly = SetupPlan(dictationAvailable: false)
+        #expect(readingOnly.next(after: .tryReading, granted: []) == .done)
+        #expect(readingOnly.first(granted: [], entry: .dictation) == .welcome)
+    }
+
+    /// Success is shown only after speech actually played, not after a grant or a drag.
+    @Test
+    func readingTrialConfirmsOnlyHeardSpeech() {
+        var trial = ReadingTrial.waiting
+        trial = trial.advanced(by: .selecting, foundText: nil)
+        #expect(trial == .working)
+        trial = trial.advanced(by: .stopped, foundText: nil)
+        #expect(trial == .waiting, "Escape during the selection is not a result")
+        for status in [AppStatus.selecting, .capturing, .recognizing, .synthesizing] { trial = trial.advanced(by: status, foundText: nil) }
+        #expect(trial == .working)
+        trial = trial.advanced(by: .ready, foundText: false)
+        #expect(trial == .noText)
+        trial = trial.advanced(by: .synthesizing, foundText: true).advanced(by: .speaking, foundText: true)
+        #expect(trial == .speaking)
+        // Adding to the queue keeps speaking; Escape after hearing it is a success.
+        #expect(trial.advanced(by: .selecting, foundText: true) == .speaking)
+        #expect(trial.advanced(by: .stopped, foundText: true) == .heard)
+        #expect(trial.advanced(by: .ready, foundText: true) == .heard)
+        #expect(ReadingTrial.working.advanced(by: .error, foundText: nil) == .failed)
+        #expect(ReadingTrial.waiting.advanced(by: .ready, foundText: nil) == .waiting)
+    }
+
+    /// Only a visible window that opted in can be read; the capsule and overlay never.
+    @Test @MainActor
+    func captureIncludesOnlyVisibleWindowsThatOptIn() {
+        let readable = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 80, height: 80), styleMask: [.titled], backing: .buffered, defer: false)
+        readable.identifier = .readableBySaywing
+        let other = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 80, height: 80), styleMask: [.titled], backing: .buffered, defer: false)
+        let hidden = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 80, height: 80), styleMask: [.titled], backing: .buffered, defer: false)
+        hidden.identifier = .readableBySaywing
+        readable.orderFront(nil); other.orderFront(nil)
+        defer { readable.orderOut(nil); other.orderOut(nil) }
+        #expect(ScreenCaptureService.readableWindowIDs(in: [readable, other, hidden]) == [CGWindowID(readable.windowNumber)])
     }
 
     @Test
@@ -312,4 +185,81 @@ private final class RegisteredHotkeyManagerFake: HotkeyManaging {
     }
 
     func unregister() {}
+}
+
+@Suite("Persistent guided setup", .serialized)
+@MainActor
+struct PersistentGuidedSetupTests {
+    private func fixture() -> (AppModel, UserDefaults, String) {
+        let suite = "com.christopherbobel.OpenScreenReader.setup-merge-tests.\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: RegisteredHotkeyManagerFake(), preferences: defaults)
+        return (model, defaults, suite)
+    }
+    @Test func modelAndShortcutStepsSurviveRelaunchWithoutStartingATrial() {
+        let (model, defaults, suite) = fixture()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let permissions = PermissionStatus { _ in true }
+        let first = SetupFlowController(model: model, permissions: permissions, start: .readingModel)
+        first.advance()
+        #expect(first.step == .readingShortcuts)
+        first.stop()
+        let restored = SetupFlowController(model: model, permissions: permissions)
+        defer { restored.stop() }
+        #expect(restored.step == .readingShortcuts)
+        #expect(restored.trial == .waiting)
+        #expect(!restored.readingConfirmed)
+        restored.advance()
+        #expect(restored.step == .tryReading)
+        #expect(model.status == .ready)
+    }
+    @Test func permissionHandoffRestoresWaitingAndSkipsOnlyAnAllowedGrant() {
+        let (model, defaults, suite) = fixture()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(["step": "screenRecording", "waitingFor": "screenRecording", "resume": true], forKey: SetupFlowController.checkpointKey)
+        let waiting = SetupFlowController(model: model, permissions: PermissionStatus { _ in false })
+        #expect(waiting.step == .permission(.screenRecording))
+        #expect(waiting.awaiting == .screenRecording)
+        waiting.stop()
+        let restored = SetupFlowController(model: model, permissions: PermissionStatus { _ in true })
+        defer { restored.stop() }
+        #expect(restored.step == .readingModel)
+        #expect(!restored.readingConfirmed)
+    }
+    @Test func revokedGrantIsRecheckedBeforeTrialButNotBeforeConfiguration() {
+        let (model, defaults, suite) = fixture()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(["step": "readingTest", "resume": true], forKey: SetupFlowController.checkpointKey)
+        let trial = SetupFlowController(model: model, permissions: PermissionStatus { _ in false })
+        #expect(trial.step == .permission(.screenRecording))
+        trial.stop()
+        defaults.set(["step": "readingShortcuts", "resume": true], forKey: SetupFlowController.checkpointKey)
+        let configuration = SetupFlowController(model: model, permissions: PermissionStatus { _ in false })
+        defer { configuration.stop() }
+        #expect(configuration.step == .readingShortcuts)
+    }
+    @Test func laterKeepsCheckpointAndFinishClearsIt() {
+        let (model, defaults, suite) = fixture()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let flow = SetupFlowController(model: model, permissions: PermissionStatus { _ in false }, start: .readingShortcuts)
+        defer { flow.stop() }
+        flow.persistCheckpoint(resume: false)
+        #expect(defaults.dictionary(forKey: SetupFlowController.checkpointKey)?["resume"] as? Bool == false)
+        #expect(defaults.dictionary(forKey: SetupFlowController.checkpointKey)?["step"] as? String == "readingShortcuts")
+        model.finishSetup()
+        #expect(defaults.dictionary(forKey: SetupFlowController.checkpointKey) == nil)
+    }
+    @Test func failedRelaunchKeepsAppOpenAndShortcutCaptureBlocksRestart() {
+        let (model, defaults, suite) = fixture()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var terminated = false
+        model.restartSetup(launch: { throw CocoaError(.executableNotLoadable) }, terminate: { terminated = true })
+        #expect(!terminated)
+        #expect(model.setupRestartError != nil)
+        model.setRecordingShortcut(true)
+        var launched = false
+        model.restartSetup(launch: { launched = true; return nil }, terminate: {})
+        #expect(!launched)
+        model.setRecordingShortcut(false)
+    }
 }

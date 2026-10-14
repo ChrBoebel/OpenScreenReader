@@ -29,6 +29,7 @@ final class DictationController: NSObject, ObservableObject {
   private let shortcutStore: UserDefaultsShortcutStore
   private var instructionLabel = NSTextField(wrappingLabelWithString: "")
   @Published private(set) var language: DictationLanguage
+  @Published private(set) var vocabulary: [String]
   /// Two seconds instead of one before the clipboard is restored, for slow target apps.
   @Published private(set) var restoresClipboardSlowly: Bool
   var canChangeModel: Bool { !isActive && canPrepareModel }
@@ -47,17 +48,29 @@ final class DictationController: NSObject, ObservableObject {
   let models: DictationModelStore
   let worker: any DictationTranscribing
   let gate = GenerationGate()
-  var window: NSWindow!, scratch = NSTextView(), result = NSTextView()
+  var window: NSWindow!, scratch: NSTextView = TabEscapingTextView(), result = NSTextView()
   private var windowNeedsInitialLayout = true
   var titleLabel = NSTextField(labelWithString: String(localized: "Preparing model…"))
   var detailLabel = NSTextField(wrappingLabelWithString: "")
   var permissionLabel = NSTextField(wrappingLabelWithString: "")
+  /// Shown only when a result could not be pasted, so it can still be copied.
+  let resultSection = NSStackView()
+  private let interfaceSounds: (any InterfaceSoundPlaying)?
+  /// Where this dictation's text will land; the capsule appears next to it.
+  private var capsuleAnchor: CGRect?
   var startButton: NSButton!, cancelButton: NSButton!, setupButton: NSButton!
   var demoDE: NSButton?, demoEN: NSButton?
   var panel: DictationStatusPanel!
   let capsule = DictationCapsuleView(frame: CGRect(origin: .zero, size: DictationCapsuleView.surface))
   private var panelGeneration = UUID()
-  var record: MicrophoneRecorder?, target: InsertionTarget?, request: UUID?
+  var record: (any DictationRecording)?, target: InsertionTarget?, request: UUID?
+  /// Tests replace the microphone; the app always records through AVAudioEngine.
+  var makeRecorder: () -> any DictationRecording = { MicrophoneRecorder() }
+  /// Hands-free was requested before the microphone opened (activation is asynchronous).
+  private var startsHandsFree = false
+  /// The paste was read back early; the result has already sounded and been announced.
+  private var insertionConfirmed = false
+  private var confirmation: DispatchWorkItem?
   var phase = "loading", latestText = ""
   var recordingTimer: Timer?, recordingStart = Date()
   var timeout: DispatchWorkItem?, panelHide: DispatchWorkItem?,
@@ -73,8 +86,10 @@ final class DictationController: NSObject, ObservableObject {
     worker: any DictationTranscribing = DictationWorker(),
     shortcut: any HotkeyManaging = GlobalHotkeyManager(),
     escape: any HotkeyManaging = GlobalHotkeyManager(),
-    preferences: UserDefaults = InterfaceSoundPlayer.defaults, registerHotkey: Bool = true
+    preferences: UserDefaults = InterfaceSoundPlayer.defaults, registerHotkey: Bool = true,
+    interfaceSounds: (any InterfaceSoundPlaying)? = nil
   ) {
+    self.interfaceSounds = interfaceSounds
     let resources = resources ?? Bundle.main.resourceURL!.appendingPathComponent("Dictation")
     self.resources = resources
     let models = models ?? DictationModelStore(resources: resources)
@@ -98,33 +113,16 @@ final class DictationController: NSObject, ObservableObject {
     } else { self.pendingInstallModel = intent }
     self.language = DictationLanguage(rawValue: preferences.integer(forKey: "dictationLanguage.v1")) ?? .automatic
     self.restoresClipboardSlowly = preferences.bool(forKey: "dictationSlowPaste.v1")
+    self.vocabulary = DictationVocabulary.parse(
+      (preferences.stringArray(forKey: "dictationVocabulary.v1") ?? []).joined(separator: "\n"))
     self.monitorFn = registerHotkey
     super.init()
     buildWindow()
     buildPanel()
     shortcut.onPress = { [weak self] in
-      guard let self, !self.shortcutsSuspended else { return }
-      self.toggle()
+      guard let self, !self.shortcutsSuspended else { return }; self.toggle()
     }
-    fnShortcuts.onAction = { [weak self] action in
-      guard let self, !self.shortcutsSuspended, self.fnEnabled else { return false }
-      switch action {
-      case .start:
-        guard !self.isActive, ["ready", "loading", "unloaded"].contains(self.phase) else { return false }
-        self.toggle()
-        return self.isActive
-      case .lock:
-        guard self.isActive else { return false }
-        if self.phase == "recording" {
-          self.detailLabel.stringValue = String(localized: "Recording hands-free. Fn or Fn + Space finishes; Escape discards.")
-        }
-      case .finish:
-        if self.phase == "recording" { self.finishRecording() }
-        else if self.isActive { self.cancel() }
-      case .cancel: self.cancel()
-      }
-      return true
-    }
+    fnShortcuts.onAction = { [weak self] action in self?.handle(action) ?? false }
     if registerHotkey {
       shortcutAvailable =
         shortcut.register(shortcutConfiguration.resolvedShortcut()) == .registered
@@ -162,9 +160,47 @@ final class DictationController: NSObject, ObservableObject {
     )
     refreshPermissions()
   }
+  /// Fn gestures. Holding records until release; a latch keeps recording hands-free.
+  @discardableResult
+  func handle(_ action: FnDictationGesture.Action) -> Bool {
+    guard !shortcutsSuspended, fnEnabled else { return false }
+    switch action {
+    case .start:
+      guard !isActive, ["ready", "loading", "unloaded"].contains(phase) else { return false }
+      toggle(handsFree: false)
+      return isActive
+    case .lock:
+      guard isActive else { return false }
+      guard phase == "recording" else {
+        // The microphone is not open yet; it opens latched, with one cue.
+        startsHandsFree = true
+        return true
+      }
+      latchHandsFree()
+    case .finish:
+      if phase == "recording" { finishRecording() }
+      else if isActive { cancel() }
+    case .cancel: cancel()
+    }
+    return true
+  }
+  private func latchHandsFree() {
+    guard !capsule.isHandsFree else { return }
+    capsule.setHandsFree(true)
+    interfaceSounds?.play(.handsFree)
+    detailLabel.stringValue = String(localized: "Recording hands-free. Fn or Fn + Space finishes; Escape discards.")
+  }
   func setLanguage(_ value: DictationLanguage) {
     language = value
     preferences.set(value.rawValue, forKey: "dictationLanguage.v1")
+  }
+  func setVocabulary(_ text: String) {
+    vocabulary = DictationVocabulary.parse(text)
+    if vocabulary.isEmpty {
+      preferences.removeObject(forKey: "dictationVocabulary.v1")
+    } else {
+      preferences.set(vocabulary, forKey: "dictationVocabulary.v1")
+    }
   }
   var activationInstructions: String {
     if fnEnabled {
@@ -177,7 +213,9 @@ final class DictationController: NSObject, ObservableObject {
     fnEnabled = enabled
     preferences.set(enabled, forKey: "dictationFnEnabled.v1")
     if !enabled { fnShortcuts.stop() }
+    instructionLabel.stringValue = activationInstructions
     refreshPermissions()
+    if window.isVisible { fitWindow(animate: false) }
   }
   func setShortcutsSuspended(_ suspended: Bool) {
     guard suspended != shortcutsSuspended, !isActive else { return }
@@ -206,7 +244,9 @@ final class DictationController: NSObject, ObservableObject {
     shortcutConfiguration = configuration
     shortcutStore.save(configuration)
     shortcutNotice = String(localized: "Shortcut \(configuration.displayName) is active and saved.")
+    instructionLabel.stringValue = activationInstructions
     refreshPermissions()
+    if window.isVisible { fitWindow(animate: false) }
   }
   func setRestoresClipboardSlowly(_ value: Bool) {
     restoresClipboardSlowly = value
@@ -322,7 +362,6 @@ final class DictationController: NSObject, ObservableObject {
     stack.addArrangedSubview(label(String(localized: "Write with your voice"), style: .title1))
     instructionLabel = label(activationInstructions, secondary: true)
     stack.addArrangedSubview(instructionLabel)
-    instructionLabel.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
     stack.setCustomSpacing(16, after: stack.arrangedSubviews.last!)
     titleLabel.font = .preferredFont(forTextStyle: .headline)
     stack.addArrangedSubview(titleLabel)
@@ -332,7 +371,8 @@ final class DictationController: NSObject, ObservableObject {
     detailLabel.preferredMaxLayoutWidth = Self.windowWidth - 48
     stack.addArrangedSubview(detailLabel)
     permissionLabel.font = .preferredFont(forTextStyle: .callout)
-    permissionLabel.textColor = .systemOrange
+    // Full-contrast text; the warning sign carries the alert, not the colour alone.
+    permissionLabel.textColor = .labelColor
     permissionLabel.preferredMaxLayoutWidth = Self.windowWidth - 48
     setupButton = button(String(localized: "Open Setup…"), #selector(openSetup))
     stack.addArrangedSubview(permissionLabel)
@@ -342,6 +382,7 @@ final class DictationController: NSObject, ObservableObject {
     stack.addArrangedSubview(scratchScroll)
     scratchScroll.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
     startButton = button(String(localized: "Record in Test Field"), #selector(startInScratch))
+    startButton.keyEquivalent = "\r"
     cancelButton = button(String(localized: "Discard"), #selector(cancelAction))
     var controls: [NSView] = [startButton, cancelButton]
     #if DEBUG
@@ -351,20 +392,21 @@ final class DictationController: NSObject, ObservableObject {
     controls += [demoDE!, demoEN!]
     #endif
     stack.addArrangedSubview(row(controls))
-    stack.setCustomSpacing(16, after: stack.arrangedSubviews.last!)
-    stack.addArrangedSubview(label(String(localized: "Last Result"), style: .headline))
+    resultSection.orientation = .vertical
+    resultSection.alignment = .leading
+    resultSection.spacing = 8
+    resultSection.addArrangedSubview(label(String(localized: "Not pasted"), style: .headline))
     let resultScroll = textArea(result, height: 92, editable: false)
     result.setAccessibilityLabel(String(localized: "Last dictation result"))
-    stack.addArrangedSubview(resultScroll)
-    resultScroll.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+    resultSection.addArrangedSubview(resultScroll)
+    resultScroll.widthAnchor.constraint(equalTo: resultSection.widthAnchor).isActive = true
+    resultSection.addArrangedSubview(button(String(localized: "Copy Result"), #selector(copyResult)))
+    resultSection.isHidden = true
+    stack.addArrangedSubview(resultSection)
+    resultSection.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+    stack.setCustomSpacing(16, after: resultSection)
     stack.addArrangedSubview(
-      row([
-        button(String(localized: "Copy Result"), #selector(copyResult)),
-        button(String(localized: "Clear"), #selector(clearFields)),
-        button(String(localized: "Dictation Settings…"), #selector(openDictationSettings)),
-      ]))
-    stack.addArrangedSubview(
-      label(String(localized: "Audio and text stay in memory until you discard them or quit. Pasting briefly uses the clipboard and then restores it, unless you copied something newer. Up to 60 seconds per recording."),
+      label(String(localized: "Audio and text stay only in memory. Up to 60 seconds per recording."),
             style: .callout, secondary: true))
     refreshPermissions()
   }
@@ -408,14 +450,46 @@ final class DictationController: NSObject, ObservableObject {
     cancelButton?.isEnabled = busy
     statusText = title
     if floating {
+      // Feedback sounds with its visible result, never while the microphone records.
+      if phase != "recording" {
+        switch presentation {
+        case .inserted: interfaceSounds?.play(.completion)
+        case .attention, .unconfirmed: interfaceSounds?.play(.attention)
+        default: break
+        }
+        // The capsule never takes focus, so results are announced. Not while
+        // recording: the microphone would pick up VoiceOver's speech.
+        let urgent = presentation == .attention || presentation == .unconfirmed
+        NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested, userInfo: [
+          .announcement: [title, urgent ? detail : ""].filter { !$0.isEmpty }.joined(separator: ". "),
+          .priority: (urgent ? NSAccessibilityPriorityLevel.high : .medium).rawValue,
+        ])
+      }
       panelHide?.cancel()
       panelGeneration = UUID()
-      guard let screen = NSScreen.main ?? NSScreen.screens.first else { return }
-      panel.setFrameOrigin(
-        NSPoint(x: screen.visibleFrame.midX - DictationCapsuleView.surface.width / 2, y: screen.visibleFrame.minY + 8))
+      let anchor = capsuleAnchor
+      guard let screen = NSScreen.screens.first(where: { anchor.map($0.frame.intersects) ?? false })
+              ?? NSScreen.main ?? NSScreen.screens.first else { return }
+      let docked = ReadingPanelPlacement.load(from: InterfaceSoundPlayer.defaults).frame(in: screen.visibleFrame)
+      panel.setFrameOrigin(DictationCapsulePlacement.origin(
+        caret: anchor, visible: screen.visibleFrame, docked: docked, size: DictationCapsuleView.surface))
       panel.orderFrontRegardless()
       capsule.show()
     }
+  }
+  /// Shows or hides the unpasted result and keeps the window fitted to it.
+  func setResultVisible(_ visible: Bool) {
+    guard resultSection.isHidden == visible else { return }
+    resultSection.isHidden = !visible
+    fitWindow(animate: window.isVisible)
+  }
+  private func fitWindow(animate: Bool) {
+    guard let content = window.contentView, let stack = content.subviews.first as? NSStackView else { return }
+    content.layoutSubtreeIfNeeded()
+    let frame = window.frameRect(forContentRect: NSRect(x: 0, y: 0, width: Self.windowWidth, height: stack.fittingSize.height + 42))
+    // Keep the title bar where it is; the window grows or shrinks downward.
+    window.setFrame(NSRect(x: window.frame.minX, y: window.frame.maxY - frame.height, width: frame.width, height: frame.height),
+                    display: true, animate: animate && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
   }
   func hidePanelLater() {
     // Repeated shortcuts must not dismiss an active recording/recognition.
@@ -432,16 +506,11 @@ final class DictationController: NSObject, ObservableObject {
   @objc func showWindow() {
     refreshPermissions()
     if !worker.running && request == nil { loadModel() }
-    // Forcing AppKit layout inside the controller's StateObject initializer can
-    // re-enter SwiftUI's graph. Fit only when explicitly presenting the window.
-    if windowNeedsInitialLayout,
-       let content = window.contentView, let stack = content.subviews.first as? NSStackView {
-      content.layoutSubtreeIfNeeded()
-      window.setContentSize(NSSize(width: Self.windowWidth, height: stack.fittingSize.height + 42))
-      // Wrapping labels resolve their height after the first width-constrained layout.
-      content.layoutSubtreeIfNeeded()
-      window.setContentSize(NSSize(width: Self.windowWidth, height: stack.fittingSize.height + 42))
-      if !window.isVisible { window.center() }
+    if !window.isVisible { fitWindow(animate: false) }
+    // AppKit layout during StateObject construction can re-enter SwiftUI's graph.
+    // Fit and center on first presentation; later openings keep the user's position.
+    if windowNeedsInitialLayout {
+      window.center()
       windowNeedsInitialLayout = false
     }
     window.makeKeyAndOrderFront(nil)
@@ -508,10 +577,6 @@ final class DictationController: NSObject, ObservableObject {
   }
   /// Only problems are shown; granted permissions need no line of their own.
   @objc func refreshPermissions() {
-    if instructionLabel.stringValue != activationInstructions {
-      instructionLabel.stringValue = activationInstructions
-      windowNeedsInitialLayout = true
-    }
     if monitorFn && fnEnabled && !shortcutsSuspended && canPrepareModel { fnShortcuts.start() }
     var problems: [String] = []
     if AVCaptureDevice.authorizationStatus(for: .audio) != .authorized {
@@ -526,7 +591,7 @@ final class DictationController: NSObject, ObservableObject {
     if !shortcutAvailable {
       problems.append(String(localized: "\(shortcutConfiguration.displayName) is in use by another app; choose another shortcut in Settings."))
     }
-    permissionLabel.stringValue = problems.joined(separator: " ")
+    permissionLabel.stringValue = problems.isEmpty ? "" : "⚠︎ " + problems.joined(separator: " ")
     permissionLabel.isHidden = problems.isEmpty
     setupButton?.isHidden = problems.isEmpty
   }
@@ -549,12 +614,15 @@ final class DictationController: NSObject, ObservableObject {
     showWindow()
     toggle(internalTarget: InsertionTarget(local: scratch))
   }
-  func toggle(internalTarget: InsertionTarget? = nil) {
-    guard canPrepareModel, !shortcutsSuspended else { return }
+  /// The shortcut and the Record button start hands-free; only a held Fn does not.
+  func toggle(internalTarget: InsertionTarget? = nil, handsFree: Bool = true) {
+    guard !shortcutsSuspended else { return }
+    guard canPrepareModel else { return }
     if phase == "recording" {
       finishRecording()
       return
     }
+    if !isActive { capsuleAnchor = nil }
     guard ["ready", "unloaded", "loading"].contains(phase), activationID == nil else {
       setStatus(
         phase == "processing" ? String(localized: "Recognizing text…") : String(localized: "Model not ready yet"),
@@ -574,12 +642,14 @@ final class DictationController: NSObject, ObservableObject {
     }
     do {
       let target = try internalTarget ?? InsertionTarget.capture(scratch: scratch)
+      capsuleAnchor = target.caretRect()
       let id = UUID()
       activationID = id
+      startsHandsFree = handsFree
       let start: @MainActor () -> Void = { [weak self] in
         guard let self, self.activationID == id else { return }
         self.activationID = nil
-        self.startRecording(target: target)
+        self.startRecording(target: target, handsFree: self.startsHandsFree)
       }
       if let onActivation { onActivation(start) } else { start() }
 
@@ -590,25 +660,32 @@ final class DictationController: NSObject, ObservableObject {
       hidePanelLater()
     }
   }
-  func startRecording(target: InsertionTarget) {
+  func startRecording(target: InsertionTarget, handsFree: Bool = true) {
     guard canPrepareModel else { return }
     do {
       try begin(target: target)
       if !worker.running { startWorker() }
       guard request != nil else { return }
-      let recorder = MicrophoneRecorder()
+      let recorder = makeRecorder()
       record = recorder
       try recorder.start()
       phase = "recording"
       recordingStart = Date()
       setStatus(
-        String(localized: "Recording · 0 s"), String(localized: "Target: \(target.name).") + " " + activationInstructions, floating: true)
+        String(localized: "Recording · 0 s"), String(localized: "Target: \(target.name). Release Fn, or finish hands-free with Fn + Space."), floating: true)
+      // The cue sounds with the capsule, as the microphone opens. Already latched,
+      // it opens with the latch cue alone instead of two cues on top of each other.
+      capsule.setHandsFree(handsFree, animated: false)
+      interfaceSounds?.play(handsFree ? .handsFree : .listening)
+      if handsFree {
+        detailLabel.stringValue = String(localized: "Recording hands-free. Fn or Fn + Space finishes; Escape discards.")
+      }
       let id = request
       recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
         MainActor.assumeIsolated {
           guard let self, self.request == id, self.phase == "recording" else { return }
           let elapsed = Date().timeIntervalSince(self.recordingStart)
-          self.capsule.updateRecording(rms: self.record?.audio.rms ?? 0)
+          self.capsule.updateRecording(rms: self.record?.level ?? 0)
           self.titleLabel.stringValue = String(localized: "Recording · \(Int(elapsed)) / 60 s")
           if elapsed >= 60 { self.finishRecording() }
         }
@@ -622,7 +699,9 @@ final class DictationController: NSObject, ObservableObject {
   func begin(target: InsertionTarget) throws {
     try armEscape()
     latestText = ""
+    insertionConfirmed = false
     result.string = ""
+    setResultVisible(false)
     request = gate.begin()
     self.target = target
   }
@@ -633,6 +712,8 @@ final class DictationController: NSObject, ObservableObject {
     recordingTimer = nil
     let audio = record.finish()
     self.record = nil
+    // After the microphone is closed, so the cue is never part of the recording.
+    interfaceSounds?.play(.captured)
     send(audio)
   }
   func send(_ audio: AudioPacket) {
@@ -643,7 +724,7 @@ final class DictationController: NSObject, ObservableObject {
       floating: true)
     let lang = language.workerValue
     if worker.ready {
-      worker.transcribe(audio, id: id, language: lang)
+      worker.transcribe(audio, id: id, language: lang, vocabulary: vocabulary)
     } else {
       pendingAudio = audio
     }
@@ -710,6 +791,7 @@ final class DictationController: NSObject, ObservableObject {
   func insert(_ text: String, id: UUID) {
     guard gate.accepts(id), let target, target.isCurrent() else {
       complete()
+      setResultVisible(true)
       setStatus(
         String(localized: "Target changed"),
         String(localized: "The result is in the dictation window. Nothing was pasted automatically."),
@@ -726,19 +808,32 @@ final class DictationController: NSObject, ObservableObject {
       phase = "pasting"
       setStatus(
         String(localized: "Paste sent"), String(localized: "The clipboard will be restored in a moment."), floating: true)
+      // Most fields show the text within a few frames. Reading it back early lets the
+      // tick and the completion cue land with the text, not a second later; the
+      // clipboard is still restored only after the full wait for slow apps.
+      let early = DispatchWorkItem { [weak self] in
+        guard let self, self.gate.accepts(id), self.phase == "pasting", target.confirms(text) else { return }
+        self.insertionConfirmed = true
+        self.setStatus(String(localized: "Pasted"), String(localized: "Ready for the next recording."),
+                       floating: true, capsuleState: .inserted)
+      }
+      confirmation = early
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: early)
       let work = DispatchWorkItem { [weak self] in
         guard let self, self.gate.accepts(id) else { return }
-        let confirmed = target.confirms(text)
+        let announced = self.insertionConfirmed
+        let confirmed = announced || target.confirms(text)
         _ = transaction.restore()
         self.lease = nil
         self.restore = nil
         self.complete()
+        self.setResultVisible(!confirmed)
         self.setStatus(
           confirmed ? String(localized: "Pasted") : String(localized: "Paste sent"),
           confirmed
             ? String(localized: "Ready for the next recording.")
             : String(localized: "Please check the target field. Nothing is retried; the result stays in the dictation window."),
-          floating: true, capsuleState: confirmed ? .inserted : .unconfirmed)
+          floating: !announced, capsuleState: confirmed ? .inserted : .unconfirmed)
         self.hidePanelLater()
         if self.smoke {
           if !confirmed { self.smokeFailures.append("paste not confirmed") }
@@ -753,6 +848,7 @@ final class DictationController: NSObject, ObservableObject {
       _ = lease?.restore()
       lease = nil
       complete()
+      setResultVisible(true)
       setStatus(String(localized: "Not pasted"), error.localizedDescription, floating: true)
       hidePanelLater()
       if smoke { finishSmoke(error: error.localizedDescription) }
@@ -760,6 +856,8 @@ final class DictationController: NSObject, ObservableObject {
   }
   func complete() {
     fnShortcuts.resetGesture()
+    confirmation?.cancel()
+    confirmation = nil
     gate.cancel()
     request = nil
     target = nil
@@ -770,7 +868,13 @@ final class DictationController: NSObject, ObservableObject {
   func cancel(restart: Bool = true) {
     fnShortcuts.resetGesture()
     let wasProcessing = phase == "processing"
+    // Discarding is silent, like stopping a reading: a cue still sounding ends now.
+    if isActive { interfaceSounds?.stop() }
     activationID = nil
+    startsHandsFree = false
+    insertionConfirmed = false
+    confirmation?.cancel()
+    confirmation = nil
     pendingAudio = nil
     gate.cancel()
     request = nil
@@ -788,6 +892,7 @@ final class DictationController: NSObject, ObservableObject {
     disarmEscape()
     latestText = ""
     result.string = ""
+    setResultVisible(false)
     if wasProcessing || !worker.ready { worker.stop() }
     phase = worker.ready ? "ready" : "unloaded"
     setStatus(String(localized: "Discarded"), String(localized: "The recording and its result were discarded."), floating: false)
@@ -800,11 +905,6 @@ final class DictationController: NSObject, ObservableObject {
     NSPasteboard.general.setString(latestText, forType: .string)
     setStatus(
       String(localized: "Result copied"), String(localized: "The copy you asked for stays on the clipboard."))
-  }
-  @objc func clearFields() {
-    cancel()
-    scratch.string = ""
-    window.makeFirstResponder(scratch)
   }
   @objc func demoGerman() { demo("Deutsch") }
   @objc func demoEnglish() { demo("English") }
@@ -870,4 +970,11 @@ final class DictationController: NSObject, ObservableObject {
       String(localized: "Two public sample recordings tested recognition, pasting and restoring. Your microphone was not used.")
     )
   }
+}
+
+/// Tab moves to the next control instead of typing a tab, so keyboard users can
+/// leave the test field.
+final class TabEscapingTextView: NSTextView {
+  override func insertTab(_ sender: Any?) { window?.selectNextKeyView(sender) }
+  override func insertBacktab(_ sender: Any?) { window?.selectPreviousKeyView(sender) }
 }

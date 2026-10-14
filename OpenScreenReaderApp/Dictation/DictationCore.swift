@@ -1,8 +1,9 @@
 import AppKit
 
+/// Whisper Turbo is the default (owner decision 2026-10-14); Qwen3-ASR stays selectable.
 enum DictationModel: String, CaseIterable, Sendable {
-  case qwen = "qwen3-asr"
   case whisperTurbo = "whisper-turbo"
+  case qwen = "qwen3-asr"
   case whisperLargeV3 = "whisper-large-v3"
 
   var displayName: String {
@@ -32,6 +33,28 @@ enum DictationLanguage: Int, CaseIterable, Sendable {
     case .german: "Deutsch"
     case .english: "English"
     }
+  }
+}
+
+/// User terms the local model should prefer. Stored only in local preferences; never recorded speech.
+enum DictationVocabulary {
+  static let maximumTerms = 50
+  static let maximumLength = 60
+
+  /// One term per line or comma; blanks, duplicates, control characters and overlong terms are dropped.
+  static func parse(_ text: String) -> [String] {
+    var seen = Set<String>()
+    var terms: [String] = []
+    for part in text.split(whereSeparator: { $0.isNewline || $0 == "," }) {
+      let term = part.trimmingCharacters(in: .whitespaces)
+      guard !term.isEmpty, term.unicodeScalars.count <= maximumLength,
+        !term.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }),
+        seen.insert(term.lowercased()).inserted
+      else { continue }
+      terms.append(term)
+      if terms.count == maximumTerms { break }
+    }
+    return terms
   }
 }
 

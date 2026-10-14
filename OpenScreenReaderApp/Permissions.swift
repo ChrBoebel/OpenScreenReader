@@ -12,26 +12,58 @@ enum SaywingPermission: String, CaseIterable, Identifiable {
     static let reading: [Self] = [.screenRecording, .inputMonitoring]
     static let dictation: [Self] = [.microphone, .accessibility]
 
-    var title: String {
+    var purpose: String {
         switch self {
-        case .screenRecording: String(localized: "Screen Recording")
+        case .screenRecording: String(localized: "Captures only the region you mark, for local text recognition.")
+        case .inputMonitoring: String(localized: "Lets Escape stop reading while another app is active. Only Escape is checked.")
+        case .microphone: String(localized: "Records only while you dictate.")
+        case .accessibility: String(localized: "Lets Fn start dictation and pastes the text into the app you were using.")
+        }
+    }
+
+    /// Setup speaks about what the grant does; the system name follows in small print
+    /// so it can still be found in System Settings.
+    var setupTitle: String {
+        switch self {
+        case .screenRecording: String(localized: "Read the text you mark")
+        case .inputMonitoring: String(localized: "Stop anytime with Escape")
+        case .microphone: String(localized: "Hear you only while you dictate")
+        case .accessibility: String(localized: "Type where you are writing")
+        }
+    }
+
+    var setupMessage: String {
+        switch self {
+        case .screenRecording: String(localized: "Saywing captures only the region you drag and recognizes its text on this Mac. Nothing is saved.")
+        case .inputMonitoring: String(localized: "Escape then stops reading while you work in another app. Saywing checks only the Escape key.")
+        case .microphone: String(localized: "Saywing records only while you hold Fn or dictate hands-free. Audio never leaves this Mac.")
+        case .accessibility: String(localized: "Fn starts dictation, and the text lands in the app you were using.")
+        }
+    }
+
+    var setupSymbol: String {
+        switch self {
+        case .screenRecording: "rectangle.dashed"
+        case .inputMonitoring: "escape" // Setup shows an "esc" key cap instead.
+        case .microphone: "mic"
+        case .accessibility: "character.cursor.ibeam"
+        }
+    }
+
+    /// The pane's name in System Settings › Privacy & Security.
+    var systemName: String {
+        switch self {
+        case .screenRecording:
+            if #available(macOS 15, *) { String(localized: "Screen & System Audio Recording") } else { String(localized: "Screen Recording") }
         case .inputMonitoring: String(localized: "Input Monitoring")
         case .microphone: String(localized: "Microphone")
         case .accessibility: String(localized: "Accessibility")
         }
     }
 
-    var purpose: String {
-        switch self {
-        case .screenRecording: String(localized: "Captures only the region you mark, for local text recognition.")
-        case .inputMonitoring: String(localized: "Lets Escape stop reading while another app is active. Only Escape is checked.")
-        case .microphone: String(localized: "Records only while you dictate.")
-        case .accessibility: String(localized: "Enables Fn dictation and pastes text into the app you were using.")
-        }
+    var activity: String {
+        Self.reading.contains(self) ? String(localized: "Read Aloud") : String(localized: "Dictate")
     }
-
-    /// Reading works without Input Monitoring; Escape then only stops while Saywing has focus.
-    var isRequired: Bool { self != .inputMonitoring }
 
     var settingsURL: URL {
         let anchor = switch self {
@@ -78,175 +110,69 @@ enum SaywingPermission: String, CaseIterable, Identifiable {
     @MainActor func openSettings() { NSWorkspace.shared.open(settingsURL) }
 }
 
-/// Only navigation is persisted, never permission grants or test results. The
-/// checkpoint is written before leaving for System Settings: macOS may quit us.
-enum SetupStep: String, CaseIterable {
-    case screenRecording, inputMonitoring, readingTest, microphone, accessibility, dictationTest
-    case readingModel, dictationModel, readingShortcuts, dictationShortcuts
-
-    var permission: SaywingPermission? {
-        switch self {
-        case .screenRecording: .screenRecording
-        case .inputMonitoring: .inputMonitoring
-        case .microphone: .microphone
-        case .accessibility: .accessibility
-        default: nil
-        }
-    }
-    var isDictation: Bool { [.microphone, .accessibility, .dictationModel, .dictationShortcuts, .dictationTest].contains(self) }
-    var stage: Int {
-        switch self {
-        case .screenRecording, .inputMonitoring, .microphone, .accessibility: 0
-        case .readingModel, .dictationModel: 1
-        case .readingShortcuts, .dictationShortcuts: 2
-        case .readingTest, .dictationTest: 3
-        }
-    }
-    var next: Self {
-        switch self {
-        case .screenRecording: .inputMonitoring
-        case .inputMonitoring: .readingModel
-        case .readingModel: .readingShortcuts
-        case .readingShortcuts: .readingTest
-        case .readingTest: .microphone
-        case .microphone: .accessibility
-        case .accessibility: .dictationModel
-        case .dictationModel: .dictationShortcuts
-        case .dictationShortcuts, .dictationTest: .dictationTest
-        }
-    }
-}
-
+/// Grant state shared by Setup and Settings. Refreshes when the user returns
+/// from System Settings; it never requests anything by itself.
 @MainActor
-final class SetupProgress: ObservableObject {
-    static let preferenceKey = "setupProgress.v1"
-    @Published private(set) var step: SetupStep
-    @Published private(set) var waitingFor: SaywingPermission?
-    @Published private(set) var offersRestartHelp = false
-    private let preferences: UserDefaults
-    private var resumeOnLaunch: Bool
+final class PermissionStatus: ObservableObject {
+    @Published private(set) var granted: Set<SaywingPermission> = []
+    private var observer: NSObjectProtocol?
 
-    init(preferences: UserDefaults) {
-        self.preferences = preferences
-        let saved = preferences.dictionary(forKey: Self.preferenceKey)
-        step = (saved?["step"] as? String).flatMap(SetupStep.init(rawValue:)) ?? .screenRecording
-        waitingFor = (saved?["waitingFor"] as? String).flatMap(SaywingPermission.init(rawValue:))
-        resumeOnLaunch = saved?["resume"] as? Bool ?? false
-        offersRestartHelp = waitingFor != nil && waitingFor != .microphone
+    init(read: @escaping @MainActor (SaywingPermission) -> Bool = { $0.isGranted }) {
+        self.read = read
+        refresh()
+        observer = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in MainActor.assumeIsolated { self?.refresh() } }
     }
+    isolated deinit { if let observer { NotificationCenter.default.removeObserver(observer) } }
 
-    var shouldOpenOnLaunch: Bool {
-        resumeOnLaunch || !preferences.bool(forKey: "setupDismissed.v1")
+    private let read: @MainActor (SaywingPermission) -> Bool
+
+    func refresh() {
+        let current = Set(SaywingPermission.allCases.filter(read))
+        // Setup polls while waiting; publish only real changes.
+        if current != granted { granted = current }
     }
+    func isGranted(_ permission: SaywingPermission) -> Bool { granted.contains(permission) }
 
-    func begin(granted: Set<SaywingPermission>) {
-        resumeOnLaunch = true
-        refresh(granted: granted)
-    }
+    /// Capture also needs Input Monitoring: without global Escape it refuses to start (ADR 0005).
+    var canTestReading: Bool { SaywingPermission.reading.allSatisfy(isGranted) }
+    var canTestDictation: Bool { isGranted(.microphone) }
+}
 
-    func prepareForPermission(_ permission: SaywingPermission) {
-        step = SetupStep(rawValue: permission.rawValue) ?? step
-        waitingFor = permission
-        offersRestartHelp = permission != .microphone
-        resumeOnLaunch = true
-        save()
-    }
+struct PermissionRow: View {
+    let permission: SaywingPermission
+    @ObservedObject var status: PermissionStatus
 
-    func refresh(granted: Set<SaywingPermission>) {
-        if let waitingFor, granted.contains(waitingFor) { self.waitingFor = nil }
-        // Recheck required prerequisites, including access revoked while away.
-        if step.stage == 0 || step.stage == 3 {
-          if step.isDictation {
-            if !granted.contains(.microphone) { step = .microphone }
-            else if step == .dictationTest && !granted.contains(.accessibility) { step = .accessibility }
-          } else if !granted.contains(.screenRecording) { step = .screenRecording }
+    var body: some View {
+        let granted = status.isGranted(permission)
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Image(systemName: granted ? "checkmark.circle.fill" : "exclamationmark.circle")
+                .foregroundStyle(granted ? Color.green : Color.orange)
+                .imageScale(.large)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(permission.systemName).font(.body.weight(.medium))
+                Text(permission.purpose).font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
+            if granted {
+                Text("Allowed").font(.callout).foregroundStyle(.secondary)
+            } else {
+                // One action: the system prompt where macOS still offers it, otherwise its pane.
+                Button("Allow…") {
+                    permission.request { status.refresh() }
+                }
+                .accessibilityIdentifier("allow-\(permission.rawValue)")
+            }
         }
-        while let permission = step.permission, granted.contains(permission) { step = step.next }
-        save()
-    }
-
-    func showReading(granted: Set<SaywingPermission>) {
-        step = .screenRecording
-        waitingFor = nil
-        offersRestartHelp = false
-        begin(granted: granted)
-    }
-
-    func continueToDictation(granted: Set<SaywingPermission>) {
-        step = .microphone
-        waitingFor = nil
-        offersRestartHelp = false
-        begin(granted: granted)
-    }
-
-    func skipOptionalPermission() {
-        guard step == .inputMonitoring else { return }
-        step = .readingModel
-        waitingFor = nil
-        save()
-    }
-
-    func advance(granted: Set<SaywingPermission>) {
-        guard step.stage == 1 || step.stage == 2 else { return }
-        step = step.next
-        begin(granted: granted)
-    }
-
-    func back() {
-        switch step.stage {
-        case 3: step = step.isDictation ? .dictationShortcuts : .readingShortcuts
-        case 2: step = step.isDictation ? .dictationModel : .readingModel
-        case 1: step = step.isDictation ? .microphone : .screenRecording
-        default: return
-        }
-        waitingFor = nil
-        save()
-    }
-
-    /// Visiting earlier stages is explicit; permission refresh never skips
-    /// model/shortcut choices or starts a test on the user's behalf.
-    func visit(stage: Int) {
-        let stages: [SetupStep] = step.isDictation
-            ? [.microphone, .dictationModel, .dictationShortcuts, .dictationTest]
-            : [.screenRecording, .readingModel, .readingShortcuts, .readingTest]
-        guard stages.indices.contains(stage) else { return }
-        step = stages[stage]
-        waitingFor = nil
-        resumeOnLaunch = true
-        save()
-    }
-
-    func prepareForRestart() {
-        resumeOnLaunch = true
-        save()
-    }
-
-    func deferSetup() {
-        resumeOnLaunch = false
-        preferences.set(true, forKey: "setupDismissed.v1")
-        save()
-    }
-
-    func finish() {
-        resumeOnLaunch = false
-        step = .screenRecording
-        waitingFor = nil
-        offersRestartHelp = false
-        preferences.set(true, forKey: "setupDismissed.v1")
-        preferences.removeObject(forKey: Self.preferenceKey)
-    }
-
-    private func save() {
-        var checkpoint: [String: Any] = ["step": step.rawValue, "resume": resumeOnLaunch]
-        if let waitingFor { checkpoint["waitingFor"] = waitingFor.rawValue }
-        preferences.set(checkpoint, forKey: Self.preferenceKey)
-        // This handoff can be followed immediately by macOS terminating us.
-        preferences.synchronize()
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(permission.systemName)
+        .accessibilityValue(granted ? Text("Allowed") : Text("Not allowed"))
     }
 }
 
-/// A bounded local helper waits for this exact process to exit before opening
-/// this bundle again, avoiding duplicate global shortcuts during relaunch.
 enum SetupRelauncher {
     static let waitScript = """
         attempts=0
@@ -274,72 +200,5 @@ enum SetupRelauncher {
         helper.standardError = FileHandle.nullDevice
         try helper.run()
         return helper
-    }
-}
-
-/// Grant state shared by Setup and Settings. Refreshes when the user returns
-/// from System Settings; it never requests anything by itself.
-@MainActor
-final class PermissionStatus: ObservableObject {
-    @Published private(set) var granted: Set<SaywingPermission> = []
-    private var observer: NSObjectProtocol?
-
-    init(read: @escaping @MainActor (SaywingPermission) -> Bool = { $0.isGranted }) {
-        self.read = read
-        refresh()
-        observer = NotificationCenter.default.addObserver(
-            forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
-        ) { [weak self] _ in MainActor.assumeIsolated { self?.refresh() } }
-    }
-    isolated deinit { if let observer { NotificationCenter.default.removeObserver(observer) } }
-
-    private let read: @MainActor (SaywingPermission) -> Bool
-
-    func refresh() { granted = Set(SaywingPermission.allCases.filter(read)) }
-    func isGranted(_ permission: SaywingPermission) -> Bool { granted.contains(permission) }
-
-    /// The reading test needs only Screen Recording.
-    var canTestReading: Bool { isGranted(.screenRecording) }
-    var canTestDictation: Bool { isGranted(.microphone) }
-}
-
-struct PermissionRow: View {
-    let permission: SaywingPermission
-    @ObservedObject var status: PermissionStatus
-    var beforeRequest: (() -> Void)? = nil
-
-    var body: some View {
-        let granted = status.isGranted(permission)
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Image(systemName: granted ? "checkmark.circle.fill" : "circle.dashed")
-                .foregroundStyle(granted ? Color.green : Color.secondary)
-                .imageScale(.large)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(permission.title).font(.body.weight(.medium))
-                Text(permission.purpose).font(.callout).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                if !granted {
-                    Button("Open System Settings") {
-                        beforeRequest?()
-                        permission.openSettings()
-                    }
-                        .buttonStyle(.link).font(.callout)
-                }
-            }
-            Spacer(minLength: 8)
-            if granted {
-                Text("Allowed").font(.callout).foregroundStyle(.secondary)
-            } else {
-                Button(permission.isRequired ? "Allow…" : "Allow (Optional)…") {
-                    beforeRequest?()
-                    permission.request { status.refresh() }
-                }
-                .accessibilityIdentifier("allow-\(permission.rawValue)")
-            }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(permission.title)
-        .accessibilityValue(granted ? Text("Allowed") : Text("Not allowed"))
     }
 }

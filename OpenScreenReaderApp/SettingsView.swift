@@ -123,6 +123,11 @@ struct DictationInstallStatus: View {
 
 struct DictationSettingsSection: View {
     @ObservedObject var controller: DictationController
+    @State private var vocabularyText: String
+    init(controller: DictationController) {
+        self.controller = controller
+        _vocabularyText = State(initialValue: controller.vocabulary.joined(separator: "\n"))
+    }
     var body: some View {
         Form {
             Section("Model") { DictationModelSelection(controller: controller) }
@@ -135,6 +140,19 @@ struct DictationSettingsSection: View {
                     .toggleStyle(.checkbox).accessibilityIdentifier("dictationSlowPaste")
             } footer: {
                 Text("The model loads automatically and stays ready while Saywing is open. Turn on the longer wait if an app pastes your previous clipboard instead of the dictation.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            Section {
+                TextEditor(text: $vocabularyText)
+                    .font(.body)
+                    .frame(minHeight: 66)
+                    .accessibilityLabel("Vocabulary")
+                    .accessibilityIdentifier("dictationVocabulary")
+                    .onChange(of: vocabularyText) { _, text in controller.setVocabulary(text) }
+            } header: {
+                Text("Vocabulary")
+            } footer: {
+                Text("One name or term per line, up to \(DictationVocabulary.maximumTerms). They help the model spell words it rarely hears. The list stays on this Mac.")
                     .font(.callout).foregroundStyle(.secondary)
             }
             Section {
@@ -245,6 +263,18 @@ struct SettingsView: View {
         }
         .frame(width: 540)
         .accessibilityLabel("Saywing settings")
+        .onAppear { takeRequestedTab() }
+        .onChange(of: model.requestedSettingsTab) { _, _ in takeRequestedTab() }
+        // Validation and notices appear without focus moving to them; say them aloud.
+        .onChange(of: rejectedKeystroke) { _, rejected in
+            if rejected { AccessibilityNotification.Announcement(String(localized: "Use a letter, digit or Space with ⌘, ⌥ or ⌃. Shift is optional.")).post() }
+        }
+        .onChange(of: model.shortcutNotice) { _, notice in
+            if let notice { AccessibilityNotification.Announcement(notice).post() }
+        }
+        .onChange(of: model.queueShortcutNotice) { _, notice in
+            if let notice { AccessibilityNotification.Announcement(notice).post() }
+        }
         .alert("Override app commands?", isPresented: $confirmCommonShortcut, presenting: pendingShortcut) { pending in
             Button("Use Shortcut") {
                 if pending.queue { model.enqueueQueueShortcutChange(pending.shortcut) }
@@ -256,6 +286,12 @@ struct SettingsView: View {
         }
     }
 
+    private func takeRequestedTab() {
+        guard let requested = model.requestedSettingsTab else { return }
+        tab = requested
+        model.requestedSettingsTab = nil
+    }
+
     private var generalTab: some View {
         Form {
             Section {
@@ -264,7 +300,7 @@ struct SettingsView: View {
                         .resizable()
                         .scaledToFit()
                         .frame(width: 64, height: 64)
-                        .accessibilityLabel("Saywing text-to-voice app logo")
+                        .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Saywing").font(.title2.weight(.semibold))
                         Text("Read aloud and dictate on your Mac.").foregroundStyle(.secondary)
@@ -284,7 +320,7 @@ struct SettingsView: View {
                     .disabled(!interfaceSoundsEnabled)
                     .accessibilityIdentifier("interfaceSoundsVolume")
             } footer: {
-                Text("Short cues when the control opens, when reading is done and when something needs attention. Never during speech.")
+                Text("Short cues when the control opens, when reading is done, when the microphone opens, latches hands-free or closes, and when something needs attention. Never during speech.")
                     .font(.callout).foregroundStyle(.secondary)
             }
         }
@@ -353,8 +389,9 @@ struct SettingsView: View {
             Section("Permissions") {
                 ForEach(SaywingPermission.allCases) { PermissionRow(permission: $0, status: permissions) }
                 if let errorMessage = model.errorMessage {
-                    Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                    // Colour on the symbol only; the text keeps full contrast.
+                    Label { Text(errorMessage) } icon: { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange) }
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
@@ -370,7 +407,8 @@ struct SettingsView: View {
                     HStack {
                         Text("Add to queue")
                         Spacer()
-                        recorder(for: model.queueShortcutConfiguration, queue: true, identifier: "queueShortcutRecorder")
+                        recorder(for: model.queueShortcutConfiguration, queue: true, identifier: "queueShortcutRecorder",
+                                 label: String(localized: "Add to queue"))
                     }
                     Text("Optional. Pressing the reading shortcut again already adds a region.")
                         .font(.callout).foregroundStyle(.secondary)
@@ -387,8 +425,8 @@ struct SettingsView: View {
         .disabled(!model.canChangeShortcut)
     }
 
-    private func recorder(for shortcut: ShortcutConfiguration, queue: Bool, identifier: String) -> some View {
-        ShortcutRecorder(shortcut: shortcut, identifier: identifier,
+    private func recorder(for shortcut: ShortcutConfiguration, queue: Bool, identifier: String, label: String) -> some View {
+        ShortcutRecorder(shortcut: shortcut, identifier: identifier, label: label,
                          onRecordingChange: { recording in
                              if recording { rejectedKeystroke = false }
                              model.setRecordingShortcut(recording)
@@ -438,15 +476,18 @@ struct PlaybackControlsView: View {
             Divider()
             HStack {
                 Text("Up Next · \(model.queuedTextCount)").font(.headline)
+                    .accessibilityAddTraits(.isHeader)
                 Spacer()
                 Button { model.enqueueAddRequest() } label: { Image(systemName: "plus") }
                     .disabled(!model.canAddToQueue).help("Select another screen region")
+                    .accessibilityLabel("Add Screen Region to Queue…")
             }
             if model.queueEntries.isEmpty {
                 Text("Press \(model.shortcutConfiguration.displayName) again to add a text.")
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(Array(model.queueEntries.enumerated()), id: \.element.id) { index, entry in
+                    // Each row is one group named by its text, so "Move up" says which text moves.
                     VStack(alignment: .leading, spacing: 6) {
                         Text(entry.preview).lineLimit(2)
                         HStack {
@@ -460,6 +501,8 @@ struct PlaybackControlsView: View {
                                 .accessibilityLabel("Remove from queue")
                         }.controlSize(.small)
                     }
+                    .accessibilityElement(children: .contain)
+                    .accessibilityLabel(entry.preview)
                 }
             }
             Text("This session only · nothing is saved").font(.callout).foregroundStyle(.secondary)
@@ -470,240 +513,50 @@ struct PlaybackControlsView: View {
     }
 }
 
-/// One setup for both activities: grants, then a real test of each. A green
-/// grant is a system check only; the tests confirm the complete flow.
-struct SetupView: View {
+/// Opened from the question mark of a failed reading: the concrete reason and
+/// one next step, anchored to the control that failed.
+struct ReadingErrorView: View {
     @ObservedObject var model: AppModel
-    @ObservedObject private var progress: SetupProgress
-    @ObservedObject private var permissions: PermissionStatus
-    @State private var restartHelpExpanded = false
-
-    init(model: AppModel) {
-        self.model = model
-        self.progress = model.setupProgress
-        self.permissions = model.setupPermissions
-    }
-
-    private var heading: String {
-        switch progress.step {
-        case .screenRecording: String(localized: "Read text from your screen")
-        case .inputMonitoring: String(localized: "Stop reading with Escape")
-        case .readingTest: String(localized: "Try reading aloud")
-        case .microphone: String(localized: "Use your microphone")
-        case .accessibility: String(localized: "Dictate into other apps")
-        case .dictationTest: String(localized: "Try dictation")
-        case .readingModel: String(localized: "Your reading voice")
-        case .dictationModel: String(localized: "Dictation on your Mac")
-        case .readingShortcuts, .dictationShortcuts: String(localized: "Choose your shortcuts")
-        }
-    }
-
-    static var windowHeight: CGFloat { min(640, (NSScreen.main?.visibleFrame.height ?? 720) - 80) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack(spacing: 12) {
-                Image(nsImage: NSApplication.shared.applicationIconImage)
-                    .resizable().scaledToFit().frame(width: 48, height: 48)
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Set Up Saywing").font(.title2.weight(.semibold))
-                    Text("Your progress is saved, including when Saywing restarts.")
-                        .font(.callout).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Can’t read aloud", systemImage: "exclamationmark.triangle.fill")
+                .font(.headline)
+                .symbolRenderingMode(.multicolor)
+            Text(model.errorMessage ?? String(localized: "Reading did not work."))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             HStack {
-                Picker("Activity", selection: Binding(get: { progress.step.isDictation }, set: { dictation in
-                    if dictation { progress.continueToDictation(granted: permissions.granted) }
-                    else { progress.showReading(granted: permissions.granted) }
-                })) {
-                    Text("Read Aloud").tag(false)
-                    Text("Dictate").tag(true)
-                }.pickerStyle(.segmented).labelsHidden().frame(width: 230)
-                    .accessibilityIdentifier("setupActivity")
                 Spacer()
-                Text("Entirely on this Mac").font(.callout).foregroundStyle(.secondary)
-            }
-            HStack(spacing: 12) {
-                ForEach(0..<4) { index in
-                    Button { progress.visit(stage: index) } label: {
-                        VStack(spacing: 5) {
-                            Text(stageTitle(index)).font(.callout.weight(progress.step.stage == index ? .semibold : .regular))
-                            Capsule().fill(progress.step.stage == index ? Color.accentColor : Color.clear).frame(height: 2)
-                        }.frame(maxWidth: .infinity)
-                    }.buttonStyle(.plain)
-                        .accessibilityAddTraits(progress.step.stage == index ? .isSelected : [])
-                        .accessibilityIdentifier("setupStage-\(index)")
-                }
-            }
-
-            Divider()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text(heading).font(.title3.weight(.semibold))
-                        .accessibilityIdentifier("setupCurrentStep")
-                        .accessibilityAddTraits(.isHeader)
-
-                    if let permission = progress.step.permission {
-                        PermissionRow(permission: permission, status: permissions) {
-                            progress.prepareForPermission(permission)
-                        }
-                        if progress.waitingFor == permission {
-                            Label("Allow access in System Settings, then return here. Saywing checks automatically.",
-                                  systemImage: "arrow.up.forward.app")
-                                .font(.callout).foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        } else if permission == .screenRecording || permission == .inputMonitoring {
-                            Text("If macOS asks you to quit and reopen Saywing, you will continue here afterward.")
-                                .font(.callout).foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        if permission == .inputMonitoring {
-                            Button("Skip for Now") { progress.skipOptionalPermission() }
-                            Text("Without Input Monitoring, Escape stops reading only while Saywing is in front. The stop button always works.")
-                                .font(.callout).foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    } else if progress.step.stage == 1 {
-                        if progress.step.isDictation, let dictation = model.dictation {
-                            DictationModelSelection(controller: dictation)
-                        } else if progress.step.isDictation {
-                            Text("Dictation is not available in this build.")
-                        } else {
-                            Label("Supertonic 3 · M1", systemImage: "waveform")
-                            Text("The reading voice is separate from the dictation model.")
-                                .font(.callout).foregroundStyle(.secondary)
-                            Text(LocalSpeechService.installationSummary)
-                                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                        }
-                    } else if progress.step.stage == 2 {
-                        ActivationShortcutsView(model: model)
-                    } else if progress.step == .readingTest {
-                        Text("Open some text in another app, then select a sentence. Press Escape while it reads.")
-                            .fixedSize(horizontal: false, vertical: true)
-                        HStack {
-                            Button("Select Screen Region") { model.beginSetupCapture() }
-                                .buttonStyle(.borderedProminent)
-                                .disabled(!permissions.canTestReading || !model.canChangeShortcut)
-                                .accessibilityIdentifier("setupReadingTest")
-                            Text(model.shortcutConfiguration.displayName).foregroundStyle(.secondary)
-                        }
-                        if !permissions.isGranted(.inputMonitoring) {
-                            Text("Without Input Monitoring, Escape stops reading only while Saywing is in front. The stop button always works.")
-                                .font(.callout).foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        Label(LocalSpeechService.installationSummary, systemImage: "waveform")
-                            .font(.callout).foregroundStyle(.secondary)
-                    } else {
-                        if let dictation = model.dictation {
-                            LabeledContent("Model", value: dictation.selectedModel.displayName)
-                            Text(dictation.activationInstructions).fixedSize(horizontal: false, vertical: true)
-                            if let pending = dictation.pendingInstallModel {
-                                Text("Waiting for \(pending.displayName). You can return to Model to change your choice.")
-                                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                            }
-                        }
-                        Button("Try Dictation…") { model.dictation?.showWindow() }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(!canTryDictation)
-                            .accessibilityIdentifier("setupDictationTest")
+                switch model.errorHelp {
+                case let .allow(permission):
+                    Button("Open Setup…") {
+                        model.closeErrorHelp()
+                        model.showSetup()
                     }
-
-                    if progress.step.stage == 3 && (progress.step.isDictation
-                        ? permissions.isGranted(.microphone) && permissions.isGranted(.accessibility)
-                        : permissions.canTestReading) {
-                        Label("Access is allowed. Use the test to check that everything works.", systemImage: "checkmark.circle")
-                            .font(.callout).foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .accessibilityHint(Text("\(permission.systemName) is not allowed"))
+                case .shortcut:
+                    Button("Shortcut Settings…") {
+                        model.closeErrorHelp()
+                        model.openSettings(.shortcuts)
                     }
-
-                    if progress.offersRestartHelp || model.errorMessage != nil {
-                        DisclosureGroup("Already allowed access, but it still does not work?", isExpanded: $restartHelpExpanded) {
-                              VStack(alignment: .leading, spacing: 10) {
-                                Text("macOS may need Saywing to restart before new access takes effect. You will continue at this step.")
-                                    .font(.callout).foregroundStyle(.secondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                Button("Restart and Continue") { model.restartSetup() }
-                                    .disabled(!model.canRestartSetup || model.isRestartingSetup)
-                                    .accessibilityIdentifier("setupRestart")
-                                if !model.canRestartSetup {
-                                    Text("Finish or stop the current activity before restarting.")
-                                        .font(.callout).foregroundStyle(.secondary)
-                                }
-                            }.padding(.top, 6)
-                        }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                case .retry:
+                    Button("Try Again") {
+                        model.closeErrorHelp()
+                        model.enqueueReadRequest()
                     }
-                    if let error = model.setupRestartError ?? model.errorMessage {
-                        Label(error, systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange).font(.callout)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    if progress.step.stage != 1, let dictation = model.dictation, let pending = dictation.pendingInstallModel {
-                        VStack(alignment: .leading, spacing: 6) {
-                            DictationInstallStatus(controller: dictation, model: pending)
-                            Button("Show Model") { progress.continueToDictation(granted: permissions.granted); progress.visit(stage: 1) }
-                        }
-                    }
-                }.frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.bottom, 4)
-            }
-            Divider()
-            HStack {
-                Button("Later") { model.deferSetup() }
-                    .accessibilityIdentifier("setupLater")
-                if progress.step.permission != nil {
-                    Button("Check Again") {
-                        permissions.refresh()
-                        model.dictation?.refreshPermissions()
-                    }
-                }
-                Spacer()
-                if progress.step.stage > 0 {
-                    Button("Back") { progress.back() }.accessibilityIdentifier("setupBack")
-                }
-                if progress.step.stage == 1 || progress.step.stage == 2 {
-                    Button("Continue") { progress.advance(granted: permissions.granted) }
-                        .keyboardShortcut(.defaultAction).accessibilityIdentifier("setupContinue")
-                } else if let permission = progress.step.permission, permissions.isGranted(permission) {
-                    Button("Continue") { progress.refresh(granted: permissions.granted) }
-                        .keyboardShortcut(.defaultAction)
-                } else if progress.step == .readingTest {
-                    Button("Finish Setup") { model.finishSetup() }
-                    Button("Set Up Dictation") { progress.continueToDictation(granted: permissions.granted) }
-                        .keyboardShortcut(.defaultAction)
-                } else if progress.step == .dictationTest {
-                    Button("Finish Setup") { model.finishSetup() }
-                        .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
                 }
             }
         }
-        .padding(24)
-        .frame(width: 560, height: Self.windowHeight)
-        .onReceive(permissions.$granted) { granted in
-            progress.refresh(granted: granted)
-            model.dictation?.refreshPermissions()
-        }
-        .onChange(of: progress.step) { _, _ in
-            restartHelpExpanded = false
-            model.setRecordingShortcut(false)
-        }
-    }
-    private var canTryDictation: Bool {
-        guard let dictation = model.dictation else { return false }
-        return permissions.canTestDictation && permissions.isGranted(.accessibility)
-            && dictation.pendingInstallModel == nil && dictation.models.isInstalled(dictation.selectedModel)
-            && model.canChangeShortcut
-    }
-    private func stageTitle(_ index: Int) -> String {
-        switch index {
-        case 0: String(localized: "Permissions")
-        case 1: String(localized: "Model")
-        case 2: String(localized: "Shortcuts")
-        default: String(localized: "Try It")
-        }
+        .padding(20)
+        .frame(width: 320)
+        .tint(Color("AccentColor"))
+        .accessibilityIdentifier("readingErrorHelp")
     }
 }

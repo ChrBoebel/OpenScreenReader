@@ -22,8 +22,10 @@ def pcm(name):
  audio,rate=sf.read(res/'Demos'/(name+'.wav'),dtype='float32')
  assert audio.ndim==1
  return audio,rate
-def send(proc,id,audio,rate,language=None):
- proc.stdin.write((json.dumps({'id':id,'pcm':base64.b64encode(audio.astype('<f4').tobytes()).decode(),'rate':rate,'language':language})+'\n').encode());proc.stdin.flush()
+def send(proc,id,audio,rate,language=None,vocabulary=None):
+ packet={'id':id,'pcm':base64.b64encode(audio.astype('<f4').tobytes()).decode(),'rate':rate,'language':language}
+ if vocabulary is not None:packet['vocabulary']=vocabulary
+ proc.stdin.write((json.dumps(packet)+'\n').encode());proc.stdin.flush()
 env={'PATH':'/usr/bin:/bin','HOME':str(res),'HF_HUB_OFFLINE':'1','TRANSFORMERS_OFFLINE':'1','PYTHONDONTWRITEBYTECODE':'1'}
 p=None
 try:
@@ -34,6 +36,8 @@ try:
  send(p,'en',en,enrate);e=read(p,90);check(e.get('id')=='en' and 'communication' in e.get('text',''),'English through warm model')
  send(p,'de-explicit',de,rate,'German');de_explicit=read(p,90);check('hongkong' in re.sub(r'\s+', '', de_explicit.get('text','')).casefold(),'explicit German transcription')
  send(p,'en-explicit',en,enrate,'English');en_explicit=read(p,90);check('communication' in en_explicit.get('text',''),'explicit English transcription')
+ send(p,'vocabulary',de,rate,'German',['Saywing','Böbel','Owl Frame']);v=read(p,90);check(v.get('id')=='vocabulary' and 'hongkong' in re.sub(r'\s+', '', v.get('text','')).casefold(),'vocabulary request keeps the transcript')
+ send(p,'bad-vocabulary',de,rate,'German',['a\nb']);b=read(p,10);check(b.get('type')=='error' and b.get('id')=='bad-vocabulary','malformed vocabulary rejected without crashing worker')
  send(p,'silent',np.zeros(32000,dtype=np.float32),16000);s=read(p,90);check(s.get('text')=='','silent input does not create text')
  send(p,'invalid',np.array([np.nan],dtype=np.float32),16000);s=read(p,10);check(s.get('type')=='error','malformed samples rejected without crashing worker')
  send(p,'cancel',np.tile(de,3),rate);time.sleep(.05);t=time.monotonic();p.terminate();p.wait(timeout=2);latency=time.monotonic()-t;check(latency<1,'active inference process cancelled within one second')

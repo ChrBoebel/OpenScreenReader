@@ -15,11 +15,17 @@
   "participants": [
     "Christopher"
   ],
-  "lastUpdated": "2026-09-04T17:51:05Z",
+  "lastUpdated": "2026-10-14",
   "currentIdentity": {
     "name": "Saywing",
-    "decisionDate": "2026-10-13",
+    "decisionDate": "2026-10-14",
     "sourceOfTruth": "BRAND_SYSTEM.md",
-    "logo": "Quiet Owl"
+    "logo": "Text to Voice",
+    "palette": [
+      "Ink Navy",
+      "Paper",
+      "Petrol",
+      "Apricot"
+    ]
   }
 }

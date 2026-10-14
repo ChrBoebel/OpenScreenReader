@@ -118,6 +118,47 @@ final class InsertionTarget {
     if let selection, selectedRange(element) != selection { return false }
     return true
   }
+  /// The insertion point in screen coordinates, so feedback appears where the
+  /// text will land. Only geometry is read, never the field's contents.
+  func caretRect() -> CGRect? {
+    if let local, let selection {
+      guard local.window != nil else { return nil }
+      let rect = local.firstRect(forCharacterRange: NSRange(location: selection.location, length: 0), actualRange: nil)
+      return rect.isEmpty && rect.origin == .zero ? nil : rect
+    }
+    guard let element else { return nil }
+    AXUIElementSetMessagingTimeout(element, 0.3)
+    var bounds: CFTypeRef?
+    if let selection {
+      var range = CFRange(location: selection.location, length: 0)
+      if let value = AXValueCreate(.cfRange, &range),
+        AXUIElementCopyParameterizedAttributeValue(
+          element, kAXBoundsForRangeParameterizedAttribute as CFString, value, &bounds) == .success,
+        let rect = Self.rect(bounds), rect.height > 0
+      {
+        return Self.screenRect(fromAccessibility: rect)
+      }
+    }
+    // Some apps report no caret bounds; a small field's frame is the next best anchor.
+    guard let position = axValue(element, kAXPositionAttribute), let size = axValue(element, kAXSizeAttribute),
+      CFGetTypeID(position) == AXValueGetTypeID(), CFGetTypeID(size) == AXValueGetTypeID()
+    else { return nil }
+    var origin = CGPoint.zero, extent = CGSize.zero
+    guard AXValueGetValue(unsafeDowncast(position, to: AXValue.self), .cgPoint, &origin),
+      AXValueGetValue(unsafeDowncast(size, to: AXValue.self), .cgSize, &extent), extent.height <= 120
+    else { return nil }
+    return Self.screenRect(fromAccessibility: CGRect(origin: origin, size: extent))
+  }
+  private static func rect(_ value: CFTypeRef?) -> CGRect? {
+    guard let value, CFGetTypeID(value) == AXValueGetTypeID() else { return nil }
+    var rect = CGRect.zero
+    return AXValueGetValue(unsafeDowncast(value, to: AXValue.self), .cgRect, &rect) ? rect : nil
+  }
+  /// Accessibility geometry starts at the top left of the primary display.
+  private static func screenRect(fromAccessibility rect: CGRect) -> CGRect? {
+    guard let primary = NSScreen.screens.first else { return nil }
+    return CGRect(x: rect.minX, y: primary.frame.maxY - rect.maxY, width: rect.width, height: rect.height)
+  }
   func paste() throws {
     guard isCurrent() else {
       throw DictationError(
@@ -145,11 +186,21 @@ final class InsertionTarget {
     return actual == expected
   }
 }
+/// One recording session; the controller only starts, levels, finishes or discards it.
 @MainActor
-final class MicrophoneRecorder {
+protocol DictationRecording: AnyObject {
+  /// The latest input level for the capsule bars, never the audio itself.
+  var level: Double { get }
+  func start() throws
+  func finish() -> AudioPacket
+  func cancel()
+}
+@MainActor
+final class MicrophoneRecorder: DictationRecording {
   private let engine = AVAudioEngine()
   let audio = AudioAccumulator()
   private var installed = false
+  var level: Double { audio.rms }
   func start() throws {
     let node = engine.inputNode
     let format = node.outputFormat(forBus: 0)
@@ -204,3 +255,21 @@ final class MicrophoneRecorder {
     audio.cancel()
   }
 }
+
+/// Where the dictation capsule appears: just below the insertion point (above
+/// it near the bottom of the screen), otherwise where the reading control is docked.
+enum DictationCapsulePlacement {
+  static func origin(caret: CGRect?, visible: CGRect, docked: CGRect, size: CGSize) -> CGPoint {
+    func clamped(_ point: CGPoint) -> CGPoint {
+      CGPoint(x: min(max(point.x, visible.minX + 4), visible.maxX - size.width - 4),
+              y: min(max(point.y, visible.minY + 4), visible.maxY - size.height - 4))
+    }
+    guard let caret, visible.contains(CGPoint(x: caret.midX, y: caret.midY)) else {
+      return clamped(CGPoint(x: docked.midX - size.width / 2, y: docked.midY - size.height / 2))
+    }
+    var y = caret.minY - size.height
+    if y < visible.minY + 4 { y = caret.maxY }
+    return clamped(CGPoint(x: caret.midX - size.width / 2, y: y))
+  }
+}
+

@@ -15,37 +15,45 @@ final class AppModel: ObservableObject {
     }
     private var controlsPopover: NSPopover?
     private var setupWindow: NSWindow?
+    private var setupFlow: SetupFlowController?
+    private var setupCloseObserver: NSObjectProtocol?
     private var offeredSetup = false
-    let setupProgress: SetupProgress
-    let setupPermissions: PermissionStatus
-    @Published private(set) var setupRestartError: String?
-    @Published private(set) var isRestartingSetup = false
+    private let missingReadingPermission: @MainActor () -> SaywingPermission?
     func offerSetupIfNeeded() {
         guard !offeredSetup else { return }
         offeredSetup = true
-        guard setupProgress.shouldOpenOnLaunch else { return }
-        let isTesting = ProcessInfo.processInfo.arguments.contains("--uitesting")
-            || ProcessInfo.processInfo.environment["OSR_SHORTCUT_TEST_SUITE"] != nil
+        let arguments = ProcessInfo.processInfo.arguments
+        // A relaunch requested by setup itself (Screen Recording) continues it.
+        let resume = preferences.dictionary(forKey: SetupFlowController.checkpointKey)?["resume"] as? Bool ?? false
+        let testing = arguments.contains("--uitesting") || ProcessInfo.processInfo.environment["OSR_SHORTCUT_TEST_SUITE"] != nil
             || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
-        if isTesting {
-            #if DEBUG
-            guard ProcessInfo.processInfo.arguments.contains("--test-setup") else { return }
-            #else
-            return
-            #endif
-        }
+        guard !testing || arguments.contains("--test-setup"),
+              resume || !preferences.bool(forKey: "setupDismissed.v1") || arguments.contains("--resume-setup") else { return }
         showSetup()
     }
     func finishSetup() {
-        setupProgress.finish()
+        preferences.removeObject(forKey: SetupFlowController.checkpointKey)
+        preferences.set(true, forKey: "setupDismissed.v1")
         closeSetup()
+    }
+    /// Closing without Done is "later": setup returns at the next launch.
+    func closeSetup() {
+        setupWindow?.close()
+        tearDownSetup()
     }
     func deferSetup() {
-        setupProgress.deferSetup()
+        setupFlow?.persistCheckpoint(resume: false)
+        preferences.set(true, forKey: "setupDismissed.v1")
         closeSetup()
     }
-    private func closeSetup() {
-        setupWindow?.close()
+    @Published private(set) var setupRestartError: String?
+    @Published private(set) var isRestartingSetup = false
+    var isSetupOpen: Bool { setupWindow?.isVisible == true }
+    private func tearDownSetup() {
+        setupFlow?.stop()
+        setupFlow = nil
+        if let setupCloseObserver { NotificationCenter.default.removeObserver(setupCloseObserver) }
+        setupCloseObserver = nil
         setupWindow?.contentViewController = nil
         setupWindow = nil
     }
@@ -54,7 +62,7 @@ final class AppModel: ObservableObject {
         terminate: () -> Void = { NSApp.terminate(nil) }
     ) {
         guard canRestartSetup, !isRestartingSetup else { return }
-        setupProgress.prepareForRestart()
+        setupFlow?.persistCheckpoint()
         setupRestartError = nil
         isRestartingSetup = true
         do {
@@ -71,10 +79,6 @@ final class AppModel: ObservableObject {
     }
     var canRestartSetup: Bool {
         canChangeShortcut && !isRecordingShortcut && !(dictation?.models.availability.values.contains(where: \.isInstalling) ?? false)
-    }
-    func beginSetupCapture() {
-        setupWindow?.orderOut(nil)
-        enqueueAddRequest()
     }
     var canPause: Bool { status == .speaking && activeContext != nil }
     func enqueueStopRequest() {
@@ -124,12 +128,38 @@ final class AppModel: ObservableObject {
         if status == .speaking { speechService.prepareNext(queuedTexts.first?.result.speechText) }
     }
 
+    /// What the question mark offers after a failure: the reason and a retry in
+    /// place, or the setup step when a grant is what is missing.
+    enum ErrorHelp: Equatable { case retry, allow(SaywingPermission), shortcut }
+    var errorHelp: ErrorHelp {
+        if let missing = missingReadingPermission() { return .allow(missing) }
+        return hotkeyRegistration == .registered ? .retry : .shortcut
+    }
+    /// Settings opens on this tab next time, e.g. Shortcuts from a shortcut conflict.
+    @Published var requestedSettingsTab: SettingsTab?
+    func openSettings(_ tab: SettingsTab) {
+        requestedSettingsTab = tab
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+    }
+    var isShowingErrorHelp: Bool { status == .error && controlsPopover?.isShown == true }
+    func closeErrorHelp() {
+        controlsPopover?.close()
+        controlsPopover = nil
+    }
+
+    enum MenuBarIndicator { case idle, reading, attention }
+    var menuBarIndicator: MenuBarIndicator {
+        status == .error ? .attention : isReadingActive ? .reading : .idle
+    }
+
     func showPlaybackControls(from view: NSView) {
-        if status == .error { showSetup(); return }
         controlsPopover?.close()
         let popover = NSPopover()
         popover.behavior = .transient
-        popover.contentViewController = NSHostingController(rootView: PlaybackControlsView(model: self))
+        popover.contentViewController = status == .error
+            ? NSHostingController(rootView: AnyView(ReadingErrorView(model: self)))
+            : NSHostingController(rootView: AnyView(PlaybackControlsView(model: self)))
         controlsPopover = popover
         // Open toward the desktop, including the upright left/right capsule layouts.
         var ancestor: NSView? = view
@@ -137,24 +167,53 @@ final class AppModel: ObservableObject {
         let edge = (ancestor as? ReadingControlView)?.dockEdge.popoverEdge ?? .maxY
         (ancestor as? ReadingControlView)?.holdControls(for: popover)
         popover.show(relativeTo: view.bounds, of: view, preferredEdge: edge)
+        // A click on the capsule keeps the user's app in front. Opened from the menu
+        // (the keyboard path), the popover takes focus so Tab, Return and Escape work.
+        if popoverTakesFocus {
+            popoverTakesFocus = false
+            NSApp.activate(ignoringOtherApps: true)
+            popover.contentViewController?.view.window?.makeKey()
+        }
     }
 
-    func openPlaybackControls() { readingPanel?.openControls() }
+    private var popoverTakesFocus = false
+    func openPlaybackControls() {
+        popoverTakesFocus = true
+        readingPanel?.openControls()
+        // Without a visible control there is nothing to anchor to; do not keep the request.
+        popoverTakesFocus = false
+    }
 
-    func showSetup() {
-        setupPermissions.refresh()
-        setupProgress.begin(granted: setupPermissions.granted)
+    /// Each opening starts from the live grants, so it lands on what is still missing.
+    func showSetup(entry: SetupEntry = .automatic) {
         if setupWindow == nil {
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: SetupView.windowHeight),
-                                  styleMask: [.titled, .closable], backing: .buffered, defer: false)
+            let window = NSWindow(contentRect: NSRect(origin: .zero, size: SetupView.size),
+                                  styleMask: [.titled, .closable, .fullSizeContentView], backing: .buffered, defer: false)
             window.title = String(localized: "Set Up Saywing")
+            window.titleVisibility = .hidden
+            window.titlebarAppearsTransparent = true
             window.isReleasedWhenClosed = false
-            let host = NSHostingController(rootView: SetupView(model: self))
-            // A stable frame avoids AppKit/SwiftUI constraint feedback on step changes.
-            // The content scrolls while navigation stays visible.
-            host.sizingOptions = []
-            window.contentViewController = host
+            // The reading test reads Saywing's own sample sentence from this window.
+            window.identifier = .readableBySaywing
+            var initialStep: SetupStep?
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--test-setup"),
+               preferences.dictionary(forKey: SetupFlowController.checkpointKey) == nil {
+                initialStep = ProcessInfo.processInfo.environment["OSR_SETUP_INITIAL_STEP"].flatMap(SetupStep.init(checkpoint:))
+            }
+            #endif
+            let flow = SetupFlowController(model: self, entry: entry, start: initialStep)
+            flow.onReturn = { [weak self] in
+                NSApp.activate(ignoringOtherApps: true)
+                self?.setupWindow?.makeKeyAndOrderFront(nil)
+            }
+            window.contentViewController = NSHostingController(rootView: SetupView(model: self, flow: flow))
+            window.setContentSize(SetupView.size)
             window.center()
+            setupCloseObserver = NotificationCenter.default.addObserver(
+                forName: NSWindow.willCloseNotification, object: window, queue: .main
+            ) { [weak self] _ in MainActor.assumeIsolated { self?.tearDownSetup() } }
+            setupFlow = flow
             setupWindow = window
         }
         NSApp.activate(ignoringOtherApps: true)
@@ -194,7 +253,7 @@ final class AppModel: ObservableObject {
         return isPaused ? String(localized: "Paused") : status.title
     }
     let dictation: DictationController?
-    private let preferences: UserDefaults
+    let preferences: UserDefaults
     private let queueHotkeyManager: (any HotkeyManaging)?
     private let queueShortcutStore: any ShortcutStoring
 
@@ -244,11 +303,10 @@ final class AppModel: ObservableObject {
         queueHotkeyManager: (any HotkeyManaging)? = nil,
         queueShortcutStore: any ShortcutStoring = UserDefaultsShortcutStore(preferenceKey: "enqueueShortcut.v1"),
         dictation: DictationController? = nil,
-        setupPermissions: PermissionStatus = PermissionStatus()
+        missingReadingPermission: @escaping @MainActor () -> SaywingPermission? = { nil }
     ) {
-        self.setupProgress = SetupProgress(preferences: preferences)
-        self.setupPermissions = setupPermissions
         self.dictation = dictation
+        self.missingReadingPermission = missingReadingPermission
         self.pipelineCoordinator = pipelineCoordinator
         self.shortcutStore = shortcutStore
         self.shortcutConfiguration = shortcutStore.load() ?? .default
@@ -286,7 +344,7 @@ final class AppModel: ObservableObject {
             dictationObservation = Publishers.Merge(dictation.objectWillChange, dictation.models.objectWillChange)
                 .sink { [weak self] _ in self?.objectWillChange.send() }
         }
-        dictation?.onOpenSetup = { [weak self] in self?.showSetup() }
+        dictation?.onOpenSetup = { [weak self] in self?.showSetup(entry: .dictation) }
         dictation?.onActivation = { [weak self] start in
             self?.enqueue { model in
                 if let context = model.activeContext { await model.cancel(context: context) }
@@ -361,6 +419,7 @@ final class AppModel: ObservableObject {
     func enqueueShortcutChange(_ configuration: ShortcutConfiguration) {
         enqueue { $0.changeShortcut(configuration) }
     }
+
     func enqueueDictationShortcutChange(_ configuration: ShortcutConfiguration) {
         enqueue { model in
             guard model.canChangeShortcut, !model.isRecordingShortcut, let dictation = model.dictation else { return }
@@ -488,6 +547,11 @@ final class AppModel: ObservableObject {
         }
         if let activeContext {
             await cancel(context: activeContext)
+            return
+        }
+        // Dragging a region that can only fail afterwards wastes the gesture.
+        if missingReadingPermission() != nil {
+            showSetup()
             return
         }
         sessionGeneration &+= 1

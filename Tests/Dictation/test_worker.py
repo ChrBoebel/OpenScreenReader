@@ -6,7 +6,34 @@ class ProtocolTests(unittest.TestCase):
  def packet(self,values=None,rate=16000):
   return {'id':'test','rate':rate,'language':None,'pcm':base64.b64encode(np.asarray(values if values is not None else [0.1]*1600,dtype='<f4').tobytes()).decode()}
  def test_valid(self):
-  audio,rate,language=worker.decode_request(self.packet());self.assertEqual(len(audio),1600);self.assertEqual(rate,16000);self.assertIsNone(language)
+  audio,rate,language,vocabulary=worker.decode_request(self.packet());self.assertEqual(len(audio),1600);self.assertEqual(rate,16000);self.assertIsNone(language);self.assertEqual(vocabulary,[])
+ def test_vocabulary_is_trimmed_and_deduplicated(self):
+  p=self.packet();p['vocabulary']=[' Saywing ','Böbel','saywing','Owl Frame']
+  self.assertEqual(worker.decode_request(p)[3],['Saywing','Böbel','Owl Frame'])
+ def test_invalid_vocabulary_is_rejected(self):
+  for value in ['Saywing',[1],[''],['a\nb'],['x'*61],['t%d'%i for i in range(51)]]:
+   p=self.packet();p['vocabulary']=value
+   with self.assertRaises(ValueError):worker.decode_request(p)
+ def test_vocabulary_prompt(self):
+  self.assertIsNone(worker.vocabulary_prompt([]))
+  self.assertEqual(worker.vocabulary_prompt(['Saywing','Owl Frame']),'Saywing, Owl Frame.')
+ def test_whisper_prompt_keeps_leading_terms_within_token_budget(self):
+  terms=['Term%d'%i for i in range(50)]
+  fitted=worker.fit_prompt_terms(terms,lambda text:len(text.split()),10)
+  self.assertEqual(fitted,terms[:len(fitted)]);self.assertLessEqual(len(worker.vocabulary_prompt(fitted).split()),10);self.assertGreater(len(fitted),0)
+ def test_vocabulary_retries_without_terms_after_a_loop(self):
+  calls=[]
+  def run(vocabulary):calls.append(vocabulary);return 'Kone, '*30 if vocabulary else 'Vielen Dank.'
+  self.assertEqual(worker.recognize_with_vocabulary(run,['Saywing']),'Vielen Dank.');self.assertEqual(calls,[['Saywing'],[]])
+ def test_vocabulary_retries_when_the_list_is_echoed(self):
+  calls=[]
+  def run(vocabulary):calls.append(vocabulary);return 'Saywing, Böbel, Owl Frame.' if vocabulary else ''
+  self.assertEqual(worker.recognize_with_vocabulary(run,['Saywing','Böbel','Owl Frame']),'');self.assertEqual(len(calls),2)
+ def test_vocabulary_result_is_kept_when_plausible(self):
+  calls=[]
+  def run(vocabulary):calls.append(vocabulary);return 'Ich habe Saywing installiert.'
+  self.assertEqual(worker.recognize_with_vocabulary(run,['Saywing']),'Ich habe Saywing installiert.');self.assertEqual(calls,[['Saywing']])
+  self.assertEqual(worker.recognize_with_vocabulary(run,[]),'Ich habe Saywing installiert.');self.assertEqual(calls,[['Saywing'],[]])
  def test_nonfinite(self):
   with self.assertRaises(ValueError):worker.decode_request(self.packet([float('nan')]))
  def test_bad_language(self):

@@ -14,16 +14,16 @@ struct OpenScreenReaderApp: App {
             let fixture = ProcessInfo.processInfo.environment["OSR_SETUP_MODEL_RESOURCES"].map { URL(fileURLWithPath: $0) }
             let store = fixture.map { DictationModelStore(resources: $0, installRoot: $0.appendingPathComponent("Installed")) }
             dictation = DictationController(resources: fixture, models: store, registerHotkey: false)
-        } else { dictation = testing ? nil : DictationController() }
+        } else { dictation = testing ? nil : DictationController(interfaceSounds: sounds) }
         #else
-        dictation = testing ? nil : DictationController()
+        dictation = testing ? nil : DictationController(interfaceSounds: sounds)
         #endif
         let model = AppModel(readingPanel: ReadingPanelController(interfaceSounds: sounds), interfaceSounds: sounds,
-                        queueHotkeyManager: GlobalHotkeyManager(), dictation: dictation)
+                        queueHotkeyManager: GlobalHotkeyManager(), dictation: dictation,
+                        missingReadingPermission: { SaywingPermission.reading.first { !$0.isGranted } })
         // Prepare once the SwiftUI StateObject is established; never open the microphone.
         DispatchQueue.main.async {
             if !testing { dictation?.loadModel() }
-            // Resume setup at launch, even before the menu bar item is opened.
             model.offerSetupIfNeeded()
         }
         if ProcessInfo.processInfo.arguments.contains("--dictation-smoke") {
@@ -43,14 +43,11 @@ struct OpenScreenReaderApp: App {
             Label {
                 Text("Saywing")
             } icon: {
-                Image("SaywingMenuBar")
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 22, height: 22)
+                Image(nsImage: MenuBarIcon.image(for: model.menuBarIndicator))
             }
                 .accessibilityLabel("Saywing, \(model.activityTitle)")
                 .help("Saywing · \(model.activityTitle)")
+                .task { model.offerSetupIfNeeded() }
         }
         .menuBarExtraStyle(.menu)
 

@@ -5,6 +5,8 @@ Wiederaufnahme nach Berechtigungs-Neustarts und der bereits gelesene
 [Apple-Design-Skill](https://github.com/emilkowalski/skills/blob/main/skills/apple-design/SKILL.md).
 Nur Designprinzipien übertragen, keinen fremden Code übernommen.
 
+> Historischer Prüfstand vor der Integration mit dem inzwischen erweiterten geführten Ablauf auf `main`. Die aktuellen Prüfungen stehen in [Einrichtung: Modelle und Kurzbefehle](setup-models-shortcuts-verification.md).
+
 ## Verhalten
 
 - Ein nativer Ablauf mit sechs Schritten: Bildschirmaufnahme, optionale
