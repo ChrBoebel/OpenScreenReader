@@ -461,12 +461,12 @@
         }
       }
     },
-    "Click in the test field, hold Fn while you speak and release to paste.": {
+    "Click in the test field. Hold Fn while you speak and release to paste, or press Fn twice to dictate hands-free.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Klick ins Testfeld, halte beim Sprechen Fn gedrückt und lass zum Einfügen los."
+            "value": "Klick ins Testfeld, halte beim Sprechen Fn gedrückt und lass zum Einfügen los – oder drück Fn zweimal, um freihändig zu diktieren."
           }
         }
       }
@@ -2041,6 +2041,16 @@
         }
       }
     },
+    "Recording hands-free": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Freihändige Aufnahme"
+          }
+        }
+      }
+    },
     "Recording did not start": {
       "localizations": {
         "de": {
@@ -2531,12 +2541,12 @@
         }
       }
     },
-    "Short cues when the control opens, when reading is done and when something needs attention. Never during speech.": {
+    "Short cues when the control opens, when reading is done, when the microphone opens, latches hands-free or closes, and when something needs attention. Never during speech.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kurze Klänge, wenn die Steuerung erscheint, wenn alles vorgelesen ist und wenn etwas Aufmerksamkeit braucht. Nie während der Sprachausgabe."
+            "value": "Kurze Klänge, wenn die Steuerung erscheint, wenn alles vorgelesen ist, wenn das Mikrofon öffnet, freihändig einrastet oder schließt und wenn etwas Aufmerksamkeit braucht. Nie während der Sprachausgabe."
           }
         }
       }

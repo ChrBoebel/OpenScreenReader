@@ -27,6 +27,8 @@ final class DictationCapsuleView: NSView {
     private var visible = false
     private var smoothedLevel = 0.0
     private(set) var state: DictationCapsuleState = .idle
+    /// Recording that continues without a held key; the finish control carries it.
+    private(set) var isHandsFree = false
     private(set) var inputLevel = 0.0
     private(set) var barHeights = [CGFloat](repeating: 3, count: 9)
     var isAnimating: Bool { clock != nil }
@@ -100,6 +102,7 @@ final class DictationCapsuleView: NSView {
         let changed = self.state != state
         self.state = state
         if changed { inputLevel = 0 }
+        if state != .recording { isHandsFree = false; finishButton.isEmphasized = false }
         finishButton.isEnabled = state == .recording
         finishButton.isHidden = state != .recording
         dismissButton.setAccessibilityLabel(state.isBusy ? String(localized: "Discard dictation") : String(localized: "Close notice"))
@@ -107,7 +110,9 @@ final class DictationCapsuleView: NSView {
         let glyph: String
         let statusTitle: String
         switch state {
-        case .recording: statusTitle = String(localized: "Recording"); glyph = "mic.fill"
+        case .recording:
+            statusTitle = isHandsFree ? String(localized: "Recording hands-free") : String(localized: "Recording")
+            glyph = "mic.fill"
         case .processing: statusTitle = String(localized: "Recognizing text"); glyph = "ellipsis"
         case .pasting: statusTitle = String(localized: "Paste sent"); glyph = "arrow.up.doc"
         case .inserted: statusTitle = String(localized: "Pasted"); glyph = "checkmark"
@@ -131,6 +136,28 @@ final class DictationCapsuleView: NSView {
         if changed, visible {
             NSAccessibility.post(element: self, notification: .layoutChanged)
         }
+    }
+
+    /// Latching shows on the finish control, which is now the way to end: it fills
+    /// and settles in once, like a key clicking into place. No text, no extra light.
+    func setHandsFree(_ value: Bool, animated: Bool = true) {
+        guard state == .recording, value != isHandsFree else { return }
+        isHandsFree = value
+        finishButton.isEmphasized = value
+        setAccessibilityLabel(String(localized: "Saywing dictation: \(value ? String(localized: "Recording hands-free") : String(localized: "Recording"))"))
+        guard value, animated, visible, !reduced, let layer = finishButton.layer else { return }
+        // A view's layer anchors at its corner; scale about the drawn face's centre.
+        let center = CGPoint(x: finishButton.bounds.midX, y: finishButton.bounds.midY)
+        var pressed = CATransform3DMakeTranslation(center.x, center.y, 0)
+        pressed = CATransform3DScale(pressed, 0.86, 0.86, 1)
+        pressed = CATransform3DTranslate(pressed, -center.x, -center.y, 0)
+        let spring = CASpringAnimation(keyPath: "transform")
+        spring.fromValue = NSValue(caTransform3D: pressed)
+        spring.toValue = NSValue(caTransform3D: CATransform3DIdentity)
+        spring.stiffness = 400
+        spring.damping = 40 // Critical damping, as for every capsule transition.
+        spring.duration = spring.settlingDuration
+        layer.add(spring, forKey: "latch")
     }
 
     func updateRecording(rms: Double) {
@@ -231,6 +258,8 @@ private final class DictationDisplayClockProxy: NSObject {
 @MainActor
 final class DictationMiniButton: NSButton {
     var isCancel = false
+    /// The finish control while recording hands-free: a filled mint face.
+    var isEmphasized = false { didSet { if isEmphasized != oldValue { needsDisplay = true } } }
     private var hovered = false
     private var tracking: NSTrackingArea?
 
@@ -260,11 +289,15 @@ final class DictationMiniButton: NSButton {
         let contrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
         if !isCancel || hovered || isHighlighted {
             let opacity = isCancel ? (isHighlighted ? 0.18 : 0.09) : (isHighlighted ? 0.26 : hovered ? 0.19 : 0.10)
-            ReadingPalette.paper.withAlphaComponent(opacity).setFill()
             let face = NSBezierPath(ovalIn: CGRect(x: center.x - 11, y: center.y - 11, width: 22, height: 22))
+            if isEmphasized {
+                ReadingPalette.mint.withAlphaComponent(isHighlighted ? 0.5 : hovered ? 0.42 : 0.34).setFill()
+            } else {
+                ReadingPalette.paper.withAlphaComponent(opacity).setFill()
+            }
             face.fill()
             if !isCancel {
-                ReadingPalette.mintLight.withAlphaComponent(contrast ? 0.75 : 0.18).setStroke()
+                ReadingPalette.mintLight.withAlphaComponent(contrast ? 0.75 : isEmphasized ? 0.55 : 0.18).setStroke()
                 face.lineWidth = 1
                 face.stroke()
             }

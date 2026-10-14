@@ -216,7 +216,7 @@ struct SettingsView: View {
                     .disabled(!interfaceSoundsEnabled)
                     .accessibilityIdentifier("interfaceSoundsVolume")
             } footer: {
-                Text("Short cues when the control opens, when reading is done and when something needs attention. Never during speech.")
+                Text("Short cues when the control opens, when reading is done, when the microphone opens, latches hands-free or closes, and when something needs attention. Never during speech.")
                     .font(.callout).foregroundStyle(.secondary)
             }
         }
