@@ -1,12 +1,24 @@
 """Local PCM pipe worker; no microphone, clipboard, history, or network API."""
 import os
 os.environ.update(HF_HUB_OFFLINE='1',TRANSFORMERS_OFFLINE='1',HF_HUB_DISABLE_TELEMETRY='1',DO_NOT_TRACK='1',TOKENIZERS_PARALLELISM='false',PYTHONDONTWRITEBYTECODE='1')
-import sys,json,base64,hashlib,math,contextlib,signal
+import sys,json,base64,hashlib,math,contextlib,signal,unicodedata
 from pathlib import Path
 os.environ['TORCHINDUCTOR_CACHE_DIR']=str(Path(__file__).resolve().parent/'RuntimeCache')
 MAX_LINE=65*1024*1024
 MODELS={'qwen3-asr':('Model','model-manifest.json'),
         'whisper-turbo':('WhisperTurbo','whisper-turbo-manifest.json')}
+MAX_TERMS=50;MAX_TERM_LENGTH=60
+
+def decode_vocabulary(value):
+ if value is None:return []
+ if not isinstance(value,list) or len(value)>MAX_TERMS:raise ValueError('invalid_vocabulary')
+ terms,seen=[],set()
+ for item in value:
+  if not isinstance(item,str):raise ValueError('invalid_vocabulary')
+  term=item.strip()
+  if not term or len(term)>MAX_TERM_LENGTH or any(unicodedata.category(c) in ('Cc','Cf') for c in term):raise ValueError('invalid_vocabulary')
+  if term.casefold() not in seen:seen.add(term.casefold());terms.append(term)
+ return terms
 
 def decode_request(packet):
  import numpy as np
@@ -19,7 +31,7 @@ def decode_request(packet):
  if len(raw)%4 or len(raw)<4 or len(raw)>int(rate)*60*4:raise ValueError('invalid_audio_length')
  audio=np.frombuffer(raw,dtype='<f4').copy()
  if not np.isfinite(audio).all() or float(np.max(np.abs(audio)))>1.1:raise ValueError('invalid_samples')
- return audio,int(rate),language
+ return audio,int(rate),language,decode_vocabulary(packet.get('vocabulary'))
 
 def prepare_audio(audio,rate):
  import numpy as np
@@ -85,7 +97,7 @@ def main():
   identifier=None
   try:
    packet=json.loads(line);identifier=packet.get('id')
-   audio,rate,language=decode_request(packet)
+   audio,rate,language,vocabulary=decode_request(packet)
    with contextlib.redirect_stdout(sys.stderr):
     audio=prepare_audio(audio,rate)
     text='' if audio is None else recognize(audio,language)

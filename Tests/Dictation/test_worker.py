@@ -6,7 +6,14 @@ class ProtocolTests(unittest.TestCase):
  def packet(self,values=None,rate=16000):
   return {'id':'test','rate':rate,'language':None,'pcm':base64.b64encode(np.asarray(values if values is not None else [0.1]*1600,dtype='<f4').tobytes()).decode()}
  def test_valid(self):
-  audio,rate,language=worker.decode_request(self.packet());self.assertEqual(len(audio),1600);self.assertEqual(rate,16000);self.assertIsNone(language)
+  audio,rate,language,vocabulary=worker.decode_request(self.packet());self.assertEqual(len(audio),1600);self.assertEqual(rate,16000);self.assertIsNone(language);self.assertEqual(vocabulary,[])
+ def test_vocabulary_is_trimmed_and_deduplicated(self):
+  p=self.packet();p['vocabulary']=[' Saywing ','Böbel','saywing','Owl Frame']
+  self.assertEqual(worker.decode_request(p)[3],['Saywing','Böbel','Owl Frame'])
+ def test_invalid_vocabulary_is_rejected(self):
+  for value in ['Saywing',[1],[''],['a\nb'],['x'*61],['t%d'%i for i in range(51)]]:
+   p=self.packet();p['vocabulary']=value
+   with self.assertRaises(ValueError):worker.decode_request(p)
  def test_nonfinite(self):
   with self.assertRaises(ValueError):worker.decode_request(self.packet([float('nan')]))
  def test_bad_language(self):
