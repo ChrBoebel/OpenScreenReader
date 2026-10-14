@@ -106,7 +106,7 @@ Vorlesen nutzt standardmäßig **⌥R** (ausdrücklich nur zwei Tasten); Wiederh
 
 ## Auswahl des Diktiermodells — 2026-10-13
 
-Einstellungen → Diktieren bietet Qwen3-ASR und Whisper Turbo im Feld „Modell“ an (bis 2026-10-13 im Diktierfenster).
+Einstellungen → Diktieren bietet Qwen3-ASR, Whisper Turbo und (seit 2026-10-14) Whisper Large v3 im Feld „Modell“ an (bis 2026-10-13 im Diktierfenster). Standard ist Whisper Turbo, das jeder Build mitbringt. Nicht installierte Modelle stehen dort als „… installieren… (Größe)“; die Auswahl öffnet eine Bestätigung mit Downloadgröße und Quelle, danach zeigt die Zeile Fortschritt und „Abbrechen“, bei Fehlern „Erneut versuchen“. Nach der Installation wird das Modell ausgewählt.
 Die Wahl bleibt nach einem Neustart erhalten. Das gewählte Modell lädt automatisch;
 der Ladestatus benennt es und startet keine Aufnahme. Während eines aktiven Diktats
 ist die Auswahl gesperrt. Bei einem Ladefehler bleibt die gewählte Option sichtbar,

@@ -35,7 +35,7 @@ The original development venv receipt rejected its changed external Python link.
 `bundle-dictation-runtime.py` can attach ASR to an already packaged app, or also reuse a verified speech bundle:
 
 ```sh
-python3 scripts/bundle-dictation-runtime.py /absolute/new/Saywing.app /absolute/existing/QwenResources --speech-from /Applications/Saywing.app --whisper-model /absolute/verified/WhisperTurbo --development-only
+python3 scripts/bundle-dictation-runtime.py /absolute/new/Saywing.app /absolute/existing/QwenResources --speech-from /Applications/Saywing.app --whisper-model /absolute/verified/WhisperTurbo [--with-qwen] [--whisper-large-model /absolute/verified/WhisperLargeV3] --development-only
 ```
 
 Both providers are self-contained program resources. No model weights/runtime binaries are tracked in Git. [Sources, model hashes and licensing gates](research/qwen-dictation-runtime.md).
@@ -144,3 +144,50 @@ Verification completed before installation:
   implied by the public-sample checks.
 
 Logs/results are in ignored `.build/saywing-dictation/verification/`.
+
+## Whisper Large v3 and on-demand model installs — 2026-10-14
+
+Owner requests: add Whisper Large v3 (8-bit), bundle only Whisper Turbo by default
+and let users install Qwen3-ASR or Whisper Large v3 explicitly from Settings. The
+owner approved the runtime download exception (pinned Hugging Face revision,
+SHA-256-verified, only after confirmation). The owner's own installation keeps all
+three models bundled. Sources and checks for the new model:
+[Whisper Large v3](research/whisper-large-v3-dictation.md); design: architecture
+"Modelle bei Bedarf installieren", privacy "Netzwerkzugriffe".
+
+Verification on the development Mac (M4, 16 GB):
+
+- New Swift tests first failed (missing model case/store), then passed: default
+  Whisper Turbo, uninstalled models cannot be selected or started, a saved missing
+  choice is kept but not started, install → verify → atomic move, hash mismatch and
+  cancellation leave nothing behind, leftover staging is removed, redirects only to
+  Hugging Face over HTTPS, an installed model is selected and started with its
+  model root and no microphone. Full app suite: **159 tests in 11 suites passed**
+  (two permission-dependent XCTest checks skipped; the opt-in live test is disabled
+  without its environment variable).
+- Python worker: **12 tests passed**, including `--model-root` with the bundled manifest
+  and rejection of a modified installed file.
+- Opt-in live test (`TEST_RUNNER_SAYWING_LIVE_MODEL_INSTALL`) installed the real
+  Whisper Large v3 from Hugging Face through `URLSessionModelFetcher` in 360 s; every
+  file matched its pinned SHA-256. The sandboxed worker then passed all **10 real
+  offline checks** with `--model-root` pointing at that download (load 3.4 s). The
+  temporary 1.6 GB copy was deleted afterwards.
+- Default package (Turbo only, 2.4 GB): 15 core, 12 Python and 10 Whisper Turbo
+  checks passed. Owner package (all three, 4.9 GB): 15 core, 12 Python and 10 real
+  checks for each of Whisper Turbo, Qwen3-ASR and Whisper Large v3 passed.
+- Installed at `/Applications/Saywing.app` after a normal quit; the previous app is
+  retained in ignored `.build/saywing-dictation/previous-model-downloads/`. Deep
+  signature and Audio Input entitlement checks passed. After launch the bundled
+  Whisper Turbo worker started automatically (saved choice `whisper-turbo`).
+
+After rebasing onto main with the dictation vocabulary (PR #4): **161 app tests in
+11 suites** and **19 Python worker tests** passed; the merged worker passed all
+**12 real offline checks** (including vocabulary) for Whisper Turbo, Qwen3-ASR and
+Whisper Large v3, the latter loaded via `--model-root` from the verified download.
+The counts above were recorded before that rebase.
+
+Not verified: the install entries, confirmation dialog and progress row were not
+inspected visually (the owner build bundles every model, so no install entry is
+shown there); behaviour is covered by the controller/store tests above. No live
+microphone recording. The new ad-hoc signature may require re-granting microphone,
+Accessibility, Screen Recording and Input Monitoring.

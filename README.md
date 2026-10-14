@@ -10,7 +10,7 @@
 
 *Read aloud & dictate on your Mac. Hear text. Write with your voice.*
 
-Saywing is an open-source macOS menu bar app for local screen reading and dictation. Select a screen region to hear its text, or dictate German and English into a text field with local Whisper Turbo (default) or Qwen3-ASR, optionally guided by your own vocabulary. Both flows are integrated in the private development build; public release gates remain open.
+Saywing is an open-source macOS menu bar app for local screen reading and dictation. Select a screen region to hear its text, or dictate German and English into a text field with local Whisper Turbo (bundled default), or Qwen3-ASR and Whisper Large v3 installed on request, optionally guided by your own vocabulary. Both flows are integrated in the private development build; public release gates remain open.
 
 Previously OpenScreenReader. The Xcode project/scheme, Swift modules, bundle identifier and existing development-runtime directory retain their technical names so existing settings and installations remain compatible.
 
