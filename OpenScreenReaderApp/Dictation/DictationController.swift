@@ -55,7 +55,14 @@ final class DictationController: NSObject, ObservableObject {
   var panel: DictationStatusPanel!
   let capsule = DictationCapsuleView(frame: CGRect(origin: .zero, size: DictationCapsuleView.surface))
   private var panelGeneration = UUID()
-  var record: MicrophoneRecorder?, target: InsertionTarget?, request: UUID?
+  var record: (any DictationRecording)?, target: InsertionTarget?, request: UUID?
+  /// Tests replace the microphone; the app always records through AVAudioEngine.
+  var makeRecorder: () -> any DictationRecording = { MicrophoneRecorder() }
+  /// Hands-free was requested before the microphone opened (activation is asynchronous).
+  private var startsHandsFree = false
+  /// The paste was read back early; the result has already sounded and been announced.
+  private var insertionConfirmed = false
+  private var confirmation: DispatchWorkItem?
   var phase = "loading", latestText = ""
   var recordingTimer: Timer?, recordingStart = Date()
   var timeout: DispatchWorkItem?, panelHide: DispatchWorkItem?,
@@ -95,25 +102,7 @@ final class DictationController: NSObject, ObservableObject {
     buildWindow()
     buildPanel()
     shortcut.onPress = { [weak self] in self?.toggle() }
-    fnShortcuts.onAction = { [weak self] action in
-      guard let self else { return false }
-      switch action {
-      case .start:
-        guard !self.isActive, ["ready", "loading", "unloaded"].contains(self.phase) else { return false }
-        self.toggle()
-        return self.isActive
-      case .lock:
-        guard self.isActive else { return false }
-        if self.phase == "recording" {
-          self.detailLabel.stringValue = String(localized: "Recording hands-free. Fn or Fn + Space finishes; Escape discards.")
-        }
-      case .finish:
-        if self.phase == "recording" { self.finishRecording() }
-        else if self.isActive { self.cancel() }
-      case .cancel: self.cancel()
-      }
-      return true
-    }
+    fnShortcuts.onAction = { [weak self] action in self?.handle(action) ?? false }
     if registerHotkey {
       shortcutAvailable =
         shortcut.register(ShortcutConfiguration.dictationDefault.resolvedShortcut()) == .registered
@@ -150,6 +139,35 @@ final class DictationController: NSObject, ObservableObject {
       String(localized: "Ready to dictate"), String(localized: "Hold Fn to dictate, or press Fn twice for hands-free. The model loads automatically.")
     )
     refreshPermissions()
+  }
+  /// Fn gestures. Holding records until release; a latch keeps recording hands-free.
+  @discardableResult
+  func handle(_ action: FnDictationGesture.Action) -> Bool {
+    switch action {
+    case .start:
+      guard !isActive, ["ready", "loading", "unloaded"].contains(phase) else { return false }
+      toggle(handsFree: false)
+      return isActive
+    case .lock:
+      guard isActive else { return false }
+      guard phase == "recording" else {
+        // The microphone is not open yet; it opens latched, with one cue.
+        startsHandsFree = true
+        return true
+      }
+      latchHandsFree()
+    case .finish:
+      if phase == "recording" { finishRecording() }
+      else if isActive { cancel() }
+    case .cancel: cancel()
+    }
+    return true
+  }
+  private func latchHandsFree() {
+    guard !capsule.isHandsFree else { return }
+    capsule.setHandsFree(true)
+    interfaceSounds?.play(.handsFree)
+    detailLabel.stringValue = String(localized: "Recording hands-free. Fn or Fn + Space finishes; Escape discards.")
   }
   func setLanguage(_ value: DictationLanguage) {
     language = value
@@ -274,7 +292,7 @@ final class DictationController: NSObject, ObservableObject {
     ])
     stack.addArrangedSubview(label(String(localized: "Write with your voice"), style: .title1))
     stack.addArrangedSubview(
-      label(String(localized: "Click in the test field, hold Fn while you speak and release to paste."), secondary: true))
+      label(String(localized: "Click in the test field. Hold Fn while you speak and release to paste, or press Fn twice to dictate hands-free."), secondary: true))
     stack.setCustomSpacing(16, after: stack.arrangedSubviews.last!)
     titleLabel.font = .preferredFont(forTextStyle: .headline)
     stack.addArrangedSubview(titleLabel)
@@ -508,7 +526,8 @@ final class DictationController: NSObject, ObservableObject {
     showWindow()
     toggle(internalTarget: InsertionTarget(local: scratch))
   }
-  func toggle(internalTarget: InsertionTarget? = nil) {
+  /// The shortcut and the Record button start hands-free; only a held Fn does not.
+  func toggle(internalTarget: InsertionTarget? = nil, handsFree: Bool = true) {
     guard canPrepareModel else { return }
     if phase == "recording" {
       finishRecording()
@@ -537,10 +556,11 @@ final class DictationController: NSObject, ObservableObject {
       capsuleAnchor = target.caretRect()
       let id = UUID()
       activationID = id
+      startsHandsFree = handsFree
       let start: @MainActor () -> Void = { [weak self] in
         guard let self, self.activationID == id else { return }
         self.activationID = nil
-        self.startRecording(target: target)
+        self.startRecording(target: target, handsFree: self.startsHandsFree)
       }
       if let onActivation { onActivation(start) } else { start() }
 
@@ -551,25 +571,32 @@ final class DictationController: NSObject, ObservableObject {
       hidePanelLater()
     }
   }
-  func startRecording(target: InsertionTarget) {
+  func startRecording(target: InsertionTarget, handsFree: Bool = true) {
     guard canPrepareModel else { return }
     do {
       try begin(target: target)
       if !worker.running { startWorker() }
       guard request != nil else { return }
-      let recorder = MicrophoneRecorder()
+      let recorder = makeRecorder()
       record = recorder
       try recorder.start()
       phase = "recording"
       recordingStart = Date()
       setStatus(
         String(localized: "Recording · 0 s"), String(localized: "Target: \(target.name). Release Fn, or finish hands-free with Fn + Space."), floating: true)
+      // The cue sounds with the capsule, as the microphone opens. Already latched,
+      // it opens with the latch cue alone instead of two cues on top of each other.
+      capsule.setHandsFree(handsFree, animated: false)
+      interfaceSounds?.play(handsFree ? .handsFree : .listening)
+      if handsFree {
+        detailLabel.stringValue = String(localized: "Recording hands-free. Fn or Fn + Space finishes; Escape discards.")
+      }
       let id = request
       recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
         MainActor.assumeIsolated {
           guard let self, self.request == id, self.phase == "recording" else { return }
           let elapsed = Date().timeIntervalSince(self.recordingStart)
-          self.capsule.updateRecording(rms: self.record?.audio.rms ?? 0)
+          self.capsule.updateRecording(rms: self.record?.level ?? 0)
           self.titleLabel.stringValue = String(localized: "Recording · \(Int(elapsed)) / 60 s")
           if elapsed >= 60 { self.finishRecording() }
         }
@@ -583,6 +610,7 @@ final class DictationController: NSObject, ObservableObject {
   func begin(target: InsertionTarget) throws {
     try armEscape()
     latestText = ""
+    insertionConfirmed = false
     result.string = ""
     setResultVisible(false)
     request = gate.begin()
@@ -595,6 +623,8 @@ final class DictationController: NSObject, ObservableObject {
     recordingTimer = nil
     let audio = record.finish()
     self.record = nil
+    // After the microphone is closed, so the cue is never part of the recording.
+    interfaceSounds?.play(.captured)
     send(audio)
   }
   func send(_ audio: AudioPacket) {
@@ -689,9 +719,21 @@ final class DictationController: NSObject, ObservableObject {
       phase = "pasting"
       setStatus(
         String(localized: "Paste sent"), String(localized: "The clipboard will be restored in a moment."), floating: true)
+      // Most fields show the text within a few frames. Reading it back early lets the
+      // tick and the completion cue land with the text, not a second later; the
+      // clipboard is still restored only after the full wait for slow apps.
+      let early = DispatchWorkItem { [weak self] in
+        guard let self, self.gate.accepts(id), self.phase == "pasting", target.confirms(text) else { return }
+        self.insertionConfirmed = true
+        self.setStatus(String(localized: "Pasted"), String(localized: "Ready for the next recording."),
+                       floating: true, capsuleState: .inserted)
+      }
+      confirmation = early
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: early)
       let work = DispatchWorkItem { [weak self] in
         guard let self, self.gate.accepts(id) else { return }
-        let confirmed = target.confirms(text)
+        let announced = self.insertionConfirmed
+        let confirmed = announced || target.confirms(text)
         _ = transaction.restore()
         self.lease = nil
         self.restore = nil
@@ -702,7 +744,7 @@ final class DictationController: NSObject, ObservableObject {
           confirmed
             ? String(localized: "Ready for the next recording.")
             : String(localized: "Please check the target field. Nothing is retried; the result stays in the dictation window."),
-          floating: true, capsuleState: confirmed ? .inserted : .unconfirmed)
+          floating: !announced, capsuleState: confirmed ? .inserted : .unconfirmed)
         self.hidePanelLater()
         if self.smoke {
           if !confirmed { self.smokeFailures.append("paste not confirmed") }
@@ -725,6 +767,8 @@ final class DictationController: NSObject, ObservableObject {
   }
   func complete() {
     fnShortcuts.resetGesture()
+    confirmation?.cancel()
+    confirmation = nil
     gate.cancel()
     request = nil
     target = nil
@@ -735,7 +779,13 @@ final class DictationController: NSObject, ObservableObject {
   func cancel(restart: Bool = true) {
     fnShortcuts.resetGesture()
     let wasProcessing = phase == "processing"
+    // Discarding is silent, like stopping a reading: a cue still sounding ends now.
+    if isActive { interfaceSounds?.stop() }
     activationID = nil
+    startsHandsFree = false
+    insertionConfirmed = false
+    confirmation?.cancel()
+    confirmation = nil
     pendingAudio = nil
     gate.cancel()
     request = nil

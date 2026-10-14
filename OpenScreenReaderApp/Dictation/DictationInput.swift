@@ -186,11 +186,21 @@ final class InsertionTarget {
     return actual == expected
   }
 }
+/// One recording session; the controller only starts, levels, finishes or discards it.
 @MainActor
-final class MicrophoneRecorder {
+protocol DictationRecording: AnyObject {
+  /// The latest input level for the capsule bars, never the audio itself.
+  var level: Double { get }
+  func start() throws
+  func finish() -> AudioPacket
+  func cancel()
+}
+@MainActor
+final class MicrophoneRecorder: DictationRecording {
   private let engine = AVAudioEngine()
   let audio = AudioAccumulator()
   private var installed = false
+  var level: Double { audio.rms }
   func start() throws {
     let node = engine.inputNode
     let format = node.outputFormat(forBus: 0)

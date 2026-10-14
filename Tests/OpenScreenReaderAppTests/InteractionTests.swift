@@ -1397,8 +1397,9 @@ struct FeedbackAtSourceTests {
         #expect(caret.map { window.frame.insetBy(dx: -1, dy: -1).contains(CGPoint(x: $0.midX, y: $0.midY)) } == true)
     }
 
-    /// Dictation uses the reading cues, at the same moment as its visible result,
-    /// and never while the microphone records.
+    /// Dictation uses the reading cues, at the same moment as its visible result.
+    /// Status updates while the microphone records never add one; only the
+    /// microphone's own moments do (see the recording cue tests).
     @Test func dictationCuesMatchItsVisibleResult() {
         let sounds = InterfaceSoundsFake()
         let controller = DictationController(resources: URL(fileURLWithPath: "/missing-dictation"), worker: DictationWorkerFake(),
@@ -1414,6 +1415,103 @@ struct FeedbackAtSourceTests {
         controller.setStatus("Notice", floating: true, capsuleState: .attention)
         #expect(sounds.cues == [.completion, .attention, .attention])
         controller.panel.orderOut(nil)
+    }
+
+    private func soundingDictation() -> (DictationController, InterfaceSoundsFake, RecorderFake, DictationWorkerFake) {
+        let sounds = InterfaceSoundsFake()
+        let worker = DictationWorkerFake()
+        let controller = DictationController(resources: URL(fileURLWithPath: "/missing-dictation"), worker: worker,
+            shortcut: HotkeyManagerFake(registrationResult: .registered), escape: HotkeyManagerFake(registrationResult: .registered),
+            registerHotkey: false, interfaceSounds: sounds)
+        let recorder = RecorderFake()
+        recorder.onFinish = { [weak sounds] in recorder.cuesAtFinish = sounds?.cues }
+        controller.makeRecorder = { recorder }
+        return (controller, sounds, recorder, worker)
+    }
+
+    /// Holding Fn opens with one short cue; latching adds the latch cue once and
+    /// shows on the finish control; closing sounds only after the microphone is closed.
+    @Test func heldRecordingOpensLatchesAndClosesWithItsOwnCues() throws {
+        let (controller, sounds, recorder, _) = soundingDictation()
+        defer { controller.shutdown(); controller.panel.orderOut(nil) }
+        controller.startRecording(target: InsertionTarget(local: controller.scratch), handsFree: false)
+        #expect(controller.phase == "recording")
+        #expect(sounds.cues == [.listening])
+        #expect(!controller.capsule.isHandsFree)
+        #expect(!controller.capsule.finishButton.isEmphasized)
+        #expect(controller.handle(.lock))
+        #expect(sounds.cues == [.listening, .handsFree])
+        #expect(controller.capsule.isHandsFree)
+        #expect(controller.capsule.finishButton.isEmphasized)
+        #expect(controller.handle(.lock))
+        #expect(sounds.cues == [.listening, .handsFree], "A repeated latch is not a new event.")
+        #expect(controller.handle(.finish))
+        #expect(recorder.events == ["start", "finish"])
+        #expect(recorder.cuesAtFinish == [.listening, .handsFree], "The closing cue is never recorded.")
+        #expect(sounds.cues == [.listening, .handsFree, .captured])
+        #expect(controller.phase == "processing")
+        #expect(!controller.capsule.isHandsFree, "Recognition no longer shows the latch.")
+        controller.cancel(restart: false)
+    }
+
+    /// The shortcut and the Record button start hands-free: one latch cue, never two
+    /// stacked cues. Discarding is silent and cuts a cue that is still sounding.
+    @Test func handsFreeStartUsesOneCueAndDiscardingIsSilent() throws {
+        let (controller, sounds, recorder, _) = soundingDictation()
+        defer { controller.shutdown(); controller.panel.orderOut(nil) }
+        controller.startRecording(target: InsertionTarget(local: controller.scratch))
+        #expect(sounds.cues == [.handsFree])
+        #expect(controller.capsule.isHandsFree)
+        #expect(!sounds.isStopped)
+        #expect(controller.handle(.cancel))
+        #expect(sounds.cues == [.handsFree])
+        #expect(sounds.isStopped)
+        #expect(recorder.events == ["start", "cancel"])
+        #expect(controller.phase != "recording")
+    }
+
+    /// A field that shows the text right away gets its tick and completion cue with
+    /// the text; the clipboard is still restored only after the full wait.
+    @Test func confirmedPasteSoundsWithTheTextNotAfterTheClipboardWait() async throws {
+        let (controller, sounds, _, worker) = soundingDictation()
+        defer { controller.shutdown(); controller.panel.orderOut(nil) }
+        controller.scratch.string = "Anfang MARKER Ende"
+        controller.scratch.setSelectedRange((controller.scratch.string as NSString).range(of: "MARKER"))
+        controller.window.makeFirstResponder(controller.scratch)
+        worker.ready = true
+        controller.receive(.init(type: "ready", version: 1))
+        try controller.begin(target: InsertionTarget(local: controller.scratch))
+        let id = try #require(controller.request)
+        controller.send(AudioPacket(samples: [0.1], rate: 16000))
+        controller.receive(.init(type: "result", id: id.uuidString, text: "Diktat"))
+        #expect(controller.phase == "pasting")
+        #expect(controller.scratch.string == "Anfang Diktat Ende")
+        #expect(sounds.cues.isEmpty)
+        try await Task.sleep(for: .milliseconds(400))
+        #expect(controller.phase == "pasting", "The clipboard is still held for slow apps.")
+        #expect(controller.capsule.state == .inserted)
+        #expect(sounds.cues == [.completion])
+        try await Task.sleep(for: .milliseconds(900))
+        #expect(controller.phase == "ready")
+        #expect(controller.capsule.state == .inserted)
+        #expect(sounds.cues == [.completion], "The result sounds once.")
+        #expect(controller.resultSection.isHidden)
+    }
+
+    @Test func handsFreeShowsOnlyOnTheFinishControlWhileRecording() {
+        let capsule = DictationCapsuleView(frame: CGRect(origin: .zero, size: DictationCapsuleView.surface))
+        capsule.setHandsFree(true)
+        #expect(!capsule.isHandsFree, "Only a recording can latch.")
+        capsule.present(.recording, title: "", detail: "")
+        capsule.setHandsFree(true)
+        #expect(capsule.isHandsFree)
+        #expect(capsule.finishButton.isEmphasized)
+        #expect(!capsule.dismissButton.isEmphasized)
+        #expect(capsule.accessibilityLabel()?.contains(String(localized: "Recording hands-free")) == true)
+        #expect(capsule.barHeights.count == 9, "No text, timer or extra indicator is added.")
+        capsule.present(.processing, title: "", detail: "")
+        #expect(!capsule.isHandsFree)
+        #expect(!capsule.finishButton.isEmphasized)
     }
 
     /// The window shows the result only when it could not be pasted.
@@ -1961,6 +2059,25 @@ struct ReadingPanelTests {
         }
     }
 
+    /// The microphone cues sound while the user is about to speak or has just spoken:
+    /// short, quieter than the reading cues, front-loaded and distinct from each other.
+    @Test
+    func microphoneCuesAreShortQuietAndFrontLoaded() {
+        let microphone: [InterfaceCue] = [.listening, .handsFree, .captured]
+        for cue in microphone {
+            let samples = cue.samples
+            #expect(samples.count <= Int(0.45 * Double(InterfaceCue.sampleRate)), "\(cue) stays under 450 ms.")
+            #expect(cue.peak < InterfaceCue.completion.peak && cue.peak < InterfaceCue.selection.peak)
+            #expect(cue.variantCount == 1, "Frequent cues stay identical, so they are learnt.")
+            let energy = samples.map { Double($0 * $0) }
+            let early = energy.prefix(Int(0.15 * Double(InterfaceCue.sampleRate))).reduce(0, +)
+            #expect(early / energy.reduce(0, +) > 0.85, "\(cue) is over almost at once.")
+        }
+        for (index, cue) in microphone.enumerated() {
+            for other in microphone[(index + 1)...] { #expect(cue.samples != other.samples) }
+        }
+    }
+
     @Test
     func stopButtonPressIsSilentAndCuesKeepToMeaningfulMoments() {
         let sounds = InterfaceSoundsFake()
@@ -1976,7 +2093,7 @@ struct ReadingPanelTests {
         view?.onPress?()
         view?.onRelease?()
         #expect(sounds.cues.isEmpty, "Stopping is a cancellation; it never adds a sound.")
-        #expect(InterfaceCue.allCases == [.selection, .completion, .attention])
+        #expect(InterfaceCue.allCases == [.selection, .completion, .attention, .listening, .handsFree, .captured])
     }
 
     @Test
@@ -2140,6 +2257,21 @@ private final class ReadingPanelFake: ReadingStatusPresenting {
         self.onStop = onStop
     }
     func hide() { state = nil; onStop = nil }
+}
+
+@MainActor
+private final class RecorderFake: DictationRecording {
+    var level = 0.0
+    var events: [String] = []
+    var onFinish: (() -> Void)?
+    var cuesAtFinish: [InterfaceCue]?
+    func start() throws { events.append("start") }
+    func finish() -> AudioPacket {
+        events.append("finish")
+        onFinish?()
+        return AudioPacket(samples: [0.1, 0.2], rate: 16000)
+    }
+    func cancel() { events.append("cancel") }
 }
 
 @MainActor

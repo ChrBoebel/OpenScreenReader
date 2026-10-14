@@ -13,14 +13,27 @@ enum InterfaceCue: CaseIterable, Equatable {
     case completion
     /// No text or a failure that needs the user's attention.
     case attention
+    /// Dictation: the microphone is open. Frequent, so it is short and quiet.
+    case listening
+    /// Dictation: the recording has latched hands-free; the key can be let go.
+    case handsFree
+    /// Dictation: the microphone is closed and recognition starts.
+    case captured
     // Buttons have no click sounds: stopping is a cancellation, and feedback is
-    // reserved for opening, completion and attention.
+    // reserved for opening, completion, attention and the microphone's own moments.
 
     static let sampleRate = 44_100
     static let channels = 2
 
     /// Peak amplitude before the user's effect volume is applied.
-    var peak: Float { self == .completion ? 0.36 : 0.5 }
+    var peak: Float {
+        switch self {
+        case .selection, .attention: 0.5
+        case .completion: 0.36
+        case .listening: 0.3
+        case .handsFree, .captured: 0.28
+        }
+    }
 
     /// Two voicings alternate so the tenth reading does not sound like the first.
     var variantCount: Int { self == .selection || self == .completion ? 2 : 1 }
@@ -58,6 +71,28 @@ enum InterfaceCue: CaseIterable, Equatable {
             voice.thud(at: 0.16, frequency: 75, decay: 0.11, gain: 0.35)
             voice.room(wet: 0.25, size: 0.3)
             return voice.render(duration: 0.8, peak: peak, fade: 0.08)
+        // The microphone cues play while the user is about to speak or has just spoken:
+        // one soft tap each, almost all energy in the first 150 ms, and little room.
+        case .listening:
+            // Open: the opening cue's root bar, tapped softly, with one small rising drop.
+            voice.thud(at: 0, frequency: 110, decay: 0.05, gain: 0.25)
+            voice.bar(at: 0, frequency: 261.63, decay: 0.12, gain: 0.7, hardness: 0.35)
+            voice.drop(at: 0.03, frequency: 820, rise: 1.4, decay: 0.03, gain: 0.3, seed: 60)
+            voice.room(wet: 0.18, size: 0.25)
+            return voice.render(duration: 0.42, peak: peak, fade: 0.08)
+        case .handsFree:
+            // Latched: the same tap a fifth higher, so open then latch is a rising fifth.
+            voice.thud(at: 0, frequency: 120, decay: 0.04, gain: 0.2)
+            voice.bar(at: 0, frequency: 392, decay: 0.14, gain: 0.7, hardness: 0.4)
+            voice.drop(at: 0.025, frequency: 1180, rise: 1.35, decay: 0.025, gain: 0.22, seed: 61)
+            voice.room(wet: 0.18, size: 0.25)
+            return voice.render(duration: 0.4, peak: peak, fade: 0.08)
+        case .captured:
+            // Closed: one damped low bar, no water. Unlike attention it never falls twice.
+            voice.thud(at: 0, frequency: 85, decay: 0.06, gain: 0.3)
+            voice.bar(at: 0, frequency: 196, decay: 0.12, gain: 0.8, hardness: 0.3)
+            voice.room(wet: 0.15, size: 0.2)
+            return voice.render(duration: 0.4, peak: peak, fade: 0.08)
         }
     }
 
@@ -277,19 +312,34 @@ final class InterfaceSoundPlayer: InterfaceSoundPlaying {
     isolated deinit { stop() }
 
     func play(_ cue: InterfaceCue) {
-        stop()
+        let previous = current
+        current = nil
         guard preferences.object(forKey: Self.preferenceKey) as? Bool ?? true,
-              let variants = players[cue], !variants.isEmpty else { return }
+              let variants = players[cue], !variants.isEmpty else { previous?.stop(); return }
         let turn = turns[cue, default: 0]
         turns[cue] = turn + 1
         let player = variants[turn % variants.count]
+        // A cue that follows another (open, then latch) takes over without a click.
+        if let previous, previous !== player { fadeOut(previous) } else { previous?.stop() }
         let volume = preferences.object(forKey: Self.volumeKey) as? Double ?? Self.defaultVolume
         player.stop()
         player.currentTime = 0
-        player.volume = Float(volume.isFinite ? min(1, max(0, volume)) : Self.defaultVolume)
+        // A zero-length ramp also replaces a fade still running on this player.
+        player.setVolume(Float(volume.isFinite ? min(1, max(0, volume)) : Self.defaultVolume), fadeDuration: 0)
         player.play()
         current = player
     }
 
+    /// Cancellation is immediate; only a cue replaced by the next one fades.
     func stop() { current?.stop(); current = nil }
+
+    private func fadeOut(_ player: AVAudioPlayer) {
+        guard player.isPlaying else { return }
+        player.setVolume(0, fadeDuration: 0.03)
+        Task { @MainActor [weak self, weak player] in
+            try? await Task.sleep(for: .milliseconds(40))
+            guard let player, self?.current !== player else { return }
+            player.stop()
+        }
+    }
 }
