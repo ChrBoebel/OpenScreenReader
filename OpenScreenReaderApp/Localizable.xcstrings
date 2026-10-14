@@ -1161,6 +1161,16 @@
         }
       }
     },
+    "One name or term per line, up to %lld. They help the model spell words it rarely hears. The list stays on this Mac.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein Name oder Begriff pro Zeile, bis zu %lld. Sie helfen dem Modell, seltene Wörter richtig zu schreiben. Die Liste bleibt auf diesem Mac."
+          }
+        }
+      }
+    },
     "Open details in the dictation window": {
       "localizations": {
         "de": {
@@ -2807,6 +2817,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Version %@"
+          }
+        }
+      }
+    },
+    "Vocabulary": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vokabular"
           }
         }
       }

@@ -181,3 +181,14 @@ Fehlende oder beschädigte Modelle erzeugen einen Fehler, keinen automatischen
 Fallback oder Download. Beide verwenden die bestehende Offline-Sandbox und dieselbe
 flüchtige Audio-/Clipboard-Pipeline. Quelle, Revision, Größe, Prüfsumme und Lizenz:
 [Whisper Turbo](research/whisper-turbo-dictation.md).
+
+## Standardmodell und Vokabular — 2026-10-14
+
+Nach Entscheidung des Eigentümers ist Whisper Turbo das Standardmodell, wenn noch
+keine Wahl gespeichert ist; Qwen3-ASR bleibt auswählbar. Jede Anfrage an den Worker
+trägt optional `vocabulary` (≤ 50 Begriffe, je ≤ 60 Zeichen, ohne Steuerzeichen;
+sonst Fehler `processing_failed`). Whisper erhält die Begriffe als `initial_prompt`
+(„A, B, C.“), gekürzt auf das Token-Budget des Prompts, Qwen3-ASR als `hotwords`.
+Ergibt die Erkennung eine Wiederholungsschleife oder nur die Begriffsliste, dekodiert
+derselbe Worker dieselbe Aufnahme einmal ohne Vokabular. Das ist kein Wechsel des
+Modells oder Providers. [Messung und Grenzen](dictation-vocabulary-verification.md).

@@ -2251,23 +2251,63 @@ struct DictationIntegrationTests {
         defer { controller.shutdown() }
         controller.loadModel()
         let oldCallback = try #require(worker.onMessage)
-        controller.selectModel(.whisperTurbo)
-        #expect(controller.selectedModel == .whisperTurbo)
-        #expect(worker.models == [.qwen, .whisperTurbo])
+        controller.selectModel(.qwen)
+        #expect(controller.selectedModel == .qwen)
+        #expect(worker.models == [.whisperTurbo, .qwen])
         #expect(worker.stops > 0)
         #expect(controller.record == nil)
         #expect(!controller.isActive)
         oldCallback(.init(type: "fatal", message: "Old worker failed"))
         oldCallback(.init(type: "ready", version: 1))
         #expect(controller.phase == "loading")
-        #expect(controller.selectedModel == .whisperTurbo)
+        #expect(controller.selectedModel == .qwen)
         let (restored, restoredWorker, _) = fixture(preferences: preferences)
         defer { restored.shutdown() }
         restored.loadModel()
-        #expect(restoredWorker.models == [.whisperTurbo])
+        #expect(restoredWorker.models == [.qwen])
         restored.screenLockedOrSleeping(Notification(name: NSWorkspace.willSleepNotification))
         restored.screenBecameAvailable(Notification(name: NSWorkspace.didWakeNotification))
-        #expect(restoredWorker.models == [.whisperTurbo, .whisperTurbo])
+        #expect(restoredWorker.models == [.qwen, .qwen])
+    }
+
+    @Test func whisperTurboIsTheDefaultModelAndListedFirst() throws {
+        let suite = "com.christopherbobel.OpenScreenReader.dictation-default-tests.\(UUID())"
+        let preferences = try #require(UserDefaults(suiteName: suite))
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let (controller, worker, _) = fixture(preferences: preferences)
+        defer { controller.shutdown() }
+        #expect(controller.selectedModel == .whisperTurbo)
+        #expect(DictationModel.allCases.first == .whisperTurbo)
+        controller.loadModel()
+        #expect(worker.models == [.whisperTurbo])
+    }
+
+    @Test func vocabularyIsParsedPersistedAndSentWithEachRecording() throws {
+        let suite = "com.christopherbobel.OpenScreenReader.dictation-vocabulary-tests.\(UUID())"
+        let preferences = try #require(UserDefaults(suiteName: suite))
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let (controller, worker, _) = fixture(preferences: preferences)
+        defer { controller.shutdown() }
+        #expect(controller.vocabulary.isEmpty)
+        controller.setVocabulary(" Saywing \nBöbel, Owl Frame\n\nsaywing\n\(String(repeating: "x", count: 61))")
+        #expect(controller.vocabulary == ["Saywing", "Böbel", "Owl Frame"])
+        let (restored, _, _) = fixture(preferences: preferences)
+        defer { restored.shutdown() }
+        #expect(restored.vocabulary == ["Saywing", "Böbel", "Owl Frame"])
+        worker.ready = true
+        try controller.begin(target: InsertionTarget(local: controller.scratch))
+        controller.send(AudioPacket(samples: [0], rate: 16_000))
+        #expect(worker.vocabularies == [["Saywing", "Böbel", "Owl Frame"]])
+        controller.setVocabulary("")
+        #expect(controller.vocabulary.isEmpty)
+        #expect(preferences.object(forKey: "dictationVocabulary.v1") == nil)
+    }
+
+    @Test func vocabularyKeepsAtMostFiftyTerms() {
+        let terms = DictationVocabulary.parse((1...80).map { "Term \($0)" }.joined(separator: "\n"))
+        #expect(terms.count == DictationVocabulary.maximumTerms)
+        #expect(terms.first == "Term 1")
+        #expect(DictationVocabulary.parse("a\u{7}b\nok") == ["ok"])
     }
 
     @Test func languageAndClipboardDelayArePersistedPreferences() throws {
@@ -2502,8 +2542,9 @@ private final class DictationWorkerFake: DictationTranscribing {
     func start(resources: URL, model: DictationModel) { starts += 1; running = true; models.append(model) }
     func stop() { stops += 1; ready = false; running = false }
     var languages: [String?] = []
-    func transcribe(_ audio: AudioPacket, id: UUID, language: String?) {
-        requests.append(id); lastRate = audio.rate; languages.append(language)
+    var vocabularies: [[String]] = []
+    func transcribe(_ audio: AudioPacket, id: UUID, language: String?, vocabulary: [String]) {
+        requests.append(id); lastRate = audio.rate; languages.append(language); vocabularies.append(vocabulary)
     }
 }
 
