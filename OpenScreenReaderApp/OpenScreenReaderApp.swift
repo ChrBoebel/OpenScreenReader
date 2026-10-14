@@ -23,7 +23,7 @@ struct OpenScreenReaderApp: App {
                         missingReadingPermission: { SaywingPermission.reading.first { !$0.isGranted } })
         // Prepare once the SwiftUI StateObject is established; never open the microphone.
         DispatchQueue.main.async {
-            if !testing { dictation?.loadModel() }
+            if !testing { dictation?.loadModel(); _ = model.updates }
             model.offerSetupIfNeeded()
         }
         if ProcessInfo.processInfo.arguments.contains("--dictation-smoke") {

@@ -57,6 +57,7 @@ struct MenuBarContent: View {
         SettingsLink { Text("Settings…") }
             .keyboardShortcut(",")
         Button("Set Up & Test…") { model.showSetup() }
+        AppUpdateMenu(updates: model.updates, busy: !model.canChangeShortcut)
 
         Divider()
 

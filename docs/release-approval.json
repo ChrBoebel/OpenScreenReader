@@ -1,0 +1,7 @@
+{
+  "license_review": false,
+  "clean_mac": false,
+  "offline_privacy": false,
+  "update_roundtrip": false,
+  "evidence": "Complete the gates in docs/release-and-updates.md before enabling public releases."
+}

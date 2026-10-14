@@ -25,6 +25,8 @@ parser.add_argument('--whisper-large-model', type=Path, help='Also bundle this v
 parser.add_argument('--with-qwen', action='store_true', help='Also bundle the Qwen3-ASR model from resources/Model')
 parser.add_argument('--speech-from', type=Path, help='Reuse verified self-contained Speech resources from an existing app')
 parser.add_argument('--development-only', required=True, action='store_true')
+parser.add_argument('--defer-app-signing', action='store_true',
+                    help='Leave the outer bundle unsealed for scripts/release.py to sign all nested frameworks first')
 args = parser.parse_args()
 repo = Path(__file__).resolve().parents[1]
 app, source = args.app.resolve(strict=True), args.resources.resolve(strict=True)
@@ -117,6 +119,8 @@ for name in ['LICENSE-OpenAI', 'LICENSE-Apache-2.0']:
 for name in ['worker.py', 'worker.sb', 'model-manifest.json', 'whisper-turbo-manifest.json',
              'whisper-large-v3-manifest.json', 'requirements-lock.txt', 'installed-packages.json']:
     shutil.copy2(repo/'Runtime/Dictation'/name, target/name)
+subprocess.run([sys.executable, repo/'scripts/patch-dictation-runtime.py', target], check=True)
+shutil.copy2(repo/'docs/licenses/mlx-examples-MIT.txt', target/'Licenses/LICENSE-mlx-examples')
 (target/'RuntimeCache/dynamo').mkdir(parents=True)
 shutil.copy2(repo/'docs/research/qwen-dictation-runtime.md', target/'MODEL-AND-RUNTIME-NOTICES.md')
 macho = {b'\xcf\xfa\xed\xfe', b'\xce\xfa\xed\xfe', b'\xfe\xed\xfa\xcf',
@@ -141,7 +145,8 @@ for path in sorted(target.rglob('*')):
     'bundled_models': {name: data['revision'] for name, (_, data) in whisper_manifests.items()}
         | ({'model-manifest.json': manifest['revision']} if args.with_qwen else {}),
     'files': inventory}, indent=2)+'\n')
-subprocess.run(['/usr/bin/codesign','--force','--sign','-','--options','runtime','--entitlements',str(repo/'OpenScreenReaderApp/Saywing.entitlements'),str(app)],check=True)
-subprocess.run(['/usr/bin/codesign','--verify','--deep','--strict',str(app)],check=True)
-subprocess.run([sys.executable, str(repo/'scripts/verify-app-permissions.py'), str(app)], check=True)
+if not args.defer_app_signing:
+    subprocess.run(['/usr/bin/codesign','--force','--sign','-','--options','runtime','--entitlements',str(repo/'OpenScreenReaderApp/Saywing.entitlements'),str(app)],check=True)
+    subprocess.run(['/usr/bin/codesign','--verify','--deep','--strict',str(app)],check=True)
+    subprocess.run([sys.executable, str(repo/'scripts/verify-app-permissions.py'), str(app)], check=True)
 print('PRIVATE SAYWING BUILD WITH DICTATION:',app)

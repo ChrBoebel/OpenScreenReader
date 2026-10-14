@@ -1,0 +1,2 @@
+# CI publisher only; never included in the macOS application.
+boto3==1.43.113

@@ -86,6 +86,8 @@ The implementation architecture is provisional and must be validated with focuse
 
 Supertonic weights/stock voices use BigScience Open RAIL-M, not the project's Apache-2.0 license. Upstream has announced the end of development/support. License obligations, maintainability, and packaging remain explicit release gates; see [source and license record](docs/research/supertonic-listening-comparison.md).
 
+**Release/update preparation (2026-10-14):** Sparkle 2.10.0, disableable update checks, native update UI, busy-operation relaunch protection, Developer ID packaging/notarization scripts and a main/PR verification workflow are prepared. A previous private test was already accepted by Apple. Railway download routes and German/English website pages are prepared, and the signed dictation runtime passed real checks after a targeted packaging fix. Apple accepted the corrected DMG; tickets are stapled and Gatekeeper accepts the app and DMG. The private Railway bucket and main-only GitHub release environment are configured. All seven CI secrets and the fully hash-verified private runtime archive are configured. Merge, a real GitHub package run, public website deployment, license/fresh-Mac gates and a real two-version update test remain open; no update service is live. See [release setup](docs/release-and-updates.md).
+
 ## Documentation
 
 - [Product vision](docs/product-vision.md)

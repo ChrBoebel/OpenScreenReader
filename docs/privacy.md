@@ -26,7 +26,7 @@ Der MVP-Runtimepfad darf keine Netzwerkverbindung benötigen oder selbstständig
 - installierte Größe und Systemanforderungen;
 - Integritätsprüfung beziehungsweise SHA-256-Hash.
 
-Updateprüfungen sind später nur transparent und abschaltbar zulässig. Eine fehlende Verbindung darf den lokalen Betrieb nicht blockieren.
+**Ausnahme App-Updates (Eigentümerentscheidung 2026-10-14):** Konfigurierte Release-Builds prüfen beim Start nach Sparkles Zeitplan und danach alle vier Stunden per HTTPS auf neue Versionen. Einstellungen → Allgemein erlaubt Abschalten und manuelles Prüfen. Der Server sieht IP-Adresse und übliche HTTP-Metadaten; keine Bildschirm-, Text- oder Audiodaten werden übertragen, optionale Systemprofile sind abgeschaltet. Signierte Update-Dateien werden erst auf Nutzeraktion geladen/installiert; ein Neustart wartet auf das Ende aktiver Arbeit. Release-Notizen werden nicht separat nachgeladen. Entwicklerbuilds ohne gültige Feed-Konfiguration starten keinen Updater. Eine fehlende Verbindung blockiert weder Vorlesen noch Diktieren. [Release- und Updateverfahren](release-and-updates.md).
 
 **Ausnahme Diktiermodelle (Eigentümerentscheidung 2026-10-14):** Builds bringen nur
 Whisper Turbo mit. Qwen3-ASR und Whisper Large v3 lädt die App ausschließlich, wenn
