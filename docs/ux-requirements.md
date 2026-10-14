@@ -4,7 +4,7 @@
 
 Update 2026-09-09: Der Eigentümer hat Pause/Fortsetzen, eine bearbeitbare Warteschlange und Einrichtung freigegeben. Die Kapsel bleibt textfrei; ihre kleine ···/+N-Taste öffnet eine native Steuerungsansicht mit Pause/Fortsetzen, Tempo, Weiter und wartenden Texten. Erst dieser explizite Klick zeigt maximal 100 Zeichen pro Eintrag. Entfernen, Nach-oben/-unten und Jetzt-lesen verwenden stabile Eintrags-IDs, nicht veraltete Indizes. Esc/Stop beendet auch eine Pause. Frühere Aussagen „keine Vorschau“/„Pause außerhalb“ gelten für die geschlossene Kapsel, nicht für diese neue explizite Ansicht.
 
-Die Einrichtung erscheint beim ersten Anzeigen des Menüleistenelements und ist später über „Set Up & Test…“ erreichbar. Freigaben werden nur auf Klick angefragt. System-Preflight, vorhandene Runtime und echter Bereichstest werden getrennt erklärt; kein grüner Schalter wird als bewiesener OCR-/Esc-Test ausgegeben. Fehler bieten über ? direkten Zugang zur Einrichtung und zur konkreten Fehlermeldung.
+Die Einrichtung erscheint beim ersten Anzeigen des Menüleistenelements und ist später über „Set Up & Test…“ erreichbar. Freigaben werden nur auf Klick angefragt. Seit 2026-10-14 (Eigentümerfreigabe „klingt gut, setze das um“) ist sie ein geführter Ablauf mit einer Entscheidung pro Seite; Details unter „Geführte Einrichtung“. Eine erteilte Freigabe heißt nur „Erlaubt“; „Es funktioniert“ erscheint erst, nachdem der echte Lesetest Sprache abgespielt hat. Fehler bieten über ? direkten Zugang zur Einrichtung und zur konkreten Fehlermeldung.
 
 1. Der Nutzer drückt einen frei konfigurierbaren globalen Hotkey.
 2. Über allen Bildschirmen erscheint ein zurückhaltendes transparentes Auswahl-Overlay.
@@ -127,7 +127,47 @@ Freigabe durch den Eigentümer: alle Punkte des Reviews vom 14.10.2026 umsetzen.
 - **Eine Sprache pro Oberfläche:** englische Quelltexte, vollständiger deutscher String Catalog, die App folgt der Systemsprache.
 - **Menü:** Status zuerst; Hinweise nur, wenn sie Information hinzufügen; „Bildschirmbereich vorlesen…“ zeigt den globalen Kurzbefehl; Pause, Nächster Text, Hinzufügen und Wiedergabesteuerung erscheinen nur während des Vorlesens; Fehler bieten „Einrichtung öffnen…“.
 - **Einstellungen:** Tabs Allgemein, Vorlesen, Diktieren, Kurzbefehle, Datenschutz. Kurzbefehle werden in einem Aufnahmefeld gedrückt statt über Checkboxen gebaut; der zusätzliche Warteschlangen-Kurzbefehl liegt unter „Erweitert“. Freigaben zeigen ihren Status und öffnen ihren eigenen Bereich in den Systemeinstellungen.
-- **Einrichtung:** ein Ablauf für Vorlesen und Diktieren. Der Vorlesetest braucht nur die Bildschirmaufnahme; ohne Eingabeüberwachung erklärt ein Hinweis, dass Esc dann nur bei aktivem Saywing wirkt.
+- **Einrichtung:** ein Ablauf für Vorlesen und Diktieren; seit 2026-10-14 als geführte Einrichtung (unten). Der frühere Hinweis, der Vorlesetest brauche nur die Bildschirmaufnahme, war falsch: Die Erfassung startet ohne Eingabeüberwachung nicht (ADR 0005).
 - **Auswahl:** Leertaste verschiebt, Umschalt fixiert die zuerst unbewegte Kante, Wahl wächst von der Mitte – wie bei ⌘⇧4. Die Abdunklung blendet in 90 ms ein, Eingaben gelten sofort, das Overlay schließt weiterhin sofort. Ein kurzer Hinweis erscheint bei den ersten fünf Auswahlen.
 - **Klick liest Absatz:** Ein Klick ohne Ziehen erkennt einen begrenzten Bereich (max. 1200 × 800 pt) um den Zeiger und liest nur den Absatz darunter; der Rest wird sofort verworfen. Details unter [Datenschutz](privacy.md).
 - Nachweise und Grenzen: [Apple-Design-Verfeinerung](apple-design-refinements-verification.md).
+
+## Geführte Einrichtung
+
+Freigabe durch den Eigentümer am 2026-10-14 nach dem Vorschlag auf Basis des Apple-Design-Skills („ask at the right moment, only for what's needed“).
+
+- **Eine Entscheidung pro Seite**, festes Fenster (500 × 560 pt). Symbol und Titel stehen auf jeder Seite an derselben Stelle. Die Hauptaktion steht rechts unten (Return), „Zurück“ links unten, „Später“/„Nicht jetzt“ ist immer gleichwertig erreichbar.
+- **Reihenfolge:** Willkommen → Bildschirmaufnahme → Eingabeüberwachung → Lesetest → „Auch mit der Stimme schreiben?“ → (bei Ja) Mikrofon → Bedienungshilfen → Diktiertest → Fertig. Die Reihenfolge ergibt sich nur aus den aktuellen Freigaben. Erteilte Schritte werden übersprungen, und ein Test, der ohne seine Freigabe nur scheitern würde, entfällt. Wer wiederkommt, landet beim ersten fehlenden Schritt und nie wieder beim Willkommen. Nichts über den Fortschritt wird gespeichert.
+- **Titel nach Nutzen, nicht nach Systembegriff** („Den markierten Text lesen“, „Jederzeit mit Esc stoppen“). Der Name in den Systemeinstellungen steht klein darunter, damit man ihn wiederfindet.
+- **Warten auf die Systemeinstellungen:** Nach „Freigeben…“ prüft Saywing alle 300 ms, und nur solange dieser Schritt wartet. Ist die Freigabe da, zeichnet sich ein Häkchen, Saywing holt sein Fenster nach vorn und blättert nach 0,9 s weiter. Ist Bildschirmaufnahme eingeschaltet, aber noch nicht wirksam, bietet die Seite „Beenden & neu öffnen“ an; die Einrichtung setzt danach fort (`--resume-setup`).
+- **Hinweis neben den Systemeinstellungen:** Solange gewartet wird und die Systemeinstellungen vorne sind, schwebt neben ihrem Fenster eine kleine Karte: „Saywing einschalten“ mit dem App-Symbol, das sich in die Liste ziehen lässt. Die Karte ist schließbar und verschwindet, sobald die Freigabe da ist.
+- **Lesetest im Fenster:** Der Kurzbefehl wird als Taste gezeigt, darunter steht ein eigener Beispielsatz. Der Nutzer zieht wie gewohnt einen Rahmen darum; die echte Pipeline liest vor. Das Einrichtungsfenster ist das einzige eigene Fenster, das die Erfassung lesen darf, damit kein privater Bildschirminhalt nötig ist. Esc während des Vorlesens zählt als Erfolg.
+- **Diktieren** wird angeboten, nicht verlangt. Der Test nutzt das vorhandene Diktier-Testfeld.
+- **Fertig** zeigt die Menüleiste mit hervorgehobenem Saywing-Symbol, und unter dem echten Menüleistensymbol erscheint „Hier wohnt Saywing“, denn die App hat kein Dock-Symbol. Fehlende Freigaben stehen dort mit je einer Aktion.
+- **Rechtzeitig fragen:** Fehlt eine Lese-Freigabe, öffnet der Kurzbefehl direkt die Einrichtung, statt erst eine Auswahl zu ermöglichen, die danach scheitert. Der Diktierhinweis „Einrichtung öffnen…“ springt direkt zu den Diktier-Schritten.
+- **Bewegung:** Die neue Seite gleitet aus der Bewegungsrichtung herein, kritisch gedämpft (`response 0,35`, ohne Überschwingen); die alte blendet aus. Bei reduzierter Bewegung gibt es nur eine Überblendung, das Häkchen erscheint dann ohne Zeichnen. Jeder Seiten- und Ergebniswechsel wird für VoiceOver angesagt.
+- Nachweise und Grenzen: [Geführte Einrichtung — Verifikation](guided-setup-verification.md).
+
+## Rückmeldung am Ort des Geschehens
+
+Freigabe durch den Eigentümer am 2026-10-14 („setze das alles um“) nach dem dritten Review mit dem Apple-Design-Skill.
+
+- **Fehlerhilfe an der Kapsel:** Nach einem Fehler öffnet das „?“ der Lesekapsel ein Popover direkt an der Kapsel, mit dem konkreten Grund und genau einem nächsten Schritt: „Erneut versuchen“, bei belegtem Kurzbefehl „Kurzbefehl-Einstellungen …“ (öffnet den Tab Kurzbefehle) und bei fehlender Freigabe „Einrichtung öffnen …“ (springt zum fehlenden Schritt).
+- **Diktat am Cursor:** Die Diktierkapsel erscheint direkt unter der Einfügestelle, bei Platzmangel darüber und immer auf dem Bildschirm. Ohne ermittelbare Einfügestelle erscheint sie dort, wo der Nutzer die Lesekapsel angedockt hat. Während eines Diktats springt sie nicht.
+- **Diktier-Testfenster:** ein Satz Anleitung, Status, Testfeld, Aufnehmen/Verwerfen. „Nicht eingefügt“ mit Ergebnis und Kopieren erscheint nur, wenn das Einfügen scheiterte oder nicht bestätigt wurde. Freigaben laufen über die Einrichtung.
+- **Klänge beim Diktieren:** dieselben Hinweisklänge wie beim Vorlesen und dieselbe Einstellung: „fertig“ bei bestätigtem Einfügen, „Achtung“ bei unbestätigtem Einfügen oder einem Problem. Der Klang fällt mit dem sichtbaren Zustand zusammen und erklingt nie während einer Aufnahme.
+- **Menüleistensymbol:** ein Punkt während des Vorlesens, ein kleines Dreieck nach einem Fehler. Der Zustand ist an der Form erkennbar, nicht an der Farbe, und das Symbol bleibt eine Vorlage. Für Aufnahmen zeigt macOS seine eigene Mikrofonanzeige.
+- **Barrierefreiheit (Audit 2026-10-14):**
+  - Diktat-Ergebnisse, Pause/Fortsetzen, neue Texte in der Warteschlange, das Auswahl-Overlay, Kurzbefehl-Hinweise und das Warten auf die Systemeinstellungen werden angesagt. Fehler werden mit hoher Priorität angesagt. Der Sprechbeginn und laufende Aufnahmen werden nicht angesagt, damit VoiceOver weder über die Stimme spricht noch mit aufgenommen wird.
+  - Im Auswahl-Overlay liest Return den Absatz unter dem Zeiger.
+  - Tab verlässt das Diktier-Testfeld.
+  - Pause und Optionen der Lesekapsel sind sichtbar, solange VoiceOver oder die Schaltersteuerung aktiv ist.
+  - Warteschlangen-Zeilen tragen den Text als Namen.
+  - Die Kurzbefehlsfelder sind nach ihrer Aufgabe benannt und melden Änderungen.
+  - Status-Texte stehen in voller Kontrastfarbe; die Farbe trägt nur das Symbol.
+  - Der Auswahlrahmen hat eine dunkle Außenlinie; bei erhöhtem Kontrast ist er schwarz-weiß.
+  - In der Einrichtung landet der VoiceOver-Fokus auf dem neuen Seitentitel.
+  - Das Menü bietet „Fertig & einfügen“ während einer Aufnahme und „Diktieren ausprobieren …“.
+  - Öffnet man die Wiedergabesteuerung über das Menü, erhält sie den Tastaturfokus; ein Klick auf die Kapsel lässt die aktive App vorne.
+- Nachweise und Grenzen: [Geführte Einrichtung — Verifikation](guided-setup-verification.md#rückmeldung-am-ort-des-geschehens).
+
