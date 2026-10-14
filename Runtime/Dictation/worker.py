@@ -1,7 +1,7 @@
 """Local PCM pipe worker; no microphone, clipboard, history, or network API."""
 import os
 os.environ.update(HF_HUB_OFFLINE='1',TRANSFORMERS_OFFLINE='1',HF_HUB_DISABLE_TELEMETRY='1',DO_NOT_TRACK='1',TOKENIZERS_PARALLELISM='false',PYTHONDONTWRITEBYTECODE='1')
-import sys,json,base64,hashlib,math,contextlib,signal,unicodedata
+import sys,json,base64,hashlib,math,contextlib,signal,unicodedata,zlib
 from pathlib import Path
 os.environ['TORCHINDUCTOR_CACHE_DIR']=str(Path(__file__).resolve().parent/'RuntimeCache')
 MAX_LINE=65*1024*1024
@@ -29,6 +29,19 @@ def fit_prompt_terms(terms,count_tokens,budget):
  terms=list(terms)
  while terms and count_tokens(vocabulary_prompt(terms))>budget:terms.pop()
  return terms
+
+def looks_degenerate(text,terms):
+ raw=text.encode('utf-8')
+ if len(raw)>40 and len(raw)/len(zlib.compress(raw))>2.4:return True
+ parts=[part.strip(' .!?') for part in text.replace(';',',').split(',')]
+ known={term.casefold() for term in terms}
+ return len(parts)>2 and all(part.casefold() in known for part in parts)
+
+def recognize_with_vocabulary(run,terms):
+ # A prompt can turn noise into a loop or an echo of the list; decode once more without it.
+ text=run(terms)
+ if terms and looks_degenerate(text,terms):text=run([])
+ return text
 
 def decode_request(packet):
  import numpy as np
@@ -79,16 +92,19 @@ def load_transcriber(root,model_id):
   budget=model.dims.n_text_ctx//2-1
   def recognize(audio,language,vocabulary):
    terms=fit_prompt_terms(vocabulary,lambda text:len(tokenizer.encode(' '+text)),budget)
-   return transcribe(audio,path_or_hf_repo=str(model_path),
-      language={'German':'de','English':'en',None:None}[language],task='transcribe',
-      temperature=0.0,condition_on_previous_text=False,word_timestamps=False,
-      initial_prompt=vocabulary_prompt(terms),verbose=None)['text'].strip()
+   def run(terms):
+    return transcribe(audio,path_or_hf_repo=str(model_path),
+       language={'German':'de','English':'en',None:None}[language],task='transcribe',
+       temperature=0.0,condition_on_previous_text=False,word_timestamps=False,
+       initial_prompt=vocabulary_prompt(terms),verbose=None)['text'].strip()
+   return recognize_with_vocabulary(run,terms)
   return recognize
  from mlx_audio.stt.utils import load_model
  model=load_model(model_path,strict=True)
  mx.eval(model.parameters());mx.synchronize()
  def recognize(audio,language,vocabulary):
-  return model.generate(audio,language=language,max_tokens=1024,verbose=False,hotwords=vocabulary or None).text.strip()
+  run=lambda terms:model.generate(audio,language=language,max_tokens=1024,verbose=False,hotwords=terms or None).text.strip()
+  return recognize_with_vocabulary(run,vocabulary)
  return recognize
 
 def main():
