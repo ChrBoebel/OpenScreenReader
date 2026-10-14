@@ -3174,7 +3174,8 @@ struct FnDictationGestureTests {
 @Suite(.serialized)
 @MainActor
 struct DictationCapsuleTests {
-    @Test func bothActivitiesShareTheQuietMeterAndVisualHeight() {
+    @Test(arguments: [false, true])
+    func bothActivitiesShareTheQuietMeterAndVisualHeight(reducedMotion: Bool) {
         let reading = ReadingControlView(frame: CGRect(origin: .zero, size: ReadingControlView.Metrics.surface))
         let dictation = DictationCapsuleView(frame: CGRect(origin: .zero, size: DictationCapsuleView.surface))
         defer { reading.stopAnimating(); dictation.stopAnimating() }
@@ -3185,10 +3186,16 @@ struct DictationCapsuleTests {
         let start = CACurrentMediaTime()
         for frame in 1...120 {
             let time = start + Double(frame) / 60
-            reading.tick(now: time)
-            dictation.drawFrame(now: time, reducedMotion: false)
+            reading.tick(now: time, reducedMotion: reducedMotion)
+            dictation.drawFrame(now: time, reducedMotion: reducedMotion)
         }
         #expect(reading.visualBodyFrame.height == dictation.bodyFrame.height)
+        #expect(reading.barHeights.count == 9 && dictation.barHeights.count == 9)
+        if reducedMotion {
+            #expect(reading.barHeights.allSatisfy { $0 == 4 })
+        } else {
+            #expect(reading.barHeights.allSatisfy { $0 > 2 })
+        }
         for (a, b) in zip(reading.barHeights, dictation.barHeights) {
             #expect(abs(a - Double(b)) < 0.01)
         }
@@ -3196,11 +3203,13 @@ struct DictationCapsuleTests {
         dictation.updateRecording(rms: 0)
         for frame in 121...360 {
             let time = start + Double(frame) / 60
-            reading.tick(now: time)
-            dictation.drawFrame(now: time, reducedMotion: false)
+            reading.tick(now: time, reducedMotion: reducedMotion)
+            dictation.drawFrame(now: time, reducedMotion: reducedMotion)
         }
-        #expect(reading.barHeights.allSatisfy { abs($0 - 2) < 0.01 })
-        #expect(dictation.barHeights.allSatisfy { abs($0 - 2) < 0.01 })
+        // Reduced Motion keeps the fixed indicator; animated meters settle to silence.
+        let quietHeight = reducedMotion ? 4.0 : 2.0
+        #expect(reading.barHeights.allSatisfy { abs($0 - quietHeight) < 0.01 })
+        #expect(dictation.barHeights.allSatisfy { abs(Double($0) - quietHeight) < 0.01 })
     }
 
     @Test func meterResponseDoesNotDependOnRefreshRate() {
@@ -3259,7 +3268,7 @@ struct DictationCapsuleTests {
             reading.setLevel(dictation.inputLevel)
             let start = CACurrentMediaTime()
             for frame in 1...120 {
-                reading.tick(now: start + Double(frame) / 60)
+                reading.tick(now: start + Double(frame) / 60, reducedMotion: false)
                 dictation.drawFrame(now: start + Double(frame) / 60, reducedMotion: false)
             }
             reading.stopAnimating()
