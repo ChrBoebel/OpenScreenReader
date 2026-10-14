@@ -6,7 +6,8 @@ from pathlib import Path
 os.environ['TORCHINDUCTOR_CACHE_DIR']=str(Path(__file__).resolve().parent/'RuntimeCache')
 MAX_LINE=65*1024*1024
 MODELS={'qwen3-asr':('Model','model-manifest.json'),
-        'whisper-turbo':('WhisperTurbo','whisper-turbo-manifest.json')}
+        'whisper-turbo':('WhisperTurbo','whisper-turbo-manifest.json'),
+        'whisper-large-v3':('WhisperLargeV3','whisper-large-v3-manifest.json')}
 MAX_TERMS=50;MAX_TERM_LENGTH=60
 
 def decode_vocabulary(value):
@@ -66,10 +67,11 @@ def prepare_audio(audio,rate):
  if len(audio)<1600 or float(np.sqrt(np.mean(audio**2)))<0.0003:return None
  return audio
 
-def verify_model(root,model_id='qwen3-asr'):
+def verify_model(root,model_id='qwen3-asr',model_root=None):
+ # The manifest always comes from the signed bundle; only the files may be installed elsewhere.
  if model_id not in MODELS:raise ValueError('unknown_model')
  directory,manifest_name=MODELS[model_id]
- model_path=(root/directory).resolve(strict=True)
+ model_path=((model_root or root)/directory).resolve(strict=True)
  manifest=json.loads((root/manifest_name).read_text())
  for entry in manifest['files']:
   if entry['rfilename']=='.gitattributes':continue
@@ -80,10 +82,10 @@ def verify_model(root,model_id='qwen3-asr'):
   if digest!=entry['verified_sha256']:raise ValueError('model_hash')
  return model_path
 
-def load_transcriber(root,model_id):
- model_path=verify_model(root,model_id)
+def load_transcriber(root,model_id,model_root=None):
+ model_path=verify_model(root,model_id,model_root)
  import mlx.core as mx
- if model_id=='whisper-turbo':
+ if model_id.startswith('whisper-'):
   from mlx_whisper.transcribe import ModelHolder,transcribe
   from mlx_whisper.tokenizer import get_tokenizer
   model=ModelHolder.get_model(str(model_path),mx.float16)
@@ -115,10 +117,12 @@ def main():
   import argparse
   parser=argparse.ArgumentParser()
   parser.add_argument('--model',choices=MODELS,default='qwen3-asr')
-  model_id=parser.parse_args().model
+  parser.add_argument('--model-root',type=Path)
+  arguments=parser.parse_args();model_id=arguments.model
+  model_root=arguments.model_root.resolve(strict=True) if arguments.model_root else None
   with contextlib.redirect_stdout(sys.stderr):
    import mlx.core as mx
-   recognize=load_transcriber(root,model_id)
+   recognize=load_transcriber(root,model_id,model_root)
   send({'type':'ready','version':1})
  except Exception:
   send({'type':'fatal','code':'load_failed','message':'The model or local runtime could not be loaded.'});return 1
