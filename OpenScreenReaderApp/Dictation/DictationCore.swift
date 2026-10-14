@@ -1,8 +1,9 @@
 import AppKit
 
+/// Whisper Turbo is the default (owner decision 2026-10-14); Qwen3-ASR stays selectable.
 enum DictationModel: String, CaseIterable, Sendable {
-  case qwen = "qwen3-asr"
   case whisperTurbo = "whisper-turbo"
+  case qwen = "qwen3-asr"
 
   var displayName: String {
     switch self {

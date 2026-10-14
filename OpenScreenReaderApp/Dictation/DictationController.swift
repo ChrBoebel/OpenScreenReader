@@ -69,7 +69,7 @@ final class DictationController: NSObject, ObservableObject {
     self.shortcut = shortcut
     self.escape = escape
     self.preferences = preferences
-    self.selectedModel = DictationModel(rawValue: preferences.string(forKey: "dictationModel.v1") ?? "") ?? .qwen
+    self.selectedModel = DictationModel(rawValue: preferences.string(forKey: "dictationModel.v1") ?? "") ?? .whisperTurbo
     self.language = DictationLanguage(rawValue: preferences.integer(forKey: "dictationLanguage.v1")) ?? .automatic
     self.restoresClipboardSlowly = preferences.bool(forKey: "dictationSlowPaste.v1")
     self.monitorFn = registerHotkey
