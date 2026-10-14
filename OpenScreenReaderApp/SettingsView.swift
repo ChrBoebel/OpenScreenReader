@@ -7,6 +7,13 @@ enum SettingsTab: Hashable { case general, reading, dictation, shortcuts, privac
 /// Dictation preferences live here; the dictation window is only for trying it out.
 struct DictationSettingsSection: View {
     @ObservedObject var controller: DictationController
+    /// Edited as free text; the controller keeps only the parsed terms.
+    @State private var vocabularyText: String
+
+    init(controller: DictationController) {
+        self.controller = controller
+        _vocabularyText = State(initialValue: controller.vocabulary.joined(separator: "\n"))
+    }
 
     var body: some View {
         Form {
@@ -27,6 +34,19 @@ struct DictationSettingsSection: View {
                 LabeledContent("Status", value: controller.statusText)
             } footer: {
                 Text("The model loads automatically and stays ready while Saywing is open. Turn on the longer wait if an app pastes your previous clipboard instead of the dictation.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            Section {
+                TextEditor(text: $vocabularyText)
+                    .font(.body)
+                    .frame(minHeight: 66)
+                    .accessibilityLabel("Vocabulary")
+                    .accessibilityIdentifier("dictationVocabulary")
+                    .onChange(of: vocabularyText) { _, text in controller.setVocabulary(text) }
+            } header: {
+                Text("Vocabulary")
+            } footer: {
+                Text("One name or term per line, up to \(DictationVocabulary.maximumTerms). They help the model spell words it rarely hears. The list stays on this Mac.")
                     .font(.callout).foregroundStyle(.secondary)
             }
             Section {
