@@ -55,20 +55,93 @@ struct AppStatusTests {
         ])
         #expect(SaywingPermission.reading == [.screenRecording, .inputMonitoring])
         #expect(SaywingPermission.dictation == [.microphone, .accessibility])
-        #expect(SaywingPermission.allCases.filter { !$0.isRequired } == [.inputMonitoring])
     }
 
+    /// Capture refuses to start without Input Monitoring (global Escape, ADR 0005),
+    /// so the reading test must not be offered with Screen Recording alone.
     @Test @MainActor
-    func readingTestNeedsOnlyScreenRecording() {
+    func readingTestNeedsScreenRecordingAndInputMonitoring() {
         var granted: Set<SaywingPermission> = [.screenRecording]
         let status = PermissionStatus { granted.contains($0) }
-        #expect(status.canTestReading)
-        #expect(!status.canTestDictation)
-        granted = [.inputMonitoring, .microphone]
-        status.refresh()
         #expect(!status.canTestReading)
+        #expect(!status.canTestDictation)
+        granted = [.screenRecording, .inputMonitoring, .microphone]
+        status.refresh()
+        #expect(status.canTestReading)
         #expect(status.canTestDictation)
-        #expect(status.isGranted(.inputMonitoring))
+    }
+
+    @Test
+    func freshSetupWalksReadingThenOffersDictation() {
+        var plan = SetupPlan(dictationAvailable: true)
+        #expect(plan.first(granted: []) == .welcome)
+        #expect(plan.next(after: .welcome, granted: []) == .permission(.screenRecording))
+        #expect(plan.next(after: .permission(.screenRecording), granted: [.screenRecording]) == .permission(.inputMonitoring))
+        #expect(plan.next(after: .permission(.inputMonitoring), granted: [.screenRecording, .inputMonitoring]) == .tryReading)
+        #expect(plan.next(after: .tryReading, granted: [.screenRecording, .inputMonitoring]) == .dictationOffer)
+        #expect(plan.next(after: .dictationOffer, granted: [.screenRecording, .inputMonitoring]) == .done)
+        plan.wantsDictation = true
+        let reading: Set<SaywingPermission> = [.screenRecording, .inputMonitoring]
+        #expect(plan.next(after: .dictationOffer, granted: reading) == .permission(.microphone))
+        #expect(plan.next(after: .permission(.microphone), granted: reading.union([.microphone])) == .permission(.accessibility))
+        #expect(plan.next(after: .permission(.accessibility), granted: Set(SaywingPermission.allCases)) == .tryDictation)
+        #expect(plan.next(after: .tryDictation, granted: Set(SaywingPermission.allCases)) == .done)
+        #expect(plan.next(after: .done, granted: []) == .done)
+    }
+
+    @Test
+    func setupSkipsGrantedStepsAndTestsThatCannotRun() {
+        var plan = SetupPlan(dictationAvailable: true)
+        // Returning users start where something is still missing, never at the welcome.
+        #expect(plan.first(granted: [.inputMonitoring]) == .permission(.screenRecording))
+        #expect(plan.first(granted: [.screenRecording, .inputMonitoring]) == .tryReading)
+        // "Later" on a required grant also skips the test that would only fail.
+        #expect(plan.next(after: .permission(.inputMonitoring), granted: [.inputMonitoring]) == .dictationOffer)
+        plan.wantsDictation = true
+        #expect(plan.next(after: .permission(.accessibility), granted: [.accessibility]) == .done)
+        // The dictation test field works with the microphone alone.
+        #expect(plan.next(after: .permission(.accessibility), granted: [.microphone]) == .tryDictation)
+        // Dictation reached from its own error goes straight to its missing grants.
+        #expect(plan.first(granted: [], entry: .dictation) == .permission(.microphone))
+        #expect(plan.first(granted: [.microphone, .accessibility], entry: .dictation) == .tryDictation)
+        let readingOnly = SetupPlan(dictationAvailable: false)
+        #expect(readingOnly.next(after: .tryReading, granted: []) == .done)
+        #expect(readingOnly.first(granted: [], entry: .dictation) == .welcome)
+    }
+
+    /// Success is shown only after speech actually played, not after a grant or a drag.
+    @Test
+    func readingTrialConfirmsOnlyHeardSpeech() {
+        var trial = ReadingTrial.waiting
+        trial = trial.advanced(by: .selecting, foundText: nil)
+        #expect(trial == .working)
+        trial = trial.advanced(by: .stopped, foundText: nil)
+        #expect(trial == .waiting, "Escape during the selection is not a result")
+        for status in [AppStatus.selecting, .capturing, .recognizing, .synthesizing] { trial = trial.advanced(by: status, foundText: nil) }
+        #expect(trial == .working)
+        trial = trial.advanced(by: .ready, foundText: false)
+        #expect(trial == .noText)
+        trial = trial.advanced(by: .synthesizing, foundText: true).advanced(by: .speaking, foundText: true)
+        #expect(trial == .speaking)
+        // Adding to the queue keeps speaking; Escape after hearing it is a success.
+        #expect(trial.advanced(by: .selecting, foundText: true) == .speaking)
+        #expect(trial.advanced(by: .stopped, foundText: true) == .heard)
+        #expect(trial.advanced(by: .ready, foundText: true) == .heard)
+        #expect(ReadingTrial.working.advanced(by: .error, foundText: nil) == .failed)
+        #expect(ReadingTrial.waiting.advanced(by: .ready, foundText: nil) == .waiting)
+    }
+
+    /// Only a visible window that opted in can be read; the capsule and overlay never.
+    @Test @MainActor
+    func captureIncludesOnlyVisibleWindowsThatOptIn() {
+        let readable = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 80, height: 80), styleMask: [.titled], backing: .buffered, defer: false)
+        readable.identifier = .readableBySaywing
+        let other = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 80, height: 80), styleMask: [.titled], backing: .buffered, defer: false)
+        let hidden = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 80, height: 80), styleMask: [.titled], backing: .buffered, defer: false)
+        hidden.identifier = .readableBySaywing
+        readable.orderFront(nil); other.orderFront(nil)
+        defer { readable.orderOut(nil); other.orderOut(nil) }
+        #expect(ScreenCaptureService.readableWindowIDs(in: [readable, other, hidden]) == [CGWindowID(readable.windowNumber)])
     }
 
     @Test

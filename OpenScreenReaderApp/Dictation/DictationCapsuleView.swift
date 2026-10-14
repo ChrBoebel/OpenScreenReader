@@ -111,19 +111,20 @@ final class DictationCapsuleView: NSView {
         case .processing: statusTitle = String(localized: "Recognizing text"); glyph = "ellipsis"
         case .pasting: statusTitle = String(localized: "Paste sent"); glyph = "arrow.up.doc"
         case .inserted: statusTitle = String(localized: "Pasted"); glyph = "checkmark"
-        case .unconfirmed: statusTitle = String(localized: "Paste sent – check the target field"); glyph = "arrow.up.doc"
+        // Unverified insertion must not look like normal progress.
+        case .unconfirmed: statusTitle = String(localized: "Paste sent – check the target field"); glyph = "exclamationmark"
         case .attention: statusTitle = title; glyph = "exclamationmark"
         case .idle: statusTitle = title.isEmpty ? String(localized: "Ready to dictate") : title; glyph = "mic"
         }
         symbol.isHidden = state == .recording || state == .processing
-        let accent = state == .attention ? ReadingPalette.amber : ReadingPalette.mint
+        let accent = state == .attention || state == .unconfirmed ? ReadingPalette.amber : ReadingPalette.mint
         symbol.image = NSImage(systemSymbolName: glyph, accessibilityDescription: nil)?
             .withSymbolConfiguration(.init(pointSize: 12, weight: .medium))
         symbol.contentTintColor = accent
         toolTip = [statusTitle, detail].filter { !$0.isEmpty }.joined(separator: "\n")
         setAccessibilityLabel(String(localized: "Saywing dictation: \(statusTitle)"))
         setAccessibilityHelp(detail)
-        setAccessibilityCustomActions(state == .attention ? [NSAccessibilityCustomAction(
+        setAccessibilityCustomActions(state == .attention || state == .unconfirmed ? [NSAccessibilityCustomAction(
             name: String(localized: "Open details in the dictation window"), handler: { [weak self] in self?.onDetails?(); return true })] : [])
         drawFrame(now: CACurrentMediaTime(), reducedMotion: reduced)
         refreshClock()

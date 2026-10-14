@@ -8,9 +8,10 @@ struct OpenScreenReaderApp: App {
         let testing = ProcessInfo.processInfo.arguments.contains("--uitesting")
             || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
             || ProcessInfo.processInfo.environment["OSR_SHORTCUT_TEST_SUITE"] != nil
-        let dictation = testing ? nil : DictationController()
+        let dictation = testing ? nil : DictationController(interfaceSounds: sounds)
         let model = AppModel(readingPanel: ReadingPanelController(interfaceSounds: sounds), interfaceSounds: sounds,
-                        queueHotkeyManager: GlobalHotkeyManager(), dictation: dictation)
+                        queueHotkeyManager: GlobalHotkeyManager(), dictation: dictation,
+                        missingReadingPermission: { SaywingPermission.reading.first { !$0.isGranted } })
         // Prepare once the SwiftUI StateObject is established; never open the microphone.
         DispatchQueue.main.async { dictation?.loadModel() }
         if ProcessInfo.processInfo.arguments.contains("--dictation-smoke") {
@@ -30,11 +31,7 @@ struct OpenScreenReaderApp: App {
             Label {
                 Text("Saywing")
             } icon: {
-                Image("SaywingMenuBar")
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 22, height: 22)
+                Image(nsImage: MenuBarIcon.image(for: model.menuBarIndicator))
             }
                 .accessibilityLabel("Saywing, \(model.activityTitle)")
                 .help("Saywing · \(model.activityTitle)")

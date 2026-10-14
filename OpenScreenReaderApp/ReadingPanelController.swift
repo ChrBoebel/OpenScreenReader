@@ -155,7 +155,7 @@ enum ReadingPanelState: Hashable {
         case .finished: String(localized: "Everything was read")
         case .stopped: String(localized: "Reading stopped")
         case .noText: String(localized: "Select a region with text.")
-        case .failed: String(localized: "Setup and help are behind the question mark button")
+        case .failed: String(localized: "The question mark shows the reason and what to do next")
         case .positioning: String(localized: "Drag the waveform to a screen edge")
         }
     }
@@ -366,10 +366,13 @@ final class ReadingPanelController: NSObject, ReadingStatusPresenting {
     }
 
     private func announce(_ state: ReadingPanelState, from view: NSView) {
-        // The control is deliberately text-free; VoiceOver users still hear every change.
-        NSAccessibility.post(element: view, notification: .announcementRequested, userInfo: [
-            .announcement: state.title,
-            .priority: NSAccessibilityPriorityLevel.medium.rawValue,
+        // The control is deliberately text-free; VoiceOver users still hear every change,
+        // except the start of speech itself, where VoiceOver would talk over the voice.
+        guard state != .speaking else { return }
+        let urgent = state.needsAttention
+        NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested, userInfo: [
+            .announcement: state == .failed ? "\(state.title). \(state.detail)" : state.title,
+            .priority: (urgent ? NSAccessibilityPriorityLevel.high : .medium).rawValue,
         ])
     }
 
@@ -707,6 +710,9 @@ final class ReadingControlView: NSView, NSPopoverDelegate {
         paused = value
         if value { setLevel(0) }
         setAccessibilityLabel(value ? String(localized: "Reading paused") : String(localized: "Reading status: \(state.title)"))
+        // The menu closes on Pause, so nothing else would tell a VoiceOver user.
+        NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
+                             userInfo: [.announcement: value ? String(localized: "Paused") : String(localized: "Resumed")])
         updateOptions()
         tick(now: CACurrentMediaTime())
     }
@@ -837,6 +843,8 @@ final class ReadingControlView: NSView, NSPopoverDelegate {
         note.lineBreakMode = .byTruncatingTail
         note.alphaValue = 0
         note.setAccessibilityIdentifier("readingStatusTitle")
+        // The group label already says the state; the fading note would repeat it.
+        note.setAccessibilityElement(false)
         body.addSubview(note)
 
         button.target = self
@@ -889,14 +897,19 @@ final class ReadingControlView: NSView, NSPopoverDelegate {
     isolated deinit { clock?.invalidate() }
 
     func setQueueCount(_ count: Int) {
+        let added = min(5, max(0, count)) > queueCount
         queueCount = min(5, max(0, count))
+        if added {
+            NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
+                                 userInfo: [.announcement: String(localized: "\(queueCount) texts waiting")])
+        }
         updateOptions()
         tick(now: CACurrentMediaTime())
     }
 
     private func updateOptions() {
         queueBadge.title = state == .failed ? "?" : queueCount > 0 ? "+\(queueCount)" : "···"
-        let label = state == .failed ? String(localized: "Open setup and help") : String(localized: "Playback and queue · \(queueCount) waiting")
+        let label = state == .failed ? String(localized: "Show reason and help") : String(localized: "Playback and queue · \(queueCount) waiting")
         queueBadge.setAccessibilityLabel(label)
         queueBadge.toolTip = label
         queueBadge.isHidden = !state.isActive && state != .failed
@@ -970,7 +983,7 @@ final class ReadingControlView: NSView, NSPopoverDelegate {
         }
         if state != .speaking { targetLevel = 0 }
         toolTip = state.detail
-        setAccessibilityLabel(String(localized: "Reading status: \(state.title)"))
+        setAccessibilityLabel(paused && state == .speaking ? String(localized: "Reading paused") : String(localized: "Reading status: \(state.title)"))
         setAccessibilityHelp(state.detail)
         setAccent(state.needsAttention ? ReadingPalette.amber : ReadingPalette.mint)
         button.terminal = !state.isActive
@@ -1077,7 +1090,9 @@ final class ReadingControlView: NSView, NSPopoverDelegate {
         }
         approach(&terminal, state.showsWaveform ? 0 : 1, rate: 10)
         approach(&hover, hovering && !exiting ? 1 : 0, rate: 12)
-        let showControls = state.isActive && !exiting && (hovering || trackingPointer || controlsPopover != nil)
+        // Voice Control, Switch Control and VoiceOver users cannot hover to reveal the controls.
+        let assistive = NSWorkspace.shared.isVoiceOverEnabled || NSWorkspace.shared.isSwitchControlEnabled
+        let showControls = state.isActive && !exiting && (hovering || trackingPointer || controlsPopover != nil || assistive)
         approach(&controlsBlend, showControls ? 1 : 0, rate: 22)
         approach(&press, pressing ? 1 : 0, rate: 30)
         let noteWanted = !isVertical && state.needsAttention && !exiting && (now < noteUntil || hovering)

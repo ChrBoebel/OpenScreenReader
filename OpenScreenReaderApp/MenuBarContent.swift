@@ -83,10 +83,14 @@ struct DictationMenuContent: View {
     var body: some View {
         if controller.isActive {
             Text("Dictation · \(controller.statusText)")
+            if controller.phase == "recording" {
+                Button("Finish & Paste") { controller.finishRecording() }
+            }
             Button("Discard Dictation") { controller.cancel() }
         } else {
             // Fn cannot be shown as a menu key equivalent; name it in the title instead.
             Text("Dictate: Hold Fn")
+            Button("Try Dictation…") { controller.showWindow() }
         }
     }
 }
@@ -101,5 +105,40 @@ extension ShortcutConfiguration {
         if modifiers & UInt32(controlKey) != 0 { eventModifiers.insert(.control) }
         if modifiers & UInt32(shiftKey) != 0 { eventModifiers.insert(.shift) }
         return KeyboardShortcut(keyEquivalent, modifiers: eventModifiers)
+    }
+}
+
+/// The menu bar glyph carries state by shape, never by colour: a dot while
+/// reading, a small triangle when something failed. Recording needs no badge;
+/// macOS shows its own microphone indicator.
+@MainActor
+enum MenuBarIcon {
+    private static var cache: [AppModel.MenuBarIndicator: NSImage] = [:]
+
+    static func image(for indicator: AppModel.MenuBarIndicator) -> NSImage {
+        if let cached = cache[indicator] { return cached }
+        let size = NSSize(width: 22, height: 22)
+        let image = NSImage(size: size, flipped: false) { rect in
+            NSImage(named: "SaywingMenuBar")?.draw(in: rect)
+            guard indicator != .idle, let context = NSGraphicsContext.current?.cgContext else { return true }
+            let badge = CGRect(x: rect.maxX - 9, y: 0, width: 9, height: 9)
+            // A clear ring keeps the badge legible against the glyph.
+            context.setBlendMode(.clear)
+            context.fillEllipse(in: badge.insetBy(dx: -1.5, dy: -1.5))
+            context.setBlendMode(.normal)
+            context.setFillColor(NSColor.black.cgColor)
+            if indicator == .reading {
+                context.fillEllipse(in: badge.insetBy(dx: 1, dy: 1))
+            } else {
+                context.move(to: CGPoint(x: badge.midX, y: badge.maxY))
+                context.addLine(to: CGPoint(x: badge.maxX, y: badge.minY))
+                context.addLine(to: CGPoint(x: badge.minX, y: badge.minY))
+                context.fillPath()
+            }
+            return true
+        }
+        image.isTemplate = true
+        cache[indicator] = image
+        return image
     }
 }

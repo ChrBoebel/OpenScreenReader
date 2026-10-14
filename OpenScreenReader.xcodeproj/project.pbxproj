@@ -33,6 +33,8 @@
 		AA2000000000000000000003 = {isa = PBXBuildFile; fileRef = AA1000000000000000000003; };
 		AA2000000000000000000004 = {isa = PBXBuildFile; fileRef = AA1000000000000000000004; };
 		BB2000000000000000000001 /* Permissions.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB1000000000000000000001 /* Permissions.swift */; };
+		C52000000000000000000001 /* SetupFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = C51000000000000000000001 /* SetupFlow.swift */; };
+		C52000000000000000000002 /* SetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C51000000000000000000002 /* SetupView.swift */; };
 		BB2000000000000000000002 /* ShortcutRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB1000000000000000000002 /* ShortcutRecorder.swift */; };
 		BB2000000000000000000003 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = BB1000000000000000000003 /* Localizable.xcstrings */; };
 		BB2000000000000000000004 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = BB1000000000000000000004 /* InfoPlist.xcstrings */; };
@@ -85,6 +87,8 @@
 		AA1000000000000000000003 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Dictation/DictationController.swift; sourceTree = "<group>"; };
 		AA1000000000000000000004 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Dictation/DictationCapsuleView.swift; sourceTree = "<group>"; };
 		BB1000000000000000000001 /* Permissions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Permissions.swift; sourceTree = "<group>"; };
+		C51000000000000000000001 /* SetupFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupFlow.swift; sourceTree = "<group>"; };
+		C51000000000000000000002 /* SetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupView.swift; sourceTree = "<group>"; };
 		BB1000000000000000000002 /* ShortcutRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutRecorder.swift; sourceTree = "<group>"; };
 		BB1000000000000000000003 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		BB1000000000000000000004 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
@@ -143,6 +147,8 @@
 				BB1000000000000000000003 /* Localizable.xcstrings */,
 				BB1000000000000000000002 /* ShortcutRecorder.swift */,
 				BB1000000000000000000001 /* Permissions.swift */,
+				C51000000000000000000001 /* SetupFlow.swift */,
+				C51000000000000000000002 /* SetupView.swift */,
 				AA1000000000000000000003,
 				AA1000000000000000000004,
 				AA1000000000000000000002,
@@ -329,6 +335,8 @@
 			files = (
 				BB2000000000000000000002 /* ShortcutRecorder.swift in Sources */,
 				BB2000000000000000000001 /* Permissions.swift in Sources */,
+				C52000000000000000000001 /* SetupFlow.swift in Sources */,
+				C52000000000000000000002 /* SetupView.swift in Sources */,
 				AA2000000000000000000003,
 				AA2000000000000000000004,
 				AA2000000000000000000002,
