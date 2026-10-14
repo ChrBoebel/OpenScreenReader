@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+        CC2000000000000000000001 = {isa = PBXBuildFile; fileRef = CC1000000000000000000001; };
+        CC2000000000000000000002 = {isa = PBXBuildFile; productRef = CC3000000000000000000001; };
 		F00000000000000000000003 /* InterfaceSoundPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000004; };
 		F00000000000000000000001 /* ReadingPanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000002; };
 		E00000000000000000000001 = {isa = PBXBuildFile; fileRef = E00000000000000000000002; };
@@ -59,6 +61,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+        CC1000000000000000000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateController.swift; sourceTree = "<group>"; };
 		F00000000000000000000004 /* InterfaceSoundPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterfaceSoundPlayer.swift; sourceTree = "<group>"; };
 		F00000000000000000000002 /* ReadingPanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingPanelController.swift; sourceTree = "<group>"; };
 		E00000000000000000000002 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalSpeechService.swift; sourceTree = "<group>"; };
@@ -102,6 +105,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A00000000000000000000082 /* OpenScreenReaderCore in Frameworks */,
+                CC2000000000000000000002 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -158,6 +162,7 @@
 				AA1000000000000000000001,
 				AA1000000000000000000000,
 				A00000000000000000000010 /* OpenScreenReaderApp.swift */,
+                CC1000000000000000000001 /* AppUpdateController.swift */,
 				C00000000000000000000002 /* Assets.xcassets */,
 				A00000000000000000000011 /* AppStatus.swift */,
 				A00000000000000000000012 /* AppModel.swift */,
@@ -215,6 +220,7 @@
 			name = OpenScreenReader;
 			packageProductDependencies = (
 				A00000000000000000000081 /* OpenScreenReaderCore */,
+                CC3000000000000000000001 /* Sparkle */,
 			);
 			productName = OpenScreenReader;
 			productReference = A00000000000000000000006 /* Saywing.app */;
@@ -290,6 +296,7 @@
 			mainGroup = A00000000000000000000002;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+                CC4000000000000000000001 /* Sparkle */,
 				A00000000000000000000080 /* XCLocalSwiftPackageReference "." */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -347,6 +354,7 @@
 				AA2000000000000000000001,
 				AA2000000000000000000000,
 				A00000000000000000000020 /* OpenScreenReaderApp.swift in Sources */,
+                CC2000000000000000000001 /* AppUpdateController.swift in Sources */,
 				A00000000000000000000022 /* AppStatus.swift in Sources */,
 				A00000000000000000000023 /* AppModel.swift in Sources */,
 				D00000000000000000000003 /* VisionOCRService.swift in Sources */,
@@ -456,6 +464,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
+                SAYWING_UPDATE_PUBLIC_KEY = "UkAO/uyBRKSNY0+0gLVrnxa6vaXaVE4cJueFv1JVIT0=";
 				PRODUCT_BUNDLE_IDENTIFIER = com.christopherbobel.OpenScreenReader;
 				PRODUCT_MODULE_NAME = OpenScreenReader;
 				PRODUCT_NAME = Saywing;
@@ -482,6 +491,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
+                SAYWING_UPDATE_PUBLIC_KEY = "UkAO/uyBRKSNY0+0gLVrnxa6vaXaVE4cJueFv1JVIT0=";
 				PRODUCT_BUNDLE_IDENTIFIER = com.christopherbobel.OpenScreenReader;
 				PRODUCT_MODULE_NAME = OpenScreenReader;
 				PRODUCT_NAME = Saywing;
@@ -604,7 +614,20 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+        CC4000000000000000000001 = {
+            isa = XCRemoteSwiftPackageReference;
+            repositoryURL = "https://github.com/sparkle-project/Sparkle";
+            requirement = { kind = exactVersion; version = 2.10.0; };
+        };
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
+        CC3000000000000000000001 = {
+            isa = XCSwiftPackageProductDependency;
+            package = CC4000000000000000000001;
+            productName = Sparkle;
+        };
 		A00000000000000000000081 /* OpenScreenReaderCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = A00000000000000000000080 /* XCLocalSwiftPackageReference "." */;

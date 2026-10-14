@@ -312,6 +312,7 @@ struct SettingsView: View {
                 }
                 .padding(.vertical, 4)
             }
+            AppUpdateSettings(updates: model.updates, busy: !model.canChangeShortcut)
             Section {
                 Toggle("Interface sounds", isOn: $interfaceSoundsEnabled)
                     .toggleStyle(.checkbox)

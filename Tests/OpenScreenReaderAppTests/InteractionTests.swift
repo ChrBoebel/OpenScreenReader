@@ -1741,7 +1741,7 @@ struct ReadingPanelTests {
     }
 
     @Test
-    func draggingSurvivesSpeechTransitionsButNeverSurvivesHide() async throws {
+    func draggingSurvivesSpeechTransitionsButNeverSurvivesHide() throws {
         let suite = "com.christopherbobel.OpenScreenReader.placement-tests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -1764,14 +1764,14 @@ struct ReadingPanelTests {
         controller.show(.speaking, displayID: number.uint32Value, onStop: { stops += 1 })
         #expect(panel.frame == draggedFrame, "Starting speech must not jerk a held capsule back to its dock.")
         controller.endDrag()
-        try await Task.sleep(for: .milliseconds(300))
         let saved = ReadingPanelPlacement.load(from: defaults)
         #expect(saved.edge == .left)
         #expect((panel.contentView as? ReadingControlView)?.dockEdge == .left)
-        // Other suites synthesize cue buffers on MainActor. Give the animation's next tick a turn.
-        for _ in 0..<40 {
-            if panel.frame == saved.frame(in: screen.visibleFrame) { break }
-            try await Task.sleep(for: .milliseconds(25))
+        // Advance the real spring explicitly; display-link delivery depends on
+        // the runner's display and load, not on the drag behavior under test.
+        let start = CACurrentMediaTime()
+        for frame in 0..<240 {
+            controller.stepSnap(now: start + Double(frame) / 60)
         }
         #expect(panel.frame == saved.frame(in: screen.visibleFrame))
         #expect(stops == 0)
@@ -1783,7 +1783,7 @@ struct ReadingPanelTests {
         controller.hide()
         controller.moveDrag(to: .zero)
         controller.endDrag()
-        try await Task.sleep(for: .milliseconds(300))
+        controller.stepSnap(now: start + 5)
         #expect(panel.isVisible == false)
         #expect(panel.contentView == nil)
         let newController = ReadingPanelController(defaults: defaults)
@@ -1804,7 +1804,12 @@ struct ReadingPanelTests {
         try await Task.sleep(for: .milliseconds(350))
         #expect(controller.panel?.isVisible == true)
         controller.endDrag()
-        try await Task.sleep(for: .milliseconds(350))
+        // Dismissal and retraction each resume on MainActor. Other suites can
+        // delay either stage, so wait for visibility instead of a fixed 350 ms.
+        for _ in 0..<80 {
+            if controller.panel?.isVisible == false { break }
+            try await Task.sleep(for: .milliseconds(25))
+        }
         #expect(controller.panel?.isVisible == false)
     }
 
@@ -3174,7 +3179,8 @@ struct FnDictationGestureTests {
 @Suite(.serialized)
 @MainActor
 struct DictationCapsuleTests {
-    @Test func bothActivitiesShareTheQuietMeterAndVisualHeight() {
+    @Test(arguments: [false, true])
+    func bothActivitiesShareTheQuietMeterAndVisualHeight(reducedMotion: Bool) {
         let reading = ReadingControlView(frame: CGRect(origin: .zero, size: ReadingControlView.Metrics.surface))
         let dictation = DictationCapsuleView(frame: CGRect(origin: .zero, size: DictationCapsuleView.surface))
         defer { reading.stopAnimating(); dictation.stopAnimating() }
@@ -3185,10 +3191,16 @@ struct DictationCapsuleTests {
         let start = CACurrentMediaTime()
         for frame in 1...120 {
             let time = start + Double(frame) / 60
-            reading.tick(now: time)
-            dictation.drawFrame(now: time, reducedMotion: false)
+            reading.tick(now: time, reducedMotion: reducedMotion)
+            dictation.drawFrame(now: time, reducedMotion: reducedMotion)
         }
         #expect(reading.visualBodyFrame.height == dictation.bodyFrame.height)
+        #expect(reading.barHeights.count == 9 && dictation.barHeights.count == 9)
+        if reducedMotion {
+            #expect(reading.barHeights.allSatisfy { $0 == 4 })
+        } else {
+            #expect(reading.barHeights.allSatisfy { $0 > 2 })
+        }
         for (a, b) in zip(reading.barHeights, dictation.barHeights) {
             #expect(abs(a - Double(b)) < 0.01)
         }
@@ -3196,11 +3208,13 @@ struct DictationCapsuleTests {
         dictation.updateRecording(rms: 0)
         for frame in 121...360 {
             let time = start + Double(frame) / 60
-            reading.tick(now: time)
-            dictation.drawFrame(now: time, reducedMotion: false)
+            reading.tick(now: time, reducedMotion: reducedMotion)
+            dictation.drawFrame(now: time, reducedMotion: reducedMotion)
         }
-        #expect(reading.barHeights.allSatisfy { abs($0 - 2) < 0.01 })
-        #expect(dictation.barHeights.allSatisfy { abs($0 - 2) < 0.01 })
+        // Reduced Motion keeps the fixed indicator; animated meters settle to silence.
+        let quietHeight = reducedMotion ? 4.0 : 2.0
+        #expect(reading.barHeights.allSatisfy { abs($0 - quietHeight) < 0.01 })
+        #expect(dictation.barHeights.allSatisfy { abs(Double($0) - quietHeight) < 0.01 })
     }
 
     @Test func meterResponseDoesNotDependOnRefreshRate() {
@@ -3259,7 +3273,7 @@ struct DictationCapsuleTests {
             reading.setLevel(dictation.inputLevel)
             let start = CACurrentMediaTime()
             for frame in 1...120 {
-                reading.tick(now: start + Double(frame) / 60)
+                reading.tick(now: start + Double(frame) / 60, reducedMotion: false)
                 dictation.drawFrame(now: start + Double(frame) / 60, reducedMotion: false)
             }
             reading.stopAnimating()

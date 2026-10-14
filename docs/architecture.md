@@ -116,7 +116,7 @@ Das Standardmodell soll Bestandteil des signierten Release-Artefakts sein, damit
 - Modellgewichte werden nicht in Git eingecheckt.
 - Release-Builds verwenden ein allowlist-basiertes Manifest mit unveränderlichen Revisionen und SHA-256-Hashes.
 - Modell, Tokenizer, Konvertierung, Runtime, Stimmen und transitive Abhängigkeiten benötigen eine dokumentierte Lizenzfreigabe.
-- Der MVP lädt zur Laufzeit keine Modelle, Pakete oder Updates aus dem Netzwerk.
+- Lokale Inferenz benötigt kein Netzwerk. Eigentümerfreigaben erlauben die ausdrücklich bestätigten optionalen Diktiermodelle und seit 2026-10-14 abschaltbare Sparkle-Updateprüfungen mit Installation auf Nutzeraktion; siehe Datenschutz und [Release-Verfahren](release-and-updates.md).
 - Die Provider-Abstraktion bleibt erhalten, damit spätere Plattformen und lokale Modelle nicht an ein MLX-Artefakt gekoppelt sind.
 
 ## Provider-Abstraktion
@@ -221,3 +221,7 @@ Modells oder Providers. [Messung und Grenzen](dictation-vocabulary-verification.
 `SetupStep` adds model and shortcut stages for each activity while retaining existing raw checkpoint values. `DictationModelSelection` and `ActivationShortcutsView` are shared by setup and settings. `dictationShortcut.v1` stores the validated combination; `dictationFnEnabled.v1` controls Fn gestures. Registration succeeds before saving. `AppModel` checks collisions across reading, enqueue and dictation and suspends all activation paths while recording a key.
 
 `dictationInstallIntent.v1` persists only the requested model identifier. Relaunch restores an interrupted choice without network activity. Installation completion is checked against a selection generation so a later user choice wins. Verification has its own observable phase; cancellation propagates to file hashing. Completed atomic installs are recovered on relaunch before clearing the intent. Explicit retry uses the existing pinned manifest and installer. No new model source or runtime network endpoint is introduced.
+
+## Release- und Updatevorbereitung — 2026-10-14
+
+`AppUpdateController` kapselt Sparkle 2.10.0, ist unabhängig von den lokalen Workern und startet nur bei gültiger HTTPS-Feed-/Schlüsselkonfiguration. `UpdateRelaunchGate` hält eine Installationsfortsetzung während aktiver Arbeit und invalidiert sie bei Abbruch/App-Ende. Modellinstallationen blockieren ebenfalls. Signierte Feeds und Archive werden vor Extraktion geprüft; Systemprofile und automatische Installation sind ausgeschaltet. `scripts/release.py` prüft zuerst Ressourcen, signiert Code von innen nach außen, aktualisiert erst danach Binärhashes, notarisiert optional die App und DMG und erzeugt zuletzt den Feed. Der GitHub-Workflow prüft Main/PRs; öffentliche Auslieferung wartet auf Hosting und Release-Gates. Details: [Release und Updates](release-and-updates.md).

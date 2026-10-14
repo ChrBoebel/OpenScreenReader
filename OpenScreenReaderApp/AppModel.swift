@@ -219,6 +219,14 @@ final class AppModel: ObservableObject {
         NSApp.activate(ignoringOtherApps: true)
         setupWindow?.makeKeyAndOrderFront(nil)
     }
+    lazy var updates = AppUpdateController(disabled: ProcessInfo.processInfo.arguments.contains("--uitesting")
+        || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+        || ProcessInfo.processInfo.environment["OSR_SHORTCUT_TEST_SUITE"] != nil) { [weak self] in
+            guard let self else { return true }
+            return self.isReadingActive || self.dictation?.isActive == true
+                || self.dictation?.models.availability.values.contains(where: { $0.isInstalling }) == true
+        }
+
     @Published private(set) var status: AppStatus = .ready
     @Published private(set) var hotkeyRegistration: HotkeyRegistration = .inactive
     @Published private(set) var lastSelection: ScreenRegionSelection?

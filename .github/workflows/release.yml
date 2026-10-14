@@ -1,0 +1,120 @@
+name: Saywing release
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Never cancel an upload to Apple's notary service halfway through.
+concurrency:
+  group: saywing-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+      - name: Check source and release rules
+        run: |
+          swift test
+          swift run OpenScreenReaderCoreBehaviorChecks
+          python3 -m unittest discover -s Tests/Release -v
+          python3 scripts/check-localization.py
+      - name: Test app
+        run: |
+          xcodebuild -project OpenScreenReader.xcodeproj -scheme OpenScreenReader \
+            -destination 'platform=macOS' -derivedDataPath .build/ci \
+            -clonedSourcePackagesDirPath .build/packages \
+            test -only-testing:OpenScreenReaderAppTests
+      - name: Build Release target
+        run: |
+          xcodebuild -project OpenScreenReader.xcodeproj -scheme OpenScreenReader \
+            -configuration Release -derivedDataPath .build/ci \
+            -clonedSourcePackagesDirPath .build/packages build CODE_SIGNING_ALLOWED=NO
+
+  package:
+    needs: verify
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.SAYWING_RELEASE_ENABLED == 'true'
+    runs-on: macos-26
+    environment: saywing-release
+    timeout-minutes: 120
+    env:
+      SAYWING_RUNTIME_SHA256: ${{ vars.SAYWING_RUNTIME_SHA256 }}
+      SAYWING_S3_ENDPOINT: ${{ vars.SAYWING_S3_ENDPOINT }}
+      SAYWING_S3_BUCKET: ${{ vars.SAYWING_S3_BUCKET }}
+      SAYWING_S3_REGION: ${{ vars.SAYWING_S3_REGION || 'auto' }}
+      SAYWING_FEED_URL: https://www.christopherboebel.com/downloads/saywing/appcast.xml
+      SAYWING_DOWNLOAD_URL_PREFIX: https://www.christopherboebel.com/downloads/saywing
+      SAYWING_PUBLIC_KEY: UkAO/uyBRKSNY0+0gLVrnxa6vaXaVE4cJueFv1JVIT0=
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+      - name: Install isolated storage tools
+        run: |
+          python3 -m venv "$RUNNER_TEMP/saywing-publisher"
+          "$RUNNER_TEMP/saywing-publisher/bin/pip" install -r scripts/release-requirements.txt
+      - name: Validate release gates and fetch pinned private runtime
+        env:
+          SAYWING_S3_ACCESS_KEY_ID: ${{ secrets.SAYWING_S3_ACCESS_KEY_ID }}
+          SAYWING_S3_SECRET_ACCESS_KEY: ${{ secrets.SAYWING_S3_SECRET_ACCESS_KEY }}
+        run: '"$RUNNER_TEMP/saywing-publisher/bin/python" scripts/prepare-release-ci.py runtime'
+      - name: Resolve pinned Sparkle tools
+        run: |
+          xcodebuild -resolvePackageDependencies -project OpenScreenReader.xcodeproj \
+            -scheme OpenScreenReader -clonedSourcePackagesDirPath .build/packages
+      - name: Import signing credentials into a temporary keychain
+        env:
+          SAYWING_CERTIFICATE_P12: ${{ secrets.SAYWING_CERTIFICATE_P12 }}
+          SAYWING_CERTIFICATE_PASSWORD: ${{ secrets.SAYWING_CERTIFICATE_PASSWORD }}
+          SAYWING_SPARKLE_PRIVATE_KEY: ${{ secrets.SAYWING_SPARKLE_PRIVATE_KEY }}
+          SAYWING_APPLE_ID: ${{ secrets.SAYWING_APPLE_ID }}
+          SAYWING_APPLE_APP_PASSWORD: ${{ secrets.SAYWING_APPLE_APP_PASSWORD }}
+        run: python3 scripts/prepare-release-ci.py credentials
+      - name: Build, sign, notarize and create signed appcast
+        run: |
+          python3 scripts/release.py \
+            --runtime-app "$RUNNER_TEMP/saywing-runtime/Saywing.app" \
+            --output .build/release --version "0.1.${GITHUB_RUN_NUMBER}" \
+            --packages .build/packages \
+            --build "$((GITHUB_RUN_NUMBER + 1))" \
+            --feed-url "$SAYWING_FEED_URL" \
+            --download-url-prefix "$SAYWING_DOWNLOAD_URL_PREFIX" \
+            --public-key "$SAYWING_PUBLIC_KEY" \
+            --keychain "$RUNNER_TEMP/saywing-release.keychain-db" \
+            --notary-profile Saywing-CI --notarize --public-release
+      - name: Retain complete distribution for the hosting deployment
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Saywing-${{ github.run_number }}
+          path: |
+            .build/release/publish/
+            .build/release/release-result.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+      - name: Publish to the existing Railway website
+        if: vars.SAYWING_PUBLISH_ENABLED == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SAYWING_S3_ACCESS_KEY_ID: ${{ secrets.SAYWING_S3_ACCESS_KEY_ID }}
+          SAYWING_S3_SECRET_ACCESS_KEY: ${{ secrets.SAYWING_S3_SECRET_ACCESS_KEY }}
+        run: '"$RUNNER_TEMP/saywing-publisher/bin/python" scripts/publish-release.py --release .build/release'
+      - name: Remove temporary signing credentials
+        if: always()
+        run: python3 scripts/prepare-release-ci.py cleanup

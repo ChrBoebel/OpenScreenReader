@@ -3,6 +3,25 @@ import XCTest
 
 final class MenuBarSmokeUITests: XCTestCase {
     @MainActor
+    func testUpdateControlsExplainUnconfiguredBuildWithoutNetworkAccess() {
+        let app = makeApplication()
+        app.launch()
+        defer { app.terminate() }
+        openMenu(in: app, status: "Ready")
+        let check = app.menuItems["Check for Updates…"]
+        XCTAssertTrue(check.waitForExistence(timeout: 3))
+        XCTAssertFalse(check.isEnabled)
+        app.typeKey(.escape, modifierFlags: [])
+        app.typeKey(",", modifierFlags: [.command])
+        openSettingsTab("General", in: app)
+        XCTAssertTrue(app.staticTexts["Updates are not configured in this build."].waitForExistence(timeout: 3))
+        let automatic = app.checkBoxes["Automatically check for updates"]
+        XCTAssertTrue(automatic.exists)
+        XCTAssertFalse(automatic.isEnabled)
+        XCTAssertFalse(app.buttons["Check for Updates…"].isEnabled)
+    }
+
+    @MainActor
     func testSetupResumesAtTheSameStepWithoutOpeningTheMenu() {
         let app = makeApplication()
         app.launchArguments.append("--test-setup")

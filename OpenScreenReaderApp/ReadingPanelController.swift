@@ -475,7 +475,7 @@ final class ReadingPanelController: NSObject, ReadingStatusPresenting {
         snapClock?.isPaused = false
     }
 
-    fileprivate func stepSnap(now: CFTimeInterval) {
+    func stepSnap(now: CFTimeInterval) {
         guard var current = snap, current.generation == generation, let panel, panel.isVisible else { stopSnap(); return }
         let dt = CGFloat(min(1.0 / 20, now - (snapTick ?? now - 1.0 / 60)))
         snapTick = now
@@ -1081,9 +1081,13 @@ final class ReadingControlView: NSView, NSPopoverDelegate {
     }
 
     func tick(now: TimeInterval) {
+        tick(now: now, reducedMotion: reduced)
+    }
+
+    func tick(now: TimeInterval, reducedMotion: Bool) {
         let dt = min(1.0 / 20, max(1.0 / 240, now - (lastTick ?? now - 1.0 / 60)))
         lastTick = now
-        let reduced = self.reduced || paused
+        let reduced = reducedMotion || paused
         let exiting = exitStart != nil
         func approach(_ value: inout Double, _ goal: Double, rate: Double) {
             value += (goal - value) * (reduced ? 1 : 1 - exp(-dt * rate))

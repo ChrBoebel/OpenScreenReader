@@ -3930,6 +3930,86 @@
           }
         }
       }
+    },
+    "Finish reading or dictation before updating.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beende das Vorlesen oder Diktieren vor dem Aktualisieren."
+          }
+        }
+      }
+    },
+    "Install Update and Restart…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update installieren und neu starten …"
+          }
+        }
+      }
+    },
+    "Update Available…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update verfügbar …"
+          }
+        }
+      }
+    },
+    "Check for Updates…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nach Updates suchen …"
+          }
+        }
+      }
+    },
+    "Updates": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates"
+          }
+        }
+      }
+    },
+    "Automatically check for updates": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatisch nach Updates suchen"
+          }
+        }
+      }
+    },
+    "Updates are not configured in this build.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates sind in dieser Version noch nicht eingerichtet."
+          }
+        }
+      }
+    },
+    "Update checks contact the download server. Screenshots, text and recordings stay on your Mac. Updates install only when you choose.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updateprüfungen verbinden sich mit dem Downloadserver. Bildschirmbilder, Texte und Aufnahmen bleiben auf deinem Mac. Updates werden nur auf deinen Wunsch installiert."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

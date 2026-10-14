@@ -29,3 +29,7 @@ Before distribution, obtain a reproducible, independently pinned interpreter sou
 ## Integrated local dictation
 
 The 2026-10-13 build also bundles Whisper Turbo (since 2026-10-14 the only model bundled by default; `--with-qwen` and `--whisper-large-model` add Qwen3-ASR and Whisper Large v3, which the app otherwise installs on request) through `scripts/bundle-dictation-runtime.py`. It accepts existing verified resources only, preserves notices, creates a hash inventory and re-signs the app. See [dictation packaging, setup and actual verification](dictation-integration-verification.md). `--speech-from` can reuse a receipt-verified self-contained Speech runtime when an external development interpreter has changed. This is still a private build, not a public-release approval.
+
+## Release preparation — 2026-10-14
+
+The private packager remains a development path. [Release preparation](release-and-updates.md) now provides a separate Developer ID/signing/notarization script and Sparkle updates. A prior pre-dictation test was accepted by Apple; the current public-release gates remain open. `bundle-dictation-runtime.py --defer-app-signing` is an intermediate assembly mode used only by the release pipeline, which then signs nested frameworks/helpers and the complete app. That intermediate output is not a launchable or verified distribution.
