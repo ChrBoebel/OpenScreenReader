@@ -99,3 +99,14 @@ Modelldateien erzeugen einen sichtbaren Fehler; die App lädt nichts aus dem Net
 und wechselt nicht automatisch auf einen anderen Provider. Wechsel invalidieren
 Callbacks des alten Workers. [Quelle, Revision, Prüfsummen und Lizenz von Whisper
 Turbo](research/whisper-turbo-dictation.md).
+
+## Standardmodell und eigenes Vokabular — 2026-10-14
+
+Whisper Turbo ist das Standardmodell für neue Installationen; eine gespeicherte
+Wahl bleibt erhalten. Unter Einstellungen → Diktieren kann ein eigenes Vokabular
+(höchstens 50 Begriffe zu je 60 Zeichen) eingetragen werden. Es wird nur lokal unter
+`dictationVocabulary.v1` gespeichert, enthält ausschließlich die selbst
+eingetragenen Begriffe und wird bei jedem Diktat über die anonyme Pipe an den
+Offline-Worker übergeben. Weder Worker noch App protokollieren oder übertragen es.
+Ein geleertes Feld entfernt den Eintrag. Diktierte Texte werden dadurch nicht
+gespeichert und nicht automatisch ins Vokabular übernommen.

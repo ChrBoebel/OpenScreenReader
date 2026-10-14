@@ -7,6 +7,7 @@
 - [ ] Validate name comprehension with real participants; no results are implied by the naming decision.
 - [ ] Complete trademark similarity review and confirm desired domain with a registrar.
 - [x] Owner approved Qwen3-ASR dictation integration with clipboard restore (2026-10-13); implemented in the private app build.
+- [x] Whisper Turbo becomes the default dictation model with an optional local vocabulary (owner decision 2026-10-14); [measurement and gaps](dictation-vocabulary-verification.md).
 - [ ] Complete dictation target-app matrix, real microphone/Hotkey walkthrough in the integrated bundle, clean-Mac packaging and distribution gates.
 
 ## Current delivery — 2026-09-09

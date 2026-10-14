@@ -113,6 +113,11 @@ ist die Auswahl gesperrt. Bei einem Ladefehler bleibt die gewählte Option sicht
 ohne automatischen Wechsel oder Download. Sprache, Tastenkürzel und Einfügeverhalten
 sind für beide Modelle gleich.
 
+Seit 2026-10-14 steht Whisper Turbo an erster Stelle und ist ohne gespeicherte Wahl
+voreingestellt. Darunter nimmt das Feld „Vokabular“ einen Namen oder Begriff pro Zeile
+auf (auch durch Komma getrennt, höchstens 50). Änderungen gelten ab dem nächsten
+Diktat; leere Zeilen und Duplikate werden ignoriert.
+
 The integrated dictation capsule shares Saywing’s reading material and motion language, with distinct discard and finish/paste controls. Native states, accessibility behavior and actual verification are recorded in [dictation capsule verification](dictation-capsule-verification.md).
 
 ## Apple-Design-Verfeinerung — 2026-10-14
