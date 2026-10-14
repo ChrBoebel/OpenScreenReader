@@ -172,3 +172,33 @@ struct PermissionRow: View {
         .accessibilityValue(granted ? Text("Allowed") : Text("Not allowed"))
     }
 }
+
+enum SetupRelauncher {
+    static let waitScript = """
+        attempts=0
+        while /bin/kill -0 "$1" 2>/dev/null; do
+            [ "$attempts" -lt 300 ] || exit 1
+            attempts=$((attempts + 1))
+            /bin/sleep 0.1
+        done
+        exec /usr/bin/open -n "$2"
+        """
+
+    static func launchAfterExit(bundleURL: URL = Bundle.main.bundleURL,
+                                processID: Int32 = ProcessInfo.processInfo.processIdentifier) throws -> Process {
+        guard bundleURL.pathExtension == "app",
+              let bundle = Bundle(url: bundleURL), let executable = bundle.executableURL,
+              FileManager.default.isExecutableFile(atPath: executable.path) else {
+            throw CocoaError(.executableNotLoadable)
+        }
+        let helper = Process()
+        helper.executableURL = URL(fileURLWithPath: "/bin/sh")
+        // Paths are positional arguments, never interpolated into shell code.
+        helper.arguments = ["-c", waitScript, "saywing-relaunch", String(processID), bundleURL.path]
+        helper.standardInput = FileHandle.nullDevice
+        helper.standardOutput = FileHandle.nullDevice
+        helper.standardError = FileHandle.nullDevice
+        try helper.run()
+        return helper
+    }
+}

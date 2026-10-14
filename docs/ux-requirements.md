@@ -178,3 +178,11 @@ Freigabe durch den Eigentümer am 2026-10-14 („setze das alles um“) nach dem
   - Öffnet man die Wiedergabesteuerung über das Menü, erhält sie den Tastaturfokus; ein Klick auf die Kapsel lässt die aktive App vorne.
 - Nachweise und Grenzen: [Geführte Einrichtung — Verifikation](guided-setup-verification.md#rückmeldung-am-ort-des-geschehens).
 
+
+### Einrichtung: Modell und Kurzbefehle (2026-10-14)
+
+- Der geführte Ablauf ergänzt zwischen Berechtigungen und Ausprobieren jeweils Modell und Kurzbefehle. Begrüßung, Berechtigungshilfe und das optionale Diktierangebot bleiben erhalten. Der aktuelle Schritt bleibt auch nach Neustarts erhalten. Modell und Kurzbefehle lassen sich ohne Freigaben konfigurieren; Tests prüfen die erforderlichen Freigaben erneut.
+- Beim Diktieren steht das mitgelieferte Whisper Turbo zuerst; weitere Modelle sind aufklappbar. Installierte Modelle lassen sich verwenden, fehlende freigegebene Modelle nach Bestätigung laden. Die Bestätigung nennt Größe und Quelle. Downloadfortschritt und anschließende Dateiprüfung werden getrennt angezeigt und sind abbrechbar.
+- Ein unterbrochener Download behält die gewünschte Auswahl, startet beim nächsten App-Start aber nicht automatisch neu. „Laden“ bietet einen bestätigten neuen Versuch. Bis zur vollständigen Prüfung wird das neue Modell nicht aktiviert; der Diktiertest bleibt bei ausstehender Auswahl gesperrt.
+- Vorlesen und Diktieren erhalten eigene Aufnahmefelder für Tastenkombinationen. Konflikte mit dem jeweils anderen oder dem zusätzlichen Warteschlangen-Kurzbefehl werden erklärt. Fehlgeschlagene Registrierung überschreibt keine gespeicherte Wahl. Fn-Gesten können separat deaktiviert werden. Escape bleibt Abbruch.
+- Während der Tastenaufnahme sind Vorlesen, Warteschlange, Diktierkurzbefehl und Fn pausiert. Nach Abschluss oder Abbruch werden die gespeicherten Kurzbefehle wieder registriert. Einrichtung und Einstellungen verwenden dieselben Komponenten und Präferenzen.

@@ -130,3 +130,7 @@ eingetragenen Begriffe und wird bei jedem Diktat über die anonyme Pipe an den
 Offline-Worker übergeben. Weder Worker noch App protokollieren oder übertragen es.
 Ein geleertes Feld entfernt den Eintrag. Diktierte Texte werden dadurch nicht
 gespeichert und nicht automatisch ins Vokabular übernommen.
+
+### Setup preferences (2026-10-14)
+
+Setup additionally saves the dictation shortcut, optional Fn setting and the model identifier of an explicitly requested installation. It never saves microphone audio, screen content or recognized text. Restoring an interrupted installation does not resume network requests automatically: another explicit download confirmation is required. Capturing a shortcut suspends activation keys, including Fn, so entering a combination cannot start recording. Downloads continue to use only the approved pinned manifests and verify every installed file before activation.

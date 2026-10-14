@@ -88,8 +88,8 @@ struct DictationMenuContent: View {
             }
             Button("Discard Dictation") { controller.cancel() }
         } else {
-            // Fn cannot be shown as a menu key equivalent; name it in the title instead.
-            Text("Dictate: Hold Fn")
+            // Show the configured activation even when Fn gestures are disabled.
+            Text("Dictate · \(controller.shortcutConfiguration.displayName)")
             Button("Try Dictation…") { controller.showWindow() }
         }
     }

@@ -53,7 +53,12 @@ enum DictationModelAvailability: Equatable, Sendable {
   case installed
   case notInstalled
   case installing(fraction: Double)
+  case verifying
   case failed(String)
+
+  var isInstalling: Bool {
+    switch self { case .installing, .verifying: true; default: false }
+  }
 }
 
 enum SHA256Digest {
@@ -115,17 +120,23 @@ final class DictationModelStore: ObservableObject {
     guard let manifest = try? manifest(for: model) else { return nil }
     return manifest.installableFiles.filter { $0.source == nil }.reduce(0) { $0 + $1.size }
   }
+  func isBundled(_ model: DictationModel) -> Bool { modelRootIfPresent(for: model) == resources }
+  func downloadSource(of model: DictationModel) -> String? { try? manifest(for: model).repo }
+  func canDownload(_ model: DictationModel) -> Bool {
+    model != .whisperTurbo && downloadSize(of: model).map { $0 > 0 } == true
+  }
 
   @discardableResult
   func install(_ model: DictationModel) -> Task<Void, Never> {
     if let running = tasks[model] { return running.task }
+    guard canDownload(model), !isInstalled(model) else { return Task {} }
     let id = UUID()
     availability[model] = .installing(fraction: 0)
     let task = Task { [weak self] in
       guard let self else { return }
       let outcome: DictationModelAvailability
       do {
-        try await self.performInstall(model)
+        try await self.performInstall(model, id: id)
         outcome = .installed
       } catch is CancellationError {
         outcome = .notInstalled
@@ -162,7 +173,7 @@ final class DictationModelStore: ObservableObject {
       from: Data(contentsOf: resources.appendingPathComponent(model.manifestName)))
   }
 
-  private func performInstall(_ model: DictationModel) async throws {
+  private func performInstall(_ model: DictationModel, id: UUID) async throws {
     let manifest = try manifest(for: model)
     let manager = FileManager.default
     try manager.createDirectory(at: installRoot, withIntermediateDirectories: true)
@@ -180,6 +191,7 @@ final class DictationModelStore: ObservableObject {
     try manager.createDirectory(at: staging, withIntermediateDirectories: true)
     defer { try? manager.removeItem(at: staging) }
     var completed: Int64 = 0
+    var checks: [(URL, Int64, String)] = []
     for file in manifest.installableFiles {
       try Task.checkCancellation()
       let destination = staging.appendingPathComponent(file.rfilename)
@@ -196,13 +208,20 @@ final class DictationModelStore: ObservableObject {
         let base = completed
         try await fetcher.fetch(url, to: destination) { [weak self] received in
           Task { @MainActor in
-            guard let self, case .installing = self.availability[model] else { return }
+            guard let self, self.tasks[model]?.id == id,
+                  case .installing = self.availability[model] else { return }
             self.availability[model] = .installing(fraction: min(1, Double(base + received) / Double(total)))
           }
         }
         completed += file.size
       }
-      try await Self.verify(destination, size: file.size, sha256: file.verifiedSHA256 ?? "")
+      checks.append((destination, file.size, file.verifiedSHA256 ?? ""))
+    }
+    try Task.checkCancellation()
+    availability[model] = .verifying
+    for (file, size, hash) in checks {
+      try Task.checkCancellation()
+      try await Self.verify(file, size: size, sha256: hash)
     }
     try Task.checkCancellation()
     let target = installRoot.appendingPathComponent(model.directoryName, isDirectory: true)
@@ -212,12 +231,15 @@ final class DictationModelStore: ObservableObject {
   }
 
   private nonisolated static func verify(_ file: URL, size: Int64, sha256: String) async throws {
-    try await Task.detached(priority: .utility) {
+    let verification = Task.detached(priority: .utility) {
       let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
       guard (attributes[.size] as? NSNumber)?.int64Value == size,
         try SHA256Digest.hex(ofFileAt: file) == sha256
       else { throw DictationError(String(localized: "A downloaded model file did not match its pinned checksum.")) }
-    }.value
+    }
+    try await withTaskCancellationHandler {
+      try await verification.value
+    } onCancel: { verification.cancel() }
   }
 
   private static func describe(_ error: any Error) -> String {

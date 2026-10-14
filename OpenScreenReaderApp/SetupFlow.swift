@@ -4,10 +4,14 @@ import SwiftUI
 
 /// One screen per decision: reading first, dictation offered rather than required.
 enum SetupStep: Hashable {
-    case welcome, permission(SaywingPermission), tryReading, dictationOffer, tryDictation, done
+    case welcome, permission(SaywingPermission), readingModel, readingShortcuts, tryReading, dictationOffer, dictationModel, dictationShortcuts, tryDictation, done
 
     var previewName: String {
         switch self {
+        case .readingModel: "readingModel"
+        case .readingShortcuts: "readingShortcuts"
+        case .dictationModel: "dictationModel"
+        case .dictationShortcuts: "dictationShortcuts"
         case .welcome: "welcome"
         case let .permission(permission): permission.rawValue
         case .tryReading: "try-reading"
@@ -18,19 +22,36 @@ enum SetupStep: Hashable {
     }
 }
 
+extension SetupStep {
+    init?(checkpoint: String) {
+        if let permission = SaywingPermission(rawValue: checkpoint) { self = .permission(permission); return }
+        switch checkpoint {
+        case "welcome": self = .welcome
+        case "readingModel": self = .readingModel
+        case "readingShortcuts": self = .readingShortcuts
+        case "readingTest", "try-reading": self = .tryReading
+        case "dictation-offer": self = .dictationOffer
+        case "dictationModel": self = .dictationModel
+        case "dictationShortcuts": self = .dictationShortcuts
+        case "dictationTest", "try-dictation": self = .tryDictation
+        case "done": self = .done
+        default: return nil
+        }
+    }
+}
+
 enum SetupEntry { case automatic, dictation }
 
-/// The order of steps, derived from live grants only. Nothing about progress is
-/// stored: granted steps and tests that cannot run yet are skipped.
+/// Navigation is reconciled with live grants; model and shortcut choices always remain explicit.
 struct SetupPlan {
     let dictationAvailable: Bool
     var wantsDictation = false
 
     private var path: [SetupStep] {
-        var steps: [SetupStep] = [.welcome] + SaywingPermission.reading.map(SetupStep.permission) + [.tryReading]
+        var steps: [SetupStep] = [.welcome] + SaywingPermission.reading.map(SetupStep.permission) + [.readingModel, .readingShortcuts, .tryReading]
         if dictationAvailable {
             steps.append(.dictationOffer)
-            if wantsDictation { steps += SaywingPermission.dictation.map(SetupStep.permission) + [.tryDictation] }
+            if wantsDictation { steps += SaywingPermission.dictation.map(SetupStep.permission) + [.dictationModel, .dictationShortcuts, .tryDictation] }
         }
         return steps + [.done]
     }
@@ -55,7 +76,7 @@ struct SetupPlan {
         case let .permission(permission): !granted.contains(permission)
         case .tryReading: granted.isSuperset(of: SaywingPermission.reading)
         case .tryDictation: granted.contains(.microphone)
-        case .welcome, .dictationOffer, .done: true
+        case .welcome, .readingModel, .readingShortcuts, .dictationOffer, .dictationModel, .dictationShortcuts, .done: true
         }
     }
 }
@@ -95,6 +116,8 @@ final class SetupFlowController: ObservableObject {
     let permissions: PermissionStatus
     var onReturn: (() -> Void)?
 
+    static let checkpointKey = "setupProgress.v1"
+    private let preferences: UserDefaults
     private weak var model: AppModel?
     private var plan: SetupPlan
     private var history: [SetupStep] = []
@@ -106,12 +129,29 @@ final class SetupFlowController: ObservableObject {
     private let pointer = MenuBarPointer()
 
     init(model: AppModel, permissions: PermissionStatus = PermissionStatus(), entry: SetupEntry = .automatic, start: SetupStep? = nil) {
+        self.preferences = model.preferences
         self.model = model
         self.permissions = permissions
+        let saved = model.preferences.dictionary(forKey: Self.checkpointKey)
+        let restored = (saved?["step"] as? String).flatMap(SetupStep.init(checkpoint:))
+        let candidate = start ?? (entry == .automatic || restored.map(SetupPlan.dictationSteps.contains) == true ? restored : nil)
         var plan = SetupPlan(dictationAvailable: model.dictation != nil)
-        if entry == .dictation || start.map(SetupPlan.dictationSteps.contains) == true { plan.wantsDictation = true }
+        if entry == .dictation || candidate.map(SetupPlan.dictationSteps.contains) == true { plan.wantsDictation = true }
+        plan.wantsDictation = plan.wantsDictation || (saved?["wantsDictation"] as? Bool ?? false)
         self.plan = plan
-        step = start ?? plan.first(granted: permissions.granted, entry: entry)
+        step = candidate ?? plan.first(granted: permissions.granted, entry: entry)
+        if case let .permission(permission) = step, permissions.isGranted(permission) {
+            step = plan.next(after: step, granted: permissions.granted)
+        }
+        if step == .tryReading, let missing = SaywingPermission.reading.first(where: { !permissions.isGranted($0) }) {
+            step = .permission(missing)
+        } else if step == .tryDictation, !permissions.isGranted(.microphone) { step = .permission(.microphone) }
+        if let permission = (saved?["waitingFor"] as? String).flatMap(SaywingPermission.init(rawValue:)),
+           step == .permission(permission), !permissions.isGranted(permission) {
+            awaiting = permission
+            suggestsRelaunch = permission == .screenRecording
+        }
+        persistCheckpoint()
         permissions.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &subscriptions)
         // @Published delivers the new value before it is stored.
         permissions.$granted.sink { [weak self] granted in self?.grantsChanged(granted) }.store(in: &subscriptions)
@@ -130,7 +170,14 @@ final class SetupFlowController: ObservableObject {
         advanceTask?.cancel()
     }
 
-    var canGoBack: Bool { !history.isEmpty }
+    func persistCheckpoint(resume: Bool = true) {
+        var saved: [String: Any] = ["step": step.previewName, "resume": resume, "wantsDictation": plan.wantsDictation]
+        if let awaiting { saved["waitingFor"] = awaiting.rawValue }
+        preferences.set(saved, forKey: Self.checkpointKey)
+        preferences.synchronize()
+    }
+
+    var canGoBack: Bool { !history.isEmpty || [.readingShortcuts, .dictationShortcuts, .tryReading, .tryDictation].contains(step) }
     var shortcut: String { model?.shortcutConfiguration.displayName ?? "" }
     var wantsDictation: Bool { plan.wantsDictation }
     var missingPermissions: [SaywingPermission] {
@@ -146,11 +193,28 @@ final class SetupFlowController: ObservableObject {
     }
 
     func back() {
+        if history.isEmpty {
+            let previous: SetupStep? = switch step {
+            case .readingShortcuts: .readingModel
+            case .dictationShortcuts: .dictationModel
+            case .tryReading: .readingShortcuts
+            case .tryDictation: .dictationShortcuts
+            default: nil
+            }
+            if let previous { go(to: previous, forward: false) }
+            return
+        }
         while let previous = history.popLast() {
             if case let .permission(permission) = previous, permissions.isGranted(permission) { continue }
             go(to: previous, forward: false)
             return
         }
+    }
+
+    func showModel() {
+        plan.wantsDictation = true
+        history.append(step)
+        go(to: .dictationModel, forward: false)
     }
 
     func chooseDictation(_ wants: Bool) {
@@ -178,14 +242,7 @@ final class SetupFlowController: ObservableObject {
 
     /// Screen Recording often applies only to a new process. The shell waits for
     /// this process to exit so the global shortcuts are free for the new one.
-    func relaunch() {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/sh")
-        process.arguments = ["-c", "while /bin/kill -0 \"$1\" 2>/dev/null; do /bin/sleep 0.2; done; /usr/bin/open \"$2\" --args --resume-setup",
-                             "sh", String(ProcessInfo.processInfo.processIdentifier), Bundle.main.bundlePath]
-        do { try process.run() } catch { return }
-        NSApp.terminate(nil)
-    }
+    func relaunch() { model?.restartSetup() }
 
     /// Cancels waiting, timers and helper panels; called when the window closes.
     func stop() {
@@ -203,7 +260,9 @@ final class SetupFlowController: ObservableObject {
         celebrating = nil
         suggestsRelaunch = false
         movesForward = forward
+        model?.setRecordingShortcut(false)
         step = next
+        persistCheckpoint()
         if next == .tryReading { trial = .waiting }
         if next == .done { pointer.show() }
         AccessibilityNotification.Announcement(Self.announcement(for: next)).post()
@@ -215,6 +274,7 @@ final class SetupFlowController: ObservableObject {
             AccessibilityNotification.Announcement(String(localized: "Waiting for System Settings…")).post()
         }
         awaiting = permission
+        persistCheckpoint()
         suggestsRelaunch = false
         // System Settings does not tell Saywing about a change; poll only while asked.
         waitTask = Task { @MainActor [weak self] in
@@ -267,6 +327,9 @@ final class SetupFlowController: ObservableObject {
 
     private static func announcement(for step: SetupStep) -> String {
         switch step {
+        case .readingModel: String(localized: "Your reading voice")
+        case .dictationModel: String(localized: "Dictation on your Mac")
+        case .readingShortcuts, .dictationShortcuts: String(localized: "Choose your shortcuts")
         case .welcome: String(localized: "Welcome to Saywing")
         case let .permission(permission): permission.setupTitle
         case .tryReading: String(localized: "Try reading aloud")
@@ -287,7 +350,7 @@ final class SetupFlowController: ObservableObject {
 }
 
 extension SetupPlan {
-    static let dictationSteps: Set<SetupStep> = [.permission(.microphone), .permission(.accessibility), .tryDictation]
+    static let dictationSteps: Set<SetupStep> = [.permission(.microphone), .permission(.accessibility), .dictationModel, .dictationShortcuts, .tryDictation]
 }
 
 /// A small floating card beside System Settings while Saywing waits for a grant,

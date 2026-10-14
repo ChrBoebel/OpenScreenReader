@@ -3,6 +3,103 @@ import XCTest
 
 final class MenuBarSmokeUITests: XCTestCase {
     @MainActor
+    func testSetupResumesAtTheSameStepWithoutOpeningTheMenu() {
+        let app = makeApplication()
+        app.launchArguments.append("--test-setup")
+        app.launchEnvironment["OSR_SETUP_INITIAL_STEP"] = "dictationModel"
+        app.launch()
+        defer { app.terminate() }
+        let setup = app.windows["Set Up Saywing"]
+        XCTAssertTrue(setup.waitForExistence(timeout: 8))
+        app.activate()
+        let step = setup.staticTexts["setupCurrentStep"]
+        XCTAssertTrue(step.waitForExistence(timeout: 3))
+        let before = step.label
+        XCTAssertTrue(["Use your microphone", "Dictate into other apps", "Try dictation", "Dictation on your Mac"].contains(before))
+        // This is a real process restart with the same preference suite. It
+        // neither changes TCC grants nor starts a capture or a recording.
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(setup.waitForExistence(timeout: 8))
+        XCTAssertEqual(step.label, before)
+        app.activate()
+        setup.buttons["setupDefer"].click()
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.descendants(matching: .statusItem).firstMatch.waitForExistence(timeout: 8))
+        XCTAssertFalse(setup.exists)
+    }
+
+    @MainActor
+    func testSetupSavesBothShortcutsAndFnChoiceAcrossRelaunch() {
+        let app = makeApplication()
+        app.launchArguments.append("--test-setup")
+        app.launchEnvironment["OSR_SETUP_INITIAL_STEP"] = "readingShortcuts"
+        app.launch()
+        defer { app.terminate() }
+        let setup = app.windows["Set Up Saywing"]
+        XCTAssertTrue(setup.waitForExistence(timeout: 8))
+        app.activate()
+        let read = setup.buttons["shortcutRecorder"]
+        let dictate = setup.buttons["dictationShortcutRecorder"]
+        XCTAssertTrue(dictate.waitForExistence(timeout: 3))
+        read.click()
+        app.typeKey("j", modifierFlags: [.control, .option])
+        XCTAssertTrue(setup.staticTexts["Shortcut ⌃⌥J is active and saved."].waitForExistence(timeout: 3))
+        dictate.click()
+        app.typeKey("d", modifierFlags: [.control, .option])
+        XCTAssertTrue(setup.staticTexts["Shortcut ⌃⌥D is active and saved."].waitForExistence(timeout: 3))
+        let fn = setup.checkBoxes["dictationFnEnabled"]
+        fn.click()
+        XCTAssertEqual((fn.value as? NSNumber)?.intValue, 0)
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(setup.waitForExistence(timeout: 8))
+        XCTAssertEqual(setup.staticTexts["setupCurrentStep"].label, "Choose your shortcuts")
+        XCTAssertEqual(read.value as? String, "⌃⌥J")
+        XCTAssertEqual(dictate.value as? String, "⌃⌥D")
+        XCTAssertEqual((fn.value as? NSNumber)?.intValue, 0)
+        XCTAssertFalse(app.groups["Screen region selection"].firstMatch.exists)
+        XCTAssertFalse(app.windows["Try Dictation"].exists)
+    }
+
+    @MainActor
+    func testSetupDownloadRequiresConfirmationAndCanBeCancelled() throws {
+        // Metadata fixture only: no weights or runtime, and this test never confirms a download.
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("setup-ui-\(UUID())")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let manifest: [String: Any] = ["repo": "mlx-community/whisper-large-v3-8bit",
+            "revision": "7fede54fd97b154a4f5e476646484fc023b1bcdf",
+            "files": [["rfilename": "weights.safetensors", "size": 4096,
+                       "verified_sha256": String(repeating: "0", count: 64)]]]
+        try JSONSerialization.data(withJSONObject: manifest).write(to: root.appendingPathComponent("whisper-large-v3-manifest.json"))
+        let app = makeApplication()
+        app.launchArguments.append("--test-setup")
+        app.launchEnvironment["OSR_SETUP_INITIAL_STEP"] = "dictationModel"
+        app.launchEnvironment["OSR_SETUP_MODEL_RESOURCES"] = root.path
+        app.launch()
+        defer { app.terminate() }
+        let setup = app.windows["Set Up Saywing"]
+        XCTAssertTrue(setup.waitForExistence(timeout: 8))
+        app.activate()
+        app.activate()
+        // macOS exposes the whole label as the disclosure element; its arrow is the hit target.
+        setup.disclosureTriangles.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.04, dy: 0.5)).click()
+        XCTAssertTrue(setup.buttons["download-whisper-large-v3"].waitForExistence(timeout: 3), setup.debugDescription)
+        setup.buttons["download-whisper-large-v3"].click()
+        XCTAssertTrue(app.buttons["Download and Install"].waitForExistence(timeout: 3))
+        app.buttons["Cancel"].firstMatch.click()
+        XCTAssertTrue(setup.buttons["download-whisper-large-v3"].exists)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("Installed").path))
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(setup.waitForExistence(timeout: 8))
+        XCTAssertEqual(setup.staticTexts["setupCurrentStep"].label, "Dictation on your Mac")
+    }
+
+
+    @MainActor
     func testReadingSpeedPersistsAndQueueActionsAreAvailable() {
         let app = makeApplication()
         app.launch()

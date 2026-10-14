@@ -9,7 +9,7 @@ struct SetupView: View {
     @ObservedObject var flow: SetupFlowController
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    static let size = CGSize(width: 500, height: 560)
+    static let size = CGSize(width: 560, height: min(640, (NSScreen.main?.visibleFrame.height ?? 720) - 80))
 
     var body: some View {
         VStack(spacing: 0) {
@@ -20,6 +20,15 @@ struct SetupView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
+            if let dictation = model.dictation, let pending = dictation.pendingInstallModel, flow.step != .dictationModel {
+                VStack(alignment: .leading, spacing: 6) {
+                    DictationInstallStatus(controller: dictation, model: pending)
+                    Button("Show Model") { flow.showModel() }
+                }.padding(.horizontal, 24)
+            }
+            if let error = model.setupRestartError {
+                Text(error).font(.callout).foregroundStyle(.orange).padding(.horizontal, 24)
+            }
             footer
         }
         .frame(width: Self.size.width, height: Self.size.height)
@@ -38,12 +47,41 @@ struct SetupView: View {
 
     @ViewBuilder private var page: some View {
         switch flow.step {
+        case .readingModel, .dictationModel, .readingShortcuts, .dictationShortcuts: configurationPage
         case .welcome: welcomePage
         case let .permission(permission): permissionPage(permission)
         case .tryReading: readingPage
         case .dictationOffer: dictationOfferPage
         case .tryDictation: dictationPage
         case .done: donePage
+        }
+    }
+
+    private var configurationPage: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                Text(configurationTitle).font(.title2.weight(.semibold))
+                    .accessibilityIdentifier("setupCurrentStep").accessibilityAddTraits(.isHeader)
+                Text("Your progress is saved, including when Saywing restarts.")
+                    .font(.callout).foregroundStyle(.secondary)
+                if flow.step == .readingShortcuts || flow.step == .dictationShortcuts {
+                    ActivationShortcutsView(model: model)
+                } else if flow.step == .dictationModel, let dictation = model.dictation {
+                    DictationModelSelection(controller: dictation)
+                } else {
+                    Label("Supertonic 3 · M1", systemImage: "waveform")
+                    Text("The reading voice is separate from the dictation model.")
+                        .font(.callout).foregroundStyle(.secondary)
+                    Text(LocalSpeechService.installationSummary).font(.callout).foregroundStyle(.secondary)
+                }
+            }.frame(maxWidth: .infinity, alignment: .leading).padding(24).padding(.top, 24)
+        }
+    }
+    private var configurationTitle: String {
+        switch flow.step {
+        case .readingModel: String(localized: "Your reading voice")
+        case .dictationModel: String(localized: "Dictation on your Mac")
+        default: String(localized: "Choose your shortcuts")
         }
     }
 
@@ -87,6 +125,7 @@ struct SetupView: View {
                             .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
                         Button("Quit & Reopen") { flow.relaunch() }
                             .accessibilityIdentifier("setupRelaunch")
+                            .disabled(!model.canRestartSetup || model.isRestartingSetup)
                     }
                 }
                 Text("In System Settings: Privacy & Security › \(permission.systemName)")
@@ -148,7 +187,7 @@ struct SetupView: View {
 
     private var dictationOfferPage: some View {
         SetupPage(eyebrow: String(localized: "Dictate"), title: String(localized: "Write with your voice too?"),
-                  message: String(localized: "Hold Fn, speak and let go. Saywing types the text where your cursor is, recognized on this Mac.")) {
+                  message: model.dictation?.activationInstructions ?? "") {
             SetupSymbol(name: "waveform.and.mic", isComplete: false)
         } accessory: {
             Text("You can also set this up later from the menu bar.")
@@ -158,23 +197,28 @@ struct SetupView: View {
 
     private var dictationPage: some View {
         SetupPage(eyebrow: String(localized: "Dictate"), title: String(localized: "Try dictation"),
-                  message: String(localized: "Click in the test field, hold Fn while you speak and release to paste.")) {
-            KeyCap("fn").accessibilityLabel("Fn key")
+                  message: model.dictation?.activationInstructions ?? "") {
+            KeyCap(model.dictation?.shortcutConfiguration.displayName ?? "fn")
         } accessory: {
             VStack(spacing: 14) {
-                Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 8) {
-                    GridRow { Text("Hold Fn").fontWeight(.medium); Text("Dictate, release to paste").foregroundStyle(.secondary) }
-                    GridRow { Text("Press Fn twice").fontWeight(.medium); Text("Hands-free; Fn finishes").foregroundStyle(.secondary) }
-                    GridRow { Text("Escape").fontWeight(.medium); Text("Discard").foregroundStyle(.secondary) }
+                if model.dictation?.fnEnabled == true {
+                    Text("Hold Fn to speak and release to paste. Press Fn twice for hands-free dictation.")
+                        .font(.callout).foregroundStyle(.secondary)
                 }
-                .font(.callout)
                 Button("Open Test Field…") { flow.openDictationTest() }
                     .accessibilityIdentifier("setupDictationTest")
+                    .disabled(!canTestDictation)
                 if let dictation = model.dictation {
                     Text(dictation.statusText).font(.caption).foregroundStyle(.secondary)
                 }
             }
         }
+    }
+
+    private var canTestDictation: Bool {
+        guard let dictation = model.dictation else { return false }
+        return flow.permissions.canTestDictation && model.canChangeShortcut
+            && dictation.pendingInstallModel == nil && dictation.models.isInstalled(dictation.selectedModel)
     }
 
     private var donePage: some View {
@@ -196,7 +240,7 @@ struct SetupView: View {
     private func doneMessage(missing: [SaywingPermission]) -> String {
         let read = String(localized: "Saywing lives in the menu bar. Press \(flow.shortcut) anywhere to read a region aloud.")
         guard flow.wantsDictation, !missing.contains(.microphone) else { return read }
-        return read + " " + String(localized: "Hold Fn to dictate.")
+        return read + " " + (model.dictation?.activationInstructions ?? "")
     }
 
     // MARK: Footer
@@ -207,6 +251,7 @@ struct SetupView: View {
                 Button("Back") { flow.back() }
                     .accessibilityIdentifier("setupBack")
             }
+            Button("Finish Later") { model.deferSetup() }.accessibilityIdentifier("setupDefer")
             Spacer()
             actions
         }
@@ -217,6 +262,9 @@ struct SetupView: View {
 
     @ViewBuilder private var actions: some View {
         switch flow.step {
+        case .readingModel, .dictationModel, .readingShortcuts, .dictationShortcuts:
+            primary(String(localized: "Continue")) { flow.advance() }
+                .accessibilityIdentifier("setupContinue")
         case .welcome:
             primary(String(localized: "Continue")) { flow.advance() }
         case let .permission(permission):
@@ -277,6 +325,7 @@ private struct SetupPage<Hero: View, Accessory: View>: View {
                     .padding(.bottom, 6)
             }
             Text(title)
+                .accessibilityIdentifier("setupCurrentStep")
                 .font(.title.weight(.semibold))
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)

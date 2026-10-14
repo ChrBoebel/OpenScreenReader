@@ -24,13 +24,15 @@ final class AppModel: ObservableObject {
         offeredSetup = true
         let arguments = ProcessInfo.processInfo.arguments
         // A relaunch requested by setup itself (Screen Recording) continues it.
-        guard !preferences.bool(forKey: "setupDismissed.v1") || arguments.contains("--resume-setup"),
-              !arguments.contains("--uitesting"),
-              ProcessInfo.processInfo.environment["OSR_SHORTCUT_TEST_SUITE"] == nil,
-              ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
+        let resume = preferences.dictionary(forKey: SetupFlowController.checkpointKey)?["resume"] as? Bool ?? false
+        let testing = arguments.contains("--uitesting") || ProcessInfo.processInfo.environment["OSR_SHORTCUT_TEST_SUITE"] != nil
+            || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+        guard !testing || arguments.contains("--test-setup"),
+              resume || !preferences.bool(forKey: "setupDismissed.v1") || arguments.contains("--resume-setup") else { return }
         showSetup()
     }
     func finishSetup() {
+        preferences.removeObject(forKey: SetupFlowController.checkpointKey)
         preferences.set(true, forKey: "setupDismissed.v1")
         closeSetup()
     }
@@ -39,6 +41,13 @@ final class AppModel: ObservableObject {
         setupWindow?.close()
         tearDownSetup()
     }
+    func deferSetup() {
+        setupFlow?.persistCheckpoint(resume: false)
+        preferences.set(true, forKey: "setupDismissed.v1")
+        closeSetup()
+    }
+    @Published private(set) var setupRestartError: String?
+    @Published private(set) var isRestartingSetup = false
     var isSetupOpen: Bool { setupWindow?.isVisible == true }
     private func tearDownSetup() {
         setupFlow?.stop()
@@ -47,6 +56,29 @@ final class AppModel: ObservableObject {
         setupCloseObserver = nil
         setupWindow?.contentViewController = nil
         setupWindow = nil
+    }
+    func restartSetup(
+        launch: () throws -> Process? = { try SetupRelauncher.launchAfterExit() },
+        terminate: () -> Void = { NSApp.terminate(nil) }
+    ) {
+        guard canRestartSetup, !isRestartingSetup else { return }
+        setupFlow?.persistCheckpoint()
+        setupRestartError = nil
+        isRestartingSetup = true
+        do {
+            let helper = try launch()
+            terminate()
+            // This app has no deferred termination. If terminate returns, quit
+            // was cancelled: cancel the helper so a later quit cannot relaunch.
+            if let helper, helper.isRunning { helper.terminate() }
+            isRestartingSetup = false
+        } catch {
+            isRestartingSetup = false
+            setupRestartError = String(localized: "Saywing could not restart. Quit and reopen it to continue here.")
+        }
+    }
+    var canRestartSetup: Bool {
+        canChangeShortcut && !isRecordingShortcut && !(dictation?.models.availability.values.contains(where: \.isInstalling) ?? false)
     }
     var canPause: Bool { status == .speaking && activeContext != nil }
     func enqueueStopRequest() {
@@ -163,7 +195,14 @@ final class AppModel: ObservableObject {
             window.isReleasedWhenClosed = false
             // The reading test reads Saywing's own sample sentence from this window.
             window.identifier = .readableBySaywing
-            let flow = SetupFlowController(model: self, entry: entry)
+            var initialStep: SetupStep?
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--test-setup"),
+               preferences.dictionary(forKey: SetupFlowController.checkpointKey) == nil {
+                initialStep = ProcessInfo.processInfo.environment["OSR_SETUP_INITIAL_STEP"].flatMap(SetupStep.init(checkpoint:))
+            }
+            #endif
+            let flow = SetupFlowController(model: self, entry: entry, start: initialStep)
             flow.onReturn = { [weak self] in
                 NSApp.activate(ignoringOtherApps: true)
                 self?.setupWindow?.makeKeyAndOrderFront(nil)
@@ -214,7 +253,7 @@ final class AppModel: ObservableObject {
         return isPaused ? String(localized: "Paused") : status.title
     }
     let dictation: DictationController?
-    private let preferences: UserDefaults
+    let preferences: UserDefaults
     private let queueHotkeyManager: (any HotkeyManaging)?
     private let queueShortcutStore: any ShortcutStoring
 
@@ -301,8 +340,9 @@ final class AppModel: ObservableObject {
         } else if let result = queueHotkeyManager?.register(queueShortcutConfiguration.resolvedShortcut()), result != .registered {
             queueShortcutNotice = Self.registrationErrorMessage(for: result, shortcut: queueShortcutConfiguration)
         }
-        dictationObservation = dictation?.objectWillChange.sink { [weak self] _ in
-            self?.objectWillChange.send()
+        if let dictation {
+            dictationObservation = Publishers.Merge(dictation.objectWillChange, dictation.models.objectWillChange)
+                .sink { [weak self] _ in self?.objectWillChange.send() }
         }
         dictation?.onOpenSetup = { [weak self] in self?.showSetup(entry: .dictation) }
         dictation?.onActivation = { [weak self] start in
@@ -338,8 +378,10 @@ final class AppModel: ObservableObject {
     /// keystroke the user is trying to assign. Recording ends before a change applies.
     private var isRecordingShortcut = false
     func setRecordingShortcut(_ recording: Bool) {
+        guard !recording || canChangeShortcut else { return }
         guard recording != isRecordingShortcut else { return }
         isRecordingShortcut = recording
+        dictation?.setShortcutsSuspended(recording)
         if recording {
             hotkeyManager.unregister()
             queueHotkeyManager?.unregister()
@@ -353,8 +395,8 @@ final class AppModel: ObservableObject {
 
     func enqueueQueueShortcutChange(_ configuration: ShortcutConfiguration) {
         enqueue { model in
-            guard configuration != .dictationDefault else {
-                model.queueShortcutNotice = String(localized: "⌥⇧Space is reserved for dictation.")
+            guard configuration != (model.dictation?.shortcutConfiguration ?? .dictationDefault) else {
+                model.queueShortcutNotice = String(localized: "This shortcut is already assigned to dictation.")
                 return
             }
             guard model.canChangeShortcut else { return }
@@ -378,13 +420,24 @@ final class AppModel: ObservableObject {
         enqueue { $0.changeShortcut(configuration) }
     }
 
+    func enqueueDictationShortcutChange(_ configuration: ShortcutConfiguration) {
+        enqueue { model in
+            guard model.canChangeShortcut, !model.isRecordingShortcut, let dictation = model.dictation else { return }
+            guard configuration != model.shortcutConfiguration, configuration != model.queueShortcutConfiguration else {
+                dictation.rejectShortcut(String(localized: "This shortcut is already assigned to reading. Choose another combination."))
+                return
+            }
+            dictation.changeShortcut(configuration)
+        }
+    }
+
     private func changeShortcut(_ configuration: ShortcutConfiguration) {
         guard canChangeShortcut else {
             shortcutNotice = String(localized: "Stop the current operation before changing its shortcut.")
             return
         }
-        guard configuration != .dictationDefault else {
-            shortcutNotice = String(localized: "⌥⇧Space is reserved for dictation. Choose another reading shortcut.")
+        guard configuration != (dictation?.shortcutConfiguration ?? .dictationDefault) else {
+            shortcutNotice = String(localized: "This shortcut is already assigned to dictation.")
             return
         }
         guard configuration.isValid else {
@@ -445,9 +498,9 @@ final class AppModel: ObservableObject {
 
     // The shortcut always selects/adds; the menu's explicit Stop Reading action
     // remains separate so it never opens a selection instead of stopping.
-    func enqueuePrimaryShortcut() { dictation?.cancelForReading(); enqueue { await $0.addToQueue() } }
+    func enqueuePrimaryShortcut() { guard !isRecordingShortcut else { return }; dictation?.cancelForReading(); enqueue { await $0.addToQueue() } }
     func enqueueReadRequest() { dictation?.cancelForReading(); enqueue { await $0.processReadRequest() } }
-    func enqueueAddRequest() { dictation?.cancelForReading(); enqueue { await $0.addToQueue() } }
+    func enqueueAddRequest() { guard !isRecordingShortcut else { return }; dictation?.cancelForReading(); enqueue { await $0.addToQueue() } }
     func enqueueSkipRequest() {
         enqueue { model in
             guard model.canSkipText, let context = model.activeContext else { return }
@@ -886,7 +939,7 @@ final class AppModel: ObservableObject {
         readingPanel?.updatePaused(isPaused)
     }
 
-    private static func registrationErrorMessage(
+    static func registrationErrorMessage(
         for registration: HotkeyRegistration, shortcut: ShortcutConfiguration
     ) -> String? {
         switch registration {

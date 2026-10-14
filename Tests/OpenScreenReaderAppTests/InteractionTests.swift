@@ -3462,3 +3462,117 @@ struct WindowPreviewTests {
         }
     }
 }
+
+@Suite("Setup models and shortcuts", .serialized)
+@MainActor
+struct SetupConfigurationTests {
+    private func fixture(fetcher: DictationFetcherFake = DictationFetcherFake()) throws
+        -> (DictationController, HotkeyManagerFake, UserDefaults, URL) {
+        let resources = try DictationModelFixture.resources(bundling: [.whisperTurbo])
+        let defaults = UserDefaults(suiteName: "com.christopherbobel.OpenScreenReader.setup-config.\(UUID())")!
+        let hotkey = HotkeyManagerFake(registrationResult: .registered)
+        let store = DictationModelStore(resources: resources, installRoot: resources.appendingPathComponent("Installed"), fetcher: fetcher)
+        let controller = DictationController(resources: resources, models: store, worker: DictationWorkerFake(),
+            shortcut: hotkey, escape: HotkeyManagerFake(registrationResult: .registered),
+            preferences: defaults, registerHotkey: false)
+        return (controller, hotkey, defaults, resources)
+    }
+
+    @Test func dictationShortcutSavesOnlyAfterSuccessfulRegistration() throws {
+        let (controller, hotkey, defaults, root) = try fixture()
+        defer { controller.shutdown(); try? FileManager.default.removeItem(at: root) }
+        let custom = ShortcutConfiguration(key: "D", modifiers: UInt32(controlKey | optionKey))
+        controller.changeShortcut(custom)
+        #expect(controller.shortcutConfiguration == custom)
+        let stored = UserDefaultsShortcutStore(defaults: defaults, preferenceKey: "dictationShortcut.v1")
+        #expect(stored.load() == custom)
+        hotkey.registrationResult = .conflict
+        controller.changeShortcut(.dictationDefault)
+        #expect(controller.shortcutConfiguration == custom)
+        #expect(stored.load() == custom)
+        #expect(controller.shortcutNotice != nil)
+        controller.setFnEnabled(false)
+        let restored = DictationController(resources: root, models: controller.models, worker: DictationWorkerFake(),
+            shortcut: HotkeyManagerFake(registrationResult: .registered), preferences: defaults, registerHotkey: false)
+        defer { restored.shutdown() }
+        #expect(restored.shortcutConfiguration == custom)
+        #expect(!restored.fnEnabled)
+        #expect(restored.record == nil)
+    }
+
+    @Test func recordingAKeySuspendsDictationAndRejectsLateActivation() throws {
+        let (controller, hotkey, _, root) = try fixture()
+        defer { controller.shutdown(); try? FileManager.default.removeItem(at: root) }
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered), dictation: controller)
+        let activation = hotkey.onPress
+        model.setRecordingShortcut(true)
+        #expect(controller.shortcutsSuspended)
+        activation?()
+        controller.refreshPermissions()
+        #expect(!controller.isActive)
+        #expect(controller.record == nil)
+        model.setRecordingShortcut(false)
+        #expect(!controller.shortcutsSuspended)
+    }
+
+    @Test func allThreeShortcutsHaveDistinctAssignments() async throws {
+        let (controller, _, _, root) = try fixture()
+        defer { controller.shutdown(); try? FileManager.default.removeItem(at: root) }
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+            queueHotkeyManager: HotkeyManagerFake(registrationResult: .registered), queueShortcutStore: MemoryShortcutStore(), dictation: controller)
+        model.enqueueDictationShortcutChange(model.shortcutConfiguration)
+        await model.waitForInteractionToSettle()
+        #expect(controller.shortcutConfiguration == .dictationDefault)
+        let custom = ShortcutConfiguration(key: "D", modifiers: UInt32(controlKey | optionKey))
+        model.enqueueDictationShortcutChange(custom)
+        await model.waitForInteractionToSettle()
+        #expect(controller.shortcutConfiguration == custom)
+        model.enqueueShortcutChange(custom)
+        model.enqueueQueueShortcutChange(custom)
+        await model.waitForInteractionToSettle()
+        #expect(model.shortcutConfiguration == .default)
+        #expect(model.queueShortcutConfiguration == .queueDefault)
+        model.enqueueShortcutChange(.dictationDefault)
+        await model.waitForInteractionToSettle()
+        #expect(model.shortcutConfiguration == .dictationDefault, "The old dictation key is no longer reserved.")
+    }
+
+    @Test func interruptedInstallRestoresIntentWithoutStartingNetworkOrRecording() throws {
+        let fetcher = DictationFetcherFake()
+        let (controller, _, defaults, root) = try fixture(fetcher: fetcher)
+        defer { controller.shutdown(); try? FileManager.default.removeItem(at: root) }
+        defaults.set(DictationModel.whisperLargeV3.rawValue, forKey: "dictationInstallIntent.v1")
+        let restored = DictationController(resources: root, models: controller.models, worker: DictationWorkerFake(),
+            shortcut: HotkeyManagerFake(registrationResult: .registered), preferences: defaults, registerHotkey: false)
+        defer { restored.shutdown() }
+        #expect(restored.pendingInstallModel == .whisperLargeV3)
+        #expect(restored.models.availability[.whisperLargeV3] == .notInstalled)
+        #expect(fetcher.requests.isEmpty)
+        #expect(restored.record == nil)
+    }
+
+    @Test func confirmedDownloadSwitchesOnlyAfterVerificationAndClearsIntent() async throws {
+        let fetcher = DictationFetcherFake(files: DictationModelFixture.largeFiles)
+        let (controller, _, defaults, root) = try fixture(fetcher: fetcher)
+        defer { controller.shutdown(); try? FileManager.default.removeItem(at: root) }
+        let task = try #require(controller.install(.whisperLargeV3))
+        #expect(controller.pendingInstallModel == .whisperLargeV3)
+        #expect(controller.selectedModel == .whisperTurbo)
+        await task.value
+        #expect(controller.selectedModel == .whisperLargeV3)
+        #expect(controller.pendingInstallModel == nil)
+        #expect(defaults.string(forKey: "dictationInstallIntent.v1") == nil)
+        #expect(controller.record == nil)
+    }
+
+    @Test func changingChoiceWhileDownloadingCannotBeUndoneByItsCompletion() async throws {
+        let fetcher = DictationFetcherFake(files: DictationModelFixture.largeFiles)
+        let (controller, _, _, root) = try fixture(fetcher: fetcher)
+        defer { controller.shutdown(); try? FileManager.default.removeItem(at: root) }
+        let task = try #require(controller.install(.whisperLargeV3))
+        controller.selectModel(.whisperTurbo)
+        await task.value
+        #expect(controller.selectedModel == .whisperTurbo)
+        #expect(controller.pendingInstallModel == nil)
+    }
+}

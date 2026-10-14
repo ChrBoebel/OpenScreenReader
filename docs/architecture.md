@@ -215,3 +215,9 @@ sonst Fehler `processing_failed`). Whisper erhält die Begriffe als `initial_pro
 Ergibt die Erkennung eine Wiederholungsschleife oder nur die Begriffsliste, dekodiert
 derselbe Worker dieselbe Aufnahme einmal ohne Vokabular. Das ist kein Wechsel des
 Modells oder Providers. [Messung und Grenzen](dictation-vocabulary-verification.md).
+
+### Setup configuration (2026-10-14)
+
+`SetupStep` adds model and shortcut stages for each activity while retaining existing raw checkpoint values. `DictationModelSelection` and `ActivationShortcutsView` are shared by setup and settings. `dictationShortcut.v1` stores the validated combination; `dictationFnEnabled.v1` controls Fn gestures. Registration succeeds before saving. `AppModel` checks collisions across reading, enqueue and dictation and suspends all activation paths while recording a key.
+
+`dictationInstallIntent.v1` persists only the requested model identifier. Relaunch restores an interrupted choice without network activity. Installation completion is checked against a selection generation so a later user choice wins. Verification has its own observable phase; cancellation propagates to file hashing. Completed atomic installs are recovered on relaunch before clearing the intent. Explicit retry uses the existing pinned manifest and installer. No new model source or runtime network endpoint is introduced.
