@@ -14,6 +14,13 @@ class ProtocolTests(unittest.TestCase):
   for value in ['Saywing',[1],[''],['a\nb'],['x'*61],['t%d'%i for i in range(51)]]:
    p=self.packet();p['vocabulary']=value
    with self.assertRaises(ValueError):worker.decode_request(p)
+ def test_vocabulary_prompt(self):
+  self.assertIsNone(worker.vocabulary_prompt([]))
+  self.assertEqual(worker.vocabulary_prompt(['Saywing','Owl Frame']),'Saywing, Owl Frame.')
+ def test_whisper_prompt_keeps_leading_terms_within_token_budget(self):
+  terms=['Term%d'%i for i in range(50)]
+  fitted=worker.fit_prompt_terms(terms,lambda text:len(text.split()),10)
+  self.assertEqual(fitted,terms[:len(fitted)]);self.assertLessEqual(len(worker.vocabulary_prompt(fitted).split()),10);self.assertGreater(len(fitted),0)
  def test_nonfinite(self):
   with self.assertRaises(ValueError):worker.decode_request(self.packet([float('nan')]))
  def test_bad_language(self):

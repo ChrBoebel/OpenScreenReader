@@ -20,6 +20,16 @@ def decode_vocabulary(value):
   if term.casefold() not in seen:seen.add(term.casefold());terms.append(term)
  return terms
 
+def vocabulary_prompt(terms):
+ # A plain list with a final period kept punctuation intact; a 'Glossar:' label leaked into output.
+ return ', '.join(terms)+'.' if terms else None
+
+def fit_prompt_terms(terms,count_tokens,budget):
+ # Whisper keeps only the last prompt tokens; drop trailing terms instead of the first ones.
+ terms=list(terms)
+ while terms and count_tokens(vocabulary_prompt(terms))>budget:terms.pop()
+ return terms
+
 def decode_request(packet):
  import numpy as np
  if not isinstance(packet,dict) or not isinstance(packet.get('id'),str) or len(packet['id'])>80:raise ValueError('invalid_id')
@@ -62,18 +72,24 @@ def load_transcriber(root,model_id):
  import mlx.core as mx
  if model_id=='whisper-turbo':
   from mlx_whisper.transcribe import ModelHolder,transcribe
+  from mlx_whisper.tokenizer import get_tokenizer
   model=ModelHolder.get_model(str(model_path),mx.float16)
   mx.eval(model.parameters());mx.synchronize()
-  def recognize(audio,language):
+  tokenizer=get_tokenizer(model.is_multilingual,num_languages=model.num_languages,task='transcribe')
+  budget=model.dims.n_text_ctx//2-1
+  def recognize(audio,language,vocabulary):
+   terms=fit_prompt_terms(vocabulary,lambda text:len(tokenizer.encode(' '+text)),budget)
    return transcribe(audio,path_or_hf_repo=str(model_path),
       language={'German':'de','English':'en',None:None}[language],task='transcribe',
       temperature=0.0,condition_on_previous_text=False,word_timestamps=False,
-      verbose=None)['text'].strip()
+      initial_prompt=vocabulary_prompt(terms),verbose=None)['text'].strip()
   return recognize
  from mlx_audio.stt.utils import load_model
  model=load_model(model_path,strict=True)
  mx.eval(model.parameters());mx.synchronize()
- return lambda audio,language:model.generate(audio,language=language,max_tokens=1024,verbose=False).text.strip()
+ def recognize(audio,language,vocabulary):
+  return model.generate(audio,language=language,max_tokens=1024,verbose=False,hotwords=vocabulary or None).text.strip()
+ return recognize
 
 def main():
  protocol=sys.stdout
@@ -100,7 +116,7 @@ def main():
    audio,rate,language,vocabulary=decode_request(packet)
    with contextlib.redirect_stdout(sys.stderr):
     audio=prepare_audio(audio,rate)
-    text='' if audio is None else recognize(audio,language)
+    text='' if audio is None else recognize(audio,language,vocabulary)
     mx.synchronize()
    if len(text.encode('utf-8'))>100000:raise ValueError('output_limit')
    send({'type':'result','id':identifier,'text':text})
