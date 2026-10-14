@@ -75,7 +75,7 @@ final class DictationCapsuleView: NSView {
         body.addSubview(symbol)
         for _ in 0..<9 {
             let bar = CAShapeLayer()
-            bar.fillColor = ReadingPalette.mint.cgColor
+            bar.fillColor = ReadingPalette.voice.cgColor
             effect.layer?.addSublayer(bar)
             bars.append(bar)
         }
@@ -122,7 +122,7 @@ final class DictationCapsuleView: NSView {
         case .idle: statusTitle = title.isEmpty ? String(localized: "Ready to dictate") : title; glyph = "mic"
         }
         symbol.isHidden = state == .recording || state == .processing
-        let accent = state == .attention || state == .unconfirmed ? ReadingPalette.amber : ReadingPalette.mint
+        let accent = state == .attention || state == .unconfirmed ? ReadingPalette.amber : ReadingPalette.voice
         symbol.image = NSImage(systemSymbolName: glyph, accessibilityDescription: nil)?
             .withSymbolConfiguration(.init(pointSize: 12, weight: .medium))
         symbol.contentTintColor = accent
@@ -192,7 +192,7 @@ final class DictationCapsuleView: NSView {
         effect.isHidden = false
         tint.backgroundColor = ReadingPalette.void.withAlphaComponent(opaque ? 1 : 0.94).cgColor
         effect.layer?.borderWidth = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast ? 1.5 : 0.75
-        effect.layer?.borderColor = ReadingPalette.mint.withAlphaComponent(
+        effect.layer?.borderColor = ReadingPalette.voice.withAlphaComponent(
             NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast ? 0.9 : 0.16).cgColor
         CATransaction.commit()
         if reduced { layer?.removeAllAnimations() }
@@ -258,7 +258,7 @@ private final class DictationDisplayClockProxy: NSObject {
 @MainActor
 final class DictationMiniButton: NSButton {
     var isCancel = false
-    /// The finish control while recording hands-free: a filled mint face.
+    /// The finish control while recording hands-free: a filled pale petrol face.
     var isEmphasized = false { didSet { if isEmphasized != oldValue { needsDisplay = true } } }
     private var hovered = false
     private var tracking: NSTrackingArea?
@@ -291,13 +291,13 @@ final class DictationMiniButton: NSButton {
             let opacity = isCancel ? (isHighlighted ? 0.18 : 0.09) : (isHighlighted ? 0.26 : hovered ? 0.19 : 0.10)
             let face = NSBezierPath(ovalIn: CGRect(x: center.x - 11, y: center.y - 11, width: 22, height: 22))
             if isEmphasized {
-                ReadingPalette.mint.withAlphaComponent(isHighlighted ? 0.5 : hovered ? 0.42 : 0.34).setFill()
+                ReadingPalette.voice.withAlphaComponent(isHighlighted ? 0.5 : hovered ? 0.42 : 0.34).setFill()
             } else {
                 ReadingPalette.paper.withAlphaComponent(opacity).setFill()
             }
             face.fill()
             if !isCancel {
-                ReadingPalette.mintLight.withAlphaComponent(contrast ? 0.75 : isEmphasized ? 0.55 : 0.18).setStroke()
+                ReadingPalette.voiceLight.withAlphaComponent(contrast ? 0.75 : isEmphasized ? 0.55 : 0.18).setStroke()
                 face.lineWidth = 1
                 face.stroke()
             }

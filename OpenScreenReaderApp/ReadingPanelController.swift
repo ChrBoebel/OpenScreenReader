@@ -539,7 +539,7 @@ private final class SnapClockProxy: NSObject {
 }
 
 /// A click-through window covering the selected display. It shows the captured
-/// frame as a mint ghost that collapses into a glowing dot at the control's spot.
+/// frame as a pale petrol ghost that collapses into a glowing dot at the control's spot.
 @MainActor
 final class SelectionFlightWindow: NSWindow {
     static let durationMilliseconds = 380
@@ -559,10 +559,10 @@ final class SelectionFlightWindow: NSWindow {
         animationBehavior = .none
         let host = NSView(frame: NSRect(origin: .zero, size: screen.frame.size))
         host.wantsLayer = true
-        ghost.fillColor = ReadingPalette.mint.withAlphaComponent(0).cgColor
-        ghost.strokeColor = ReadingPalette.mint.cgColor
+        ghost.fillColor = ReadingPalette.voice.withAlphaComponent(0).cgColor
+        ghost.strokeColor = ReadingPalette.voice.cgColor
         ghost.lineWidth = 2
-        ghost.shadowColor = ReadingPalette.mint.cgColor
+        ghost.shadowColor = ReadingPalette.voice.cgColor
         ghost.shadowOffset = .zero
         ghost.shadowRadius = 14
         ghost.shadowOpacity = 0
@@ -588,11 +588,11 @@ final class SelectionFlightWindow: NSWindow {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         animate("path", from: start, to: end)
-        animate("fillColor", from: ReadingPalette.mint.withAlphaComponent(0).cgColor, to: ReadingPalette.mint.cgColor)
+        animate("fillColor", from: ReadingPalette.voice.withAlphaComponent(0).cgColor, to: ReadingPalette.voice.cgColor)
         animate("lineWidth", from: 2, to: 0)
         animate("shadowOpacity", from: 0, to: 0.9)
         ghost.path = end
-        ghost.fillColor = ReadingPalette.mint.cgColor
+        ghost.fillColor = ReadingPalette.voice.cgColor
         ghost.lineWidth = 0
         ghost.shadowOpacity = 0.9
         CATransaction.commit()
@@ -609,14 +609,14 @@ final class SelectionFlightWindow: NSWindow {
 }
 
 enum ReadingPalette {
-    static let ink = NSColor(srgbRed: 23 / 255, green: 60 / 255, blue: 51 / 255, alpha: 1)
-    /// Deeper than Local Ink so mint reads as light, not paint.
-    static let void = NSColor(srgbRed: 12 / 255, green: 31 / 255, blue: 26 / 255, alpha: 1)
-    static let paper = NSColor(srgbRed: 242 / 255, green: 244 / 255, blue: 239 / 255, alpha: 1)
-    static let mint = NSColor(srgbRed: 168 / 255, green: 213 / 255, blue: 189 / 255, alpha: 1)
-    static let mintLight = NSColor(srgbRed: 225 / 255, green: 239 / 255, blue: 229 / 255, alpha: 1)
+    static let ink = NSColor(srgbRed: 23 / 255, green: 43 / 255, blue: 58 / 255, alpha: 1)
+    /// Deep navy supports high-contrast pale petrol controls.
+    static let void = NSColor(srgbRed: 14 / 255, green: 29 / 255, blue: 40 / 255, alpha: 1)
+    static let paper = NSColor(srgbRed: 244 / 255, green: 242 / 255, blue: 236 / 255, alpha: 1)
+    static let voice = NSColor(srgbRed: 139 / 255, green: 202 / 255, blue: 209 / 255, alpha: 1)
+    static let voiceLight = NSColor(srgbRed: 221 / 255, green: 239 / 255, blue: 239 / 255, alpha: 1)
     /// Attention accent. Warm, not alarming; never used as body text.
-    static let amber = NSColor(srgbRed: 1, green: 0.72, blue: 0.4, alpha: 1)
+    static let amber = NSColor(srgbRed: 228 / 255, green: 183 / 255, blue: 143 / 255, alpha: 1)
 
     static func mix(_ a: NSColor, _ b: NSColor, _ t: CGFloat) -> NSColor {
         let t = min(1, max(0, t))
@@ -633,18 +633,18 @@ enum SaywingCapsuleStyle {
     static let height: CGFloat = 28
     static let barWidth: CGFloat = 2.5
     static let barGap: CGFloat = 3
-    static let depthColors = [ReadingPalette.mintLight.withAlphaComponent(0.10).cgColor,
+    static let depthColors = [ReadingPalette.voiceLight.withAlphaComponent(0.10).cgColor,
                               ReadingPalette.ink.withAlphaComponent(0.25).cgColor,
                               NSColor.black.withAlphaComponent(0.22).cgColor]
 
     static func voiceColor(height: Double) -> NSColor {
-        ReadingPalette.mix(ReadingPalette.mint, ReadingPalette.mintLight,
+        ReadingPalette.mix(ReadingPalette.voice, ReadingPalette.voiceLight,
                            min(1, max(0, (height - 2) / 16)) * 0.85)
     }
 
     @MainActor static func shadeVoice(_ bar: CAShapeLayer, height: Double, contrast: Bool) {
         bar.fillColor = voiceColor(height: height).cgColor
-        bar.shadowColor = ReadingPalette.mint.cgColor
+        bar.shadowColor = ReadingPalette.voice.cgColor
         bar.shadowOffset = .zero
         bar.shadowRadius = 3
         bar.shadowOpacity = contrast ? 0 : Float(min(1, max(0, (height - 2) / 16))) * 0.28
@@ -836,7 +836,7 @@ final class ReadingControlView: NSView, NSPopoverDelegate {
         icon.bounds = CGRect(x: 0, y: 0, width: 24, height: 24)
         border.fillColor = nil
         for layer in [tint, depth] + bars + [icon, border] { canvas.layer?.addSublayer(layer) }
-        setAccent(ReadingPalette.mint)
+        setAccent(ReadingPalette.voice)
 
         note.font = .systemFont(ofSize: 11.5, weight: .semibold)
         note.textColor = ReadingPalette.paper.withAlphaComponent(0.92)
@@ -985,7 +985,7 @@ final class ReadingControlView: NSView, NSPopoverDelegate {
         toolTip = state.detail
         setAccessibilityLabel(paused && state == .speaking ? String(localized: "Reading paused") : String(localized: "Reading status: \(state.title)"))
         setAccessibilityHelp(state.detail)
-        setAccent(state.needsAttention ? ReadingPalette.amber : ReadingPalette.mint)
+        setAccent(state.needsAttention ? ReadingPalette.amber : ReadingPalette.voice)
         button.terminal = !state.isActive
         button.isEnabled = true
         button.setAccessibilityLabel(state.isActive ? String(localized: "Stop reading") : String(localized: "Close status"))
@@ -1184,7 +1184,7 @@ final class ReadingControlView: NSView, NSPopoverDelegate {
         border.path = CGPath(roundedRect: visual.insetBy(dx: 0.5, dy: 0.5),
                              cornerWidth: radius - 0.5, cornerHeight: radius - 0.5, transform: nil)
         let contrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
-        let accent = state.needsAttention ? ReadingPalette.amber : ReadingPalette.mint
+        let accent = state.needsAttention ? ReadingPalette.amber : ReadingPalette.voice
         border.lineWidth = contrast ? 1.5 : 0.75
         border.strokeColor = accent.withAlphaComponent(contrast ? 0.9 : 0.16).cgColor
 
@@ -1465,7 +1465,7 @@ final class ReadingStopButton: NSButton {
     private func updateFace() {
         let contrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
         face.fillColor = ReadingPalette.paper.withAlphaComponent(pressed ? 0.26 : hovered ? 0.19 : 0.10).cgColor
-        face.strokeColor = ReadingPalette.mintLight.withAlphaComponent(contrast ? 0.75 : 0.18).cgColor
+        face.strokeColor = ReadingPalette.voiceLight.withAlphaComponent(contrast ? 0.75 : 0.18).cgColor
     }
 
     private func updateGlyph() {

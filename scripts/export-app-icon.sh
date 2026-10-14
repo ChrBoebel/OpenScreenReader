@@ -17,5 +17,5 @@ for scale in 1 2 3; do
     size=$((22 * scale))
     /usr/bin/sips --resampleHeightWidth "$size" "$size" \
         "$project_dir/docs/brand-identity/assets/saywing-menubar.png" \
-        --out "$menu_dir/owl-${scale}x.png" >/dev/null
+        --out "$menu_dir/mark-${scale}x.png" >/dev/null
 done

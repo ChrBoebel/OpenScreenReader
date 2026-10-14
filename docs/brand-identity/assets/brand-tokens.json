@@ -1,34 +1,40 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "status": "approved",
-  "decisionDate": "2026-10-13",
+  "decisionDate": "2026-10-14",
   "product": {
     "name": "Saywing",
     "descriptorDE": "Vorlesen & Diktieren für macOS.",
     "descriptorEN": "Read aloud & dictate on your Mac.",
     "taglineDE": "Text hören. Mit der Stimme schreiben.",
     "taglineEN": "Hear text. Write with your voice.",
-    "dictationStatus": "separate-prototype-not-integrated"
+    "dictationStatus": "integrated-private-development-build"
   },
   "appLogo": {
-    "name": "Quiet Owl",
+    "name": "Text to Voice",
     "canonicalRaster": "saywing-app-icon.png",
     "flatMark": "saywing-logo.png",
     "menuBarTemplate": "saywing-menubar.png",
-    "productionVectorStatus": "pending"
+    "productionVectorStatus": "pending",
+    "concept": "B — Text wird Stimme",
+    "iconAccent": "petrol",
+    "templateRendering": "alpha-system-foreground"
   },
   "colors": {
-    "juniper": "#173C33",
-    "porcelain": "#F2F4EF",
-    "leaf": "#407D65",
-    "leafText": "#356B56",
-    "forest": "#0C1F1A",
-    "paleLeaf": "#A8D5BD",
-    "porcelainLight": "#E1EFE5"
+    "inkNavy": "#172B3A",
+    "paper": "#F4F2EC",
+    "petrol": "#266D79",
+    "apricot": "#E4B78F",
+    "deepNavy": "#0E1D28",
+    "palePetrol": "#8BCAD1",
+    "paperLight": "#DDEFEF"
   },
   "contrastRatios": {
-    "juniperOnPorcelain": 10.96,
-    "leafOnPorcelain": 4.37,
-    "paleLeafOnForest": 10.53
+    "inkNavyOnPaper": 13.0,
+    "petrolOnPaper": 5.29,
+    "apricotOnPaper": 1.64,
+    "palePetrolOnDeepNavy": 9.36,
+    "palePetrolOnInkNavy": 7.95,
+    "apricotOnDeepNavy": 9.36
   }
 }

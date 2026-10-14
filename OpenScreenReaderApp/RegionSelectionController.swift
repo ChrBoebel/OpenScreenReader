@@ -378,10 +378,10 @@ private final class SelectionOverlayView: NSView {
         size.width = ceil(size.width) + 4
         let pill = NSView(frame: CGRect(x: 0, y: 0, width: size.width + 28, height: size.height + 14))
         pill.wantsLayer = true
-        pill.layer?.backgroundColor = NSColor(srgbRed: 12 / 255, green: 31 / 255, blue: 26 / 255, alpha: 0.88).cgColor
+        pill.layer?.backgroundColor = ReadingPalette.void.withAlphaComponent(0.88).cgColor
         pill.layer?.cornerRadius = pill.frame.height / 2
         pill.layer?.borderWidth = 0.75
-        pill.layer?.borderColor = NSColor(srgbRed: 168 / 255, green: 213 / 255, blue: 189 / 255, alpha: 0.35).cgColor
+        pill.layer?.borderColor = ReadingPalette.voice.withAlphaComponent(0.35).cgColor
         label.frame = CGRect(x: 14, y: 7, width: size.width, height: size.height)
         pill.addSubview(label)
         let menuBar = screen.frame.maxY - screen.visibleFrame.maxY
@@ -481,17 +481,12 @@ private final class SelectionOverlayView: NSView {
         context.fill(selectionRect)
         context.restoreGState()
 
-        // A dark outer line keeps the mint edge visible on white pages; Increase Contrast goes black and white.
+        // A dark outer line keeps the pale petrol edge visible on white pages; Increase Contrast goes black and white.
         let contrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
         context.setStrokeColor(NSColor.black.withAlphaComponent(contrast ? 1 : 0.55).cgColor)
         context.setLineWidth(4)
         context.stroke(selectionRect.insetBy(dx: 2, dy: 2))
-        context.setStrokeColor(contrast ? NSColor.white.cgColor : NSColor(
-            calibratedRed: 0xA8 / 255,
-            green: 0xD5 / 255,
-            blue: 0xBD / 255,
-            alpha: 1
-        ).cgColor)
+        context.setStrokeColor(contrast ? NSColor.white.cgColor : ReadingPalette.voice.cgColor)
         context.setLineWidth(2)
         context.stroke(selectionRect.insetBy(dx: 1, dy: 1))
     }

@@ -1,8 +1,8 @@
 # Saywing roadmap
 
-## Brand and product direction — 2026-10-13
+## Brand and product direction — 2026-10-14
 
-- [x] Owner selected Saywing, Quiet Owl, and “Vorlesen & Diktieren für macOS”.
+- [x] Owner selected Saywing and “Vorlesen & Diktieren für macOS” (2026-10-13); replaced Quiet Owl with **Text to Voice / concept B** with the owner-selected Ink Navy, Paper, Petrol and Apricot palette (2026-10-14).
 - [x] Update native product name, app icon, template menu glyph, UI palette and current brand documentation.
 - [ ] Validate name comprehension with real participants; no results are implied by the naming decision.
 - [ ] Complete trademark similarity review and confirm desired domain with a registrar.
