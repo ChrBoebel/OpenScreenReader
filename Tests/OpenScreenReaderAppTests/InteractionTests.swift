@@ -1741,7 +1741,7 @@ struct ReadingPanelTests {
     }
 
     @Test
-    func draggingSurvivesSpeechTransitionsButNeverSurvivesHide() async throws {
+    func draggingSurvivesSpeechTransitionsButNeverSurvivesHide() throws {
         let suite = "com.christopherbobel.OpenScreenReader.placement-tests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -1764,14 +1764,14 @@ struct ReadingPanelTests {
         controller.show(.speaking, displayID: number.uint32Value, onStop: { stops += 1 })
         #expect(panel.frame == draggedFrame, "Starting speech must not jerk a held capsule back to its dock.")
         controller.endDrag()
-        try await Task.sleep(for: .milliseconds(300))
         let saved = ReadingPanelPlacement.load(from: defaults)
         #expect(saved.edge == .left)
         #expect((panel.contentView as? ReadingControlView)?.dockEdge == .left)
-        // Other suites synthesize cue buffers on MainActor. Give the animation's next tick a turn.
-        for _ in 0..<40 {
-            if panel.frame == saved.frame(in: screen.visibleFrame) { break }
-            try await Task.sleep(for: .milliseconds(25))
+        // Advance the real spring explicitly; display-link delivery depends on
+        // the runner's display and load, not on the drag behavior under test.
+        let start = CACurrentMediaTime()
+        for frame in 0..<240 {
+            controller.stepSnap(now: start + Double(frame) / 60)
         }
         #expect(panel.frame == saved.frame(in: screen.visibleFrame))
         #expect(stops == 0)
@@ -1783,7 +1783,7 @@ struct ReadingPanelTests {
         controller.hide()
         controller.moveDrag(to: .zero)
         controller.endDrag()
-        try await Task.sleep(for: .milliseconds(300))
+        controller.stepSnap(now: start + 5)
         #expect(panel.isVisible == false)
         #expect(panel.contentView == nil)
         let newController = ReadingPanelController(defaults: defaults)
@@ -1804,7 +1804,12 @@ struct ReadingPanelTests {
         try await Task.sleep(for: .milliseconds(350))
         #expect(controller.panel?.isVisible == true)
         controller.endDrag()
-        try await Task.sleep(for: .milliseconds(350))
+        // Dismissal and retraction each resume on MainActor. Other suites can
+        // delay either stage, so wait for visibility instead of a fixed 350 ms.
+        for _ in 0..<80 {
+            if controller.panel?.isVisible == false { break }
+            try await Task.sleep(for: .milliseconds(25))
+        }
         #expect(controller.panel?.isVisible == false)
     }
 

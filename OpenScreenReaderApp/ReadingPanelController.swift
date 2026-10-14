@@ -475,7 +475,7 @@ final class ReadingPanelController: NSObject, ReadingStatusPresenting {
         snapClock?.isPaused = false
     }
 
-    fileprivate func stepSnap(now: CFTimeInterval) {
+    func stepSnap(now: CFTimeInterval) {
         guard var current = snap, current.generation == generation, let panel, panel.isVisible else { stopSnap(); return }
         let dt = CGFloat(min(1.0 / 20, now - (snapTick ?? now - 1.0 / 60)))
         snapTick = now
