@@ -60,6 +60,22 @@ class ProtocolTests(unittest.TestCase):
    self.assertEqual(worker.verify_model(p,'whisper-turbo'),(p/'WhisperTurbo').resolve())
    with self.assertRaises(FileNotFoundError):worker.verify_model(p,'qwen3-asr')
    with self.assertRaises(ValueError):worker.verify_model(p,'unknown')
+ def test_whisper_large_uses_its_own_manifest_and_directory(self):
+  import tempfile,hashlib
+  with tempfile.TemporaryDirectory() as d:
+   p=Path(d);(p/'WhisperLargeV3').mkdir();(p/'WhisperLargeV3/x').write_bytes(b'x')
+   (p/'whisper-large-v3-manifest.json').write_text(json.dumps({'files':[{'rfilename':'x','size':1,'verified_sha256':hashlib.sha256(b'x').hexdigest()}]}))
+   self.assertEqual(worker.verify_model(p,'whisper-large-v3'),(p/'WhisperLargeV3').resolve())
+   with self.assertRaises(FileNotFoundError):worker.verify_model(p,'whisper-turbo')
+ def test_installed_model_is_read_from_model_root_with_bundled_manifest(self):
+  import tempfile,hashlib
+  with tempfile.TemporaryDirectory() as bundle,tempfile.TemporaryDirectory() as installed:
+   b=Path(bundle);i=Path(installed);(i/'WhisperLargeV3').mkdir();(i/'WhisperLargeV3/x').write_bytes(b'x')
+   (b/'whisper-large-v3-manifest.json').write_text(json.dumps({'files':[{'rfilename':'x','size':1,'verified_sha256':hashlib.sha256(b'x').hexdigest()}]}))
+   (i/'whisper-large-v3-manifest.json').write_text(json.dumps({'files':[]}))
+   self.assertEqual(worker.verify_model(b,'whisper-large-v3',i),(i/'WhisperLargeV3').resolve())
+   (i/'WhisperLargeV3/x').write_bytes(b'y')
+   with self.assertRaises(ValueError):worker.verify_model(b,'whisper-large-v3',i)
  def test_model_manifest_cannot_escape_model_directory(self):
   import tempfile,hashlib
   with tempfile.TemporaryDirectory() as d:

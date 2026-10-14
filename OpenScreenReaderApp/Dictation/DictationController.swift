@@ -37,6 +37,7 @@ final class DictationController: NSObject, ObservableObject {
   private var canPrepareModel: Bool { !isShutDown && !isSleeping && !isSessionInactive }
 
   let resources: URL
+  let models: DictationModelStore
   let worker: any DictationTranscribing
   let gate = GenerationGate()
   var window: NSWindow!, scratch = NSTextView(), result = NSTextView()
@@ -60,17 +61,23 @@ final class DictationController: NSObject, ObservableObject {
   var smokeClipboard: ClipboardSnapshot?
 
   init(
-    resources: URL? = nil, worker: any DictationTranscribing = DictationWorker(),
+    resources: URL? = nil, models: DictationModelStore? = nil,
+    worker: any DictationTranscribing = DictationWorker(),
     shortcut: any HotkeyManaging = GlobalHotkeyManager(),
     escape: any HotkeyManaging = GlobalHotkeyManager(),
     preferences: UserDefaults = .standard, registerHotkey: Bool = true
   ) {
-    self.resources = resources ?? Bundle.main.resourceURL!.appendingPathComponent("Dictation")
+    let resources = resources ?? Bundle.main.resourceURL!.appendingPathComponent("Dictation")
+    self.resources = resources
+    let models = models ?? DictationModelStore(resources: resources)
+    self.models = models
     self.worker = worker
     self.shortcut = shortcut
     self.escape = escape
     self.preferences = preferences
-    self.selectedModel = DictationModel(rawValue: preferences.string(forKey: "dictationModel.v1") ?? "") ?? .whisperTurbo
+    // A saved choice that is not installed in this build stays saved but is not started.
+    let saved = DictationModel(rawValue: preferences.string(forKey: "dictationModel.v1") ?? "")
+    self.selectedModel = saved.flatMap { models.isInstalled($0) ? $0 : nil } ?? .standard
     self.language = DictationLanguage(rawValue: preferences.integer(forKey: "dictationLanguage.v1")) ?? .automatic
     self.restoresClipboardSlowly = preferences.bool(forKey: "dictationSlowPaste.v1")
     self.vocabulary = DictationVocabulary.parse(
@@ -392,10 +399,10 @@ final class DictationController: NSObject, ObservableObject {
       guard let self, self.modelGeneration == generation else { return }
       self.receive(message)
     }
-    worker.start(resources: resources, model: selectedModel)
+    worker.start(resources: resources, model: selectedModel, modelRoot: models.modelRoot(for: selectedModel))
   }
   func selectModel(_ model: DictationModel) {
-    guard canChangeModel, model != selectedModel else { return }
+    guard canChangeModel, model != selectedModel, models.isInstalled(model) else { return }
     modelGeneration = UUID()
     cancel(restart: false)
     worker.stop()
@@ -404,6 +411,18 @@ final class DictationController: NSObject, ObservableObject {
     phase = "unloaded"
     loadModel()
   }
+  /// Downloads a missing model only on this explicit request, then switches to it.
+  @discardableResult
+  func install(_ model: DictationModel) -> Task<Void, Never>? {
+    guard !models.isInstalled(model) else { return nil }
+    let download = models.install(model)
+    return Task { [weak self] in
+      await download.value
+      guard let self, self.models.isInstalled(model) else { return }
+      self.selectModel(model)
+    }
+  }
+  func cancelInstall(_ model: DictationModel) { models.cancelInstall(model) }
   /// Only problems are shown; granted permissions need no line of their own.
   @objc func refreshPermissions() {
     if monitorFn && canPrepareModel { fnShortcuts.start() }

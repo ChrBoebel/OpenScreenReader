@@ -21,6 +21,16 @@
         }
       }
     },
+    "%@ not installed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ nicht installiert"
+          }
+        }
+      }
+    },
     "%lld texts waiting": {
       "localizations": {
         "en": {
@@ -67,6 +77,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld in der Warteschlange"
+          }
+        }
+      }
+    },
+    "A downloaded model file did not match its pinned checksum.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine geladene Modelldatei stimmt nicht mit ihrer festgelegten Prüfsumme überein."
           }
         }
       }
@@ -127,6 +147,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Zur Warteschlange hinzugefügt."
+          }
+        }
+      }
+    },
+    "Additional dictation models are downloaded from Hugging Face only when you choose to install one.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weitere Diktiermodelle werden nur dann von Hugging Face geladen, wenn du eines installierst."
           }
         }
       }
@@ -621,6 +651,26 @@
         }
       }
     },
+    "Download and Install": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Laden und installieren"
+          }
+        }
+      }
+    },
+    "Download progress": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Download-Fortschritt"
+          }
+        }
+      }
+    },
     "Drag over text or click a paragraph  ·  Space moves  ·  Esc cancels": {
       "localizations": {
         "de": {
@@ -851,12 +901,42 @@
         }
       }
     },
+    "Install %@?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ installieren?"
+          }
+        }
+      }
+    },
+    "Install %@… (%@)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ installieren… (%@)"
+          }
+        }
+      }
+    },
     "Installed for local development": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Für lokale Entwicklung installiert"
+          }
+        }
+      }
+    },
+    "Installing %@…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ wird installiert…"
           }
         }
       }
@@ -1127,6 +1207,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nicht freigegeben"
+          }
+        }
+      }
+    },
+    "Not enough free disk space for this model.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Für dieses Modell ist nicht genug Speicherplatz frei."
           }
         }
       }
@@ -1941,6 +2031,16 @@
         }
       }
     },
+    "Saywing downloads about %@ once from Hugging Face and checks every file. Your recordings and text are never sent; dictation stays on this Mac.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saywing lädt einmalig etwa %@ von Hugging Face und prüft jede Datei. Deine Aufnahmen und Texte werden nie gesendet; das Diktieren bleibt auf diesem Mac."
+          }
+        }
+      }
+    },
     "Saywing Quiet Owl app logo": {
       "localizations": {
         "de": {
@@ -2531,6 +2631,26 @@
         }
       }
     },
+    "The model could not be downloaded. Check the connection and try again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Modell konnte nicht geladen werden. Prüfe die Verbindung und versuche es erneut."
+          }
+        }
+      }
+    },
+    "The model could not be installed.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Modell konnte nicht installiert werden."
+          }
+        }
+      }
+    },
     "The model is not ready yet.": {
       "localizations": {
         "de": {
@@ -2737,6 +2857,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Zeitlimit erreicht"
+          }
+        }
+      }
+    },
+    "Try Again": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erneut versuchen"
           }
         }
       }

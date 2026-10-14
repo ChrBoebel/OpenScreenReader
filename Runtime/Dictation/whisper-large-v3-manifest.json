@@ -1,0 +1,51 @@
+{
+  "repo": "mlx-community/whisper-large-v3-8bit",
+  "source": "https://huggingface.co/mlx-community/whisper-large-v3-8bit",
+  "revision": "7fede54fd97b154a4f5e476646484fc023b1bcdf",
+  "license": "apache-2.0",
+  "upstream_license": "mit",
+  "upstream": "https://huggingface.co/openai/whisper-large-v3",
+  "quantization": {
+    "bits": 8,
+    "group_size": 64
+  },
+  "packaging_note": "model.safetensors is copied byte-for-byte as weights.safetensors for the pinned mlx-whisper loader; no tensor conversion. The runtime uses its bundled Whisper tokenizer.",
+  "files": [
+    {
+      "rfilename": "README.md",
+      "blobId": "6f0107ac82adbd4aec9618b0c6c26773067a676d",
+      "size": 800,
+      "verified_sha256": "1494a091dd5d4d69c6a7b422f5ab693b9cd38303890abe2cbe3e865b31197594"
+    },
+    {
+      "rfilename": "config.json",
+      "blobId": "0f43358ebc27aa48d6b4fb30de4f5662722795dd",
+      "size": 342,
+      "verified_sha256": "ac4c54c7011f31fe9d97cea8217b434799f997106c9638d0114f04ebbb65dc08"
+    },
+    {
+      "rfilename": "weights.safetensors",
+      "blobId": "5457113b43e27834706982737d1525e692ffc4e0",
+      "size": 1644890344,
+      "lfs": {
+        "sha256": "473df949b32adeac800472dce346678f241030f410e365fe422d29b3262fe0b3",
+        "size": 1644890344,
+        "pointerSize": 135
+      },
+      "source_filename": "model.safetensors",
+      "verified_sha256": "473df949b32adeac800472dce346678f241030f410e365fe422d29b3262fe0b3"
+    },
+    {
+      "rfilename": "LICENSE-OpenAI",
+      "size": 1063,
+      "verified_sha256": "b5d65a59060e68c4ff940e1eddfa6f94b2d68fdf58ed7f4dd57721c997e35e9d",
+      "source": "https://raw.githubusercontent.com/openai/whisper/v20240930/LICENSE"
+    },
+    {
+      "rfilename": "LICENSE-Apache-2.0",
+      "size": 11358,
+      "verified_sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "source": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+    }
+  ]
+}
