@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 import urllib.request
 
-from release import REPO, digest, https_url, require_release_approval, validate_version
+from release import REPO, digest, https_url, require_release_approval, validate_version, release_target
 
 PUBLIC_PREFIX = 'https://www.christopherboebel.com/downloads/saywing'
 MAX_SINGLE_UPLOAD = 5 * 1024**3
@@ -21,9 +21,9 @@ def missing(error):
     return getattr(error, 'response', {}).get('Error', {}).get('Code') in ('404', 'NoSuchKey', 'NotFound')
 
 
-def read_current(client, bucket):
+def read_current(client, bucket, prefix="saywing"):
     try:
-        result = client.get_object(Bucket=bucket, Key='saywing/current.json')
+        result = client.get_object(Bucket=bucket, Key=f'{prefix}/current.json')
     except Exception as error:
         if missing(error):
             return None, None
@@ -61,19 +61,26 @@ def publish(root, client, bucket, main_commit, verify_public):
         raise ValueError('Only approved, notarized release outputs may be published')
     folder = root / 'publish'
     metadata = json.loads((folder / 'latest.json').read_text())
+    architecture = metadata.get('architecture')
+    target = release_target(architecture)
+    prefix = target['storage_prefix']
+    if result.get('architecture') != architecture:
+        raise ValueError('Release result architecture does not match metadata')
     version, build = metadata['version'], metadata['build']
     validate_version(version, build)
     filename = f'Saywing-{version}-{build}.dmg'
     archive = folder / filename
     if (result['version'] != version or result['build'] != build
-            or metadata['url'] != PUBLIC_PREFIX + '/' + filename
+            or metadata['url'] != target['url_prefix'] + '/' + filename
             or metadata['bytes'] != archive.stat().st_size or metadata['sha256'] != digest(archive)):
         raise ValueError('Release metadata or archive does not match')
     if (folder / 'SHA256SUMS').read_text() != f"{metadata['sha256']}  {filename}\n":
         raise ValueError('Checksum manifest does not match')
     pointer = {'version': version, 'build': build, 'filename': filename,
-               'sha256': metadata['sha256'], 'source_commit': result['source_commit']}
-    previous, etag = read_current(client, bucket)
+               'sha256': metadata['sha256'], 'source_commit': result['source_commit'], 'architecture': architecture}
+    previous, etag = read_current(client, bucket, prefix)
+    if previous and previous.get('architecture', 'arm64') != architecture:
+        raise ValueError('Published pointer architecture does not match namespace')
     if previous and (int(previous['build']) > int(build) or
                      (int(previous['build']) == int(build) and previous != pointer)):
         raise ValueError('Refusing downgrade or replacement of a published build')
@@ -82,7 +89,7 @@ def publish(root, client, bucket, main_commit, verify_public):
     files = [(filename, 'application/x-apple-diskimage'), ('appcast.xml', 'application/xml'),
              ('latest.json', 'application/json'), ('SHA256SUMS', 'text/plain')]
     for name, content_type in files:
-        immutable_upload(client, bucket, f'saywing/releases/{build}/{name}', folder / name, content_type)
+        immutable_upload(client, bucket, f'{prefix}/releases/{build}/{name}', folder / name, content_type)
     verify_public(metadata)
     if main_commit() != result['source_commit']:
         raise ValueError('Main changed during upload; previous release remains current')
@@ -90,7 +97,7 @@ def publish(root, client, bucket, main_commit, verify_public):
         print('Release already current:', build)
         return
     condition = {'IfMatch': etag} if etag else {'IfNoneMatch': '*'}
-    client.put_object(Bucket=bucket, Key='saywing/current.json',
+    client.put_object(Bucket=bucket, Key=f'{prefix}/current.json',
                       Body=(json.dumps(pointer) + '\n').encode(), ContentType='application/json',
                       CacheControl='no-store', **condition)
     print('Published verified release:', version, 'build', build)
@@ -136,7 +143,9 @@ def main():
     args = parser.parse_args()
     if os.environ.get('GITHUB_ACTIONS') != 'true' or os.environ.get('GITHUB_REF') != 'refs/heads/main':
         raise ValueError('Publication requires the main-branch GitHub workflow')
-    require_release_approval(REPO / 'docs/release-approval.json')
+    metadata = json.loads((args.release / 'publish/latest.json').read_text())
+    architecture = metadata.get('architecture')
+    require_release_approval(release_target(architecture)['approval'], architecture)
     import boto3
     from botocore.config import Config
     client = boto3.client('s3', endpoint_url=https_url(os.environ['SAYWING_S3_ENDPOINT']),

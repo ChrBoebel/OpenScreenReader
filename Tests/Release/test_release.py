@@ -67,7 +67,7 @@ class ReleaseTests(unittest.TestCase):
             record.write_text(json.dumps({'license_review': True, 'clean_mac': False, 'offline_privacy': True}))
             with self.assertRaises(ValueError):
                 release.require_release_approval(record)
-            record.write_text(json.dumps({key: True for key in release.RELEASE_GATES}))
+            record.write_text(json.dumps({**{key: True for key in release.RELEASE_GATES}, 'scope': {'architecture': 'arm64'}}))
             release.require_release_approval(record)
 
     def test_owner_beta_exception_only_covers_documented_device_test_gap(self):
@@ -92,6 +92,28 @@ class ReleaseTests(unittest.TestCase):
             record.write_text(json.dumps({**data, 'scope': {'architecture': 'x86_64'}}))
             with self.assertRaises(ValueError): release.require_release_approval(record)
 
+    def test_intel_beta_exception_is_explicit_and_architecture_bound(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / 'approval.json'
+            data = {**{key: True for key in release.RELEASE_GATES}, 'clean_mac': False,
+                    'scope': {'architecture': 'x86_64'},
+                    'owner_beta_exception': {'approved': True, 'architecture': 'x86_64',
+                        'channel': 'beta', 'gate': 'clean_mac',
+                        'owner_decision': 'Owner requests Intel beta despite unavailable physical Intel test',
+                        'remaining_tests': ['physical Intel macOS14 and fresh permissions']}}
+            path.write_text(json.dumps(data))
+            release.require_release_approval(path, 'x86_64')
+            for changes in [{'architecture': 'arm64'}, {'approved': False}, {'channel': 'stable'},
+                            {'gate': 'license_review'}, {'owner_decision': ''}, {'remaining_tests': []}]:
+                path.write_text(json.dumps({**data, 'owner_beta_exception': {**data['owner_beta_exception'], **changes}}))
+                with self.assertRaises(ValueError): release.require_release_approval(path, 'x86_64')
+            for gate in ['license_review', 'offline_privacy', 'update_roundtrip']:
+                path.write_text(json.dumps({**data, gate: False}))
+                with self.assertRaises(ValueError): release.require_release_approval(path, 'x86_64')
+            exception = dict(data['owner_beta_exception']); del exception['architecture']
+            path.write_text(json.dumps({**data, 'owner_beta_exception': exception}))
+            with self.assertRaises(ValueError): release.require_release_approval(path, 'x86_64')
+
     def test_headless_sparkle_signing_uses_private_file_without_keychain(self):
         from types import SimpleNamespace
         from unittest.mock import patch
@@ -114,6 +136,19 @@ class ReleaseTests(unittest.TestCase):
             key.chmod(0o644)
             with self.assertRaisesRegex(ValueError, 'private'):
                 release.generate_feed(Path('/tools'), Path('/publish'), args)
+
+    def test_intel_requires_its_own_complete_approval(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp)/'approval.json'
+            approved = {**{key: True for key in release.RELEASE_GATES}, 'scope': {'architecture': 'arm64'}}
+            path.write_text(json.dumps(approved))
+            with self.assertRaises(ValueError): release.require_release_approval(path, 'x86_64')
+            approved['scope']['architecture'] = 'x86_64'
+            path.write_text(json.dumps(approved))
+            release.require_release_approval(path, 'x86_64')
+            approved['clean_mac'] = False
+            path.write_text(json.dumps(approved))
+            with self.assertRaises(ValueError): release.require_release_approval(path, 'x86_64')
 
     def test_version_numbers_are_monotonic_and_path_safe(self):
         release.validate_version('0.1.0', '42')

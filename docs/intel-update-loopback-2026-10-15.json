@@ -1,0 +1,23 @@
+{
+  "from_build": "8",
+  "to_build": "9",
+  "version": "0.1.5",
+  "architecture": "x86_64",
+  "transport": "signed HTTP loopback feed on 127.0.0.1; server stopped after test",
+  "installer": "official Sparkle 2.10.0 sparkle-cli",
+  "feed_signature_verified": true,
+  "installed_from_final_stapled_dmg": true,
+  "dmg_sha256": "6825053c756c51defb3b50232b1a9b37121f419d00f7851a243b2b267a07065f",
+  "executable_matches_accepted_candidate": true,
+  "app_seal_valid": true,
+  "gatekeeper_accepted": true,
+  "requests": [
+    "/appcast.xml",
+    "/appcast.xml",
+    "/Saywing-0.1.5-9.dmg"
+  ],
+  "scope": "Actual signed-feed probe, download and installation on isolated stopped Intel app via x86_64 Sparkle CLI under Rosetta; no physical Intel, production HTTPS or GUI/relaunch claim",
+  "public_release": false,
+  "installed_notice_hashes_verified": 88,
+  "embedded_feed_is_intel_specific": true
+}

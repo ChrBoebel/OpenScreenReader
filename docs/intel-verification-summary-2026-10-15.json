@@ -1,0 +1,28 @@
+{
+  "architecture": "x86_64",
+  "candidate_build": "9",
+  "candidate_version": "0.1.5",
+  "execution_scope": "Rosetta on Apple Silicon; no native Intel or macOS14 device test",
+  "xcode_release_build": "passed; x86_64 / deployment target 14.0",
+  "updated_bundle_native_files_audited": 184,
+  "runtime_receipts_verified": 2,
+  "release_tests_passed": 38,
+  "website_download_tests_passed": 19,
+  "website_security_tests_passed": 20,
+  "website_lint_typecheck_build": "passed",
+  "dictation_checks_passed": 12,
+  "speech_2x": {
+    "underruns": 0,
+    "missing_seconds": 0,
+    "maximum_queued_seconds": 7.9392970521541955,
+    "chunks": 48
+  },
+  "speech_stop_ms": 11.423292,
+  "loading_stop_ms": 0.102292,
+  "initial_speech_run": "exit1 without output; root cause not established; diagnostic improvement and full rerun passed",
+  "update": "real official x86_64 Sparkle installation 8 to 9 via signed loopback feed",
+  "production_https_update": "passed; actual x86_64 Sparkle 8 to 9 under Rosetta; capability revoked",
+  "physical_intel": "owner reports no Intel Mac available",
+  "published": false,
+  "website_deployment": "SUCCESS a3572087-2978-462b-85f6-d107e111cc1f"
+}

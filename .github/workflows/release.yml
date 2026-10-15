@@ -52,15 +52,20 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.SAYWING_RELEASE_ENABLED == 'true'
     runs-on: macos-26
     environment: saywing-release
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: ${{ fromJSON(vars.SAYWING_INTEL_RELEASE_ENABLED == 'true' && '["arm64","x86_64"]' || '["arm64"]') }}
     timeout-minutes: 120
     env:
-      SAYWING_RUNTIME_SHA256: ${{ vars.SAYWING_RUNTIME_SHA256 }}
-      SAYWING_RUNTIME_FORMAT: ${{ vars.SAYWING_RUNTIME_FORMAT || 'zip' }}
+      SAYWING_ARCHITECTURE: ${{ matrix.architecture }}
+      SAYWING_RUNTIME_SHA256: ${{ matrix.architecture == 'x86_64' && (vars.SAYWING_INTEL_RUNTIME_SHA256 || 'UNCONFIGURED') || vars.SAYWING_RUNTIME_SHA256 }}
+      SAYWING_RUNTIME_FORMAT: ${{ matrix.architecture == 'x86_64' && 'dmg' || vars.SAYWING_RUNTIME_FORMAT || 'zip' }}
       SAYWING_S3_ENDPOINT: ${{ vars.SAYWING_S3_ENDPOINT }}
       SAYWING_S3_BUCKET: ${{ vars.SAYWING_S3_BUCKET }}
       SAYWING_S3_REGION: ${{ vars.SAYWING_S3_REGION || 'auto' }}
-      SAYWING_FEED_URL: https://www.christopherboebel.com/downloads/saywing/appcast.xml
-      SAYWING_DOWNLOAD_URL_PREFIX: https://www.christopherboebel.com/downloads/saywing
+      SAYWING_FEED_URL: https://www.christopherboebel.com/downloads/saywing${{ matrix.architecture == 'x86_64' && '/x86_64' || '' }}/appcast.xml
+      SAYWING_DOWNLOAD_URL_PREFIX: https://www.christopherboebel.com/downloads/saywing${{ matrix.architecture == 'x86_64' && '/x86_64' || '' }}
       SAYWING_PUBLIC_KEY: UkAO/uyBRKSNY0+0gLVrnxa6vaXaVE4cJueFv1JVIT0=
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -94,6 +99,7 @@ jobs:
         run: |
           python3 scripts/release.py \
             --runtime-app "$RUNNER_TEMP/saywing-runtime/Saywing.app" \
+            --architecture "$SAYWING_ARCHITECTURE" \
             --output .build/release --version "0.1.${GITHUB_RUN_NUMBER}" \
             --packages .build/packages \
             --build "$((GITHUB_RUN_NUMBER + 100))" \
@@ -106,7 +112,7 @@ jobs:
       - name: Retain complete distribution for the hosting deployment
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: Saywing-${{ github.run_number }}
+          name: Saywing-${{ github.run_number }}-${{ matrix.architecture }}
           path: |
             .build/release/publish/
             .build/release/release-result.json

@@ -47,11 +47,23 @@ def validate_version(version, build):
         raise ValueError('Version must be x.y.z; build must be a positive increasing integer')
 
 
-def require_release_approval(path):
+def release_target(architecture):
+    if architecture not in ('arm64', 'x86_64'):
+        raise ValueError('Unsupported release architecture')
+    suffix = '/x86_64' if architecture == 'x86_64' else ''
+    return {'url_prefix': 'https://www.christopherboebel.com/downloads/saywing' + suffix,
+            'storage_prefix': 'saywing' + suffix,
+            'approval': REPO / ('docs/release-approval-x86_64.json' if suffix else 'docs/release-approval.json')}
+
+
+def require_release_approval(path, architecture='arm64'):
+    release_target(architecture)
     record = json.loads(path.read_text())
+    if record.get('scope', {}).get('architecture') != architecture:
+        raise ValueError('Release approval architecture does not match')
     missing = [key for key in RELEASE_GATES if record.get(key) is not True]
     exception = record.get('owner_beta_exception', {})
-    # The owner may accept the device-matrix gap for the ARM beta, never the
+    # The owner may accept the device-matrix gap for a named beta architecture, never the
     # licensing, privacy, or real-update checks. Keep clean_mac=false as evidence.
     if (missing == ['clean_mac'] and isinstance(exception, dict)
             and exception.get('approved') is True and exception.get('channel') == 'beta'
@@ -59,7 +71,7 @@ def require_release_approval(path):
             and isinstance(exception.get('owner_decision'), str) and exception['owner_decision'].strip()
             and isinstance(exception.get('remaining_tests'), list) and exception['remaining_tests']
             and all(isinstance(item, str) and item.strip() for item in exception['remaining_tests'])
-            and record.get('scope', {}).get('architecture') == 'arm64'):
+            and exception.get('architecture', 'arm64') == architecture):
         missing = []
     if missing:
         raise ValueError('Public release gates remain open: ' + ', '.join(missing))
@@ -209,11 +221,12 @@ def main():
     if not args.identity.startswith('Developer ID Application:'):
         raise ValueError('Release signing requires a Developer ID Application identity')
     if args.public_release:
-        require_release_approval(REPO / 'docs/release-approval.json')
+        target = release_target(args.architecture)
+        require_release_approval(target['approval'], args.architecture)
+        if args.download_url_prefix.rstrip('/') != target['url_prefix'] or args.feed_url != target['url_prefix'] + '/appcast.xml':
+            raise ValueError('Public release URLs do not match its architecture')
         if not args.notarize:
             raise ValueError('Public releases must be notarized')
-    if args.public_release and args.architecture != 'arm64':
-        raise ValueError('Intel publication requires architecture-specific download and update routing first')
     source = args.runtime_app.resolve(strict=True)
     portable = source / 'Contents/Resources/portable-runtime.json'
     if portable.exists():
@@ -329,7 +342,7 @@ def package_signed_app(app, output, args, tools):
     (publish / 'SHA256SUMS').write_text(f'{digest(image)}  {image.name}\n')
     channel = 'candidate'
     if args.public_release:
-        approval = json.loads((REPO / 'docs/release-approval.json').read_text())
+        approval = json.loads(release_target(args.architecture)['approval'].read_text())
         channel = 'beta' if approval.get('owner_beta_exception', {}).get('approved') is True else 'stable'
     (publish / 'latest.json').write_text(json.dumps({
         'version': args.version, 'build': args.build, 'url': args.download_url_prefix.rstrip('/') + '/' + image.name,
@@ -338,7 +351,7 @@ def package_signed_app(app, output, args, tools):
     }, indent=2) + '\n')
     (output / 'release-result.json').write_text(json.dumps({
         'public_release_approved': args.public_release, 'notarized': args.notarize,
-        'version': args.version, 'build': args.build, 'publish_directory': str(publish),
+        'version': args.version, 'build': args.build, 'architecture': args.architecture, 'publish_directory': str(publish),
         'source_dirty': bool(run('git', '-C', REPO, 'status', '--porcelain', capture_output=True, text=True).stdout.strip()),
         'source_commit': run('git', '-C', REPO, 'rev-parse', 'HEAD', capture_output=True, text=True).stdout.strip(),
     }, indent=2) + '\n')

@@ -8,7 +8,7 @@ import secrets
 import subprocess
 import sys
 
-from release import REPO, digest, https_url, require_release_approval, run, sparkle_tools
+from release import REPO, digest, https_url, require_release_approval, run, sparkle_tools, release_target
 
 
 def required(name):
@@ -47,7 +47,9 @@ def main():
     keychain = temp / 'saywing-release.keychain-db'
     mode = sys.argv[1]
     if mode == 'runtime':
-        require_release_approval(REPO / 'docs/release-approval.json')
+        architecture = os.environ.get('SAYWING_ARCHITECTURE', 'arm64')
+        target = release_target(architecture)
+        require_release_approval(target['approval'], architecture)
         https_url(required('SAYWING_FEED_URL'))
         https_url(required('SAYWING_DOWNLOAD_URL_PREFIX'))
         expected = required('SAYWING_RUNTIME_SHA256')
