@@ -92,6 +92,28 @@ class ReleaseTests(unittest.TestCase):
             record.write_text(json.dumps({**data, 'scope': {'architecture': 'x86_64'}}))
             with self.assertRaises(ValueError): release.require_release_approval(record)
 
+    def test_intel_beta_exception_is_explicit_and_architecture_bound(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / 'approval.json'
+            data = {**{key: True for key in release.RELEASE_GATES}, 'clean_mac': False,
+                    'scope': {'architecture': 'x86_64'},
+                    'owner_beta_exception': {'approved': True, 'architecture': 'x86_64',
+                        'channel': 'beta', 'gate': 'clean_mac',
+                        'owner_decision': 'Owner requests Intel beta despite unavailable physical Intel test',
+                        'remaining_tests': ['physical Intel macOS14 and fresh permissions']}}
+            path.write_text(json.dumps(data))
+            release.require_release_approval(path, 'x86_64')
+            for changes in [{'architecture': 'arm64'}, {'approved': False}, {'channel': 'stable'},
+                            {'gate': 'license_review'}, {'owner_decision': ''}, {'remaining_tests': []}]:
+                path.write_text(json.dumps({**data, 'owner_beta_exception': {**data['owner_beta_exception'], **changes}}))
+                with self.assertRaises(ValueError): release.require_release_approval(path, 'x86_64')
+            for gate in ['license_review', 'offline_privacy', 'update_roundtrip']:
+                path.write_text(json.dumps({**data, gate: False}))
+                with self.assertRaises(ValueError): release.require_release_approval(path, 'x86_64')
+            exception = dict(data['owner_beta_exception']); del exception['architecture']
+            path.write_text(json.dumps({**data, 'owner_beta_exception': exception}))
+            with self.assertRaises(ValueError): release.require_release_approval(path, 'x86_64')
+
     def test_headless_sparkle_signing_uses_private_file_without_keychain(self):
         from types import SimpleNamespace
         from unittest.mock import patch

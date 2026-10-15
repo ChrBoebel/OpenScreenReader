@@ -63,7 +63,7 @@ def require_release_approval(path, architecture='arm64'):
         raise ValueError('Release approval architecture does not match')
     missing = [key for key in RELEASE_GATES if record.get(key) is not True]
     exception = record.get('owner_beta_exception', {})
-    # The owner may accept the device-matrix gap for the ARM beta, never the
+    # The owner may accept the device-matrix gap for a named beta architecture, never the
     # licensing, privacy, or real-update checks. Keep clean_mac=false as evidence.
     if (missing == ['clean_mac'] and isinstance(exception, dict)
             and exception.get('approved') is True and exception.get('channel') == 'beta'
@@ -71,7 +71,7 @@ def require_release_approval(path, architecture='arm64'):
             and isinstance(exception.get('owner_decision'), str) and exception['owner_decision'].strip()
             and isinstance(exception.get('remaining_tests'), list) and exception['remaining_tests']
             and all(isinstance(item, str) and item.strip() for item in exception['remaining_tests'])
-            and record.get('scope', {}).get('architecture') == 'arm64'):
+            and exception.get('architecture', 'arm64') == architecture):
         missing = []
     if missing:
         raise ValueError('Public release gates remain open: ' + ', '.join(missing))
