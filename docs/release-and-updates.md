@@ -105,7 +105,9 @@ again. Feed generation/signing happens after the final DMG bytes are fixed.
 The `publish/` directory contains the versioned DMG, signed `appcast.xml`,
 `SHA256SUMS`, and `latest.json` with the download URL, version, size, architecture
 and checksum. Private test packages retain the development notice. Only
-`--public-release`, requiring every gate in `release-approval.json`, removes it.
+`--public-release`, requiring the architecture-specific approval record, removes it.
+ARM uses `release-approval.json`; Intel uses `release-approval-x86_64.json`.
+The documented ARM beta exception covers only its fresh-device testing gap.
 That flag also requires notarization. **Preparation never publishes anything.**
 
 ## Main-branch automation
@@ -126,8 +128,11 @@ Repository/environment variables:
 
 | Variable | Meaning |
 | --- | --- |
-| `SAYWING_RELEASE_ENABLED` | Repository variable, currently `false`; enable after gates, credentials and hosting are ready |
-| `SAYWING_RUNTIME_SHA256` | Exact SHA-256 of the approved ZIP containing `Saywing.app`, stored privately at `saywing/runtime/<sha256>.zip` |
+| `SAYWING_RELEASE_ENABLED` | Repository variable enabling main-branch packaging; enabled for the public ARM beta |
+| `SAYWING_RUNTIME_SHA256` | Exact SHA-256 of the approved ARM runtime archive, stored privately at `saywing/runtime/<sha256>.<format>` |
+| `SAYWING_RUNTIME_FORMAT` | ARM archive format, `dmg` or `zip` (default `zip`) |
+| `SAYWING_INTEL_RELEASE_ENABLED` | Repository opt-in for the Intel matrix job; leave unset/false until separately approved |
+| `SAYWING_INTEL_RUNTIME_SHA256` | Independent Intel DMG pin under the same private runtime prefix; no fallback to the ARM pin |
 | `SAYWING_PUBLISH_ENABLED` | Enable upload only after the website routes and bucket have passed a live smoke test |
 | `SAYWING_S3_ENDPOINT` | HTTPS endpoint shown by the Railway bucket |
 | `SAYWING_S3_BUCKET` | Bucket name from Railway |
@@ -237,10 +242,19 @@ credentials and verifies the pinned SHA-256 before unpacking the archive.
 
 ## Remaining public-release gates
 
-`release-approval.json` deliberately records all gates as incomplete until there
-is evidence: complete license chain, fresh-Mac install/permissions, packaged
-offline/data-flow verification, and a real signed two-version update roundtrip.
-The earlier Apple acceptance establishes signing feasibility, not these gates.
+`release-approval.json` records the ARM beta license, privacy and production HTTPS
+update evidence, plus the owner-approved exception for incomplete fresh-device
+testing. Intel has its own closed record, `release-approval-x86_64.json`; neither
+the ARM evidence nor its exception opens the Intel gate. See
+[intel-release-readiness-2026-10-15.md](intel-release-readiness-2026-10-15.md) for
+actual Intel/Rosetta evidence, pending physical-device and HTTPS checks, and the
+activation sequence. Apple notarization alone does not satisfy these gates.
+
+Intel public downloads, feed and promotion pointer use `/downloads/saywing/x86_64/`
+and `saywing/x86_64/`; ARM keeps its existing URLs and `saywing/` prefix. The
+website route must be deployed before enabling Intel publication. Private Intel
+test packages belong under `saywing/private-candidates/`, never the public
+versioned release namespace.
 
 Primary references: [Apple Developer ID](https://developer.apple.com/developer-id/),
 [Sparkle setup](https://sparkle-project.org/documentation/),

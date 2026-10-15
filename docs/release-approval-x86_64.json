@@ -1,0 +1,11 @@
+{
+  "license_review": true,
+  "clean_mac": false,
+  "offline_privacy": true,
+  "update_roundtrip": false,
+  "scope": {
+    "architecture": "x86_64",
+    "verified_build": "9"
+  },
+  "evidence": "docs/intel-release-readiness-2026-10-15.md and docs/intel-update-loopback-2026-10-15.json. Notarized Intel build9: 88 verified notices, macOS14 native-code audit, actual x86_64 Sparkle installation 8 to 9 and 12 offline dictation checks under Rosetta. Production HTTPS and physical Intel/fresh-permission evidence remain open. Owner has no Intel Mac available. ARM beta exception does not apply."
+}

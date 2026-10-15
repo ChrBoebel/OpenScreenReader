@@ -67,7 +67,7 @@ class ReleaseTests(unittest.TestCase):
             record.write_text(json.dumps({'license_review': True, 'clean_mac': False, 'offline_privacy': True}))
             with self.assertRaises(ValueError):
                 release.require_release_approval(record)
-            record.write_text(json.dumps({key: True for key in release.RELEASE_GATES}))
+            record.write_text(json.dumps({**{key: True for key in release.RELEASE_GATES}, 'scope': {'architecture': 'arm64'}}))
             release.require_release_approval(record)
 
     def test_owner_beta_exception_only_covers_documented_device_test_gap(self):
@@ -114,6 +114,19 @@ class ReleaseTests(unittest.TestCase):
             key.chmod(0o644)
             with self.assertRaisesRegex(ValueError, 'private'):
                 release.generate_feed(Path('/tools'), Path('/publish'), args)
+
+    def test_intel_requires_its_own_complete_approval(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp)/'approval.json'
+            approved = {**{key: True for key in release.RELEASE_GATES}, 'scope': {'architecture': 'arm64'}}
+            path.write_text(json.dumps(approved))
+            with self.assertRaises(ValueError): release.require_release_approval(path, 'x86_64')
+            approved['scope']['architecture'] = 'x86_64'
+            path.write_text(json.dumps(approved))
+            release.require_release_approval(path, 'x86_64')
+            approved['clean_mac'] = False
+            path.write_text(json.dumps(approved))
+            with self.assertRaises(ValueError): release.require_release_approval(path, 'x86_64')
 
     def test_version_numbers_are_monotonic_and_path_safe(self):
         release.validate_version('0.1.0', '42')

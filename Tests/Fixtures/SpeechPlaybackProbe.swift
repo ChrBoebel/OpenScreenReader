@@ -104,7 +104,10 @@ struct SpeechPlaybackProbe {
                 }
             }
             guard !cancel, !cancelLoading, !timedOut, chunks > 0,
-                  NSPasteboard.general.changeCount == clipboardRevision else { exit(1) }
+                  NSPasteboard.general.changeCount == clipboardRevision else {
+                print("FAIL: playback completion; timeout=\(timedOut); chunks=\(chunks); clipboard changed=\(NSPasteboard.general.changeCount != clipboardRevision)")
+                exit(1)
+            }
             let diagnostics = service.playbackDiagnostics
             if pausePlayback && !resumed { print("FAIL: pause did not hold reading"); exit(1) }
             print("Continuity: underruns=\(diagnostics.underruns); missing=\(Double(diagnostics.missingFrames) / rate) s; audio=\(Double(diagnostics.frames) / rate) s; maximum queued=\(Double(diagnostics.maximumQueuedFrames) / rate) s")

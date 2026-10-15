@@ -31,25 +31,26 @@ class Store:
         key = args['Key']
         if args.get('IfNoneMatch') == '*' and key in self.objects:
             raise ValueError('Conditional write conflict')
-        if key == 'saywing/current.json' and key in self.objects:
+        if key.endswith('/current.json') and key in self.objects:
             assert args['IfMatch'] == '"etag"'
         body = args['Body']
         self.objects[key] = (body.read() if hasattr(body, 'read') else body, args.get('Metadata', {}))
         self.writes.append(key)
 
 class PublishTests(unittest.TestCase):
-    def release(self, root):
+    def release(self, root, architecture="arm64"):
         folder = root / 'publish'
         folder.mkdir()
         archive = folder / 'Saywing-0.1.2-3.dmg'
         archive.write_bytes(b'fixture archive - not a notarized app')
-        meta = {'version': '0.1.2', 'build': '3', 'url': publisher.PUBLIC_PREFIX + '/' + archive.name,
+        prefix = publisher.PUBLIC_PREFIX + ('/x86_64' if architecture == 'x86_64' else '')
+        meta = {'version': '0.1.2', 'build': '3', 'architecture': architecture, 'url': prefix + '/' + archive.name,
                 'bytes': archive.stat().st_size, 'sha256': publisher.digest(archive)}
         (folder / 'latest.json').write_text(json.dumps(meta))
         (folder / 'appcast.xml').write_text('<rss/>')
         (folder / 'SHA256SUMS').write_text(meta['sha256'] + '  ' + archive.name + '\n')
         (root / 'release-result.json').write_text(json.dumps({'version': '0.1.2', 'build': '3',
-            'notarized': True, 'public_release_approved': True, 'source_commit': 'commit'}))
+            'notarized': True, 'public_release_approved': True, 'source_commit': 'commit', 'architecture': architecture}))
         return meta
     def test_promotes_only_after_immutable_files_and_public_verification(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -94,3 +95,49 @@ class PublishTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 publisher.publish(root, store, 'bucket', lambda: 'commit', lambda _: None)
             self.assertNotIn('saywing/current.json', store.objects)
+
+    def test_intel_promotion_does_not_read_or_change_arm_release(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp); self.release(root, 'x86_64'); store = Store()
+            arm = (json.dumps({'build': '108'}).encode(), {})
+            store.objects['saywing/current.json'] = arm
+            publisher.publish(root, store, 'bucket', lambda: 'commit', lambda _: None)
+            self.assertEqual(store.objects['saywing/current.json'], arm)
+            self.assertEqual(store.writes[-1], 'saywing/x86_64/current.json')
+            self.assertTrue(all(key.startswith('saywing/x86_64/') for key in store.writes))
+            self.assertEqual(json.loads(store.objects[store.writes[-1]][0])['architecture'], 'x86_64')
+
+    def test_cross_architecture_metadata_rejected_before_upload(self):
+        for changed in ['url', 'architecture']:
+            with self.subTest(changed=changed), tempfile.TemporaryDirectory() as temp:
+                root=Path(temp); self.release(root, 'x86_64'); store=Store()
+                path=root/'publish/latest.json'; meta=json.loads(path.read_text())
+                meta[changed] = publisher.PUBLIC_PREFIX + '/Saywing-0.1.2-3.dmg' if changed == 'url' else 'arm64'
+                path.write_text(json.dumps(meta))
+                with self.assertRaises(ValueError): publisher.publish(root, store, 'bucket', lambda: 'commit', lambda _: None)
+                self.assertEqual(store.writes, [])
+
+    def test_pointer_architecture_must_match_namespace(self):
+        for architecture, previous_architecture in [('arm64', 'x86_64'), ('x86_64', 'arm64'), ('x86_64', None)]:
+            with self.subTest(architecture=architecture, previous=previous_architecture), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp); self.release(root, architecture); store = Store()
+                prefix = publisher.release_target(architecture)['storage_prefix']
+                previous = {'build': '2'}
+                if previous_architecture: previous['architecture'] = previous_architecture
+                store.objects[prefix + '/current.json'] = (json.dumps(previous).encode(), {})
+                with self.assertRaisesRegex(ValueError, 'architecture'):
+                    publisher.publish(root, store, 'bucket', lambda: 'commit', lambda _: None)
+                self.assertEqual(store.writes, [])
+
+    def test_intel_retry_and_downgrade_are_independent(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp); self.release(root, 'x86_64'); store = Store()
+            publisher.publish(root, store, 'bucket', lambda: 'commit', lambda _: None)
+            writes = list(store.writes)
+            publisher.publish(root, store, 'bucket', lambda: 'commit', lambda _: None)
+            self.assertEqual(store.writes, writes)
+            key = 'saywing/x86_64/current.json'
+            store.objects[key] = (json.dumps({'build': '4', 'architecture': 'x86_64'}).encode(), {})
+            with self.assertRaisesRegex(ValueError, 'downgrade'):
+                publisher.publish(root, store, 'bucket', lambda: 'commit', lambda _: None)
+            self.assertEqual(store.writes, writes)
