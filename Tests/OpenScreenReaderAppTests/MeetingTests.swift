@@ -669,3 +669,41 @@ struct MeetingControllerTests {
         #expect(fixture.system.starts == 0 || fixture.system.stops >= 1)
     }
 }
+
+private final class MeetingHotkeyFake: HotkeyManaging {
+    var onPress: (() -> Void)?
+    func register(_ shortcut: HotkeyShortcut) -> HotkeyRegistration { .registered }
+    func unregister() {}
+}
+
+@Suite("Meeting transcript in the app", .serialized)
+@MainActor
+struct MeetingAppTests {
+    @Test
+    func aRunningTranscriptShowsItsOwnMenuBarShapeAndHoldsUpdates() async {
+        let fixture = MeetingFixture()
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: MeetingHotkeyFake(),
+                             meeting: fixture.controller)
+        #expect(model.menuBarIndicator == .idle)
+        #expect(model.canChangeShortcut)
+        await fixture.start()
+        #expect(model.menuBarIndicator == .recording)
+        #expect(model.isBusyForUpdates)
+        fixture.controller.stop()
+        await fixture.controller.waitUntilSettled()
+        #expect(model.menuBarIndicator == .idle)
+        #expect(!model.isBusyForUpdates)
+    }
+
+    @Test
+    func readingAndDictationLeaveARunningTranscriptAlone() async {
+        let fixture = MeetingFixture()
+        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: MeetingHotkeyFake(),
+                             meeting: fixture.controller)
+        await fixture.start()
+        model.enqueueStopRequest()
+        await model.waitForInteractionToSettle()
+        #expect(fixture.controller.phase == .live)
+        #expect(fixture.microphone.stops == 0)
+    }
+}

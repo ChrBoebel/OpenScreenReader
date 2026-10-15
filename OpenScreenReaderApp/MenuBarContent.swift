@@ -26,6 +26,9 @@ struct MenuBarContent: View {
         if let dictation = model.dictation {
             DictationMenuContent(controller: dictation)
         }
+        if let meeting = model.meeting {
+            MeetingMenuContent(controller: meeting)
+        }
 
         if model.isReadingActive {
             Divider()
@@ -57,7 +60,7 @@ struct MenuBarContent: View {
         SettingsLink { Text("Settings…") }
             .keyboardShortcut(",")
         Button("Set Up & Test…") { model.showSetup() }
-        AppUpdateMenu(updates: model.updates, busy: !model.canChangeShortcut)
+        AppUpdateMenu(updates: model.updates, busy: model.isBusyForUpdates)
 
         Divider()
 
@@ -96,6 +99,21 @@ struct DictationMenuContent: View {
     }
 }
 
+struct MeetingMenuContent: View {
+    @ObservedObject var controller: MeetingController
+    var body: some View {
+        if controller.isRecording {
+            Text("Meeting Transcript · Running")
+            Button("Show Transcript") { controller.showWindow() }
+            Button("Stop Transcript") { controller.stop() }
+        } else if controller.phase == .finished {
+            Button("Show Meeting Transcript…") { controller.showWindow() }
+        } else {
+            Button("Transcribe a Meeting…") { Task { await controller.open() } }
+        }
+    }
+}
+
 extension ShortcutConfiguration {
     var keyboardShortcut: KeyboardShortcut? {
         guard isValid else { return nil }
@@ -110,8 +128,9 @@ extension ShortcutConfiguration {
 }
 
 /// The menu bar glyph carries state by shape, never by colour: a dot while
-/// reading, a small triangle when something failed. Recording needs no badge;
-/// macOS shows its own microphone indicator.
+/// reading, a small triangle when something failed, a ring while a meeting
+/// transcript runs. Dictation needs no badge; macOS shows its microphone
+/// indicator. A meeting transcript also hears other apps, so it shows its own.
 @MainActor
 enum MenuBarIcon {
     private static var cache: [AppModel.MenuBarIndicator: NSImage] = [:]
@@ -130,6 +149,10 @@ enum MenuBarIcon {
             context.setFillColor(NSColor.black.cgColor)
             if indicator == .reading {
                 context.fillEllipse(in: badge.insetBy(dx: 1, dy: 1))
+            } else if indicator == .recording {
+                context.setStrokeColor(NSColor.black.cgColor)
+                context.setLineWidth(1.6)
+                context.strokeEllipse(in: badge.insetBy(dx: 1.3, dy: 1.3))
             } else {
                 context.move(to: CGPoint(x: badge.midX, y: badge.maxY))
                 context.addLine(to: CGPoint(x: badge.maxX, y: badge.minY))

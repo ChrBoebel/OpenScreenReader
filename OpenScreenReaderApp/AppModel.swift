@@ -148,9 +148,15 @@ final class AppModel: ObservableObject {
         controlsPopover = nil
     }
 
-    enum MenuBarIndicator { case idle, reading, attention }
+    enum MenuBarIndicator { case idle, reading, attention, recording }
+    /// A running meeting transcript wins: it hears other apps, so it must stay visible.
     var menuBarIndicator: MenuBarIndicator {
-        status == .error ? .attention : isReadingActive ? .reading : .idle
+        meeting?.isRecording == true ? .recording : status == .error ? .attention : isReadingActive ? .reading : .idle
+    }
+    /// Updates wait for reading, dictation, model installs and meeting transcripts.
+    var isBusyForUpdates: Bool {
+        !canChangeShortcut || meeting?.isRecording == true
+            || dictation?.models.availability.values.contains(where: { $0.isInstalling }) == true
     }
 
     func showPlaybackControls(from view: NSView) {
@@ -223,8 +229,7 @@ final class AppModel: ObservableObject {
         || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
         || ProcessInfo.processInfo.environment["OSR_SHORTCUT_TEST_SUITE"] != nil) { [weak self] in
             guard let self else { return true }
-            return self.isReadingActive || self.dictation?.isActive == true
-                || self.dictation?.models.availability.values.contains(where: { $0.isInstalling }) == true
+            return self.isReadingActive || self.dictation?.isActive == true || self.isBusyForUpdates
         }
 
     @Published private(set) var status: AppStatus = .ready
@@ -256,11 +261,14 @@ final class AppModel: ObservableObject {
     private var queueOverlayVisible = false
     private var sessionGeneration: UInt64 = 0
     private var dictationObservation: AnyCancellable?
+    private var meetingObservation: AnyCancellable?
     var activityTitle: String {
         if let dictation, dictation.isActive { return dictation.statusText }
+        if meeting?.isRecording == true, activeContext == nil { return String(localized: "Transcribing a meeting") }
         return isPaused ? String(localized: "Paused") : status.title
     }
     let dictation: DictationController?
+    let meeting: MeetingController?
     let preferences: UserDefaults
     private let queueHotkeyManager: (any HotkeyManaging)?
     private let queueShortcutStore: any ShortcutStoring
@@ -313,9 +321,11 @@ final class AppModel: ObservableObject {
         queueHotkeyManager: (any HotkeyManaging)? = nil,
         queueShortcutStore: any ShortcutStoring = UserDefaultsShortcutStore(preferenceKey: "enqueueShortcut.v1"),
         dictation: DictationController? = nil,
+        meeting: MeetingController? = nil,
         missingReadingPermission: @escaping @MainActor () -> SaywingPermission? = { nil }
     ) {
         self.dictation = dictation
+        self.meeting = meeting
         self.missingReadingPermission = missingReadingPermission
         self.pipelineCoordinator = pipelineCoordinator
         self.shortcutStore = shortcutStore
@@ -355,6 +365,8 @@ final class AppModel: ObservableObject {
             dictationObservation = Publishers.Merge(dictation.objectWillChange, dictation.models.objectWillChange)
                 .sink { [weak self] _ in self?.objectWillChange.send() }
         }
+        // A meeting transcript runs beside reading and dictation; neither stops it.
+        meetingObservation = meeting?.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
         dictation?.onOpenSetup = { [weak self] in self?.showSetup(entry: .dictation) }
         dictation?.onActivation = { [weak self] start in
             self?.enqueue { model in

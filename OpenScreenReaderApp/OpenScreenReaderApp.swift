@@ -18,8 +18,10 @@ struct OpenScreenReaderApp: App {
         #else
         dictation = testing ? nil : DictationController(interfaceSounds: sounds)
         #endif
+        // Never records by itself: the menu opens it, and consent starts it.
+        let meeting = testing ? nil : MeetingController(interfaceSounds: sounds)
         let model = AppModel(readingPanel: ReadingPanelController(interfaceSounds: sounds), interfaceSounds: sounds,
-                        queueHotkeyManager: GlobalHotkeyManager(), dictation: dictation,
+                        queueHotkeyManager: GlobalHotkeyManager(), dictation: dictation, meeting: meeting,
                         missingReadingPermission: { SaywingPermission.reading.first { !$0.isGranted } })
         // Prepare once the SwiftUI StateObject is established; never open the microphone.
         DispatchQueue.main.async {

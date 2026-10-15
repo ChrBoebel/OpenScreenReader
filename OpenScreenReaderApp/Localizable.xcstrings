@@ -121,6 +121,16 @@
         }
       }
     },
+    "A meeting transcript starts only after you confirm that everyone is informed. It hears your microphone and other apps, saves no audio and keeps the text in memory until you copy, save or discard it. macOS asks for system audio the first time.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine Meeting-Mitschrift startet erst, wenn du bestätigst, dass alle informiert sind. Sie hört dein Mikrofon und andere Apps, speichert kein Audio und behält den Text im Arbeitsspeicher, bis du ihn kopierst, sicherst oder verwirfst. Beim ersten Mal fragt macOS nach der Systemaudio-Freigabe."
+          }
+        }
+      }
+    },
     "Accessibility": {
       "localizations": {
         "de": {
@@ -1481,6 +1491,16 @@
         }
       }
     },
+    "Meeting Transcript · Running": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meeting-Mitschrift · läuft"
+          }
+        }
+      }
+    },
     "Meeting transcript, %@": {
       "localizations": {
         "de": {
@@ -2531,6 +2551,16 @@
         }
       }
     },
+    "Records only while you dictate or transcribe a meeting.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nimmt nur auf, während du diktierst oder ein Meeting mitschreibst."
+          }
+        }
+      }
+    },
     "Records only while you dictate.": {
       "localizations": {
         "de": {
@@ -3071,6 +3101,16 @@
         }
       }
     },
+    "Show Meeting Transcript…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meeting-Mitschrift anzeigen …"
+          }
+        }
+      }
+    },
     "Show Model": {
       "localizations": {
         "de": {
@@ -3097,6 +3137,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Grund und Hilfe anzeigen"
+          }
+        }
+      }
+    },
+    "Show Transcript": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mitschrift anzeigen"
           }
         }
       }
@@ -3347,6 +3397,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Beende den laufenden Vorgang, bevor du den Kurzbefehl änderst."
+          }
+        }
+      }
+    },
+    "Stop Transcript": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mitschrift beenden"
           }
         }
       }
@@ -3997,6 +4057,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Meeting mitschreiben"
+          }
+        }
+      }
+    },
+    "Transcribe a Meeting…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meeting mitschreiben …"
+          }
+        }
+      }
+    },
+    "Transcribing a meeting": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meeting wird mitgeschrieben"
           }
         }
       }

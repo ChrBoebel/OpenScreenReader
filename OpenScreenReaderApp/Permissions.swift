@@ -16,7 +16,7 @@ enum SaywingPermission: String, CaseIterable, Identifiable {
         switch self {
         case .screenRecording: String(localized: "Captures only the region you mark, for local text recognition.")
         case .inputMonitoring: String(localized: "Lets Escape stop reading while another app is active. Only Escape is checked.")
-        case .microphone: String(localized: "Records only while you dictate.")
+        case .microphone: String(localized: "Records only while you dictate or transcribe a meeting.")
         case .accessibility: String(localized: "Lets Fn start dictation and pastes the text into the app you were using.")
         }
     }
