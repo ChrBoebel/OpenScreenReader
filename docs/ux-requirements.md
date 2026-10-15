@@ -200,10 +200,21 @@ Eigentümerentscheidung „okey baue es“ auf den Vorschlag nach der Wispr-Flow
   - Vorläufiger Text steht in Sekundärfarbe und wird ersetzt, sobald er feststeht.
   - Der Verlauf scrollt mit, solange man unten ist.
   - Zwei kleine Pegel zeigen, dass beide Spuren ankommen. Kommt 20 s lang kein Ton von anderen Apps, erscheint ein Hinweis auf die Systemaudio-Freigabe.
-  - Stopp ist die einzige Taste. Schließen blendet das Fenster nur aus; das Menü bringt es zurück.
-- **Danach:** „Kopieren“, „Sichern …“ (Markdown) und „Verwerfen“. „Neue Mitschrift“ ersetzt das alte Transkript erst nach Bestätigung, solange es nicht gesichert ist.
+  - Stopp ist die einzige Taste (⌘. wie überall am Mac; Return beendet nichts versehentlich). Schließen blendet das Fenster nur aus; das Menü bringt es zurück.
+  - Mitlaufen nur, solange man unten ist: Wer zum Nachlesen hochscrollt, bleibt dort; „Neueste“ springt zurück.
+- **Danach:** links „Verwerfen“ und „Neue Mitschrift“ (das Transkript verlassen), rechts „Kopieren“ und „Sichern …“ (behalten, Hauptaktion). Kopieren und Sichern bestätigen sich kurz mit Häkchen in der Taste. Verwerfen und Neue Mitschrift fragen nur nach, solange der Text weder kopiert noch gesichert wurde.
 - **Klänge:** Start mit „Mikrofon an“, Ende mit „Mikrofon aus“, beides aus der bestehenden Familie und mit derselben Einstellung.
 - **Menü:**
   - Während der Aufnahme „Mitschrift · läuft“ mit „Mitschrift anzeigen“ und „Mitschrift beenden“.
   - Das Menüleistensymbol trägt einen Ring, also eine eigene Form. Anders als beim Diktieren reicht die Mikrofonanzeige des Systems hier nicht, weil auch Systemaudio aufgenommen wird.
 - Esc, Vorlesen und Diktieren lassen eine laufende Mitschrift unberührt.
+
+### Design-Review Meeting-Mitschrift — 2026-10-16
+
+Auf Wunsch des Eigentümers nach dem Apple-Design-Skill und dem [Saywing-Markensystem](brand-identity/BRAND_SYSTEM.md) geprüft; Befunde und Umsetzung im [Prüfprotokoll](meeting-transcript-verification.md#design-review-2026-10-16).
+
+- Gleiche Sprache wie die Einrichtung: Symbol auf Petrol-getönter Kreisfläche, zentrierter Titel mit einem erklärenden Satz, Fußleiste mit großer Bedienung und Hauptaktion rechts, Petrol als Akzent (`AccentColor`), kritisch gedämpfte Seitenwechsel bzw. Überblendung bei reduzierter Bewegung.
+- Pegel im Kapsel-Vokabular: fünf 2,5-pt-Balken mit 3 pt Abstand je Spur in Petrol, fünfmal pro Sekunde aktualisiert und kritisch gedämpft geglättet; Stille als flache, gedämpfte Punkte.
+- „Ich“ trägt Petrol, „Andere“ die Primärfarbe; das Etikett sagt es, Farbe ist nie das einzige Merkmal. Warnungen färben nur ihr Symbol (wie in Einrichtung und Einstellungen).
+- Bewusste Abweichung von der Diktierkapsel: Das Fenster zeigt „Aufnahme“ mit rotem Aufnahmesymbol und Dauer. Die Regel „kein Text, kein Timer“ gilt für die kleine Kapsel am Cursor; eine bis zu zweistündige Mitschrift, die andere Personen hört, braucht sichtbaren Zustand und Zeit bis zur Grenze.
+- Menüleiste: Ring als vierte Form neben Punkt und Dreieck, gleiche Größe, Lage und Aussparung.

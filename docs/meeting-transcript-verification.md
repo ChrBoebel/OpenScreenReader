@@ -48,6 +48,29 @@ Zehn Commits, Übersicht in [Architektur](architecture.md#lokale-meeting-mitschr
 - `scripts/check-localization.py`: bestanden. Alle neuen Texte sind auf Deutsch übersetzt, ebenso `NSAudioCaptureUsageDescription`.
 - **Sichtprüfung:** Das Fenster wurde hell und dunkel in allen Zuständen gerendert (opt-in `MeetingPreviewTests`). Dabei fiel auf, dass der Freigabe-Hinweis im fertigen Transkript stehen blieb; behoben und mit Test abgesichert.
 
+## Design-Review 2026-10-16
+
+Prüfung nach dem [Apple-Design-Skill](https://github.com/emilkowalski/skills/blob/main/skills/apple-design/SKILL.md) und dem [Saywing-Markensystem](brand-identity/BRAND_SYSTEM.md), anhand gerenderter Fensterzustände (hell/dunkel) und des Menüleistensymbols.
+
+| Befund | Grundsatz | Umsetzung |
+|---|---|---|
+| Hauptaktionen in Systemblau statt Petrol | Marke | `.tint(AccentColor)` wie Einrichtung und Einstellungen; Pale Petrol im Dunkelmodus |
+| Einwilligung als linksbündige Liste mit Leerfläche | Vertrautheit, Einfachheit | Seitenmuster der Einrichtung: Symbol auf getönter Kreisfläche, Titel, ein Satz, dann die drei Punkte und der Chat-Hinweis |
+| Pegel als graue Fortschrittsbalken, nur 1× pro Sekunde | Reaktion, Marke | Fünf Kapsel-Balken in Petrol, 5 Hz, kritisch gedämpft; Stille sichtbar als Punkte |
+| Gelbes Hinweisband | Marke, Farbe nur am Symbol | Abgerundete, zurückhaltende Fläche, orangefarbenes Warnsymbol, Text in voller Kontrastfarbe |
+| Vier gleichrangige Tasten im fertigen Zustand | Gruppierung, Hierarchie | Verlassen links, Behalten rechts, „Sichern …“ als einzige Hauptaktion |
+| Kopieren/Sichern ohne Rückmeldung | Rückmeldung bei Abschluss | Häkchen „Kopiert“/„Gesichert“ in der Taste, ohne Breitenänderung |
+| Verwerfen löscht ungesicherten Text ohne Rückfrage | Handlungsfreiheit, Nachsicht | Bestätigung nur bei ungesichertem Text (destruktive Taste); sonst sofort |
+| Stopp per Return | Sicherheit | ⌘. wie in macOS üblich |
+| Mitlaufen zieht beim Nachlesen weg | Handlungsfreiheit, Orientierung | Mitlaufen nur am unteren Rand; „Neueste“ bringt zurück |
+| Harte Zustandswechsel | Bewegung | Kritisch gedämpfte Überblendung (0,35 s), neue Beiträge blenden ein; reduzierte Bewegung: kurze bzw. keine Überblendung |
+| Fußleiste der Seite „Nicht verfügbar“ eingerückt | Handwerk | Gleiche 24-pt-Kante wie alle Seiten |
+| Ring im Menüleistensymbol | Form statt Farbe | Geprüft: passt zu Punkt und Dreieck, eindeutig unterscheidbar (hell/dunkel) |
+
+Nach dem Review: Gesamtsuite **236 Tests in 23 Suites bestanden** (neu: Rückfrage beim Verwerfen ungesicherten Textes), Release-Build ohne Warnungen, Lokalisierungsprüfung bestanden, alle Zustände erneut hell/dunkel gerendert und angesehen.
+
+Unverändert und bewusst: rotes Aufnahmesymbol und Dauer im Fenster (siehe [UX-Anforderungen](ux-requirements.md#design-review-meeting-mitschrift--2026-10-16)), Systemschrift, keine Ansagen von VoiceOver während der Aufnahme (sie würden über die Lautsprecher mit aufgenommen; die Liste bleibt mit VoiceOver lesbar). In einzelnen Offscreen-Renderings erscheinen hervorgehobene Tasten grau, weil das Vorschaufenster nicht aktiv ist; in den übrigen sind sie Petrol bzw. Pale Petrol.
+
 ## Nicht geprüft / offen
 
 - **Systemaudio-Tap auf echter Hardware:** Er wurde nicht ausgeführt. Der erste Start löst eine Freigabe-Abfrage von macOS aus, die am Gerät bestätigt werden muss. Ungeprüft sind damit die Abfrage selbst, das Ausschließen von Saywing, das tatsächliche Tap-Format und das Verhalten bei verweigerter Freigabe. Die App zeigt nach 20 s ohne Signal einen Hinweis, auch dieser ist nicht live erprobt.
