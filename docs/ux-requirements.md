@@ -186,3 +186,24 @@ Freigabe durch den Eigentümer am 2026-10-14 („setze das alles um“) nach dem
 - Ein unterbrochener Download behält die gewünschte Auswahl, startet beim nächsten App-Start aber nicht automatisch neu. „Laden“ bietet einen bestätigten neuen Versuch. Bis zur vollständigen Prüfung wird das neue Modell nicht aktiviert; der Diktiertest bleibt bei ausstehender Auswahl gesperrt.
 - Vorlesen und Diktieren erhalten eigene Aufnahmefelder für Tastenkombinationen. Konflikte mit dem jeweils anderen oder dem zusätzlichen Warteschlangen-Kurzbefehl werden erklärt. Fehlgeschlagene Registrierung überschreibt keine gespeicherte Wahl. Fn-Gesten können separat deaktiviert werden. Escape bleibt Abbruch.
 - Während der Tastenaufnahme sind Vorlesen, Warteschlange, Diktierkurzbefehl und Fn pausiert. Nach Abschluss oder Abbruch werden die gespeicherten Kurzbefehle wieder registriert. Einrichtung und Einstellungen verwenden dieselben Komponenten und Präferenzen.
+
+## Meeting-Mitschrift — 2026-10-15
+
+Eigentümerentscheidung „okey baue es“ auf den Vorschlag nach der Wispr-Flow-Analyse ([ADR 0006](decisions/0006-local-meeting-transcript.md)).
+
+- **Start:**
+  - Menü „Meeting mitschreiben …“ öffnet das Mitschrift-Fenster mit dem Einwilligungs-Schritt.
+  - Der Schritt erklärt in drei Zeilen, was aufgenommen wird. Er enthält einen kopierbaren Satz für den Meeting-Chat und die Taste „Alle sind informiert – starten“.
+  - Ist die Funktion nicht verfügbar (macOS älter als 26 oder Sprache nicht installiert), sagt das Fenster genau das, statt einen Start anzubieten.
+- **Live:**
+  - Das Fenster zeigt „Ich“ und „Andere“ als Gesprächsverlauf.
+  - Vorläufiger Text steht in Sekundärfarbe und wird ersetzt, sobald er feststeht.
+  - Der Verlauf scrollt mit, solange man unten ist.
+  - Zwei kleine Pegel zeigen, dass beide Spuren ankommen. Kommt 20 s lang kein Ton von anderen Apps, erscheint ein Hinweis auf die Systemaudio-Freigabe.
+  - Stopp ist die einzige Taste. Schließen blendet das Fenster nur aus; das Menü bringt es zurück.
+- **Danach:** „Kopieren“, „Sichern …“ (Markdown) und „Verwerfen“. „Neue Mitschrift“ ersetzt das alte Transkript erst nach Bestätigung, solange es nicht gesichert ist.
+- **Klänge:** Start mit „Mikrofon an“, Ende mit „Mikrofon aus“, beides aus der bestehenden Familie und mit derselben Einstellung.
+- **Menü:**
+  - Während der Aufnahme „Mitschrift · läuft“ mit „Mitschrift anzeigen“ und „Mitschrift beenden“.
+  - Das Menüleistensymbol trägt einen Ring, also eine eigene Form. Anders als beim Diktieren reicht die Mikrofonanzeige des Systems hier nicht, weil auch Systemaudio aufgenommen wird.
+- Esc, Vorlesen und Diktieren lassen eine laufende Mitschrift unberührt.
