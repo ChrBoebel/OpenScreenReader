@@ -167,3 +167,18 @@ struct MeetingTimeline {
     return start
   }
 }
+
+/// The same rule in whole samples, for Apple's analyzer: it rejects input whose
+/// stamp overlaps or precedes earlier input by even one tick.
+struct MeetingFrameTimeline {
+  let rate: Double
+  private(set) var next: Int64?
+
+  mutating func place(at time: TimeInterval, frames: Int) -> Int64 {
+    let wanted = Int64((max(0, time) * rate).rounded())
+    let tolerance = Int64(rate * 0.05)
+    let start = next.map { wanted > $0 + tolerance ? wanted : $0 } ?? wanted
+    next = start + Int64(frames)
+    return start
+  }
+}

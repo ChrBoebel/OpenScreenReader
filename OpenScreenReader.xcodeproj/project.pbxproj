@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		DD2000000000000000000006 /* MeetingRecognition.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD1000000000000000000006 /* MeetingRecognition.swift */; };
+		DD2000000000000000000005 /* MeetingPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD1000000000000000000005 /* MeetingPipeline.swift */; };
 		DD2000000000000000000004 /* MeetingAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD1000000000000000000004 /* MeetingAudio.swift */; };
 		DD2000000000000000000003 /* EchoGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD1000000000000000000003 /* EchoGate.swift */; };
 		DD2000000000000000000002 /* MeetingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD1000000000000000000002 /* MeetingTests.swift */; };
@@ -65,6 +67,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		DD1000000000000000000006 /* MeetingRecognition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Meeting/MeetingRecognition.swift; sourceTree = "<group>"; };
+		DD1000000000000000000005 /* MeetingPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Meeting/MeetingPipeline.swift; sourceTree = "<group>"; };
 		DD1000000000000000000004 /* MeetingAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Meeting/MeetingAudio.swift; sourceTree = "<group>"; };
 		DD1000000000000000000003 /* EchoGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Meeting/EchoGate.swift; sourceTree = "<group>"; };
 		DD1000000000000000000002 /* MeetingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingTests.swift; sourceTree = "<group>"; };
@@ -158,6 +162,8 @@
 			isa = PBXGroup;
 			children = (
 				BB1000000000000000000004 /* InfoPlist.xcstrings */,
+				DD1000000000000000000006 /* MeetingRecognition.swift */,
+				DD1000000000000000000005 /* MeetingPipeline.swift */,
 				DD1000000000000000000004 /* MeetingAudio.swift */,
 				DD1000000000000000000003 /* EchoGate.swift */,
 				DD1000000000000000000001 /* MeetingCore.swift */,
@@ -356,6 +362,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				BB2000000000000000000002 /* ShortcutRecorder.swift in Sources */,
+				DD2000000000000000000006 /* MeetingRecognition.swift in Sources */,
+				DD2000000000000000000005 /* MeetingPipeline.swift in Sources */,
 				DD2000000000000000000004 /* MeetingAudio.swift in Sources */,
 				DD2000000000000000000003 /* EchoGate.swift in Sources */,
 				DD2000000000000000000001 /* MeetingCore.swift in Sources */,

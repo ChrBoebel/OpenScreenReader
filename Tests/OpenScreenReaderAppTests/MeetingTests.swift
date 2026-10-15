@@ -113,6 +113,18 @@ struct MeetingTimelineTests {
     }
 
     @Test
+    func analyzerStampsAreWholeSamplesThatNeverOverlap() {
+        var timeline = MeetingFrameTimeline(rate: 16_000)
+        var previousEnd: Int64 = 0
+        for (index, frames) in [1_600, 1_599, 1_601, 1_600, 1_598].enumerated() {
+            let start = timeline.place(at: 100 + Double(index) * 0.1 + 0.0004, frames: frames)
+            #expect(index == 0 || start == previousEnd)
+            previousEnd = start + Int64(frames)
+        }
+        #expect(timeline.place(at: 200, frames: 10) == 3_200_000)
+    }
+
+    @Test
     func aRealGapJumpsAheadAndTimeNeverRunsBackwards() {
         var timeline = MeetingTimeline()
         _ = timeline.place(at: 1, duration: 0.1)
@@ -249,5 +261,145 @@ struct MeetingAudioTests {
     func hostTimeConvertsToSeconds() {
         let second = MeetingHostClock.hostTicks(forSeconds: 1)
         #expect(abs(MeetingHostClock.seconds(second * 3) - 3) < 1e-6)
+    }
+}
+
+private final class RecognizerFake: MeetingRecognizing, @unchecked Sendable {
+    private let lock = NSLock()
+    private var _appended: [(speaker: MeetingSpeaker, time: TimeInterval, frames: Int)] = []
+    var appended: [(speaker: MeetingSpeaker, time: TimeInterval, frames: Int)] { lock.withLock { _appended } }
+    var startedLocale: Locale?
+    var finished = false
+    var cancelled = false
+    var startError: Error?
+    var onResult: (@Sendable (MeetingRecognition) -> Void)?
+    var onFailure: (@Sendable (String) -> Void)?
+    var finalOnFinish: MeetingRecognition?
+
+    func start(locale: Locale, onResult: @escaping @Sendable (MeetingRecognition) -> Void,
+               onFailure: @escaping @Sendable (String) -> Void) async throws {
+        if let startError { throw startError }
+        startedLocale = locale
+        self.onResult = onResult
+        self.onFailure = onFailure
+    }
+    func append(_ chunk: MeetingAudioChunk, at time: TimeInterval, speaker: MeetingSpeaker) {
+        lock.withLock { _appended.append((speaker, time, chunk.samples.count)) }
+    }
+    func finish() async {
+        finished = true
+        if let finalOnFinish { onResult?(finalOnFinish) }
+    }
+    func cancel() async { cancelled = true }
+}
+
+@Suite("Meeting audio routing")
+struct MeetingRouterTests {
+    private let start: UInt64 = 1_000_000_000
+
+    private func chunk(_ samples: [Float], rate: Double = 48_000, after seconds: TimeInterval) -> MeetingAudioChunk {
+        MeetingAudioChunk(samples: samples, sampleRate: rate, hostTime: start + MeetingHostClock.hostTicks(forSeconds: seconds))
+    }
+
+    @Test
+    func chunksLandOnTheMeetingTimelineAndReachTheRecognizer() {
+        let recognizer = RecognizerFake()
+        let router = MeetingAudioRouter(startHostTime: start, recognizer: recognizer, onEcho: { _ in })
+        router.handle(chunk([Float](repeating: 0.1, count: 4_800), after: 1), from: .me)
+        router.handle(chunk([Float](repeating: 0.1, count: 4_800), after: 1.11), from: .me)
+        router.handle(chunk([Float](repeating: 0, count: 480), after: 0.5), from: .others)
+        let times = recognizer.appended.map { ($0.speaker, ($0.time * 100).rounded() / 100) }
+        #expect(times.map(\.0) == [.me, .me, .others])
+        #expect(times.map(\.1) == [1, 1.1, 0.5])
+    }
+
+    @Test
+    func echoAtTheDevicesSampleRateIsReportedAfterResampling() async {
+        var source = SignalSource(seed: 7)
+        let system = source.speech(seconds: 6, rate: 48_000)
+        let mic = delayed(system, by: 0.1, gain: 0.3, rate: 48_000)
+        let found = Spans()
+        let router = MeetingAudioRouter(startHostTime: start, recognizer: RecognizerFake(), onEcho: { found.add($0) })
+        for offset in stride(from: 0, to: system.count, by: 4_800) {
+            let time = Double(offset) / 48_000
+            router.handle(chunk(Array(system[offset..<offset + 4_800]), after: time), from: .others)
+            router.handle(chunk(Array(mic[offset..<offset + 4_800]), after: time), from: .me)
+        }
+        router.drain()
+        #expect(!found.all.isEmpty)
+    }
+
+    @Test
+    func stoppedRoutingDropsLateAudio() {
+        let recognizer = RecognizerFake()
+        let router = MeetingAudioRouter(startHostTime: start, recognizer: recognizer, onEcho: { _ in })
+        router.stop()
+        router.handle(chunk([0.2, 0.2], after: 1), from: .me)
+        #expect(recognizer.appended.isEmpty)
+    }
+
+    @Test
+    func silenceAndSoundAreTrackedPerTrack() {
+        let router = MeetingAudioRouter(startHostTime: start, recognizer: RecognizerFake(), onEcho: { _ in })
+        router.handle(chunk([Float](repeating: 0, count: 4_800), after: 2), from: .others)
+        router.handle(chunk([Float](repeating: 0.05, count: 4_800), after: 3), from: .me)
+        let state = router.state
+        #expect(state.lastSignal[.others] == nil)
+        #expect(state.lastSound[.me] != nil)
+        #expect(state.level[.me] ?? 0 > 0.04)
+    }
+}
+
+private final class Spans: @unchecked Sendable {
+    private let lock = NSLock()
+    private var spans: [ClosedRange<TimeInterval>] = []
+    func add(_ more: [ClosedRange<TimeInterval>]) { lock.withLock { spans += more } }
+    var all: [ClosedRange<TimeInterval>] { lock.withLock { spans } }
+}
+
+private final class Results: @unchecked Sendable {
+    private let lock = NSLock()
+    private var items: [MeetingRecognition] = []
+    func add(_ item: MeetingRecognition) { lock.withLock { items.append(item) } }
+    var all: [MeetingRecognition] { lock.withLock { items } }
+}
+
+/// Runs Apple's on-device recogniser for real when this Mac has it and German installed.
+@Suite("Meeting recognition on this Mac", .serialized)
+struct AppleMeetingRecognizerTests {
+    @Test(.timeLimit(.minutes(1)))
+    @MainActor
+    func germanSpeechLandsOnTheMeetingTimeline() async throws {
+        guard #available(macOS 26, *) else { return }
+        let provider = SystemMeetingRecognizerProvider()
+        guard case let .available(locale) = await provider.availability(for: .german) else { return }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("meeting-\(UUID()).aiff")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let say = Process()
+        say.executableURL = URL(fileURLWithPath: "/usr/bin/say")
+        say.arguments = ["-v", "Anna", "-o", url.path, "Guten Morgen zusammen. Kurzer Stand zum Projekt."]
+        try say.run()
+        say.waitUntilExit()
+        guard say.terminationStatus == 0 else { return }
+        let file = try AVAudioFile(forReading: url)
+        let buffer = try #require(AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)))
+        try file.read(into: buffer)
+        let samples = Array(UnsafeBufferPointer(start: buffer.floatChannelData![0], count: Int(buffer.frameLength)))
+        let rate = file.processingFormat.sampleRate
+
+        let recognizer = try #require(provider.makeRecognizer())
+        let results = Results()
+        try await recognizer.start(locale: locale, onResult: { results.add($0) }, onFailure: { _ in })
+        let step = Int(rate / 10)
+        for offset in stride(from: 0, to: samples.count, by: step) {
+            let piece = Array(samples[offset..<min(offset + step, samples.count)])
+            recognizer.append(MeetingAudioChunk(samples: piece, sampleRate: rate, hostTime: 0),
+                              at: 100 + Double(offset) / rate, speaker: .others)
+        }
+        await recognizer.finish()
+        let finals = results.all.filter(\.isFinal)
+        let text = finals.map(\.text).joined(separator: " ")
+        #expect(text.localizedCaseInsensitiveContains("Morgen"))
+        #expect(finals.allSatisfy { $0.speaker == .others && $0.start >= 99.9 })
     }
 }
