@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		DD2000000000000000000002 /* MeetingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD1000000000000000000002 /* MeetingTests.swift */; };
+		DD2000000000000000000001 /* MeetingCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD1000000000000000000001 /* MeetingCore.swift */; };
         CC2000000000000000000001 = {isa = PBXBuildFile; fileRef = CC1000000000000000000001; };
         CC2000000000000000000002 = {isa = PBXBuildFile; productRef = CC3000000000000000000001; };
 		F00000000000000000000003 /* InterfaceSoundPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000004; };
@@ -61,6 +63,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		DD1000000000000000000002 /* MeetingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingTests.swift; sourceTree = "<group>"; };
+		DD1000000000000000000001 /* MeetingCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Meeting/MeetingCore.swift; sourceTree = "<group>"; };
         CC1000000000000000000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateController.swift; sourceTree = "<group>"; };
 		F00000000000000000000004 /* InterfaceSoundPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterfaceSoundPlayer.swift; sourceTree = "<group>"; };
 		F00000000000000000000002 /* ReadingPanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingPanelController.swift; sourceTree = "<group>"; };
@@ -150,6 +154,7 @@
 			isa = PBXGroup;
 			children = (
 				BB1000000000000000000004 /* InfoPlist.xcstrings */,
+				DD1000000000000000000001 /* MeetingCore.swift */,
 				BB1000000000000000000003 /* Localizable.xcstrings */,
 				BB1000000000000000000002 /* ShortcutRecorder.swift */,
 				BB1000000000000000000001 /* Permissions.swift */,
@@ -185,6 +190,7 @@
 			isa = PBXGroup;
 			children = (
 				A00000000000000000000015 /* AppStatusTests.swift */,
+				DD1000000000000000000002 /* MeetingTests.swift */,
 				D00000000000000000000002 /* OCRTests.swift */,
 				A00000000000000000000018 /* InteractionTests.swift */,
 				B00000000000000000000002 /* CaptureTests.swift */,
@@ -344,6 +350,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				BB2000000000000000000002 /* ShortcutRecorder.swift in Sources */,
+				DD2000000000000000000001 /* MeetingCore.swift in Sources */,
 				BB2000000000000000000001 /* Permissions.swift in Sources */,
 				C52000000000000000000001 /* SetupFlow.swift in Sources */,
 				C52000000000000000000002 /* SetupView.swift in Sources */,
@@ -375,6 +382,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A00000000000000000000021 /* AppStatusTests.swift in Sources */,
+				DD2000000000000000000002 /* MeetingTests.swift in Sources */,
 				D00000000000000000000001 /* OCRTests.swift in Sources */,
 				A00000000000000000000027 /* InteractionTests.swift in Sources */,
 				B00000000000000000000001 /* CaptureTests.swift in Sources */,

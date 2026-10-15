@@ -1361,6 +1361,16 @@
         }
       }
     },
+    "Me": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ich"
+          }
+        }
+      }
+    },
     "Microphone": {
       "localizations": {
         "de": {
@@ -1657,6 +1667,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Weitere Modelle"
+          }
+        }
+      }
+    },
+    "Others": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Andere"
           }
         }
       }
