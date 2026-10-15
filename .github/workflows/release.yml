@@ -101,6 +101,7 @@ jobs:
             --download-url-prefix "$SAYWING_DOWNLOAD_URL_PREFIX" \
             --public-key "$SAYWING_PUBLIC_KEY" \
             --keychain "$RUNNER_TEMP/saywing-release.keychain-db" \
+            --sparkle-key-file "$RUNNER_TEMP/saywing-sparkle.key" \
             --notary-profile Saywing-CI --notarize --public-release
       - name: Retain complete distribution for the hosting deployment
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

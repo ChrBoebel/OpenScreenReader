@@ -92,6 +92,29 @@ class ReleaseTests(unittest.TestCase):
             record.write_text(json.dumps({**data, 'scope': {'architecture': 'x86_64'}}))
             with self.assertRaises(ValueError): release.require_release_approval(record)
 
+    def test_headless_sparkle_signing_uses_private_file_without_keychain(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as temp:
+            key = Path(temp) / 'sparkle.key'
+            key.write_text('test-only-secret')
+            key.chmod(0o600)
+            args = SimpleNamespace(sparkle_key_file=key, sparkle_account='saywing',
+                                   download_url_prefix='https://example.com')
+            with patch.object(release, 'run') as run:
+                release.generate_feed(Path('/tools'), Path('/publish'), args)
+                calls = [call.args for call in run.call_args_list]
+                self.assertEqual(len(calls), 2)
+                for call in calls:
+                    self.assertIn('--ed-key-file', call)
+                    self.assertIn(key, call)
+                    self.assertNotIn('--account', call)
+                    self.assertNotIn('test-only-secret', call)
+                self.assertTrue(all(call.kwargs.get('timeout') == 300 for call in run.call_args_list))
+            key.chmod(0o644)
+            with self.assertRaisesRegex(ValueError, 'private'):
+                release.generate_feed(Path('/tools'), Path('/publish'), args)
+
     def test_version_numbers_are_monotonic_and_path_safe(self):
         release.validate_version('0.1.0', '42')
         for version, build in [('0.1.0', '0'), ('../oops', '3'), ('1.0', 'abc'), ('1.2.3', '1/2')]:

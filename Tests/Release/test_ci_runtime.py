@@ -37,3 +37,25 @@ class RuntimeExtractionTests(unittest.TestCase):
                 run.reset_mock()
                 with self.assertRaises(ValueError): ci.extract_runtime(base / 'runtime', base / 'output', 'exe')
                 run.assert_not_called()
+
+
+class CredentialLifetimeTests(unittest.TestCase):
+    def test_sparkle_key_survives_setup_until_cleanup_and_is_private(self):
+        from types import SimpleNamespace
+        import os
+        with tempfile.TemporaryDirectory() as temp:
+            env = {'GITHUB_ACTIONS': 'true', 'RUNNER_TEMP': temp,
+                   'SAYWING_CERTIFICATE_P12': 'Y2VydA==', 'SAYWING_CERTIFICATE_PASSWORD': 'test',
+                   'SAYWING_SPARKLE_PRIVATE_KEY': 'test-only-key',
+                   'SAYWING_APPLE_ID': 'test@example.com', 'SAYWING_APPLE_APP_PASSWORD': 'test'}
+            with patch.dict(os.environ, env), patch.object(ci, 'sparkle_tools', return_value=Path('/tools')), \
+                 patch.object(ci, 'run', return_value=SimpleNamespace(stdout='"/original.keychain"\n')):
+                with patch.object(sys, 'argv', ['prepare-release-ci.py', 'credentials']):
+                    ci.main()
+                key = Path(temp) / 'saywing-sparkle.key'
+                self.assertEqual(key.read_text(), 'test-only-key')
+                self.assertEqual(key.stat().st_mode & 0o777, 0o600)
+                self.assertFalse((Path(temp) / 'saywing-cert.p12').exists())
+                with patch.object(sys, 'argv', ['prepare-release-ci.py', 'cleanup']):
+                    ci.main()
+                self.assertFalse(key.exists())

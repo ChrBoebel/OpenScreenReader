@@ -196,6 +196,7 @@ def main():
     parser.add_argument('--notary-profile', default='Saywing-Notary-S28WSHSSJD')
     parser.add_argument('--keychain')
     parser.add_argument('--sparkle-account', default='saywing')
+    parser.add_argument('--sparkle-key-file', type=Path, help='Private temporary Ed25519 file for unattended CI signing')
     parser.add_argument('--notarize', action='store_true')
     parser.add_argument('--public-release', action='store_true', help='Requires completed release-approval.json gates and notarization')
     args = parser.parse_args()
@@ -275,6 +276,21 @@ def sparkle_tools(packages):
     raise ValueError('Pinned Sparkle tools were not resolved by Xcode')
 
 
+def generate_feed(tools, publish, args):
+    key_file = getattr(args, 'sparkle_key_file', None)
+    credentials = ['--account', args.sparkle_account]
+    if key_file is not None:
+        if key_file.is_symlink() or not key_file.is_file() or key_file.stat().st_mode & 0o077:
+            raise ValueError('Sparkle key must be a private regular file (mode 0600)')
+        credentials = ['--ed-key-file', key_file]
+    print('Generating signed Sparkle appcast', flush=True)
+    run(tools / 'generate_appcast', *credentials,
+        '--download-url-prefix', args.download_url_prefix.rstrip('/') + '/',
+        '--maximum-deltas', '0', '-o', publish / 'appcast.xml', publish, timeout=300)
+    print('Verifying signed Sparkle appcast', flush=True)
+    run(tools / 'sign_update', *credentials, '--verify', publish / 'appcast.xml', timeout=300)
+
+
 def package_signed_app(app, output, args, tools):
     run('/usr/bin/codesign', '--verify', '--deep', '--strict', app)
     info = plistlib.loads((app / 'Contents/Info.plist').read_bytes())
@@ -306,12 +322,10 @@ def package_signed_app(app, output, args, tools):
         notarize(image, args.notary_profile, args.keychain, output)
         run('xcrun', 'stapler', 'staple', image)
         run('xcrun', 'stapler', 'validate', image)
-        run('/usr/sbin/spctl', '--assess', '--type', 'open', '--context', 'context:primary-signature', image)
+        print('Assessing final DMG with Gatekeeper', flush=True)
+        run('/usr/sbin/spctl', '--assess', '--type', 'open', '--context', 'context:primary-signature', image, timeout=300)
     # Generate the signed feed only after the final DMG bytes are immutable.
-    run(tools / 'generate_appcast', '--account', args.sparkle_account,
-        '--download-url-prefix', args.download_url_prefix.rstrip('/') + '/',
-        '--maximum-deltas', '0', '-o', publish / 'appcast.xml', publish)
-    run(tools / 'sign_update', '--account', args.sparkle_account, '--verify', publish / 'appcast.xml')
+    generate_feed(tools, publish, args)
     (publish / 'SHA256SUMS').write_text(f'{digest(image)}  {image.name}\n')
     channel = 'candidate'
     if args.public_release:
