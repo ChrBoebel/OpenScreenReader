@@ -35,9 +35,12 @@ Sparkle **2.10.0**, exact revision
 Xcode `Package.resolved`. Its MIT and bundled dependency notices are preserved in
 `docs/licenses/Sparkle-2.10.0.txt` and copied into release apps.
 
-- A configured release starts Sparkle at app launch and schedules checks every
-  four hours while the app remains running. Sparkle respects the last check time;
-  restarting repeatedly does not force a request every time.
+- A configured release starts Sparkle at app launch and immediately requests a
+  background check when automatic checks are enabled (owner request 2026-10-15),
+  even if the last check was recent. This call runs in the same runloop turn as
+  startup, as required by Sparkle. Sparkle then maintains the four-hour schedule.
+  A saved opt-out is respected. No-update and network-error cases stay quiet;
+  available, non-skipped versions use the existing native update window.
 - Settings → General offers an automatic-check toggle and manual check button.
 - Available versions use Sparkle's native update window and a menu item. A check
   or installation is deferred while reading, selecting, recognizing, dictating

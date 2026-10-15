@@ -4,6 +4,16 @@ import OpenScreenReaderCore
 import Sparkle
 import SwiftUI
 
+// Keep the launch sequence testable without contacting a real update server.
+@MainActor
+protocol AppUpdaterStarting {
+    var automaticallyChecksForUpdates: Bool { get }
+    func start() throws
+    func checkForUpdatesInBackground()
+}
+
+extension SPUUpdater: AppUpdaterStarting {}
+
 @MainActor
 final class AppUpdateController: NSObject, ObservableObject, SPUUpdaterDelegate, @preconcurrency SPUStandardUserDriverDelegate {
     @Published private(set) var isConfigured = false
@@ -34,13 +44,22 @@ final class AppUpdateController: NSObject, ObservableObject, SPUUpdaterDelegate,
         NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)
             .sink { [weak self] _ in self?.cancelPendingInstallation() }.store(in: &observations)
         do {
-            try controller.updater.start()
+            try Self.startCheckingAtLaunch(controller.updater)
             isConfigured = true
         } catch {
             // A misconfigured updater must never prevent local reading or dictation.
             self.controller = nil
             observations.removeAll()
             canCheck = false
+        }
+    }
+
+    static func startCheckingAtLaunch(_ updater: any AppUpdaterStarting) throws {
+        try updater.start()
+        // Sparkle requires this in the same runloop turn as start(), before its
+        // scheduled cycle. Read the effective preference; never reset an opt-out.
+        if updater.automaticallyChecksForUpdates {
+            updater.checkForUpdatesInBackground()
         }
     }
 
