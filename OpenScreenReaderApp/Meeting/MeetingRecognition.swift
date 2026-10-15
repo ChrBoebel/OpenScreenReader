@@ -82,7 +82,7 @@ final class AppleMeetingRecognizer: MeetingRecognizing, @unchecked Sendable {
     for speaker in MeetingSpeaker.allCases {
       let transcriber = SpeechTranscriber(
         locale: locale, transcriptionOptions: [], reportingOptions: [.volatileResults, .fastResults],
-        attributeOptions: [])
+        attributeOptions: [.audioTimeRange])
       guard let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber]) else {
         throw MeetingError(String(localized: "Speech recognition is not available on this Mac."))
       }
@@ -91,10 +91,16 @@ final class AppleMeetingRecognizer: MeetingRecognizing, @unchecked Sendable {
       let results = Task {
         do {
           for try await result in transcriber.results {
+            // Word timings let the transcript drop only the echoed words of a segment.
+            let pieces = result.text.runs.compactMap { run -> MeetingPiece? in
+              guard let range = run.audioTimeRange else { return nil }
+              let text = String(result.text[run.range].characters).trimmingCharacters(in: .whitespaces)
+              return text.isEmpty ? nil : MeetingPiece(text: text, start: range.start.seconds, end: range.end.seconds)
+            }
             onResult(
               MeetingRecognition(
                 speaker: speaker, start: result.range.start.seconds, end: result.range.end.seconds,
-                text: String(result.text.characters), isFinal: result.isFinal))
+                text: String(result.text.characters), isFinal: result.isFinal, pieces: pieces))
           }
         } catch is CancellationError {
         } catch {

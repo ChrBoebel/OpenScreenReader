@@ -68,6 +68,30 @@ struct MeetingTranscriptTests {
     }
 
     @Test
+    func echoWordsLeaveAMixedSegmentWhileMyWordsStay() {
+        var transcript = MeetingTranscript()
+        let echo = ["Wir", "haben", "die", "Tests", "fertig."].enumerated().map {
+            MeetingPiece(text: $0.element, start: Double($0.offset), end: Double($0.offset) + 0.8)
+        }
+        let mine = ["Danke", ",", "bis", "Freitag."].enumerated().map {
+            MeetingPiece(text: $0.element, start: 7 + Double($0.offset), end: 7.8 + Double($0.offset))
+        }
+        transcript.apply(MeetingRecognition(speaker: .me, start: 0, end: 10, text: "Wir haben die Tests fertig. Danke, bis Freitag.",
+                                            isFinal: true, pieces: echo + mine))
+        transcript.addEcho(0.1...5.8)
+        #expect(transcript.entries.map(\.text) == ["Danke, bis Freitag."])
+    }
+
+    @Test
+    func repeatedWordRunsLeaveAMixedSegmentWithoutTimings() {
+        var transcript = MeetingTranscript()
+        transcript.apply(heard(.others, 0, 5, "Wir haben die Tests fertig."))
+        transcript.apply(heard(.me, 0, 10, "Wir haben die Tests fertig. Danke, dann plane ich Freitag."))
+        let mine = transcript.entries.filter { $0.speaker == .me }.map(\.text)
+        #expect(mine == ["Danke, dann plane ich Freitag."])
+    }
+
+    @Test
     func echoSpansMergeWhenTheyOverlap() {
         var transcript = MeetingTranscript()
         transcript.addEcho(1...3)
@@ -219,7 +243,8 @@ struct EchoGateTests {
         #expect(feed(gate, system: quiet, mic: quiet, from: 6).allSatisfy { $0.lowerBound < 6 })
         let burst = source.speech(seconds: 0.6) + [Float](repeating: 0, count: 11_200)
         let spans = feed(gate, system: burst, mic: delayed(burst, by: 0.08, gain: 0.25), from: 10)
-        #expect(covered(spans, 10...10.6) > 0.9)
+        // The microphone hears the burst 80 ms later.
+        #expect(covered(spans, 10.08...10.68) > 0.9)
     }
 }
 
@@ -374,7 +399,7 @@ struct AppleMeetingRecognizerTests {
         guard #available(macOS 26, *) else { return }
         let provider = SystemMeetingRecognizerProvider()
         guard case let .available(locale) = await provider.availability(for: .german) else { return }
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("meeting-\(UUID()).aiff")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("meeting-\(UUID()).caf")
         defer { try? FileManager.default.removeItem(at: url) }
         let say = Process()
         say.executableURL = URL(fileURLWithPath: "/usr/bin/say")
@@ -402,6 +427,71 @@ struct AppleMeetingRecognizerTests {
         let text = finals.map(\.text).joined(separator: " ")
         #expect(text.localizedCaseInsensitiveContains("Morgen"))
         #expect(finals.allSatisfy { $0.speaker == .others && $0.start >= 99.9 })
+    }
+
+    /// Real recogniser, real router and echo gate: the others' sentence reaches the
+    /// microphone as a quiet echo, then I say something of my own.
+    @Test(.timeLimit(.minutes(1)))
+    @MainActor
+    func speakerEchoDisappearsFromMeWhileMyOwnSentenceStays() async throws {
+        guard #available(macOS 26, *) else { return }
+        let provider = SystemMeetingRecognizerProvider()
+        guard case let .available(locale) = await provider.availability(for: .german) else { return }
+        let others = try #require(try speech("Wir haben in dieser Woche die neue Funktion fertiggestellt und alle Tests laufen grün.", voice: "Anna"))
+        let mine = try #require(try speech("Danke, dann plane ich den Prototypen für Freitag.", voice: "Eddy (Deutsch (Deutschland))")
+            ?? speech("Danke, dann plane ich den Prototypen für Freitag.", voice: "Anna"))
+        let rate = 22_050.0
+        let gap = [Float](repeating: 0, count: Int(rate))
+        let systemTrack = others + gap + [Float](repeating: 0, count: mine.count)
+        let echo = delayed(others, by: 0.09, gain: 0.3, rate: rate)
+        let micTrack = echo + gap + mine
+
+        let recognizer = try #require(provider.makeRecognizer())
+        let results = Results()
+        let spans = Spans()
+        try await recognizer.start(locale: locale, onResult: { results.add($0) }, onFailure: { _ in })
+        let start: UInt64 = 1_000_000_000
+        let router = MeetingAudioRouter(startHostTime: start, recognizer: recognizer, onEcho: { spans.add($0) })
+        let step = Int(rate / 10)
+        for offset in stride(from: 0, to: systemTrack.count, by: step) {
+            let end = min(offset + step, systemTrack.count)
+            let host = start + MeetingHostClock.hostTicks(forSeconds: Double(offset) / rate)
+            router.handle(MeetingAudioChunk(samples: Array(systemTrack[offset..<end]), sampleRate: rate, hostTime: host), from: .others)
+            router.handle(MeetingAudioChunk(samples: Array(micTrack[offset..<end]), sampleRate: rate, hostTime: host), from: .me)
+        }
+        router.stop()
+        await recognizer.finish()
+        router.drain()
+
+        var transcript = MeetingTranscript()
+        results.all.forEach { transcript.apply($0) }
+        spans.all.forEach { transcript.addEcho($0) }
+        let me = transcript.entries.filter { $0.speaker == .me }.map(\.text).joined(separator: " ")
+        let them = transcript.entries.filter { $0.speaker == .others }.map(\.text).joined(separator: " ")
+        // Recognition of the synthetic second voice varies; its first and last words are stable.
+        #expect(them.localizedCaseInsensitiveContains("Tests"))
+        #expect(me.localizedCaseInsensitiveContains("Danke"))
+        #expect(me.localizedCaseInsensitiveContains("Freitag"))
+        #expect(!me.localizedCaseInsensitiveContains("Woche"))
+        #expect(!me.localizedCaseInsensitiveContains("Tests"))
+    }
+
+    private func speech(_ text: String, voice: String) throws -> [Float]? {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("meeting-\(UUID()).caf")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let say = Process()
+        say.executableURL = URL(fileURLWithPath: "/usr/bin/say")
+        say.arguments = ["-v", voice, "--file-format=caff", "--data-format=LEF32@22050", "-o", url.path, text]
+        say.standardError = FileHandle.nullDevice
+        try say.run()
+        say.waitUntilExit()
+        guard say.terminationStatus == 0 else { return nil }
+        let file = try AVAudioFile(forReading: url)
+        guard file.processingFormat.sampleRate == 22_050,
+              let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length))
+        else { return nil }
+        try file.read(into: buffer)
+        return Array(UnsafeBufferPointer(start: buffer.floatChannelData![0], count: Int(buffer.frameLength)))
     }
 }
 

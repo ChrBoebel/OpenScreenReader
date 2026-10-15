@@ -6,7 +6,9 @@ import Foundation
 /// half second the last two seconds are cross-correlated. A strong peak at a delay
 /// that keeps repeating is an echo: the room's path from speaker to microphone does
 /// not move during a call. Once that delay is known, a single matching analysis is
-/// enough, so short replies of the others are caught too.
+/// enough, so short replies of the others are caught too. Spans cover only the
+/// moments the others actually made sound, shifted by that delay plus a short
+/// reverberation tail, so words of mine right after theirs stay mine.
 ///
 /// Not thread-safe: the meeting pipeline calls it from one serial queue.
 final class EchoGate {
@@ -27,8 +29,8 @@ final class EchoGate {
     /// Correlated analyses within `lagTolerance` needed among the last `history`.
     var agreeing = 5
     var history = 8
-    /// Echo keeps ringing in the room and in the recogniser's segment edges.
-    var hangover: TimeInterval = 2
+    /// Echo keeps ringing in the room for a moment after the others stop.
+    var tail: TimeInterval = 0.5
     /// How long a found delay is trusted without new evidence.
     var lockMemory: TimeInterval = 30
   }
@@ -70,6 +72,8 @@ final class EchoGate {
   private var system: Ring
   private var analysed = 0
   private var recent: [Analysis] = []
+  /// When the others made sound, on the meeting timeline (the last minute).
+  private var activity: [ClosedRange<TimeInterval>] = []
   private let size: Int
   private let forward: vDSP.DFT<Float>
   private let inverse: vDSP.DFT<Float>
@@ -94,7 +98,11 @@ final class EchoGate {
     let start = Int((time * configuration.sampleRate).rounded())
     switch track {
     case .me: microphone.write(samples, at: start)
-    case .others: system.write(samples, at: start)
+    case .others:
+      system.write(samples, at: start)
+      if !samples.isEmpty, vDSP.rootMeanSquare(samples) >= configuration.energyFloor {
+        noteActivity(time...(time + Double(samples.count) / configuration.sampleRate))
+      }
     }
     let available = min(microphone.end, system.end)
     guard available >= configuration.window, available - analysed >= configuration.hop else { return [] }
@@ -119,14 +127,34 @@ final class EchoGate {
     let tolerance = configuration.lagTolerance
     if let locked = lockedLag, end - lockedAt <= configuration.lockMemory, abs(analysis.lag - locked) <= tolerance {
       lockedAt = end
-      return [start...(end + configuration.hangover)]
+      return echo(in: start...end, lag: analysis.lag)
     }
     let agreeing = recent.filter { $0.correlated && abs($0.lag - analysis.lag) <= tolerance }
     guard agreeing.count >= configuration.agreeing else { return [] }
     let lags = agreeing.map(\.lag).sorted()
     lockedLag = lags[lags.count / 2]
     lockedAt = end
-    return agreeing.map { $0.start...($0.end + configuration.hangover) }
+    return agreeing.flatMap { echo(in: $0.start...$0.end, lag: $0.lag) }
+  }
+
+  /// The others' sound inside a correlated window, as the microphone heard it.
+  private func echo(in window: ClosedRange<TimeInterval>, lag: TimeInterval) -> [ClosedRange<TimeInterval>] {
+    activity.compactMap { sound in
+      guard sound.overlaps(window) else { return nil }
+      let from = max(sound.lowerBound, window.lowerBound) + lag
+      let to = min(sound.upperBound, window.upperBound) + lag + configuration.tail
+      return max(0, from)...max(0, to)
+    }
+  }
+
+  private func noteActivity(_ span: ClosedRange<TimeInterval>) {
+    if let last = activity.last, span.lowerBound <= last.upperBound + 0.05 {
+      activity[activity.count - 1] = last.lowerBound...max(last.upperBound, span.upperBound)
+    } else {
+      activity.append(span)
+    }
+    let horizon = span.upperBound - 60
+    activity.removeAll { $0.upperBound < horizon }
   }
 
   /// Strongest normalised correlation of the microphone against the system track,

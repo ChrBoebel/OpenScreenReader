@@ -19,6 +19,14 @@ struct MeetingRecognition: Equatable, Sendable {
   let end: TimeInterval
   let text: String
   let isFinal: Bool
+  /// The text in timed pieces (words, as the recogniser splits them), when known.
+  var pieces: [MeetingPiece] = []
+}
+
+struct MeetingPiece: Equatable, Sendable {
+  let text: String
+  let start: TimeInterval
+  let end: TimeInterval
 }
 
 /// A turn as shown: consecutive segments of one speaker, final text first and the
@@ -48,7 +56,7 @@ struct MeetingTranscript: Equatable {
     guard !text.isEmpty else { return }
     let cleaned = MeetingRecognition(
       speaker: recognition.speaker, start: recognition.start, end: recognition.end, text: text,
-      isFinal: true)
+      isFinal: true, pieces: recognition.pieces)
     let index = finals.firstIndex { $0.start > cleaned.start } ?? finals.endIndex
     finals.insert(cleaned, at: index)
   }
@@ -70,17 +78,19 @@ struct MeetingTranscript: Equatable {
 
   var isEmpty: Bool { entries.isEmpty }
 
-  /// Visible turns in time order, without "Me" segments that were only an echo.
+  /// Visible turns in time order. "Me" loses what was only the others through the
+  /// speakers: whole segments inside an echo, words timed inside one, and runs of
+  /// three or more words the others said at the same moment.
   var entries: [MeetingTranscriptEntry] {
     let items = (finals + volatile.values.sorted { $0.speaker.rawValue < $1.speaker.rawValue })
-      .filter { !hides($0) }
-      .sorted { $0.start < $1.start }
+      .compactMap { item in visibleText(of: item).map { (item: item, text: $0) } }
+      .sorted { $0.item.start < $1.item.start }
     var turns: [(speaker: MeetingSpeaker, start: TimeInterval, text: [String], pending: [String])] = []
-    for item in items {
+    for (item, text) in items {
       if turns.last?.speaker != item.speaker {
         turns.append((item.speaker, item.start, [], []))
       }
-      if item.isFinal { turns[turns.count - 1].text.append(item.text) } else { turns[turns.count - 1].pending.append(item.text) }
+      if item.isFinal { turns[turns.count - 1].text.append(text) } else { turns[turns.count - 1].pending.append(text) }
     }
     return turns.map {
       MeetingTranscriptEntry(
@@ -101,9 +111,26 @@ struct MeetingTranscript: Equatable {
     return lines.joined(separator: "\n")
   }
 
-  private func hides(_ item: MeetingRecognition) -> Bool {
-    guard item.speaker == .me else { return false }
-    return echoFraction(of: item) >= 0.5 || repeatsOthers(item)
+  private func visibleText(of item: MeetingRecognition) -> String? {
+    guard item.speaker == .me else { return item.text }
+    var text = item.text
+    if !item.pieces.isEmpty {
+      let kept = item.pieces.filter { !inEcho(($0.start + $0.end) / 2) }
+      if kept.count < item.pieces.count {
+        // Punctuation may come as its own piece; it attaches to the word before.
+        text = kept.map(\.text).joined(separator: " ")
+          .replacingOccurrences(of: #"\s+([,.!?;:])"#, with: "$1", options: .regularExpression)
+      }
+    } else if echoFraction(of: item) >= 0.8 {
+      return nil
+    }
+    let kept = withoutRepeatedRuns(Self.tokens(text), of: othersText(near: item))
+    let result = kept.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+    return result.contains(where: { $0.isLetter || $0.isNumber }) ? result : nil
+  }
+
+  private func inEcho(_ time: TimeInterval) -> Bool {
+    echoSpans.contains { $0.contains(time) }
   }
 
   private func echoFraction(of item: MeetingRecognition) -> Double {
@@ -114,22 +141,54 @@ struct MeetingTranscript: Equatable {
     return covered / duration
   }
 
-  /// Speaker bleed recognised twice: three or more words, nearly all of them in an
-  /// "Others" segment from the same moment. Short replies like "ja" stay mine.
-  private func repeatsOthers(_ item: MeetingRecognition) -> Bool {
-    let words = Self.words(item.text)
-    guard words.count >= 3 else { return false }
-    return finals.contains { other in
-      guard other.speaker == .others, other.start - 1.5 <= item.end, item.start <= other.end + 1.5 else {
-        return false
-      }
-      let shared = words.intersection(Self.words(other.text)).count
-      return Double(shared) / Double(words.count) >= 0.6
-    }
+  private func othersText(near item: MeetingRecognition) -> [String] {
+    finals.filter { $0.speaker == .others && $0.start - 1.5 <= item.end && item.start <= $0.end + 1.5 }
+      .flatMap { Self.tokens($0.text) }
   }
 
-  private static func words(_ text: String) -> Set<String> {
-    Set(text.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init))
+  /// Drops runs of three or more consecutive words that also appear, in order, in
+  /// what the others said at the same moment. Single shared words ("ja", "und")
+  /// stay: they are as likely mine.
+  private func withoutRepeatedRuns(_ mine: [String], of others: [String]) -> [String] {
+    guard mine.count >= 3, others.count >= 3 else { return mine }
+    let a = mine.map(Self.normalized)
+    let b = others.map(Self.normalized)
+    var length = Array(repeating: Array(repeating: 0, count: b.count + 1), count: a.count + 1)
+    for i in stride(from: a.count - 1, through: 0, by: -1) {
+      for j in stride(from: b.count - 1, through: 0, by: -1) {
+        length[i][j] = !a[i].isEmpty && a[i] == b[j]
+          ? length[i + 1][j + 1] + 1 : max(length[i + 1][j], length[i][j + 1])
+      }
+    }
+    var matched = Array(repeating: false, count: a.count)
+    var (i, j) = (0, 0)
+    while i < a.count, j < b.count {
+      if !a[i].isEmpty, a[i] == b[j] {
+        matched[i] = true
+        i += 1
+        j += 1
+      } else if length[i + 1][j] >= length[i][j + 1] {
+        i += 1
+      } else {
+        j += 1
+      }
+    }
+    var drop = Array(repeating: false, count: a.count)
+    var runStart = 0
+    for index in 0...a.count {
+      if index < a.count, matched[index] { continue }
+      if index - runStart >= 3 { (runStart..<index).forEach { drop[$0] = true } }
+      runStart = index + 1
+    }
+    return mine.enumerated().filter { !drop[$0.offset] }.map(\.element)
+  }
+
+  private static func tokens(_ text: String) -> [String] {
+    text.split(whereSeparator: \.isWhitespace).map(String.init)
+  }
+
+  private static func normalized(_ token: String) -> String {
+    String(token.lowercased().filter { $0.isLetter || $0.isNumber })
   }
 }
 
