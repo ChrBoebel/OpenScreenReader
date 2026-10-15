@@ -55,6 +55,7 @@ final class DictationController: NSObject, ObservableObject {
   var permissionLabel = NSTextField(wrappingLabelWithString: "")
   /// Shown only when a result could not be pasted, so it can still be copied.
   let resultSection = NSStackView()
+  private let schedulePasteCallback: (Double, DispatchWorkItem) -> Void
   private let interfaceSounds: (any InterfaceSoundPlaying)?
   /// Where this dictation's text will land; the capsule appears next to it.
   private var capsuleAnchor: CGRect?
@@ -87,9 +88,13 @@ final class DictationController: NSObject, ObservableObject {
     shortcut: any HotkeyManaging = GlobalHotkeyManager(),
     escape: any HotkeyManaging = GlobalHotkeyManager(),
     preferences: UserDefaults = InterfaceSoundPlayer.defaults, registerHotkey: Bool = true,
-    interfaceSounds: (any InterfaceSoundPlaying)? = nil
+    interfaceSounds: (any InterfaceSoundPlaying)? = nil,
+    schedulePasteCallback: @escaping (Double, DispatchWorkItem) -> Void = { delay, work in
+      DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
   ) {
     self.interfaceSounds = interfaceSounds
+    self.schedulePasteCallback = schedulePasteCallback
     let resources = resources ?? Bundle.main.resourceURL!.appendingPathComponent("Dictation")
     self.resources = resources
     let models = models ?? DictationModelStore(resources: resources)
@@ -818,7 +823,7 @@ final class DictationController: NSObject, ObservableObject {
                        floating: true, capsuleState: .inserted)
       }
       confirmation = early
-      DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: early)
+      schedulePasteCallback(0.15, early)
       let work = DispatchWorkItem { [weak self] in
         guard let self, self.gate.accepts(id) else { return }
         let announced = self.insertionConfirmed
@@ -842,8 +847,7 @@ final class DictationController: NSObject, ObservableObject {
         }
       }
       restore = work
-      DispatchQueue.main.asyncAfter(
-        deadline: .now() + (restoresClipboardSlowly ? 2.0 : 1.0), execute: work)
+      schedulePasteCallback(restoresClipboardSlowly ? 2.0 : 1.0, work)
     } catch {
       _ = lease?.restore()
       lease = nil

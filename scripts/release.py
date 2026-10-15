@@ -50,6 +50,17 @@ def validate_version(version, build):
 def require_release_approval(path):
     record = json.loads(path.read_text())
     missing = [key for key in RELEASE_GATES if record.get(key) is not True]
+    exception = record.get('owner_beta_exception', {})
+    # The owner may accept the device-matrix gap for the ARM beta, never the
+    # licensing, privacy, or real-update checks. Keep clean_mac=false as evidence.
+    if (missing == ['clean_mac'] and isinstance(exception, dict)
+            and exception.get('approved') is True and exception.get('channel') == 'beta'
+            and exception.get('gate') == 'clean_mac'
+            and isinstance(exception.get('owner_decision'), str) and exception['owner_decision'].strip()
+            and isinstance(exception.get('remaining_tests'), list) and exception['remaining_tests']
+            and all(isinstance(item, str) and item.strip() for item in exception['remaining_tests'])
+            and record.get('scope', {}).get('architecture') == 'arm64'):
+        missing = []
     if missing:
         raise ValueError('Public release gates remain open: ' + ', '.join(missing))
 
@@ -75,6 +86,32 @@ def receipts(app):
     resources = app / 'Contents/Resources'
     return [(resources / 'Speech', resources / 'Speech/SupertonicRuntime/installation-receipt.json'),
             (resources / 'Dictation', resources / 'Dictation/installation-receipt.json')]
+
+
+def refresh_project_workers(app):
+    # Verify all inputs before changing anything; only our own worker sources
+    # are replaced, never model weights or third-party/native dependencies.
+    verified = [(root, path, verify_receipt(root, path)) for root, path in receipts(app)]
+    for (root, path, record), source in zip(verified, [
+            REPO / 'Runtime/Supertonic/worker.py', REPO / 'Runtime/Dictation/worker.py']):
+        target = path.parent / 'worker.py'
+        relative = str(target.relative_to(root))
+        if relative not in record['files']:
+            raise ValueError('Worker is not covered by input receipt')
+        shutil.copy2(source, target)
+        record['files'][relative] = digest(target)
+        record['project_worker'] = {'source': str(source.relative_to(REPO)), 'sha256': digest(source)}
+        path.write_text(json.dumps(record, indent=2) + '\n')
+
+
+def copy_runtime_file(source, target):
+    # APFS clones keep large model/runtime copies cheap. Other filesystems retain
+    # copy2 semantics; source and destination are always independent files.
+    result = subprocess.run(['/bin/cp', '-c', '-p', str(source), str(target)],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if result.returncode:
+        return shutil.copy2(source, target)
+    return str(target)
 
 
 def verify_speech_model(app):
@@ -146,6 +183,7 @@ def notarize(path, profile, keychain, log_dir):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--runtime-app', type=Path, required=True)
+    parser.add_argument('--architecture', choices=['arm64', 'x86_64'], default='arm64')
     parser.add_argument('--output', type=Path, required=True, help='New directory, never an installed app')
     parser.add_argument('--derived-data', type=Path, help='Reuse a separate Xcode build cache')
     parser.add_argument('--packages', type=Path, help='Reuse a separate resolved package directory')
@@ -173,7 +211,16 @@ def main():
         require_release_approval(REPO / 'docs/release-approval.json')
         if not args.notarize:
             raise ValueError('Public releases must be notarized')
+    if args.public_release and args.architecture != 'arm64':
+        raise ValueError('Intel publication requires architecture-specific download and update routing first')
     source = args.runtime_app.resolve(strict=True)
+    portable = source / 'Contents/Resources/portable-runtime.json'
+    if portable.exists():
+        metadata = json.loads(portable.read_text())
+        if metadata['architecture'] != args.architecture or metadata['minimum_macos'] != '14.0':
+            raise ValueError('Runtime architecture/baseline mismatch')
+    elif args.architecture != 'arm64':
+        raise ValueError('Intel requires independently assembled portable resources')
     for root, receipt in receipts(source):
         verify_receipt(root, receipt)
     verify_speech_model(source)
@@ -183,18 +230,39 @@ def main():
     packages = args.packages.resolve() if args.packages else output / 'packages'
     run('xcodebuild', '-project', REPO / 'OpenScreenReader.xcodeproj', '-scheme', 'OpenScreenReader',
         '-configuration', 'Release', '-derivedDataPath', derived, '-clonedSourcePackagesDirPath', packages,
-        '-disableAutomaticPackageResolution', 'build', 'ARCHS=arm64', 'CODE_SIGNING_ALLOWED=NO',
+        '-disableAutomaticPackageResolution', 'build', f'ARCHS={args.architecture}', 'MACOSX_DEPLOYMENT_TARGET=14.0', 'CODE_SIGNING_ALLOWED=NO',
         f'MARKETING_VERSION={args.version}', f'CURRENT_PROJECT_VERSION={args.build}',
         f'SAYWING_UPDATE_FEED_URL={args.feed_url}', f'SAYWING_UPDATE_PUBLIC_KEY={args.public_key}')
     app = output / 'Saywing.app'
     run('/usr/bin/ditto', derived / 'Build/Products/Release/Saywing.app', app)
     dictation = source / 'Contents/Resources/Dictation'
-    run('python3', REPO / 'scripts/bundle-dictation-runtime.py', app, dictation,
-        '--speech-from', source, '--whisper-model', dictation / 'WhisperTurbo', '--development-only', '--defer-app-signing')
+    if portable.exists():
+        for name in ['Speech', 'Dictation']:
+            shutil.copytree(source / 'Contents/Resources' / name, app / 'Contents/Resources' / name, symlinks=True, copy_function=copy_runtime_file)
+        for name in ['portable-runtime.json', 'LICENSE-Saywing', 'DEVELOPMENT-PREVIEW.txt']:
+            shutil.copy2(source / 'Contents/Resources' / name, app / 'Contents/Resources' / name)
+    else:
+        run('python3', REPO / 'scripts/bundle-dictation-runtime.py', app, dictation,
+            '--speech-from', source, '--whisper-model', dictation / 'WhisperTurbo', '--development-only', '--defer-app-signing')
+    refresh_project_workers(app)
+    corresponding_source = source / 'Contents/Resources/CorrespondingSource'
+    if corresponding_source.is_dir():
+        shutil.copytree(corresponding_source, app / 'Contents/Resources/CorrespondingSource', symlinks=True)
+    # Inspect every native dependency, including legacy input, before signing/notarizing.
+    # This rejects the previous MLX minos=26.2 bundle even when its receipt is valid.
+    from portable_runtime import audit as audit_native
+    native = audit_native(app, args.architecture, '14.0')
+    (output / 'native-audit.json').write_text(json.dumps(native, indent=2) + '\n')
     # Full upstream notice chain accompanies every distribution, including Sparkle.
     shutil.copy2(REPO / 'docs/licenses/Sparkle-2.10.0.txt', app / 'Contents/Resources/LICENSE-Sparkle')
+    from bundle_notices import bundle_notices
+    bundle_notices(app / 'Contents/Resources', require_sources=args.public_release)
     if args.public_release:
         (app / 'Contents/Resources/DEVELOPMENT-PREVIEW.txt').unlink(missing_ok=True)
+    else:
+        (app / 'Contents/Resources/DEVELOPMENT-PREVIEW.txt').write_text(
+            'Private release candidate. Public distribution is not approved.\n'
+            'See release-result.json for the completed signing and notarization status.\n')
     sign_bundle(app, args.identity)
     package_signed_app(app, output, args, sparkle_tools(packages))
 
@@ -228,10 +296,11 @@ def package_signed_app(app, output, args, tools):
         run('/usr/sbin/spctl', '--assess', '--type', 'execute', '--verbose=4', app)
     image_root = output / 'image'
     image_root.mkdir()
-    run('/usr/bin/ditto', app, image_root / 'Saywing.app')
+    shutil.copytree(app, image_root / 'Saywing.app', symlinks=True, copy_function=copy_runtime_file)
     (image_root / 'Applications').symlink_to('/Applications')
     image = publish / f'Saywing-{args.version}-{args.build}.dmg'
     run('/usr/bin/hdiutil', 'create', '-volname', 'Saywing', '-srcfolder', image_root, '-format', 'UDZO', image)
+    shutil.rmtree(image_root)  # Temporary image source; the signed app and final DMG remain.
     run('/usr/bin/codesign', '--sign', args.identity, '--timestamp', image)
     if args.notarize:
         notarize(image, args.notary_profile, args.keychain, output)
@@ -244,13 +313,19 @@ def package_signed_app(app, output, args, tools):
         '--maximum-deltas', '0', '-o', publish / 'appcast.xml', publish)
     run(tools / 'sign_update', '--account', args.sparkle_account, '--verify', publish / 'appcast.xml')
     (publish / 'SHA256SUMS').write_text(f'{digest(image)}  {image.name}\n')
+    channel = 'candidate'
+    if args.public_release:
+        approval = json.loads((REPO / 'docs/release-approval.json').read_text())
+        channel = 'beta' if approval.get('owner_beta_exception', {}).get('approved') is True else 'stable'
     (publish / 'latest.json').write_text(json.dumps({
         'version': args.version, 'build': args.build, 'url': args.download_url_prefix.rstrip('/') + '/' + image.name,
-        'bytes': image.stat().st_size, 'sha256': digest(image), 'minimum_macos': '14.0', 'architecture': 'arm64',
+        'bytes': image.stat().st_size, 'sha256': digest(image), 'minimum_macos': '14.0', 'architecture': args.architecture,
+        'channel': channel,
     }, indent=2) + '\n')
     (output / 'release-result.json').write_text(json.dumps({
         'public_release_approved': args.public_release, 'notarized': args.notarize,
         'version': args.version, 'build': args.build, 'publish_directory': str(publish),
+        'source_dirty': bool(run('git', '-C', REPO, 'status', '--porcelain', capture_output=True, text=True).stdout.strip()),
         'source_commit': run('git', '-C', REPO, 'rev-parse', 'HEAD', capture_output=True, text=True).stdout.strip(),
     }, indent=2) + '\n')
     print('Prepared:', publish, '(not published)')

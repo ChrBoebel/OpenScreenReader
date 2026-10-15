@@ -1,0 +1,10 @@
+{
+  "repository": "https://github.com/ggml-org/whisper.cpp",
+  "revision": "d1be6fde11ac6e0407606b4e42fe72d34add8037",
+  "version": "1.9.5",
+  "license": "MIT",
+  "license_sha256": "94f29bbed6a22c35b992c5c6ebf0e7c92f13b836b90f36f461c9cf2f0f1d010d",
+  "url": "https://codeload.github.com/ggml-org/whisper.cpp/tar.gz/d1be6fde11ac6e0407606b4e42fe72d34add8037",
+  "bytes": 9631456,
+  "sha256": "645445da884df6dbd52b30f82d7be7c01d1767c938714e477e786b88d529e9f4"
+}

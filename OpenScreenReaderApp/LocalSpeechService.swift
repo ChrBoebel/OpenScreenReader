@@ -520,7 +520,18 @@ final class SpeechAudioPlayer {
     // Eight source seconds retain four seconds of look-ahead at 2×. The worker
     // synthesizes whole sentences, so two seconds was insufficient at boundaries.
     // Fixed at every rate so a live slowdown cannot invalidate the memory budget.
-    var prebufferFrames: Int { Int(ceil(Double(sampleRate) * max(1, playbackRate))) }
+    var prebufferFrames: Int {
+        let rate = max(1, playbackRate)
+        #if arch(x86_64)
+        // Intel sentence synthesis needs more startup headroom at faster rates.
+        // At 2×, accumulate six source seconds (three playback seconds), still
+        // below the fixed eight-second cap. Short texts drain via finish().
+        let headroom = 1 + 2 * (rate - 1)
+        #else
+        let headroom = 1.0
+        #endif
+        return Int(ceil(Double(sampleRate) * rate * headroom))
+    }
     var capacityFrames: Int { sampleRate * 8 }
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()

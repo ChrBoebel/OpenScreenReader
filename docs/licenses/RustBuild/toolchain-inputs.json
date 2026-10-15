@@ -1,0 +1,36 @@
+{
+  "manifest_url": "https://static.rust-lang.org/dist/channel-rust-stable.toml",
+  "manifest_sha256": "ce6dddc886364f8d786514771212cebe9b731ba82d6b859951c6b0ccc516b6a2",
+  "version": "1.99.0 (b940084d7 2026-09-28)",
+  "date": "2026-10-01",
+  "components": {
+    "rustc": {
+      "available": true,
+      "url": "https://static.rust-lang.org/dist/2026-10-01/rustc-1.99.0-aarch64-apple-darwin.tar.gz",
+      "hash": "2f6b9c9cdc9c2e87ab2e27335e8bb0c4dbe4daea486e39030b66980058f74353",
+      "xz_url": "https://static.rust-lang.org/dist/2026-10-01/rustc-1.99.0-aarch64-apple-darwin.tar.xz",
+      "xz_hash": "334a66714ca316d71bbe5efe44f71762d0b276cea73be2987374693a837f7450"
+    },
+    "cargo": {
+      "available": true,
+      "url": "https://static.rust-lang.org/dist/2026-10-01/cargo-1.99.0-aarch64-apple-darwin.tar.gz",
+      "hash": "318b85c276b43134102fb49bbb54bfd0757e5cce47a772461149aeab5adea2ab",
+      "xz_url": "https://static.rust-lang.org/dist/2026-10-01/cargo-1.99.0-aarch64-apple-darwin.tar.xz",
+      "xz_hash": "76abff0ad79a10a3152dff640ea0d8b3c37637d9300bf55da41b95c3ddc069c1"
+    },
+    "rust-std": {
+      "available": true,
+      "url": "https://static.rust-lang.org/dist/2026-10-01/rust-std-1.99.0-aarch64-apple-darwin.tar.gz",
+      "hash": "3589b3a6c6470d590aa5aa7fa1a4af0101103847761a5372a7300b0aa85699c6",
+      "xz_url": "https://static.rust-lang.org/dist/2026-10-01/rust-std-1.99.0-aarch64-apple-darwin.tar.xz",
+      "xz_hash": "a7c6de8aa21e7c31163a7656295b321bb85f5dce55ed8ea95ac9ac561202bb5b"
+    },
+    "rust-src": {
+      "available": true,
+      "url": "https://static.rust-lang.org/dist/2026-10-01/rust-src-1.99.0.tar.gz",
+      "hash": "82b978093b33c71bcbe69005b92181bfb76d3d0e434ef303e637812e21badcd7",
+      "xz_url": "https://static.rust-lang.org/dist/2026-10-01/rust-src-1.99.0.tar.xz",
+      "xz_hash": "3f1f9b7ed48f4596fc87889b7b3c61747336a55c9c22db1ab0c697e0aadb77aa"
+    }
+  }
+}

@@ -108,6 +108,17 @@ final class DictationModelStore: ObservableObject {
     }
   }
 
+  /// The signed bundle declares providers; unknown or malformed declarations fail closed.
+  /// Legacy development bundles predate this file and support the original MLX models.
+  func isSupported(_ model: DictationModel) -> Bool {
+    let url = resources.appendingPathComponent("runtime-backends.json")
+    guard FileManager.default.fileExists(atPath: url.path) else { return true }
+    guard let data = try? Data(contentsOf: url),
+          let backends = try? JSONDecoder().decode([String: String].self, from: data),
+          let backend = backends[model.rawValue] else { return false }
+    return backend == "mlx" || backend == "whisper.cpp"
+  }
+
   func isInstalled(_ model: DictationModel) -> Bool { availability[model] == .installed }
 
   /// Directory containing the model's folder when it is not bundled; `nil` for bundled models.
@@ -123,7 +134,7 @@ final class DictationModelStore: ObservableObject {
   func isBundled(_ model: DictationModel) -> Bool { modelRootIfPresent(for: model) == resources }
   func downloadSource(of model: DictationModel) -> String? { try? manifest(for: model).repo }
   func canDownload(_ model: DictationModel) -> Bool {
-    model != .whisperTurbo && downloadSize(of: model).map { $0 > 0 } == true
+    isSupported(model) && model != .whisperTurbo && downloadSize(of: model).map { $0 > 0 } == true
   }
 
   @discardableResult
@@ -159,7 +170,8 @@ final class DictationModelStore: ObservableObject {
   }
 
   private func modelRootIfPresent(for model: DictationModel) -> URL? {
-    [resources, installRoot].first { root in
+    guard isSupported(model) else { return nil }
+    return [resources, installRoot].first { root in
       var isDirectory: ObjCBool = false
       return FileManager.default.fileExists(
         atPath: root.appendingPathComponent(model.directoryName).path, isDirectory: &isDirectory)

@@ -14,6 +14,28 @@ spec.loader.exec_module(worker)
 
 
 class WorkerChecks(unittest.TestCase):
+    def test_intel_model_uses_bounded_nonspinning_cpu_sessions(self):
+        helper = Mock()
+        helper.load_onnx_all.return_value = ("duration", "text", "vector", "vocoder")
+        for cores, expected in [(2, 2), (16, 4), (None, 1)]:
+            with patch.object(worker.platform, "machine", return_value="x86_64"), patch.object(worker.os, "cpu_count", return_value=cores):
+                worker.load_speech_model(helper, Path("/model"))
+            options = helper.ort.SessionOptions.return_value
+            self.assertEqual(options.intra_op_num_threads, expected)
+            self.assertEqual(options.add_session_config_entry.call_args_list[-2:], [
+                unittest.mock.call("session.intra_op.allow_spinning", "0"),
+                unittest.mock.call("session.inter_op.allow_spinning", "0"),
+            ])
+            self.assertEqual(helper.load_onnx_all.call_args.args, ("/model/onnx", options, ["CPUExecutionProvider"]))
+        helper.load_text_to_speech.assert_not_called()
+
+    def test_arm_preserves_existing_model_loading(self):
+        helper = Mock()
+        with patch.object(worker.platform, "machine", return_value="arm64"):
+            self.assertIs(worker.load_speech_model(helper, Path("/model")), helper.load_text_to_speech.return_value)
+        helper.load_text_to_speech.assert_called_once_with("/model/onnx", use_gpu=False)
+        helper.load_onnx_all.assert_not_called()
+
     def test_abbreviations_dates_and_paragraphs_keep_their_context(self):
         text = "Dr. Weber liest z. B. am 4. September 42,50 Euro vor. Danach endet der Text."
         self.assertEqual(worker.segments(text), [
@@ -29,9 +51,9 @@ class WorkerChecks(unittest.TestCase):
         request = lambda identity: json.dumps({"text": "Hallo.", "language": "de", "id": identity}).encode() + b"\n"
         source = io.BytesIO(request("first") + b"next\n" + request("second") + b"next\n")
         output = io.BytesIO()
-        with patch.object(worker, "load_verified_helper", return_value=helper):
+        with patch.object(worker, "load_verified_helper", return_value=helper), patch.object(worker, "load_speech_model", return_value=tts) as load:
             worker.run(source, output, Path("/unused-test-model"), session=True)
-        self.assertEqual(helper.load_text_to_speech.call_count, 1)
+        self.assertEqual(load.call_count, 1)
         self.assertEqual(helper.load_voice_style.call_count, 1)
         self.assertEqual(tts.call_count, 2)
         packets = [json.loads(line) for line in output.getvalue().splitlines()]

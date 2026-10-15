@@ -276,6 +276,7 @@ final class AppModel: ObservableObject {
     private let readingPanel: (any ReadingStatusPresenting)?
     private let interfaceSounds: (any InterfaceSoundPlaying)?
     private let operationTimeout: Duration
+    private let waitForQueueTimeout: @Sendable (Duration) async throws -> Void
     private let speechStartupTimeout: Duration
     private var activeContext: PipelineOperationContext?
     private var interactionTask: Task<Void, Never>?
@@ -306,6 +307,7 @@ final class AppModel: ObservableObject {
         readingPanel: (any ReadingStatusPresenting)? = nil,
         interfaceSounds: (any InterfaceSoundPlaying)? = nil,
         operationTimeout: Duration = .seconds(15),
+        waitForQueueTimeout: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
         speechStartupTimeout: Duration = .seconds(90),
         preferences: UserDefaults = InterfaceSoundPlayer.defaults,
         queueHotkeyManager: (any HotkeyManaging)? = nil,
@@ -327,6 +329,7 @@ final class AppModel: ObservableObject {
         self.readingPanel = readingPanel
         self.interfaceSounds = interfaceSounds
         self.operationTimeout = operationTimeout
+        self.waitForQueueTimeout = waitForQueueTimeout
         self.speechStartupTimeout = speechStartupTimeout
         self.preferences = preferences
         self.queueHotkeyManager = queueHotkeyManager
@@ -890,8 +893,8 @@ final class AppModel: ObservableObject {
             }
         }
         queueInputTimeout?.cancel()
-        queueInputTimeout = Task { @MainActor [weak self, operationTimeout] in
-            do { try await Task.sleep(for: operationTimeout) } catch { return }
+        queueInputTimeout = Task { @MainActor [weak self, operationTimeout, waitForQueueTimeout] in
+            do { try await waitForQueueTimeout(operationTimeout); try Task.checkCancellation() } catch { return }
             self?.enqueue { await $0.rejectQueueInput(id: id, message: String(localized: "The additional capture or text recognition timed out.")) }
         }
     }

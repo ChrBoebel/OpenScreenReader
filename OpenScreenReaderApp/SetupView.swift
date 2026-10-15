@@ -73,6 +73,7 @@ struct SetupView: View {
                     Text("The reading voice is separate from the dictation model.")
                         .font(.callout).foregroundStyle(.secondary)
                     Text(LocalSpeechService.installationSummary).font(.callout).foregroundStyle(.secondary)
+                    ModelTermsNotice()
                 }
             }.frame(maxWidth: .infinity, alignment: .leading).padding(24).padding(.top, 24)
         }

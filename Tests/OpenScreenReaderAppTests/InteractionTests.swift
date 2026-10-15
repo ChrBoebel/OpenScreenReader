@@ -59,7 +59,11 @@ struct SpeechBufferingTests {
         let player = SpeechAudioPlayer(sampleRate: 44_100)
         player.playbackRate = 1.5
         #expect(player.playbackRate == 1.5)
+        #if arch(x86_64)
+        #expect(player.prebufferFrames == 132_300)
+        #else
         #expect(player.prebufferFrames == 66_150)
+        #endif
         #expect(player.pitchCents == 0)
         player.reset()
         #expect(player.playbackRate == 1.5)
@@ -485,7 +489,12 @@ struct InteractionTests {
 
     @Test
     func queueCaptureTimeoutDoesNotInterruptSpeechOrAcceptItsLateResult() async throws {
-        let f = QueueFixture(operationTimeout: .milliseconds(120))
+        let timer = AsyncStream<Void>.makeStream()
+        defer { timer.continuation.finish() }
+        let f = QueueFixture(waitForQueueTimeout: { _ in
+            for await _ in timer.stream { return }
+            throw CancellationError()
+        })
         await f.model.handleReadRequest()
         f.selection.complete(Self.ocrRegion)
         await f.model.waitForCaptureToSettle()
@@ -495,8 +504,13 @@ struct InteractionTests {
         await f.model.waitForInteractionToSettle()
         f.selection.complete(Self.ocrRegion)
         await f.capture.waitUntilStarted()
-        try await Task.sleep(for: .milliseconds(180))
-        await f.model.waitForInteractionToSettle()
+        timer.continuation.yield()
+        // Wait for the observable timeout, not a wall-clock scheduling assumption.
+        for _ in 0..<1000 {
+            await Task.yield()
+            await f.model.waitForInteractionToSettle()
+            if !f.model.isAddingToQueue { break }
+        }
         #expect(!f.model.isAddingToQueue)
         #expect(f.model.status == .speaking)
         f.capture.resume()
@@ -1417,12 +1431,14 @@ struct FeedbackAtSourceTests {
         controller.panel.orderOut(nil)
     }
 
-    private func soundingDictation() -> (DictationController, InterfaceSoundsFake, RecorderFake, DictationWorkerFake) {
+    private func soundingDictation(schedulePasteCallback: @escaping (Double, DispatchWorkItem) -> Void = { delay, work in
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }) -> (DictationController, InterfaceSoundsFake, RecorderFake, DictationWorkerFake) {
         let sounds = InterfaceSoundsFake()
         let worker = DictationWorkerFake()
         let controller = DictationController(resources: URL(fileURLWithPath: "/missing-dictation"), worker: worker,
             shortcut: HotkeyManagerFake(registrationResult: .registered), escape: HotkeyManagerFake(registrationResult: .registered),
-            registerHotkey: false, interfaceSounds: sounds)
+            registerHotkey: false, interfaceSounds: sounds, schedulePasteCallback: schedulePasteCallback)
         let recorder = RecorderFake()
         recorder.onFinish = { [weak sounds] in recorder.cuesAtFinish = sounds?.cues }
         controller.makeRecorder = { recorder }
@@ -1473,7 +1489,9 @@ struct FeedbackAtSourceTests {
     /// A field that shows the text right away gets its tick and completion cue with
     /// the text; the clipboard is still restored only after the full wait.
     @Test func confirmedPasteSoundsWithTheTextNotAfterTheClipboardWait() async throws {
-        let (controller, sounds, _, worker) = soundingDictation()
+        var scheduled: [(Double, DispatchWorkItem)] = []
+        let (controller, sounds, _, worker) = soundingDictation(schedulePasteCallback: { scheduled.append(($0, $1)) })
+        defer { scheduled.forEach { $0.1.cancel() } }
         defer { controller.shutdown(); controller.panel.orderOut(nil) }
         controller.scratch.string = "Anfang MARKER Ende"
         controller.scratch.setSelectedRange((controller.scratch.string as NSString).range(of: "MARKER"))
@@ -1487,11 +1505,16 @@ struct FeedbackAtSourceTests {
         #expect(controller.phase == "pasting")
         #expect(controller.scratch.string == "Anfang Diktat Ende")
         #expect(sounds.cues.isEmpty)
-        try await Task.sleep(for: .milliseconds(400))
+        #expect(scheduled.map { $0.0 } == [0.15, 1.0])
+        let earlyConfirmation = try #require(scheduled.first?.1)
+        let restoreClipboard = try #require(scheduled.last?.1)
+        earlyConfirmation.perform()
         #expect(controller.phase == "pasting", "The clipboard is still held for slow apps.")
         #expect(controller.capsule.state == .inserted)
         #expect(sounds.cues == [.completion])
-        try await Task.sleep(for: .milliseconds(900))
+        restoreClipboard.perform()
+        earlyConfirmation.cancel()
+        restoreClipboard.cancel()
         #expect(controller.phase == "ready")
         #expect(controller.capsule.state == .inserted)
         #expect(sounds.cues == [.completion], "The result sounds once.")
@@ -2418,11 +2441,13 @@ private struct QueueFixture {
     let speech = QueueSpeechFake()
     let escape = EscapeFake()
     let model: AppModel
-    init(operationTimeout: Duration = .seconds(15)) {
+    init(operationTimeout: Duration = .seconds(15),
+         waitForQueueTimeout: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
         model = AppModel(shortcutStore: MemoryShortcutStore(),
             hotkeyManager: hotkey,
             selectionController: selection, captureService: capture, escapeMonitor: escape,
-            ocrService: ocr, speechService: speech, operationTimeout: operationTimeout)
+            ocrService: ocr, speechService: speech, operationTimeout: operationTimeout,
+            waitForQueueTimeout: waitForQueueTimeout)
     }
 }
 
@@ -3028,6 +3053,21 @@ struct DictationModelInstallationTests {
         #expect(store.availability[.qwen] == .notInstalled)
         #expect(store.modelRoot(for: .whisperTurbo) == nil)
         #expect(store.downloadSize(of: .whisperLargeV3) == Int64(4110), "Weights plus config; bundled licenses are not downloaded.")
+    }
+
+    @Test func unsupportedBackendCannotUseOldModelsOrStartDownloads() async throws {
+        let resources = try DictationModelFixture.resources(bundling: [.whisperTurbo, .qwen])
+        try Data(#"{"whisper-turbo":"whisper.cpp"}"#.utf8)
+            .write(to: resources.appendingPathComponent("runtime-backends.json"))
+        let fetcher = DictationFetcherFake()
+        let store = DictationModelStore(resources: resources,
+            installRoot: resources.appendingPathComponent("Installed"), fetcher: fetcher)
+        #expect(store.isInstalled(.whisperTurbo))
+        #expect(!store.isInstalled(.qwen))
+        #expect(!store.canDownload(.qwen))
+        #expect(!store.canDownload(.whisperLargeV3))
+        await store.install(.qwen).value
+        #expect(fetcher.requests.isEmpty)
     }
 
     @Test func installDownloadsPinnedFilesVerifiesThemAndOnlyThenMovesThemIntoPlace() async throws {

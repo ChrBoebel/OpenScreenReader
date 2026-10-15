@@ -54,18 +54,6 @@ struct OCRTests {
     }
 
     @Test
-    func realVisionRecognizesGermanEnglishAndNumbersWithoutClipboardWrites() async throws {
-        let lines = ["Guten Morgen. Straße und Grüße.",
-                     "Hello world. Local text recognition.", "AB-123 42,50 EUR 04.09.2026"]
-        let image = try makeOCRFixture(lines: lines)
-        let clipboardRevision = NSPasteboard.general.changeCount
-        let result = try await VisionOCRService().recognize(image)
-        // Only synthetic text is asserted; never attach a screenshot to test reports.
-        #expect(result.text == lines.joined(separator: "\n"))
-        #expect(NSPasteboard.general.changeCount == clipboardRevision)
-    }
-
-    @Test
     func blankImageProducesAnEmptyResult() async throws {
         let result = try await VisionOCRService().recognize(makeOCRFixture(lines: []))
         #expect(result.text.isEmpty)
@@ -148,4 +136,21 @@ private func makeOCRFixture(lines: [String], height: Int = 240) throws -> CGImag
         CTLineDraw(CTLineCreateWithAttributedString(text), context)
     }
     return try #require(context.makeImage())
+}
+
+// This real-clipboard assertion shares the serialized suite with the dictation
+// paste test. OCR itself is asynchronous; unrelated paste tests must not mutate
+// the process-global clipboard while its privacy assertion is in flight.
+extension FeedbackAtSourceTests {
+    @Test
+    func realVisionRecognizesGermanEnglishAndNumbersWithoutClipboardWrites() async throws {
+        let lines = ["Guten Morgen. Straße und Grüße.",
+                     "Hello world. Local text recognition.", "AB-123 42,50 EUR 04.09.2026"]
+        let image = try makeOCRFixture(lines: lines)
+        let clipboardRevision = NSPasteboard.general.changeCount
+        let result = try await VisionOCRService().recognize(image)
+        // Only synthetic text is asserted; never attach a screenshot to test reports.
+        #expect(result.text == lines.joined(separator: "\n"))
+        #expect(NSPasteboard.general.changeCount == clipboardRevision)
+    }
 }

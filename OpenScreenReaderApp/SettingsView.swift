@@ -75,7 +75,10 @@ struct DictationModelSelection: View {
                         .accessibilityIdentifier("download-\(model.rawValue)")
                 }
             }
-            if !models.isInstalled(model) && !models.canDownload(model) {
+            if !models.isSupported(model) {
+                Text("This model is not available in this version for your Mac.")
+                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            } else if !models.isInstalled(model) && !models.canDownload(model) {
                 Text("This build is missing model resources. Reinstall Saywing to restore them.")
                     .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
@@ -361,6 +364,7 @@ struct SettingsView: View {
                 LabeledContent("Model", value: SpeechRuntimeConfiguration(root: LocalSpeechService.developmentRoot).modelName)
                 LabeledContent("Voice", value: String(localized: "Machine-generated voice M1"))
                 LabeledContent("License", value: "BigScience Open RAIL-M")
+                ModelTermsNotice()
                 LabeledContent("Runtime", value: LocalSpeechService.installationSummary)
             }
         }
@@ -559,5 +563,24 @@ struct ReadingErrorView: View {
         .frame(width: 320)
         .tint(Color("AccentColor"))
         .accessibilityIdentifier("readingErrorHelp")
+    }
+}
+
+/// Opens only the locally packaged notice index; no runtime request or web fallback.
+struct ModelTermsNotice: View {
+    @State private var openFailed = false
+    private var noticeURL: URL? { Bundle.main.url(forResource: "THIRD-PARTY-NOTICES", withExtension: "html") }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Supertonic 3 is subject to the Open RAIL-M model terms and use restrictions.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Button("Licenses & Model Terms…") {
+                guard let noticeURL else { return }
+                openFailed = !NSWorkspace.shared.open(noticeURL)
+            }
+            .disabled(noticeURL == nil)
+            .accessibilityIdentifier("openModelTerms")
+            if openFailed { Text("The license document could not be opened.").font(.callout) }
+        }
     }
 }

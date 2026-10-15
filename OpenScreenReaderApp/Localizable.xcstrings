@@ -3501,6 +3501,16 @@
         }
       }
     },
+    "This model is not available in this version for your Mac.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Modell ist in dieser Version für deinen Mac nicht verfügbar."
+          }
+        }
+      }
+    },
     "This build is missing model resources. Reinstall Saywing to restore them.": {
       "localizations": {
         "de": {
@@ -4007,6 +4017,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Updateprüfungen verbinden sich mit dem Downloadserver. Bildschirmbilder, Texte und Aufnahmen bleiben auf deinem Mac. Updates werden nur auf deinen Wunsch installiert."
+          }
+        }
+      }
+    },
+    "Supertonic 3 is subject to the Open RAIL-M model terms and use restrictions.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Für Supertonic 3 gelten die Modellbedingungen und Nutzungsbeschränkungen der Open RAIL-M-Lizenz."
+          }
+        }
+      }
+    },
+    "Licenses & Model Terms…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lizenzen & Modellbedingungen …"
+          }
+        }
+      }
+    },
+    "The license document could not be opened.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Lizenzdokument konnte nicht geöffnet werden."
           }
         }
       }
