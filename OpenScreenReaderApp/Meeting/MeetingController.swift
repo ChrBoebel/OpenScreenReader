@@ -50,7 +50,10 @@ final class MeetingController: ObservableObject {
   private let limits: Limits
   private let pasteboard: NSPasteboard
   private let saveText: @MainActor (String, String) -> Bool
-  private let confirmReplacingUnsaved: @MainActor () -> Bool
+  private let confirmLosingUnsaved: @MainActor (LossReason) -> Bool
+
+  /// Why unsaved text would be lost; the alert names the action.
+  enum LossReason: Equatable { case newTranscript, discard }
   private let presentsWindow: Bool
   private let gate = GenerationGate()
   private var generation: UUID?
@@ -81,7 +84,7 @@ final class MeetingController: ObservableObject {
     notifications: NotificationCenter = NSWorkspace.shared.notificationCenter,
     appNotifications: NotificationCenter = .default,
     save: @escaping @MainActor (String, String) -> Bool = MeetingController.saveWithPanel,
-    confirmReplacingUnsaved: @escaping @MainActor () -> Bool = MeetingController.confirmWithAlert,
+    confirmLosingUnsaved: @escaping @MainActor (LossReason) -> Bool = MeetingController.confirmWithAlert,
     presentsWindow: Bool = true
   ) {
     self.provider = provider
@@ -93,7 +96,7 @@ final class MeetingController: ObservableObject {
     self.limits = limits
     self.pasteboard = pasteboard
     self.saveText = save
-    self.confirmReplacingUnsaved = confirmReplacingUnsaved
+    self.confirmLosingUnsaved = confirmLosingUnsaved
     self.presentsWindow = presentsWindow
     for name in [NSWorkspace.willSleepNotification, NSWorkspace.sessionDidResignActiveNotification] {
       observe(name, on: notifications) { $0.stop() }
@@ -135,7 +138,7 @@ final class MeetingController: ObservableObject {
   /// Replaces a finished transcript, after asking if it was never copied or saved.
   func startNew() async {
     guard phase == .finished else { return await open() }
-    guard !hasUnsavedText || confirmReplacingUnsaved() else { return }
+    guard !hasUnsavedText || confirmLosingUnsaved(.newTranscript) else { return }
     resetTranscript()
     phase = .idle
     await open()
@@ -193,9 +196,11 @@ final class MeetingController: ObservableObject {
     startedAt = Date()
     phase = .live
     interfaceSounds?.play(.listening)
+    // Five updates a second keep the level bars moving with the voices; the
+    // limits are checked on the same beat.
     ticker = Task { [weak self] in
       while !Task.isCancelled {
-        try? await Task.sleep(for: .seconds(1))
+        try? await Task.sleep(for: .milliseconds(200))
         self?.tick()
       }
     }
@@ -221,6 +226,13 @@ final class MeetingController: ObservableObject {
       self.levels = [:]
       self.phase = .finished
     }
+  }
+
+  /// The Discard button: text that was neither copied nor saved is the only thing
+  /// lost for good, so only then does it ask.
+  func requestDiscard() {
+    guard !hasUnsavedText || confirmLosingUnsaved(.discard) else { return }
+    discard()
   }
 
   /// Throws everything away, including a running recording, and closes the window.
@@ -249,16 +261,20 @@ final class MeetingController: ObservableObject {
     recognizer = nil
   }
 
-  func copy() {
-    guard !transcript.isEmpty else { return }
+  /// Returns whether something was copied, so the window can confirm it.
+  @discardableResult func copy() -> Bool {
+    guard !transcript.isEmpty else { return false }
     pasteboard.clearContents()
     pasteboard.setString(transcript.exportText(title: title), forType: .string)
     hasUnsavedText = false
+    return true
   }
 
-  func save() {
-    guard !transcript.isEmpty else { return }
-    if saveText(transcript.exportText(title: title), fileName) { hasUnsavedText = false }
+  /// Returns whether the file was written; a cancelled panel is not a save.
+  @discardableResult func save() -> Bool {
+    guard !transcript.isEmpty, saveText(transcript.exportText(title: title), fileName) else { return false }
+    hasUnsavedText = false
+    return true
   }
 
   /// Copies the chat notice only because the user asked for it.
@@ -374,11 +390,19 @@ final class MeetingController: ObservableObject {
     }
   }
 
-  static func confirmWithAlert() -> Bool {
+  static func confirmWithAlert(_ reason: LossReason) -> Bool {
     let alert = NSAlert()
-    alert.messageText = String(localized: "Replace the unsaved transcript?")
+    alert.alertStyle = .warning
+    switch reason {
+    case .newTranscript:
+      alert.messageText = String(localized: "Replace the unsaved transcript?")
+      alert.addButton(withTitle: String(localized: "Start New Transcript"))
+    case .discard:
+      alert.messageText = String(localized: "Discard the unsaved transcript?")
+      alert.addButton(withTitle: String(localized: "Discard"))
+      alert.buttons.first?.hasDestructiveAction = true
+    }
     alert.informativeText = String(localized: "It was neither copied nor saved and will be lost.")
-    alert.addButton(withTitle: String(localized: "Start New Transcript"))
     alert.addButton(withTitle: String(localized: "Cancel"))
     return alert.runModal() == .alertFirstButtonReturn
   }

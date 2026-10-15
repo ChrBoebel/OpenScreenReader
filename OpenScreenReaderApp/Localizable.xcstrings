@@ -611,6 +611,16 @@
         }
       }
     },
+    "Copied": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopiert"
+          }
+        }
+      }
+    },
     "Copy": {
       "localizations": {
         "de": {
@@ -771,6 +781,16 @@
         }
       }
     },
+    "Discard the unsaved transcript?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ungesicherte Mitschrift verwerfen?"
+          }
+        }
+      }
+    },
     "Discarded": {
       "localizations": {
         "de": {
@@ -877,6 +897,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Wellenform an einen Bildschirmrand ziehen"
+          }
+        }
+      }
+    },
+    "Elapsed %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dauer %@"
           }
         }
       }
@@ -1347,6 +1377,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Später"
+          }
+        }
+      }
+    },
+    "Latest": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neueste"
           }
         }
       }
@@ -2697,6 +2737,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Beispielsatz"
+          }
+        }
+      }
+    },
+    "Saved": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gesichert"
           }
         }
       }

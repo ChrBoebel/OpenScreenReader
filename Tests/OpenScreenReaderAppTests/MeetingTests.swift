@@ -543,11 +543,13 @@ private struct MeetingFixture {
     let sounds = MeetingSoundsFake()
     let pasteboard = NSPasteboard.withUniqueName()
     let notifications = NotificationCenter()
+    let confirmations = Confirmations()
     var saved: [String] { savedBox.items }
     let savedBox = SavedBox()
 
     init(systemAvailable: Bool = true) {
         let provider = provider, microphone = microphone, system = system, clock = clock, savedBox = savedBox
+        let confirmations = confirmations
         controller = MeetingController(
             provider: provider,
             makeMicrophone: { microphone },
@@ -558,7 +560,7 @@ private struct MeetingFixture {
             pasteboard: pasteboard,
             notifications: notifications,
             save: { text, _ in savedBox.items.append(text); return true },
-            confirmReplacingUnsaved: { false },
+            confirmLosingUnsaved: { reason in confirmations.reasons.append(reason); return confirmations.answer },
             presentsWindow: false)
     }
 
@@ -576,6 +578,12 @@ private struct MeetingFixture {
 
 @MainActor
 private final class SavedBox { var items: [String] = [] }
+
+@MainActor
+private final class Confirmations {
+    var answer = false
+    var reasons: [MeetingController.LossReason] = []
+}
 
 @Suite("Meeting transcript lifecycle", .serialized)
 @MainActor
@@ -683,6 +691,31 @@ struct MeetingControllerTests {
         await fixture.controller.startNew()
         #expect(fixture.controller.phase == .finished)
         #expect(!fixture.controller.transcript.isEmpty)
+    }
+
+    @Test
+    func discardingUnsavedTextAsksFirstAndSavedTextGoesAtOnce() async {
+        let fixture = MeetingFixture()
+        await fixture.start()
+        await fixture.hear(heard(.others, 1, 2, "Wichtig."))
+        fixture.controller.stop()
+        await fixture.controller.waitUntilSettled()
+        fixture.controller.requestDiscard()
+        #expect(fixture.confirmations.reasons == [.discard])
+        #expect(fixture.controller.phase == .finished)
+        fixture.confirmations.answer = true
+        fixture.controller.requestDiscard()
+        #expect(fixture.controller.phase == .idle)
+        #expect(fixture.controller.transcript.isEmpty)
+
+        await fixture.start()
+        await fixture.hear(heard(.others, 1, 2, "Auch wichtig."))
+        fixture.controller.stop()
+        await fixture.controller.waitUntilSettled()
+        fixture.controller.copy()
+        fixture.controller.requestDiscard()
+        #expect(fixture.confirmations.reasons == [.discard, .discard])
+        #expect(fixture.controller.phase == .idle)
     }
 
     @Test
@@ -835,7 +868,7 @@ struct MeetingPreviewTests {
         func capture(_ name: String) async throws {
             for (suffix, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
                 window.appearance = NSAppearance(named: appearance)
-                try await Task.sleep(for: .milliseconds(250))
+                try await Task.sleep(for: .milliseconds(700))
                 host.layoutSubtreeIfNeeded()
                 host.display()
                 let rep = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
@@ -867,5 +900,27 @@ struct MeetingPreviewTests {
         try await capture("4-finished")
         try fixture.controller.transcript.exportText(title: "Meeting transcript")
             .write(to: directory.appendingPathComponent("5-export.md"), atomically: true, encoding: .utf8)
+        // The four menu bar states side by side, as template images on light and dark bars.
+        for (suffix, background) in [("light", NSColor(white: 0.93, alpha: 1)), ("dark", NSColor(white: 0.16, alpha: 1))] {
+            let strip = NSImage(size: NSSize(width: 4 * 30 + 10, height: 30), flipped: false) { rect in
+                background.setFill()
+                rect.fill()
+                for (index, indicator) in [AppModel.MenuBarIndicator.idle, .reading, .attention, .recording].enumerated() {
+                    let icon = MenuBarIcon.image(for: indicator)
+                    let tinted = NSImage(size: icon.size, flipped: false) { iconRect in
+                        icon.draw(in: iconRect)
+                        (suffix == "light" ? NSColor.black : NSColor.white).set()
+                        iconRect.fill(using: .sourceAtop)
+                        return true
+                    }
+                    tinted.draw(in: NSRect(x: 8 + CGFloat(index) * 30, y: 4, width: 22, height: 22))
+                }
+                return true
+            }
+            let tiff = try #require(strip.tiffRepresentation)
+            let rep = try #require(NSBitmapImageRep(data: tiff))
+            let png = try #require(rep.representation(using: .png, properties: [:]))
+            try png.write(to: directory.appendingPathComponent("6-menubar-\(suffix).png"))
+        }
     }
 }
