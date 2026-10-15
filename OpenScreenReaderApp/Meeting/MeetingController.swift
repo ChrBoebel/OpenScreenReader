@@ -207,6 +207,7 @@ final class MeetingController: ObservableObject {
     if let reason { notice = reason }
     let wasLive = phase == .live
     phase = .stopping
+    systemAudioMissing = false
     stopSources()
     if wasLive { interfaceSounds?.play(.captured) }
     let recognizer = recognizer

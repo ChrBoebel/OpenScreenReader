@@ -75,6 +75,42 @@ enum MeetingAudioMixdown {
   }
 }
 
+/// Resamples mono float chunks with one long-lived converter per track, so its
+/// filter state carries across chunks and no clicks appear at chunk borders.
+enum MeetingResampler {
+  /// The converter's input block runs synchronously inside `convert`; the box only
+  /// satisfies its `@Sendable` signature and hands the chunk over exactly once.
+  private final class Feed: @unchecked Sendable {
+    var buffer: AVAudioPCMBuffer?
+    init(_ buffer: AVAudioPCMBuffer) { self.buffer = buffer }
+  }
+
+  static func convert(_ samples: [Float], with converter: AVAudioConverter) -> AVAudioPCMBuffer? {
+    let input = converter.inputFormat
+    let output = converter.outputFormat
+    guard !samples.isEmpty,
+      let buffer = AVAudioPCMBuffer(pcmFormat: input, frameCapacity: AVAudioFrameCount(samples.count)),
+      let channel = buffer.floatChannelData?[0]
+    else { return nil }
+    buffer.frameLength = AVAudioFrameCount(samples.count)
+    samples.withUnsafeBufferPointer { channel.update(from: $0.baseAddress!, count: samples.count) }
+    let capacity = AVAudioFrameCount(Double(samples.count) * output.sampleRate / input.sampleRate) + 64
+    guard let result = AVAudioPCMBuffer(pcmFormat: output, frameCapacity: capacity) else { return nil }
+    let feed = Feed(buffer)
+    var error: NSError?
+    converter.convert(to: result, error: &error) { _, status in
+      guard let next = feed.buffer else {
+        status.pointee = .noDataNow
+        return nil
+      }
+      feed.buffer = nil
+      status.pointee = .haveData
+      return next
+    }
+    return error == nil && result.frameLength > 0 ? result : nil
+  }
+}
+
 /// "Me": the default microphone through its own engine, independent of dictation.
 @MainActor
 final class MeetingMicrophoneSource: MeetingAudioSource {

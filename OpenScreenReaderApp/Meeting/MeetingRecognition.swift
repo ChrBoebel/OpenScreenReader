@@ -118,32 +118,16 @@ final class AppleMeetingRecognizer: MeetingRecognizing, @unchecked Sendable {
 
   func append(_ chunk: MeetingAudioChunk, at time: TimeInterval, speaker: MeetingSpeaker) {
     lock.withLock {
-      guard var track = tracks[speaker],
-        let source = AVAudioFormat(standardFormatWithSampleRate: chunk.sampleRate, channels: 1),
-        let buffer = AVAudioPCMBuffer(pcmFormat: source, frameCapacity: AVAudioFrameCount(chunk.samples.count))
-      else { return }
-      buffer.frameLength = AVAudioFrameCount(chunk.samples.count)
-      chunk.samples.withUnsafeBufferPointer { samples in
-        buffer.floatChannelData?[0].update(from: samples.baseAddress!, count: samples.count)
-      }
+      guard var track = tracks[speaker] else { return }
       if track.converter?.inputFormat.sampleRate != chunk.sampleRate {
-        track.converter = AVAudioConverter(from: source, to: track.format)
+        track.converter = AVAudioFormat(standardFormatWithSampleRate: chunk.sampleRate, channels: 1)
+          .flatMap { AVAudioConverter(from: $0, to: track.format) }
       }
-      guard let converter = track.converter else { return }
-      let capacity = AVAudioFrameCount(Double(chunk.samples.count) * track.format.sampleRate / chunk.sampleRate) + 64
-      guard let output = AVAudioPCMBuffer(pcmFormat: track.format, frameCapacity: capacity) else { return }
-      var supplied = false
-      var error: NSError?
-      converter.convert(to: output, error: &error) { _, status in
-        if supplied {
-          status.pointee = .noDataNow
-          return nil
-        }
-        supplied = true
-        status.pointee = .haveData
-        return buffer
+      guard let converter = track.converter, let output = MeetingResampler.convert(chunk.samples, with: converter)
+      else {
+        tracks[speaker] = track
+        return
       }
-      guard error == nil, output.frameLength > 0 else { return }
       // The analyzer rejects any overlap, and the resampler's output length varies a
       // little per call: stamp whole samples at the analyzer's own rate.
       let start = track.timeline.place(at: time, frames: Int(output.frameLength))

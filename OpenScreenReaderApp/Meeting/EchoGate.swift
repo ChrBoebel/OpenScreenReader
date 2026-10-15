@@ -75,8 +75,8 @@ final class EchoGate {
   /// When the others made sound, on the meeting timeline (the last minute).
   private var activity: [ClosedRange<TimeInterval>] = []
   private let size: Int
-  private let forward: vDSP.DFT<Float>
-  private let inverse: vDSP.DFT<Float>
+  private let forward: vDSP.DiscreteFourierTransform<Float>
+  private let inverse: vDSP.DiscreteFourierTransform<Float>
 
   init(configuration: Configuration = Configuration()) {
     self.configuration = configuration
@@ -88,8 +88,11 @@ final class EchoGate {
     self.size = size
     microphone = Ring(capacity: configuration.window * 2)
     system = Ring(capacity: configuration.window * 2)
-    forward = vDSP.DFT(count: size, direction: .forward, transformType: .complexComplex, ofType: Float.self)!
-    inverse = vDSP.DFT(count: size, direction: .inverse, transformType: .complexComplex, ofType: Float.self)!
+    // A power-of-two length is always supported, so setup cannot fail here.
+    forward = try! vDSP.DiscreteFourierTransform(
+      count: size, direction: .forward, transformType: .complexComplex, ofType: Float.self)
+    inverse = try! vDSP.DiscreteFourierTransform(
+      count: size, direction: .inverse, transformType: .complexComplex, ofType: Float.self)
   }
 
   /// Adds 8 kHz mono samples that begin at `time` seconds on the meeting timeline.
@@ -171,13 +174,13 @@ final class EchoGate {
 
     let zeros = [Float](repeating: 0, count: size)
     let padding = [Float](repeating: 0, count: size - x.count)
-    let first = forward.transform(inputReal: x + padding, inputImaginary: zeros)
-    let second = forward.transform(inputReal: y + padding, inputImaginary: zeros)
+    let first = forward.transform(real: x + padding, imaginary: zeros)
+    let second = forward.transform(real: y + padding, imaginary: zeros)
     // conj(X) · Y gives Σ x[n] · y[n + k] after the inverse transform.
     let real = vDSP.add(vDSP.multiply(first.real, second.real), vDSP.multiply(first.imaginary, second.imaginary))
     let imaginary = vDSP.subtract(
       vDSP.multiply(first.real, second.imaginary), vDSP.multiply(first.imaginary, second.real))
-    let lagged = inverse.transform(inputReal: real, inputImaginary: imaginary).real
+    let lagged = inverse.transform(real: real, imaginary: imaginary).real
 
     let rate = configuration.sampleRate
     let lowest = Int((configuration.lagRange.lowerBound * rate).rounded())

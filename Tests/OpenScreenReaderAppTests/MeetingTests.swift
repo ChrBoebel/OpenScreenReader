@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import AVFoundation
 import Foundation
 import Testing
@@ -740,6 +741,19 @@ struct MeetingControllerTests {
     }
 
     @Test
+    func thePermissionHintEndsWithTheRecording() async {
+        let fixture = MeetingFixture()
+        await fixture.start()
+        fixture.clock.seconds += 21
+        fixture.microphone.deliver?(MeetingAudioChunk(samples: [0.1, 0.1], sampleRate: 16_000, hostTime: fixture.clock.ticks))
+        fixture.controller.tick()
+        #expect(fixture.controller.systemAudioMissing)
+        fixture.controller.stop()
+        await fixture.controller.waitUntilSettled()
+        #expect(!fixture.controller.systemAudioMissing)
+    }
+
+    @Test
     func withoutSystemAudioTheMicrophoneStillTranscribesWithANotice() async {
         let fixture = MeetingFixture(systemAvailable: false)
         await fixture.start()
@@ -795,5 +809,63 @@ struct MeetingAppTests {
         await model.waitForInteractionToSettle()
         #expect(fixture.controller.phase == .live)
         #expect(fixture.microphone.stops == 0)
+    }
+}
+
+/// Opt-in design review: `TEST_RUNNER_OSR_MEETING_PREVIEW_DIR=/path xcodebuild …
+/// -only-testing:OpenScreenReaderAppTests/MeetingPreviewTests test` renders the
+/// transcript window in each state to PNGs. Nothing records; sources are fakes.
+@Suite("Meeting window preview", .serialized)
+@MainActor
+struct MeetingPreviewTests {
+    @Test
+    func exportMeetingWindowPreview() async throws {
+        guard let path = ProcessInfo.processInfo.environment["OSR_MEETING_PREVIEW_DIR"] else { return }
+        let directory = URL(fileURLWithPath: path)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let fixture = MeetingFixture()
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 560),
+                              styleMask: [.titled], backing: .buffered, defer: false)
+        let host = NSHostingView(rootView: MeetingView(controller: fixture.controller)
+            .background(Color(nsColor: .windowBackgroundColor)))
+        host.frame = NSRect(x: 0, y: 0, width: 480, height: 560)
+        window.contentView = host
+        window.orderFrontRegardless()
+        defer { window.close() }
+        func capture(_ name: String) async throws {
+            for (suffix, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
+                window.appearance = NSAppearance(named: appearance)
+                try await Task.sleep(for: .milliseconds(250))
+                host.layoutSubtreeIfNeeded()
+                host.display()
+                let rep = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+                host.cacheDisplay(in: host.bounds, to: rep)
+                let png = try #require(rep.representation(using: .png, properties: [:]))
+                try png.write(to: directory.appendingPathComponent("\(name)-\(suffix).png"))
+            }
+        }
+        fixture.provider.availability = .languageMissing("Deutsch")
+        await fixture.controller.open()
+        try await capture("1-unavailable")
+        fixture.controller.discard()
+        fixture.provider.availability = .available(Locale(identifier: "de-DE"))
+        await fixture.controller.open()
+        try await capture("2-consent")
+        fixture.controller.confirmConsent()
+        await fixture.controller.waitUntilSettled()
+        await fixture.hear(heard(.others, 1, 4, "Guten Morgen zusammen, kurzer Stand zum Projekt."))
+        await fixture.hear(heard(.me, 5, 7, "Die Tests laufen alle grün."))
+        await fixture.hear(heard(.others, 8, 10, "Dann plane ich den ersten Prototypen", final: false))
+        fixture.clock.seconds += 75
+        fixture.microphone.deliver?(MeetingAudioChunk(samples: [Float](repeating: 0.08, count: 1_600), sampleRate: 16_000, hostTime: fixture.clock.ticks))
+        fixture.system.deliver?(MeetingAudioChunk(samples: [Float](repeating: 0, count: 1_600), sampleRate: 16_000, hostTime: fixture.clock.ticks))
+        fixture.controller.tick()
+        try await capture("3-live")
+        fixture.provider.recognizer.finalOnFinish = heard(.others, 8, 10.5, "Dann plane ich den ersten Prototypen für Freitag.")
+        fixture.controller.stop()
+        await fixture.controller.waitUntilSettled()
+        try await capture("4-finished")
+        try fixture.controller.transcript.exportText(title: "Meeting transcript")
+            .write(to: directory.appendingPathComponent("5-export.md"), atomically: true, encoding: .utf8)
     }
 }

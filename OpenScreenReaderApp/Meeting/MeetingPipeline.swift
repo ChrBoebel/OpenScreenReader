@@ -81,32 +81,15 @@ final class MeetingAudioRouter: @unchecked Sendable {
   func drain() { gateQueue.sync {} }
 
   private func resample(_ chunk: MeetingAudioChunk, for speaker: MeetingSpeaker) -> [Float]? {
-    guard let input = AVAudioFormat(standardFormatWithSampleRate: chunk.sampleRate, channels: 1),
-      let buffer = AVAudioPCMBuffer(pcmFormat: input, frameCapacity: AVAudioFrameCount(chunk.samples.count))
-    else { return nil }
-    buffer.frameLength = AVAudioFrameCount(chunk.samples.count)
-    chunk.samples.withUnsafeBufferPointer { source in
-      buffer.floatChannelData?[0].update(from: source.baseAddress!, count: chunk.samples.count)
-    }
     if chunk.sampleRate == gateFormat.sampleRate { return chunk.samples }
     if converters[speaker]?.inputFormat.sampleRate != chunk.sampleRate {
-      converters[speaker] = AVAudioConverter(from: input, to: gateFormat)
+      converters[speaker] = AVAudioFormat(standardFormatWithSampleRate: chunk.sampleRate, channels: 1)
+        .flatMap { AVAudioConverter(from: $0, to: gateFormat) }
     }
-    guard let converter = converters[speaker] else { return nil }
-    let capacity = AVAudioFrameCount(Double(chunk.samples.count) * gateFormat.sampleRate / chunk.sampleRate) + 32
-    guard let output = AVAudioPCMBuffer(pcmFormat: gateFormat, frameCapacity: capacity) else { return nil }
-    var supplied = false
-    var error: NSError?
-    converter.convert(to: output, error: &error) { _, status in
-      if supplied {
-        status.pointee = .noDataNow
-        return nil
-      }
-      supplied = true
-      status.pointee = .haveData
-      return buffer
-    }
-    guard error == nil, let data = output.floatChannelData else { return nil }
+    guard let converter = converters[speaker],
+      let output = MeetingResampler.convert(chunk.samples, with: converter),
+      let data = output.floatChannelData
+    else { return nil }
     return Array(UnsafeBufferPointer(start: data[0], count: Int(output.frameLength)))
   }
 }
