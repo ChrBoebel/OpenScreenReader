@@ -225,3 +225,20 @@ Modells oder Providers. [Messung und Grenzen](dictation-vocabulary-verification.
 ## Release- und Updatevorbereitung — 2026-10-14
 
 `AppUpdateController` kapselt Sparkle 2.10.0, ist unabhängig von den lokalen Workern und startet nur bei gültiger HTTPS-Feed-/Schlüsselkonfiguration. `UpdateRelaunchGate` hält eine Installationsfortsetzung während aktiver Arbeit und invalidiert sie bei Abbruch/App-Ende. Modellinstallationen blockieren ebenfalls. Signierte Feeds und Archive werden vor Extraktion geprüft; Systemprofile und automatische Installation sind ausgeschaltet. `scripts/release.py` prüft zuerst Ressourcen, signiert Code von innen nach außen, aktualisiert erst danach Binärhashes, notarisiert optional die App und DMG und erzeugt zuletzt den Feed. Der GitHub-Workflow prüft Main/PRs; öffentliche Auslieferung wartet auf Hosting und Release-Gates. Details: [Release und Updates](release-and-updates.md).
+
+## Lokale Meeting-Mitschrift — 2026-10-15
+
+[ADR 0006](decisions/0006-local-meeting-transcript.md). Eigenes Modul `OpenScreenReaderApp/Meeting`, unabhängig von Vorlese-Pipeline und Diktier-Worker:
+
+| Baustein | Aufgabe |
+|---|---|
+| `MeetingMicrophoneSource` | Eigene `AVAudioEngine` am Standardmikrofon („Ich“), Mono-Float mit Host-Zeitstempel |
+| `SystemAudioTapSource` | Privater Core-Audio-Prozess-Tap (`CATapDescription(monoGlobalTapButExcludeProcesses:)` ohne Saywing, ab macOS 14.2) in einem privaten Aggregate-Device nur mit dem Tap, wie in Apples Beispiel („Andere“) |
+| `MeetingAudioRouter` | Legt beide Quellen auf eine gemeinsame Zeitachse (`MeetingTimeline`), gibt sie an die Erkennung, hält Pegel/Stille/Signal je Spur und rechnet auf einer eigenen Queue auf 8 kHz für das Echo-Gate um |
+| `AppleMeetingRecognizer` | Je Spur ein `SpeechAnalyzer` mit `SpeechTranscriber` (`.volatileResults`, `.fastResults`, `.audioTimeRange`), nur macOS 26 und nur installierte Sprachen (`AssetInventory.reserve`, kein Download). Eingaben werden in ganzen Samples der Analyzer-Rate gestempelt (`MeetingFrameTimeline`), weil der Analyzer jede Überlappung ablehnt. Stopp finalisiert mit Frist und bricht einen Analyzer ohne Eingang ab (sonst hängt er) |
+| `EchoGate` | Alle 0,5 s FFT-Kreuzkorrelation (Accelerate) der letzten ~2 s beider Spuren; stabile Verzögerung in 5 von 8 Analysen oder bekannte Raumverzögerung → Echo-Spannen nur dort, wo „Andere“ Ton hatten, verschoben um die Verzögerung plus 0,5 s Nachhall |
+| `MeetingTranscript` | Vorläufig/endgültig je Spur, Gesprächsbeiträge in Zeitfolge. „Ich“ verliert Wörter, deren Zeit in einer Echo-Spanne liegt, und Folgen von ≥ 3 Wörtern, die „Andere“ zur selben Zeit sagten. Markdown-Export |
+| `MeetingController` | Einwilligung → Start (erst Erkennung, dann Quellen) → Live → Stopp → Fertig/Verwerfen; `GenerationGate` gegen verspätete Ergebnisse; Grenzen 2 h (Hinweis nach 1 h 55 min), 10 min Stille, Ruhezustand/Sitzungswechsel; Kopieren/Sichern nur auf Klick |
+| `MeetingView` | SwiftUI-Fenster: Einwilligung, Gesprächsverlauf mit Pegeln, Hinweis bei fehlendem Systemaudio, Abschlussaktionen |
+
+`AppModel` hält den Controller nur zur Anzeige: Menüleistenring vor allen anderen Zuständen, Updates warten. Vorlesen, Esc und Diktieren greifen nicht ein. Kein Teil des Moduls schreibt Dateien außer dem ausdrücklichen Sichern-Dialog, und keiner öffnet eine Netzwerkverbindung.
