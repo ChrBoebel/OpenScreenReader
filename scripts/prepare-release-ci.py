@@ -110,8 +110,12 @@ def main():
                 '--apple-id', apple_id, '--team-id', 'S28WSHSSJD', '--password', apple_password)
         finally:
             cert_file.unlink(missing_ok=True)
-            key_file.unlink(missing_ok=True)
+            # Keep the mode-0600 Sparkle key until the always-run cleanup step.
+            # Separate Sparkle executables cannot share an interactive keychain ACL in CI.
     elif mode == 'cleanup':
+        # Remove secret files even if restoring the runner keychain later fails.
+        for name in ('saywing-cert.p12', 'saywing-sparkle.key'):
+            (temp / name).unlink(missing_ok=True)
         default = temp / 'saywing-default-keychain.txt'
         if default.exists():
             run('security', 'default-keychain', '-d', 'user', '-s', default.read_text())
@@ -120,8 +124,6 @@ def main():
             run('security', 'list-keychains', '-d', 'user', '-s', *json.loads(original.read_text()))
         if keychain.exists():
             run('security', 'delete-keychain', keychain)
-        for name in ('saywing-cert.p12', 'saywing-sparkle.key'):
-            (temp / name).unlink(missing_ok=True)
     else:
         raise ValueError('Expected runtime, credentials or cleanup')
 
