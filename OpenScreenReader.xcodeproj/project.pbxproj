@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		DD2000000000000000000004 /* MeetingAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD1000000000000000000004 /* MeetingAudio.swift */; };
 		DD2000000000000000000003 /* EchoGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD1000000000000000000003 /* EchoGate.swift */; };
 		DD2000000000000000000002 /* MeetingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD1000000000000000000002 /* MeetingTests.swift */; };
 		DD2000000000000000000001 /* MeetingCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD1000000000000000000001 /* MeetingCore.swift */; };
@@ -64,6 +65,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		DD1000000000000000000004 /* MeetingAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Meeting/MeetingAudio.swift; sourceTree = "<group>"; };
 		DD1000000000000000000003 /* EchoGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Meeting/EchoGate.swift; sourceTree = "<group>"; };
 		DD1000000000000000000002 /* MeetingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingTests.swift; sourceTree = "<group>"; };
 		DD1000000000000000000001 /* MeetingCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Meeting/MeetingCore.swift; sourceTree = "<group>"; };
@@ -156,6 +158,7 @@
 			isa = PBXGroup;
 			children = (
 				BB1000000000000000000004 /* InfoPlist.xcstrings */,
+				DD1000000000000000000004 /* MeetingAudio.swift */,
 				DD1000000000000000000003 /* EchoGate.swift */,
 				DD1000000000000000000001 /* MeetingCore.swift */,
 				BB1000000000000000000003 /* Localizable.xcstrings */,
@@ -353,6 +356,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				BB2000000000000000000002 /* ShortcutRecorder.swift in Sources */,
+				DD2000000000000000000004 /* MeetingAudio.swift in Sources */,
 				DD2000000000000000000003 /* EchoGate.swift in Sources */,
 				DD2000000000000000000001 /* MeetingCore.swift in Sources */,
 				BB2000000000000000000001 /* Permissions.swift in Sources */,

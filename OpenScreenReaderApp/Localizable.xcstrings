@@ -3061,6 +3061,16 @@
         }
       }
     },
+    "System audio could not start (error %lld).": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Systemaudio konnte nicht starten (Fehler %lld)."
+          }
+        }
+      }
+    },
     "Target changed": {
       "localizations": {
         "de": {

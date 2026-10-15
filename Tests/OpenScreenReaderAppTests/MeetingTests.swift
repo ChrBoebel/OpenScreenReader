@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import Testing
 @testable import OpenScreenReader
@@ -206,5 +207,47 @@ struct EchoGateTests {
         let burst = source.speech(seconds: 0.6) + [Float](repeating: 0, count: 11_200)
         let spans = feed(gate, system: burst, mic: delayed(burst, by: 0.08, gain: 0.25), from: 10)
         #expect(covered(spans, 10...10.6) > 0.9)
+    }
+}
+
+@Suite("Meeting audio sources")
+struct MeetingAudioTests {
+    @Test
+    func deinterleavedStereoBecomesOneMonoTrack() throws {
+        let format = try #require(AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 2))
+        let buffer = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 3))
+        buffer.frameLength = 3
+        let channels = try #require(buffer.floatChannelData)
+        for (index, (left, right)) in [(Float(1), Float(0)), (0.5, 0.5), (-1, 1)].enumerated() {
+            channels[0][index] = left
+            channels[1][index] = right
+        }
+        let mono = MeetingAudioMixdown.mono(buffer.audioBufferList, frames: 3, format: format.streamDescription.pointee)
+        #expect(mono == [0.5, 0.5, 0])
+    }
+
+    @Test
+    func interleavedTapAudioBecomesOneMonoTrack() throws {
+        let format = try #require(AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 44_100, channels: 2, interleaved: true))
+        let buffer = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 2))
+        buffer.frameLength = 2
+        let samples = try #require(buffer.audioBufferList.pointee.mBuffers.mData?.assumingMemoryBound(to: Float.self))
+        for (index, value) in [Float(0.2), 0.4, -0.6, -0.2].enumerated() { samples[index] = value }
+        let mono = try #require(MeetingAudioMixdown.mono(buffer.audioBufferList, frames: 2, format: format.streamDescription.pointee))
+        #expect(mono.map { ($0 * 10).rounded() / 10 } == [0.3, -0.4])
+    }
+
+    @Test
+    func integerAudioIsRejectedInsteadOfMisread() throws {
+        let format = try #require(AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16_000, channels: 1, interleaved: true))
+        let buffer = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 4))
+        buffer.frameLength = 4
+        #expect(MeetingAudioMixdown.mono(buffer.audioBufferList, frames: 4, format: format.streamDescription.pointee) == nil)
+    }
+
+    @Test
+    func hostTimeConvertsToSeconds() {
+        let second = MeetingHostClock.hostTicks(forSeconds: 1)
+        #expect(abs(MeetingHostClock.seconds(second * 3) - 3) < 1e-6)
     }
 }
