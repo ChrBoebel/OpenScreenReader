@@ -263,3 +263,48 @@ struct PersistentGuidedSetupTests {
         model.setRecordingShortcut(false)
     }
 }
+
+@Suite("Update check at launch")
+@MainActor
+struct UpdateLaunchTests {
+    @Test func checksImmediatelyAfterStartWhenEnabled() throws {
+        let updater = LaunchUpdaterStub()
+        try AppUpdateController.startCheckingAtLaunch(updater)
+        #expect(updater.events == ["start", "read preference", "background check"])
+    }
+
+    @Test func respectsPreferenceResolvedDuringStartup() throws {
+        let updater = LaunchUpdaterStub()
+        updater.enabledAfterStart = false
+        try AppUpdateController.startCheckingAtLaunch(updater)
+        #expect(updater.events == ["start", "read preference"])
+    }
+
+    @Test func failedStartupNeverChecksOrReadsPreferences() {
+        let updater = LaunchUpdaterStub()
+        updater.failStartup = true
+        #expect(throws: LaunchUpdaterStub.StartError.self) {
+            try AppUpdateController.startCheckingAtLaunch(updater)
+        }
+        #expect(updater.events == ["start"])
+    }
+}
+
+@MainActor
+private final class LaunchUpdaterStub: AppUpdaterStarting {
+    struct StartError: Error {}
+    var events: [String] = []
+    var enabledAfterStart = true
+    var failStartup = false
+    private var enabled = true
+    var automaticallyChecksForUpdates: Bool {
+        events.append("read preference")
+        return enabled
+    }
+    func start() throws {
+        events.append("start")
+        if failStartup { throw StartError() }
+        enabled = enabledAfterStart
+    }
+    func checkForUpdatesInBackground() { events.append("background check") }
+}
