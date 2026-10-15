@@ -1,3 +1,4 @@
+import AppKit
 import AVFoundation
 import Foundation
 import Testing
@@ -401,5 +402,270 @@ struct AppleMeetingRecognizerTests {
         let text = finals.map(\.text).joined(separator: " ")
         #expect(text.localizedCaseInsensitiveContains("Morgen"))
         #expect(finals.allSatisfy { $0.speaker == .others && $0.start >= 99.9 })
+    }
+}
+
+@MainActor
+private final class SourceFake: MeetingAudioSource {
+    var deliver: (@Sendable (MeetingAudioChunk) -> Void)?
+    var starts = 0
+    var stops = 0
+    var failure: Error?
+    func start(deliver: @escaping @Sendable (MeetingAudioChunk) -> Void) throws {
+        if let failure { throw failure }
+        starts += 1
+        self.deliver = deliver
+    }
+    func stop() { stops += 1; deliver = nil }
+}
+
+@MainActor
+private final class ProviderFake: MeetingRecognizerProviding {
+    var availability: MeetingAvailability = .available(Locale(identifier: "de-DE"))
+    var recognizer = RecognizerFake()
+    var requestedLanguage: DictationLanguage?
+    func availability(for language: DictationLanguage) async -> MeetingAvailability {
+        requestedLanguage = language
+        return availability
+    }
+    func makeRecognizer() -> (any MeetingRecognizing)? { recognizer }
+}
+
+private final class HostClockFake: @unchecked Sendable {
+    var seconds: TimeInterval = 10
+    var ticks: UInt64 { MeetingHostClock.hostTicks(forSeconds: seconds) }
+}
+
+private final class MeetingSoundsFake: InterfaceSoundPlaying {
+    var cues: [InterfaceCue] = []
+    func play(_ cue: InterfaceCue) { cues.append(cue) }
+    func stop() {}
+}
+
+@MainActor
+private struct MeetingFixture {
+    let controller: MeetingController
+    let provider = ProviderFake()
+    let microphone = SourceFake()
+    let system = SourceFake()
+    let clock = HostClockFake()
+    let sounds = MeetingSoundsFake()
+    let pasteboard = NSPasteboard.withUniqueName()
+    let notifications = NotificationCenter()
+    var saved: [String] { savedBox.items }
+    let savedBox = SavedBox()
+
+    init(systemAvailable: Bool = true) {
+        let provider = provider, microphone = microphone, system = system, clock = clock, savedBox = savedBox
+        controller = MeetingController(
+            provider: provider,
+            makeMicrophone: { microphone },
+            makeSystemAudio: { systemAvailable ? system : nil },
+            language: { .german },
+            interfaceSounds: sounds,
+            hostClock: { clock.ticks },
+            pasteboard: pasteboard,
+            notifications: notifications,
+            save: { text, _ in savedBox.items.append(text); return true },
+            confirmReplacingUnsaved: { false },
+            presentsWindow: false)
+    }
+
+    func start() async {
+        await controller.open()
+        controller.confirmConsent()
+        await controller.waitUntilSettled()
+    }
+
+    func hear(_ recognition: MeetingRecognition) async {
+        provider.recognizer.onResult?(recognition)
+        await controller.waitUntilSettled()
+    }
+}
+
+@MainActor
+private final class SavedBox { var items: [String] = [] }
+
+@Suite("Meeting transcript lifecycle", .serialized)
+@MainActor
+struct MeetingControllerTests {
+    @Test
+    func nothingRecordsBeforeConsentIsConfirmed() async {
+        let fixture = MeetingFixture()
+        await fixture.controller.open()
+        #expect(fixture.controller.phase == .consent)
+        #expect(fixture.microphone.starts == 0)
+        #expect(fixture.system.starts == 0)
+        #expect(fixture.provider.recognizer.startedLocale == nil)
+        fixture.controller.discard()
+        #expect(fixture.controller.phase == .idle)
+        #expect(fixture.microphone.starts == 0)
+    }
+
+    @Test
+    func unavailableRecognitionSaysWhyAndOffersNoStart() async {
+        let fixture = MeetingFixture()
+        fixture.provider.availability = .languageMissing("Deutsch")
+        await fixture.controller.open()
+        guard case .unavailable = fixture.controller.phase else {
+            Issue.record("expected unavailable, got \(fixture.controller.phase)")
+            return
+        }
+        fixture.controller.confirmConsent()
+        await fixture.controller.waitUntilSettled()
+        #expect(fixture.microphone.starts == 0)
+    }
+
+    @Test
+    func consentStartsRecognitionThenBothSourcesWithTheDictationLanguage() async {
+        let fixture = MeetingFixture()
+        await fixture.start()
+        #expect(fixture.controller.phase == .live)
+        #expect(fixture.provider.requestedLanguage == .german)
+        #expect(fixture.provider.recognizer.startedLocale?.identifier == "de-DE")
+        #expect(fixture.microphone.starts == 1)
+        #expect(fixture.system.starts == 1)
+        #expect(fixture.sounds.cues == [.listening])
+        #expect(fixture.controller.isRecording)
+    }
+
+    @Test
+    func audioFromBothSourcesReachesTheRecognizer() async {
+        let fixture = MeetingFixture()
+        await fixture.start()
+        fixture.microphone.deliver?(MeetingAudioChunk(samples: [0.1, 0.1], sampleRate: 16_000, hostTime: fixture.clock.ticks))
+        fixture.system.deliver?(MeetingAudioChunk(samples: [0.1, 0.1], sampleRate: 16_000, hostTime: fixture.clock.ticks))
+        #expect(fixture.provider.recognizer.appended.map(\.speaker) == [.me, .others])
+    }
+
+    @Test
+    func resultsFillTheTranscriptAndStopKeepsIt() async {
+        let fixture = MeetingFixture()
+        await fixture.start()
+        await fixture.hear(heard(.others, 1, 2, "Guten Morgen."))
+        fixture.provider.recognizer.finalOnFinish = heard(.me, 3, 4, "Hallo.")
+        fixture.controller.stop()
+        await fixture.controller.waitUntilSettled()
+        #expect(fixture.controller.phase == .finished)
+        #expect(fixture.microphone.stops >= 1)
+        #expect(fixture.system.stops >= 1)
+        #expect(fixture.provider.recognizer.finished)
+        #expect(fixture.controller.transcript.entries.map(\.text) == ["Guten Morgen.", "Hallo."])
+        #expect(fixture.sounds.cues == [.listening, .captured])
+    }
+
+    @Test
+    func discardedTranscriptsIgnoreLateResults() async {
+        let fixture = MeetingFixture()
+        await fixture.start()
+        fixture.controller.discard()
+        await fixture.controller.waitUntilSettled()
+        #expect(fixture.provider.recognizer.cancelled)
+        await fixture.hear(heard(.others, 1, 2, "Zu spaet."))
+        #expect(fixture.controller.transcript.isEmpty)
+        #expect(fixture.controller.phase == .idle)
+    }
+
+    @Test
+    func copyAndSaveHappenOnlyOnRequest() async {
+        let fixture = MeetingFixture()
+        await fixture.start()
+        await fixture.hear(heard(.others, 1, 2, "Guten Morgen."))
+        fixture.controller.stop()
+        await fixture.controller.waitUntilSettled()
+        #expect(fixture.pasteboard.string(forType: .string) == nil)
+        #expect(fixture.saved.isEmpty)
+        fixture.controller.copy()
+        #expect(fixture.pasteboard.string(forType: .string)?.contains("Guten Morgen.") == true)
+        fixture.controller.save()
+        #expect(fixture.saved.count == 1)
+        #expect(fixture.controller.hasUnsavedText == false)
+    }
+
+    @Test
+    func aNewTranscriptNeverSilentlyReplacesAnUnsavedOne() async {
+        let fixture = MeetingFixture()
+        await fixture.start()
+        await fixture.hear(heard(.others, 1, 2, "Wichtig."))
+        fixture.controller.stop()
+        await fixture.controller.waitUntilSettled()
+        await fixture.controller.startNew()
+        #expect(fixture.controller.phase == .finished)
+        #expect(!fixture.controller.transcript.isEmpty)
+    }
+
+    @Test
+    func sleepEndsTheRecordingButKeepsTheTranscript() async {
+        let fixture = MeetingFixture()
+        await fixture.start()
+        await fixture.hear(heard(.me, 1, 2, "Bis gleich."))
+        fixture.notifications.post(name: NSWorkspace.willSleepNotification, object: nil)
+        await fixture.controller.waitUntilSettled()
+        #expect(fixture.controller.phase == .finished)
+        #expect(fixture.controller.transcript.entries.map(\.text) == ["Bis gleich."])
+    }
+
+    @Test
+    func theTimeLimitWarnsAndThenStops() async {
+        let fixture = MeetingFixture()
+        await fixture.start()
+        // Keep talking, so only the time limit applies.
+        let talk = { fixture.microphone.deliver?(MeetingAudioChunk(samples: [Float](repeating: 0.1, count: 160), sampleRate: 16_000, hostTime: fixture.clock.ticks)) }
+        fixture.clock.seconds += 2 * 3600 - 299
+        talk()
+        fixture.controller.tick()
+        #expect(fixture.controller.notice != nil)
+        #expect(fixture.controller.phase == .live)
+        fixture.clock.seconds += 300
+        talk()
+        fixture.controller.tick()
+        await fixture.controller.waitUntilSettled()
+        #expect(fixture.controller.phase == .finished)
+    }
+
+    @Test
+    func tenSilentMinutesStopTheRecording() async {
+        let fixture = MeetingFixture()
+        await fixture.start()
+        fixture.clock.seconds += 599
+        fixture.controller.tick()
+        #expect(fixture.controller.phase == .live)
+        fixture.clock.seconds += 2
+        fixture.controller.tick()
+        await fixture.controller.waitUntilSettled()
+        #expect(fixture.controller.phase == .finished)
+    }
+
+    @Test
+    func silentSystemAudioPointsToThePermission() async {
+        let fixture = MeetingFixture()
+        await fixture.start()
+        fixture.clock.seconds += 21
+        fixture.system.deliver?(MeetingAudioChunk(samples: [0, 0], sampleRate: 16_000, hostTime: fixture.clock.ticks))
+        fixture.controller.tick()
+        #expect(fixture.controller.systemAudioMissing)
+        fixture.system.deliver?(MeetingAudioChunk(samples: [0.2, 0.1], sampleRate: 16_000, hostTime: fixture.clock.ticks))
+        fixture.controller.tick()
+        #expect(!fixture.controller.systemAudioMissing)
+    }
+
+    @Test
+    func withoutSystemAudioTheMicrophoneStillTranscribesWithANotice() async {
+        let fixture = MeetingFixture(systemAvailable: false)
+        await fixture.start()
+        #expect(fixture.controller.phase == .live)
+        #expect(fixture.microphone.starts == 1)
+        #expect(fixture.controller.notice != nil)
+    }
+
+    @Test
+    func aFailingMicrophoneEndsTheStartCleanly() async {
+        let fixture = MeetingFixture()
+        fixture.microphone.failure = MeetingError("Mic busy")
+        await fixture.start()
+        #expect(fixture.controller.phase == .consent)
+        #expect(fixture.controller.notice == "Mic busy")
+        #expect(fixture.provider.recognizer.cancelled)
+        #expect(fixture.system.starts == 0 || fixture.system.stops >= 1)
     }
 }
