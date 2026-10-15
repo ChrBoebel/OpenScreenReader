@@ -1,0 +1,11 @@
+{
+  "source": {
+    "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261013/cpython-3.12.15%2B20261013-x86_64-apple-darwin-pgo%2Blto-full.tar.zst",
+    "bytes": 57633538,
+    "sha256": "7b24fd8362742c471989a4491770beb377f0127c8671778a223d6c6b6c10a578"
+  },
+  "version": "3.12.15",
+  "target": "x86_64-apple-darwin",
+  "build_options": "pgo+lto",
+  "scope": "all original license texts in matching full interpreter archive; may include optional components absent from install_only build"
+}

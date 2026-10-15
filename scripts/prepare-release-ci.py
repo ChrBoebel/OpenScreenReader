@@ -18,6 +18,28 @@ def required(name):
     return value
 
 
+def extract_runtime(archive, destination, archive_format):
+    if archive_format == 'zip':
+        run('/usr/bin/ditto', '-x', '-k', archive, destination)
+        return
+    if archive_format != 'dmg':
+        raise ValueError('Unsupported pinned runtime format')
+    # The archive SHA-256 is checked before this function. Reuse the notarized
+    # candidate directly instead of uploading the same large resources twice.
+    run('xcrun', 'stapler', 'validate', archive)
+    mount = destination.parent / 'runtime-mount'
+    mount.mkdir(exist_ok=False)
+    run('hdiutil', 'attach', '-nobrowse', '-readonly', '-mountpoint', mount, archive)
+    try:
+        source = mount / 'Saywing.app'
+        if not source.is_dir() or source.is_symlink():
+            raise ValueError('Pinned DMG has no regular Saywing app bundle')
+        destination.mkdir(exist_ok=True)
+        run('/usr/bin/ditto', source, destination / 'Saywing.app')
+    finally:
+        run('hdiutil', 'detach', mount)
+
+
 def main():
     if os.environ.get('GITHUB_ACTIONS') != 'true':
         raise ValueError('This helper is only for disposable GitHub Actions runners')
@@ -31,7 +53,10 @@ def main():
         expected = required('SAYWING_RUNTIME_SHA256')
         if len(expected) != 64 or any(c not in '0123456789abcdef' for c in expected):
             raise ValueError('Expected an exact SHA-256 for the approved runtime archive')
-        archive = temp / 'saywing-runtime.zip'
+        archive_format = os.environ.get('SAYWING_RUNTIME_FORMAT', 'zip')
+        if archive_format not in ('zip', 'dmg'):
+            raise ValueError('Unsupported pinned runtime format')
+        archive = temp / ('saywing-runtime.' + archive_format)
         # Runtime-source archives are private. The website allowlist never
         # exposes this prefix; no public URL or expiring token is needed in Git.
         import boto3
@@ -42,11 +67,11 @@ def main():
             aws_secret_access_key=required('SAYWING_S3_SECRET_ACCESS_KEY'),
             config=Config(signature_version='s3v4', s3={'addressing_style': 'virtual'}, connect_timeout=30, read_timeout=900,
                           request_checksum_calculation='when_required', response_checksum_validation='when_required'))
-        client.download_file(required('SAYWING_S3_BUCKET'), f'saywing/runtime/{expected}.zip', str(archive))
+        client.download_file(required('SAYWING_S3_BUCKET'), f'saywing/runtime/{expected}.{archive_format}', str(archive))
         if digest(archive) != expected:
             archive.unlink()
             raise ValueError('Runtime archive SHA-256 mismatch')
-        run('/usr/bin/ditto', '-x', '-k', archive, temp / 'saywing-runtime')
+        extract_runtime(archive, temp / 'saywing-runtime', archive_format)
         archive.unlink()
     elif mode == 'credentials':
         # Read all required secrets before creating any credential files.

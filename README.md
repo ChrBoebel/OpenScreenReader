@@ -1,5 +1,7 @@
 # Saywing
 
+Release checkpoint: [Apple Silicon beta publication and documented device-test scope](docs/beta-publication-2026-10-15.md).
+
 <p align="center">
   <img src="docs/brand-identity/assets/saywing-app-icon.png" alt="Saywing Text to Voice app icon" width="160">
 </p>
@@ -35,7 +37,7 @@ Default shortcut: **⌥R (Option + R)** starts region selection. Press it again 
 
 Supported keys are A–Z, 0–9, and Space, combined with Command, Option, or Control; Shift is optional. Failed registration leaves the previous shortcut active and does not save the rejected choice. System-wide registrations are checked through Carbon, but ordinary app commands and services cannot all be detected: Command-only choices require confirmation, and the previous default ⌘⇧Y overlapped macOS’s “Make Sticky” service. All saved choices, including ⌘⇧Y, are preserved on restart. Keys are resolved from the current keyboard layout when registered; restart the app or record the shortcut again after changing layouts.
 
-**Reading speed:** choose 0.75×, 1×, 1.25×, 1.5×, 1.75× or 2× in **Settings → Read Aloud → Speed** or the menu bar's **Speed** submenu. Changes apply during playback and are remembered locally. A native time/pitch unit changes rate with pitch fixed at zero; Supertonic still generates its normal-speed voice. Faster starting rates increase the pre-roll to preserve about one second of playback headroom. The fixed PCM limit is eight seconds of source audio (about 1.35 MiB), retaining up to four seconds of look-ahead at 2×.
+**Reading speed:** choose 0.75×, 1×, 1.25×, 1.5×, 1.75× or 2× in **Settings → Read Aloud → Speed** or the menu bar's **Speed** submenu. Changes apply during playback and are remembered locally. A native time/pitch unit changes rate with pitch fixed at zero; Supertonic still generates its normal-speed voice. Faster starting rates increase the pre-roll: Apple Silicon preserves about one second of playback headroom; Intel builds use up to three seconds at 2× to cover sentence synthesis, so fast playback can start later. The fixed PCM limit is eight seconds of source audio (about 1.35 MiB), retaining up to four seconds of look-ahead at 2×.
 
 **Queue another text:** press **the same reading shortcut again** while preparing or speaking, or use **Add Screen Region to Queue…** in the menu. Drag another region; the existing speech continues while OCR prepares it. Up to five waiting texts (8,000 characters each) are read in order. On hover, the capsule's **+N** control shows the number waiting; **Next Text** in the menu skips the current text. If speech ends while a new region is being selected/recognized, the app waits. Escape or an explicit Stop control stops everything and clears all pending text. There is no history, automatic clipboard write, or queue persistence across app restarts. The previous **⌘⌥⇧Y** shortcut remains an optional additional alias, configurable under **Settings → Shortcuts → Advanced**; it is no longer needed for this workflow. See [speed and queue verification](docs/speed-and-queue-verification.md).
 

@@ -82,8 +82,50 @@ def verify_model(root,model_id='qwen3-asr',model_root=None):
   if digest!=entry['verified_sha256']:raise ValueError('model_hash')
  return model_path
 
+def backend_for(root,model_id):
+ config=root/'runtime-backends.json'
+ if not config.exists():return 'mlx'
+ value=json.loads(config.read_text()).get(model_id)
+ if value not in ('mlx','whisper.cpp'):raise ValueError('unsupported_backend')
+ return value
+
+class CppTranscriber:
+ def __init__(self,root,model_path):
+  import ctypes as c
+  self.c=c;self.context=None
+  self.lib=c.CDLL(str(root/'WhisperCpp/libsaywing-whisper.dylib'))
+  self.lib.saywing_whisper_open.argtypes=[c.c_char_p];self.lib.saywing_whisper_open.restype=c.c_void_p
+  self.lib.saywing_whisper_close.argtypes=[c.c_void_p];self.lib.saywing_whisper_close.restype=None
+  self.lib.saywing_whisper_tokens.argtypes=[c.c_void_p,c.c_char_p];self.lib.saywing_whisper_tokens.restype=c.c_int
+  self.lib.saywing_whisper_transcribe.argtypes=[c.c_void_p,c.POINTER(c.c_float),c.c_int,c.c_char_p,c.c_char_p,c.POINTER(c.c_char),c.c_int]
+  self.lib.saywing_whisper_transcribe.restype=c.c_int
+  models=list(model_path.glob('ggml-*.bin'))
+  if len(models)!=1:raise ValueError('expected_one_ggml_model')
+  self.context=self.lib.saywing_whisper_open(str(models[0]).encode())
+  if not self.context:raise ValueError('cpp_model_load_failed')
+ def __del__(self):
+  if self.context:self.lib.saywing_whisper_close(self.context);self.context=None
+ def __call__(self,audio,language,vocabulary):
+  import numpy as np
+  c=self.c;audio=np.ascontiguousarray(audio,dtype=np.float32)
+  def count(text):
+   result=self.lib.saywing_whisper_tokens(self.context,(' '+text).encode())
+   if result<0:raise ValueError('tokenization_failed')
+   return result
+  terms=fit_prompt_terms(vocabulary,count,223)
+  def run(terms):
+   output=c.create_string_buffer(100001)
+   prompt=vocabulary_prompt(terms)
+   result=self.lib.saywing_whisper_transcribe(self.context,audio.ctypes.data_as(c.POINTER(c.c_float)),len(audio),
+    {None:b'auto','German':b'de','English':b'en'}[language],prompt.encode() if prompt else None,output,len(output))
+   if result<0:raise ValueError('cpp_transcription_failed')
+   return output.value.decode('utf-8').strip()
+  return recognize_with_vocabulary(run,terms)
+
 def load_transcriber(root,model_id,model_root=None):
+ backend=backend_for(root,model_id)
  model_path=verify_model(root,model_id,model_root)
+ if backend=='whisper.cpp':return CppTranscriber(root,model_path)
  import mlx.core as mx
  if model_id.startswith('whisper-'):
   from mlx_whisper.transcribe import ModelHolder,transcribe
@@ -121,7 +163,6 @@ def main():
   arguments=parser.parse_args();model_id=arguments.model
   model_root=arguments.model_root.resolve(strict=True) if arguments.model_root else None
   with contextlib.redirect_stdout(sys.stderr):
-   import mlx.core as mx
    recognize=load_transcriber(root,model_id,model_root)
   send({'type':'ready','version':1})
  except Exception:
@@ -137,7 +178,6 @@ def main():
    with contextlib.redirect_stdout(sys.stderr):
     audio=prepare_audio(audio,rate)
     text='' if audio is None else recognize(audio,language,vocabulary)
-    mx.synchronize()
    if len(text.encode('utf-8'))>100000:raise ValueError('output_limit')
    send({'type':'result','id':identifier,'text':text})
    del packet,audio,text,line

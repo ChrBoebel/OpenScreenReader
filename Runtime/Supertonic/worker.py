@@ -10,6 +10,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import platform
 from pathlib import Path
 import re
 import sys
@@ -110,6 +111,22 @@ def load_verified_helper(model):
     return helper
 
 
+def load_speech_model(helper, model):
+    directory = str(model / "onnx")
+    if platform.machine() != "x86_64":
+        return helper.load_text_to_speech(directory, use_gpu=False)
+    # Four independent ONNX sessions otherwise spin competing CPU thread pools.
+    # Keep the pinned helper/model intact and bound CPU work without changing
+    # voice, denoising steps, segmentation or playback buffering.
+    options = helper.ort.SessionOptions()
+    options.intra_op_num_threads = min(4, os.cpu_count() or 1)
+    options.add_session_config_entry("session.intra_op.allow_spinning", "0")
+    options.add_session_config_entry("session.inter_op.allow_spinning", "0")
+    sessions = helper.load_onnx_all(directory, options, ["CPUExecutionProvider"])
+    return helper.TextToSpeech(helper.load_cfgs(directory),
+                               helper.load_text_processor(directory), *sessions)
+
+
 def run(source, output, model, session=False):
     request = read_request(source, session=session)
     if request is None:
@@ -117,7 +134,7 @@ def run(source, output, model, session=False):
     helper = load_verified_helper(model)
     import numpy as np
 
-    tts = helper.load_text_to_speech(str(model / "onnx"), use_gpu=False)
+    tts = load_speech_model(helper, model)
     if tts.sample_rate != SAMPLE_RATE:
         raise ValueError("Wrong model sample rate")
     style = helper.load_voice_style([str(model / "voice_styles/M1.json")])

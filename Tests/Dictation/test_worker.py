@@ -5,6 +5,16 @@ spec=importlib.util.spec_from_file_location('worker',Path(__file__).parents[2]/'
 class ProtocolTests(unittest.TestCase):
  def packet(self,values=None,rate=16000):
   return {'id':'test','rate':rate,'language':None,'pcm':base64.b64encode(np.asarray(values if values is not None else [0.1]*1600,dtype='<f4').tobytes()).decode()}
+ def test_backend_is_explicit_and_never_falls_back(self):
+  import tempfile
+  with tempfile.TemporaryDirectory() as d:
+   root=Path(d)
+   self.assertEqual(worker.backend_for(root,'whisper-turbo'),'mlx')
+   (root/'runtime-backends.json').write_text(json.dumps({'whisper-turbo':'whisper.cpp'}))
+   self.assertEqual(worker.backend_for(root,'whisper-turbo'),'whisper.cpp')
+   with self.assertRaises(ValueError):worker.backend_for(root,'qwen3-asr')
+   (root/'runtime-backends.json').write_text(json.dumps({'whisper-turbo':'cloud'}))
+   with self.assertRaises(ValueError):worker.backend_for(root,'whisper-turbo')
  def test_valid(self):
   audio,rate,language,vocabulary=worker.decode_request(self.packet());self.assertEqual(len(audio),1600);self.assertEqual(rate,16000);self.assertIsNone(language);self.assertEqual(vocabulary,[])
  def test_vocabulary_is_trimmed_and_deduplicated(self):

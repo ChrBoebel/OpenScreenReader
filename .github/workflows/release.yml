@@ -38,11 +38,14 @@ jobs:
             -destination 'platform=macOS' -derivedDataPath .build/ci \
             -clonedSourcePackagesDirPath .build/packages \
             test -only-testing:OpenScreenReaderAppTests
-      - name: Build Release target
+      - name: Build both macOS 14 Release architectures
         run: |
-          xcodebuild -project OpenScreenReader.xcodeproj -scheme OpenScreenReader \
-            -configuration Release -derivedDataPath .build/ci \
-            -clonedSourcePackagesDirPath .build/packages build CODE_SIGNING_ALLOWED=NO
+          for arch in arm64 x86_64; do
+            xcodebuild -project OpenScreenReader.xcodeproj -scheme OpenScreenReader \
+              -configuration Release -derivedDataPath .build/ci \
+              -clonedSourcePackagesDirPath .build/packages build \
+              ARCHS="$arch" MACOSX_DEPLOYMENT_TARGET=14.0 CODE_SIGNING_ALLOWED=NO
+          done
 
   package:
     needs: verify
@@ -52,6 +55,7 @@ jobs:
     timeout-minutes: 120
     env:
       SAYWING_RUNTIME_SHA256: ${{ vars.SAYWING_RUNTIME_SHA256 }}
+      SAYWING_RUNTIME_FORMAT: ${{ vars.SAYWING_RUNTIME_FORMAT || 'zip' }}
       SAYWING_S3_ENDPOINT: ${{ vars.SAYWING_S3_ENDPOINT }}
       SAYWING_S3_BUCKET: ${{ vars.SAYWING_S3_BUCKET }}
       SAYWING_S3_REGION: ${{ vars.SAYWING_S3_REGION || 'auto' }}
@@ -92,7 +96,7 @@ jobs:
             --runtime-app "$RUNNER_TEMP/saywing-runtime/Saywing.app" \
             --output .build/release --version "0.1.${GITHUB_RUN_NUMBER}" \
             --packages .build/packages \
-            --build "$((GITHUB_RUN_NUMBER + 1))" \
+            --build "$((GITHUB_RUN_NUMBER + 100))" \
             --feed-url "$SAYWING_FEED_URL" \
             --download-url-prefix "$SAYWING_DOWNLOAD_URL_PREFIX" \
             --public-key "$SAYWING_PUBLIC_KEY" \

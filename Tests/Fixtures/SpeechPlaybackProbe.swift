@@ -7,6 +7,34 @@ import Foundation
 struct SpeechPlaybackProbe {
     @MainActor
     static func main() async {
+        if CommandLine.arguments.contains("--verify-fast-preroll") {
+            let player = SpeechAudioPlayer(sampleRate: 44_100)
+            player.playbackRate = 2
+            defer { player.stop() }
+            #if arch(x86_64)
+            let packetsBeforeStart = 11 // 5.986 s: wait for the next sentence at 2×.
+            #else
+            let packetsBeforeStart = 3 // Existing ARM headroom remains unchanged.
+            #endif
+            var started = false
+            do {
+                for _ in 0..<packetsBeforeStart {
+                    try await player.enqueue(Data(repeating: 0, count: 96_000)) { started = true }
+                }
+                guard !started else { print("FAIL: fast playback starts before required headroom"); exit(1) }
+                try await player.enqueue(Data(repeating: 0, count: 96_000)) { started = true }
+                guard started, player.queuedFrames <= player.capacityFrames else { exit(1) }
+                player.stop()
+                guard player.queuedFrames == 0 else { exit(1) }
+                started = false
+                try await player.enqueue(Data(repeating: 0, count: 9_600)) { started = true }
+                guard !started else { exit(1) }
+                try await player.finish { started = true }
+                guard started, player.queuedFrames == 0 else { exit(1) }
+                print("PASS: fast preroll, bounded queue, stop and short-tail drain")
+            } catch { print("FAIL: fast preroll check", error); exit(1) }
+            return
+        }
         if CommandLine.arguments.contains("--prefetch") {
             await measurePrefetch()
             return

@@ -1,0 +1,260 @@
+{
+  "version": "0.8.0",
+  "source_url": "https://files.pythonhosted.org/packages/45/06/f955dbbb1859e3bd23c8ac6141af5106e7ad5fedec4a3a6e3d60f94b7001/safetensors-0.8.0.tar.gz",
+  "source_sha256": "fabaf3e0f18a6618d9b36560682562157f77c2b71fcffc7b432be2baed9d753d",
+  "lock_sha256": "f7d484a57bc394042b3424d57dab0a17d6a343f5e57e30870b9dd72dfb90f6b7",
+  "active_packages": [
+    {
+      "name": "allocator-api2",
+      "version": "0.2.21",
+      "license": "MIT OR Apache-2.0",
+      "workspace": false
+    },
+    {
+      "name": "bitflags",
+      "version": "2.13.0",
+      "license": "MIT OR Apache-2.0",
+      "workspace": false
+    },
+    {
+      "name": "block2",
+      "version": "0.6.2",
+      "license": "MIT",
+      "workspace": false
+    },
+    {
+      "name": "cfg-if",
+      "version": "1.0.4",
+      "license": "MIT OR Apache-2.0",
+      "workspace": false
+    },
+    {
+      "name": "dispatch2",
+      "version": "0.3.1",
+      "license": "Zlib OR Apache-2.0 OR MIT",
+      "workspace": false
+    },
+    {
+      "name": "equivalent",
+      "version": "1.0.2",
+      "license": "Apache-2.0 OR MIT",
+      "workspace": false
+    },
+    {
+      "name": "errno",
+      "version": "0.3.14",
+      "license": "MIT OR Apache-2.0",
+      "workspace": false
+    },
+    {
+      "name": "fastrand",
+      "version": "2.4.1",
+      "license": "Apache-2.0 OR MIT",
+      "workspace": false
+    },
+    {
+      "name": "foldhash",
+      "version": "0.2.0",
+      "license": "Zlib",
+      "workspace": false
+    },
+    {
+      "name": "getrandom",
+      "version": "0.4.2",
+      "license": "MIT OR Apache-2.0",
+      "workspace": false
+    },
+    {
+      "name": "hashbrown",
+      "version": "0.16.1",
+      "license": "MIT OR Apache-2.0",
+      "workspace": false
+    },
+    {
+      "name": "heck",
+      "version": "0.5.0",
+      "license": "MIT OR Apache-2.0",
+      "workspace": false
+    },
+    {
+      "name": "itoa",
+      "version": "1.0.18",
+      "license": "MIT OR Apache-2.0",
+      "workspace": false
+    },
+    {
+      "name": "libc",
+      "version": "0.2.186",
+      "license": "MIT OR Apache-2.0",
+      "workspace": false
+    },
+    {
+      "name": "memchr",
+      "version": "2.8.1",
+      "license": "Unlicense OR MIT",
+      "workspace": false
+    },
+    {
+      "name": "memmap2",
+      "version": "0.9.10",
+      "license": "MIT OR Apache-2.0",
+      "workspace": false
+    },
+    {
+      "name": "objc2",
+      "version": "0.6.4",
+      "license": "MIT",
+      "workspace": false
+    },
+    {
+      "name": "objc2-core-foundation",
+      "version": "0.3.2",
+      "license": "Zlib OR Apache-2.0 OR MIT",
+      "workspace": false
+    },
+    {
+      "name": "objc2-encode",
+      "version": "4.1.0",
+      "license": "MIT",
+      "workspace": false
+    },
+    {
+      "name": "objc2-foundation",
+      "version": "0.3.2",
+      "license": "MIT",
+      "workspace": false
+    },
+    {
+      "name": "objc2-metal",
+      "version": "0.3.2",
+      "license": "Zlib OR Apache-2.0 OR MIT",
+      "workspace": false
+    },
+    {
+      "name": "once_cell",
+      "version": "1.21.4",
+      "license": "MIT OR Apache-2.0",
+      "workspace": false
+    },
+    {
+      "name": "proc-macro2",
+      "version": "1.0.106",
+      "license": "MIT OR Apache-2.0",
+      "workspace": false
+    },
+    {
+      "name": "pyo3",
+      "version": "0.28.3",
+      "license": "MIT OR Apache-2.0",
+      "workspace": false
+    },
+    {
+      "name": "pyo3-build-config",
+      "version": "0.28.3",
+      "license": "MIT OR Apache-2.0",
+      "workspace": false
+    },
+    {
+      "name": "pyo3-ffi",
+      "version": "0.28.3",
+      "license": "MIT OR Apache-2.0",
+      "workspace": false
+    },
+    {
+      "name": "pyo3-macros",
+      "version": "0.28.3",
+      "license": "MIT OR Apache-2.0",
+      "workspace": false
+    },
+    {
+      "name": "pyo3-macros-backend",
+      "version": "0.28.3",
+      "license": "MIT OR Apache-2.0",
+      "workspace": false
+    },
+    {
+      "name": "quote",
+      "version": "1.0.45",
+      "license": "MIT OR Apache-2.0",
+      "workspace": false
+    },
+    {
+      "name": "rustix",
+      "version": "1.1.4",
+      "license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
+      "workspace": false
+    },
+    {
+      "name": "safetensors",
+      "version": "0.8.0",
+      "license": "Apache-2.0",
+      "workspace": true
+    },
+    {
+      "name": "safetensors-python",
+      "version": "0.8.0",
+      "license": null,
+      "workspace": true
+    },
+    {
+      "name": "serde",
+      "version": "1.0.228",
+      "license": "MIT OR Apache-2.0",
+      "workspace": false
+    },
+    {
+      "name": "serde_core",
+      "version": "1.0.228",
+      "license": "MIT OR Apache-2.0",
+      "workspace": false
+    },
+    {
+      "name": "serde_derive",
+      "version": "1.0.228",
+      "license": "MIT OR Apache-2.0",
+      "workspace": false
+    },
+    {
+      "name": "serde_json",
+      "version": "1.0.150",
+      "license": "MIT OR Apache-2.0",
+      "workspace": false
+    },
+    {
+      "name": "syn",
+      "version": "2.0.117",
+      "license": "MIT OR Apache-2.0",
+      "workspace": false
+    },
+    {
+      "name": "target-lexicon",
+      "version": "0.13.5",
+      "license": "Apache-2.0 WITH LLVM-exception",
+      "workspace": false
+    },
+    {
+      "name": "tempfile",
+      "version": "3.27.0",
+      "license": "MIT OR Apache-2.0",
+      "workspace": false
+    },
+    {
+      "name": "unicode-ident",
+      "version": "1.0.24",
+      "license": "(MIT OR Apache-2.0) AND Unicode-3.0",
+      "workspace": false
+    },
+    {
+      "name": "zmij",
+      "version": "1.0.21",
+      "license": "MIT",
+      "workspace": false
+    }
+  ],
+  "active_package_count": 41,
+  "all_active_registry_packages_have_original_notices": true,
+  "original_root_license": "safetensors-LICENSE.txt",
+  "standard_library_notices": "RustToolchain/1.95.0",
+  "compiler_version_evidence": "binary /rustc/ commit cross-checked with official rust-lang/rust src/version; local rustc -Vv for rebuilt tokenizer",
+  "observed_binary_versions_match_source_lock": true
+}
