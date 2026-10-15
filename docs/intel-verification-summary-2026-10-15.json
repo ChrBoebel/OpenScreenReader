@@ -21,7 +21,8 @@
   "loading_stop_ms": 0.102292,
   "initial_speech_run": "exit1 without output; root cause not established; diagnostic improvement and full rerun passed",
   "update": "real official x86_64 Sparkle installation 8 to 9 via signed loopback feed",
-  "production_https_update": "pending route deployment",
+  "production_https_update": "passed; actual x86_64 Sparkle 8 to 9 under Rosetta; capability revoked",
   "physical_intel": "owner reports no Intel Mac available",
-  "published": false
+  "published": false,
+  "website_deployment": "SUCCESS a3572087-2978-462b-85f6-d107e111cc1f"
 }

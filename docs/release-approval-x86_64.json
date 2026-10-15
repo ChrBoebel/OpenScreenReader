@@ -2,10 +2,12 @@
   "license_review": true,
   "clean_mac": false,
   "offline_privacy": true,
-  "update_roundtrip": false,
+  "update_roundtrip": true,
   "scope": {
     "architecture": "x86_64",
-    "verified_build": "9"
+    "verified_build": "9",
+    "update_verified_build": "9",
+    "update_transport": "Actual official x86_64 Sparkle 2.10.0 CLI installed final notarized Intel build9 from production website HTTPS feed and HTTPS storage redirect over isolated build8, under Rosetta. Full DMG hash, app seal, Gatekeeper, both runtime receipts and 88 notices verified. No physical Intel/macOS14 or GUI/relaunch claim."
   },
-  "evidence": "docs/intel-release-readiness-2026-10-15.md and docs/intel-update-loopback-2026-10-15.json. Notarized Intel build9: 88 verified notices, macOS14 native-code audit, actual x86_64 Sparkle installation 8 to 9 and 12 offline dictation checks under Rosetta. Production HTTPS and physical Intel/fresh-permission evidence remain open. Owner has no Intel Mac available. ARM beta exception does not apply."
+  "evidence": "docs/intel-release-readiness-2026-10-15.md and docs/intel-https-update-2026-10-15.json. License/privacy review, production HTTPS update and capability revocation passed. Physical Intel/macOS14 and fresh-permission evidence remain open; owner has no Intel Mac available. No Intel beta exception or publication approval."
 }

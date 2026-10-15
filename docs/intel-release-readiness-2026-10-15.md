@@ -79,12 +79,17 @@ state hides downloads and retains the approved header/footer.
 
 ## Remaining gates and activation order
 
-1. Integrate the website route after explicit commit/push/merge approval, then use
-   a short-lived protected HTTPS feed to repeat the real Intel installation from
-   the existing domain. Keep Intel files under `saywing/private-candidates/` for
-   this test; do not put them in publicly accessible `releases/` yet.
-2. Record the resulting exact feed, full download hash, installation and seal
-   evidence before setting Intel `update_roundtrip=true`.
+1. **Completed:** website PR [#12](https://github.com/ChrBoebel/Webseite/pull/12)
+   passed CI and was merged with the owner's explicit approval. Railway deployment
+   `a3572087-2978-462b-85f6-d107e111cc1f` succeeded at commit
+   `b3a8e456230c014af433d68f1a31525cb5aca837`. Intel artifacts stay in the private
+   candidate namespace; no public Intel archive/pointer was uploaded.
+2. **Completed:** the production HTTPS feed and full 1,099,185,763-byte download
+   matched the signed candidate. Official x86_64 Sparkle actually installed 8→9
+   under Rosetta; app seal, Gatekeeper, both runtime receipts and 88 notices passed.
+   The permanent embedded feed remains Intel-specific. The temporary capability
+   was revoked and returns 404; public ARM feed/metadata are unchanged. Evidence:
+   `intel-https-update-2026-10-15.json`. Intel `update_roundtrip` is now true.
 3. Obtain a physical Intel Mac running macOS 14 or later, preferably a fresh
    account. Test first launch, permission refusal/grant, OCR-to-speech, microphone
    dictation/paste/clipboard restoration, stop/cancel, offline restart, licensing
@@ -98,6 +103,8 @@ state hides downloads and retains the approved header/footer.
 5. Verify the real public Intel feed, DMG and website choice after publication;
    confirm the existing ARM pointer and download are unchanged.
 
-No new model weights or dependencies were introduced for this work. Production
-flags, public pointers and existing accepted package contents were not changed
-by the local preparation described above.
+No new model weights or dependencies were introduced. The website deployment
+and private Intel HTTPS test were explicitly authorized by the owner. Production
+release flags, public pointers and existing accepted package contents were not
+changed. App PR [#13](https://github.com/ChrBoebel/OpenScreenReader/pull/13) remains
+open for review; this test does not authorize its merge or Intel publication.
