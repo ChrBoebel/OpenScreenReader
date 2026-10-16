@@ -92,3 +92,14 @@ Unverändert und bewusst: rotes Aufnahmesymbol und Dauer im Fenster (siehe [UX-A
 3. Dasselbe über Lautsprecher: Der Videoton darf bei „Ich“ nicht doppelt auftauchen.
 4. **Stopp** → **Kopieren** / **Sichern …** / **Verwerfen** ausprobieren.
 5. Zum Gegentest die Freigabe in den Systemeinstellungen entziehen: Nach 20 s muss der Hinweis erscheinen.
+
+## Lokale Installation 2026-10-16
+
+Der Branch wurde vor dem PR auf `main` 5b489db aufgesetzt; danach bestand die Gesamtsuite mit **239 Tests in 24 Suites**. Installiert wurde ein Release-Build mit den geprüften Modellen und Laufzeiten der bisherigen App (`bundle-dictation-runtime.py --speech-from … --with-qwen --whisper-large-model … --development-only`). Die bisherige App liegt als Rückfallkopie unter `.build/previous-before-meeting/Saywing.app`.
+
+Dabei fielen zwei Punkte auf, die nicht von der Mitschrift kommen:
+
+- **Sprach-Worker:** Die installierte App trug noch den Supertonic-Worker ohne die Intel-Thread-Begrenzung aus `main`. Der Worker der Entwicklungs-Laufzeit wurde mit `scripts/update-supertonic-worker.rb` aktualisiert. Für die Laufzeitquelle wurde in einer Kopie der bisherigen App nur `worker.py` und dessen Hash im Beleg nach derselben Regel ersetzt; auf Apple Silicon ist das Verhalten unverändert. `package-development-app.rb` war nicht nutzbar, weil sich der Interpreter der Entwicklungs-Laufzeit geändert hat (`Runtime receipt mismatch: venv/bin/python`).
+- **Signatur mit Sparkle:** Der Release-Build läuft mit Hardened Runtime. Ad hoc signiert verweigert dyld das eingebettete `Sparkle.framework` („mapping process and mapped file (non-platform) have different Team IDs“): Die App stürzte beim Start ab, auch nachdem Sparkle ad hoc nachsigniert war. Der lokale Build ist deshalb wie die Debug-Konfiguration signiert: ad hoc, mit `Saywing.entitlements`, ohne Hardened Runtime. `codesign --verify --deep --strict` und `verify-app-permissions.py` bestanden. Saywing startete und lief stabil; der Diktier-Worker lud das gewählte Modell selbst. Der dokumentierte Entwicklungsweg (`bundle-dictation-runtime.py` auf einem Release-Build) erzeugt seit der Sparkle-Integration also eine nicht startfähige App. Das sollte getrennt im Skript behoben werden.
+
+Die Systemaudio-Freigabe, die Mikrofonfreigabe für die neue Signatur und ein echter Call bleiben die Prüfung am Gerät (siehe oben).
