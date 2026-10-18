@@ -53,7 +53,7 @@ struct MeetingExport {
     self.duration = duration
     turns = transcript.entries.compactMap { entry in
       let text = [entry.text, entry.pending].filter { !$0.isEmpty }.joined(separator: " ")
-      return text.isEmpty ? nil : Turn(speaker: transcript.label(of: entry), start: entry.start, text: text)
+      return text.isEmpty ? nil : Turn(speaker: entry.label, start: entry.start, text: text)
     }
   }
 

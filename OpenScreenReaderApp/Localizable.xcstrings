@@ -4680,6 +4680,16 @@
           }
         }
       }
+    },
+    "Speaker %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Person %lld"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -373,7 +373,7 @@ private struct MeetingTurn: View {
       HStack(spacing: 6) {
         // "Me" carries the Petrol accent so your own turns stand out while scanning;
         // the label says it, so colour is never the only cue.
-        Text(entry.speaker.label)
+        Text(entry.label)
           .font(.subheadline.weight(.semibold))
           .foregroundStyle(entry.speaker == .me ? Color("AccentColor") : Color.primary)
         Text(MeetingClock.timestamp(entry.start))
