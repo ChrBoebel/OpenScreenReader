@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 import AVFoundation
 import Foundation
+import PDFKit
 import Testing
 @testable import OpenScreenReader
 
@@ -475,6 +476,78 @@ struct AppleMeetingRecognizerTests {
         #expect(me.localizedCaseInsensitiveContains("Freitag"))
         #expect(!me.localizedCaseInsensitiveContains("Woche"))
         #expect(!me.localizedCaseInsensitiveContains("Tests"))
+    }
+
+    /// End to end except the microphone hardware and the voice model: real speech of
+    /// three synthetic voices on the others' track runs through the controller, the
+    /// real recogniser, router and voice tracker. A diarizer that knows who spoke when
+    /// stands in for the model, reporting live as audio arrives. Then a voice is named
+    /// and the transcript is saved as PDF and read back.
+    @Test(.timeLimit(.minutes(2)))
+    @MainActor
+    func threeVoicesReachThePDFWithTheirNames() async throws {
+        guard #available(macOS 26, *) else { return }
+        let provider = SystemMeetingRecognizerProvider()
+        guard case .available = await provider.availability(for: .german) else { return }
+        let lines = [
+            ("Anna", "Guten Morgen zusammen, ich fange mit dem Stand zum Projekt an."),
+            ("Grandpa (Deutsch (Deutschland))", "Danke. Haben wir das Budget für die neuen Server schon freigegeben?"),
+            ("Eddy (Deutsch (Deutschland))", "Dann schicke ich die Bestellung heute noch raus."),
+        ]
+        let rate = 22_050.0
+        var track: [Float] = []
+        var truth: [MeetingVoiceSpan] = []
+        for (index, (voice, text)) in lines.enumerated() {
+            guard let samples = try speech(text, voice: voice) else { return }
+            let start = Double(track.count) / rate
+            track += samples
+            truth.append(MeetingVoiceSpan(voice: (index + 1) * 10, start: start, end: Double(track.count) / rate))
+            track += [Float](repeating: 0, count: Int(rate * 0.8))
+        }
+        let microphone = SourceFake(), system = SourceFake(), clock = HostClockFake()
+        let saved = SavedFiles()
+        let diarizer = TruthDiarizer(truth)
+        let controller = MeetingController(
+            provider: provider, makeMicrophone: { microphone }, makeSystemAudio: { system },
+            makeVoiceDiarizer: { diarizer }, language: { .german }, hostClock: { clock.ticks },
+            pasteboard: NSPasteboard.withUniqueName(), notifications: NotificationCenter(),
+            save: { export, name in saved.write(export, name) }, presentsWindow: false)
+        await controller.open()
+        controller.confirmConsent()
+        await controller.waitUntilSettled()
+        #expect(controller.phase == .live)
+        #expect(controller.tellsVoicesApart)
+        let start = clock.ticks
+        let step = Int(rate / 10)
+        for offset in stride(from: 0, to: track.count, by: step) {
+            let end = min(offset + step, track.count)
+            let host = start + MeetingHostClock.hostTicks(forSeconds: Double(offset) / rate)
+            system.deliver?(MeetingAudioChunk(samples: Array(track[offset..<end]), sampleRate: rate, hostTime: host))
+            microphone.deliver?(MeetingAudioChunk(samples: [Float](repeating: 0, count: end - offset), sampleRate: rate, hostTime: host))
+        }
+        controller.stop()
+        await controller.waitUntilSettled()
+        #expect(controller.phase == .finished)
+
+        let entries = controller.transcript.entries
+        #expect(entries.map(\.voice) == [10, 20, 30])
+        #expect(entries.map(\.label) == ["Speaker 1", "Speaker 2", "Speaker 3"])
+        #expect(entries[0].text.localizedCaseInsensitiveContains("Morgen"))
+        // The synthetic second voice is recognised loosely; its first word is stable.
+        #expect(entries[1].text.localizedCaseInsensitiveContains("Danke"))
+        #expect(entries[2].text.localizedCaseInsensitiveContains("Bestellung"))
+
+        controller.renameVoice(20, to: "Ben")
+        #expect(controller.save())
+        let url = try #require(saved.urls.first)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let pdf = try #require(PDFDocument(url: url))
+        let text = try #require(pdf.string)
+        for expected in ["Speaker 1", "Ben", "Speaker 3", "Morgen", "Danke", "Bestellung"] {
+            #expect(text.contains(expected), "PDF misses \(expected)")
+        }
+        #expect(text.range(of: "Speaker 1")!.lowerBound < text.range(of: "Ben")!.lowerBound)
+        #expect(!text.contains("Speaker 2"))
     }
 
     private func speech(_ text: String, voice: String) throws -> [Float]? {
@@ -1054,5 +1127,36 @@ struct MeetingPreviewTests {
             let png = try #require(rep.representation(using: .png, properties: [:]))
             try png.write(to: directory.appendingPathComponent("6-menubar-\(suffix).png"))
         }
+    }
+}
+
+/// Knows who spoke when and reports it as audio arrives, in its own clock, like a
+/// live diarizer would; it stands in for the model in end-to-end tests.
+private final class TruthDiarizer: MeetingVoiceDiarizing, @unchecked Sendable {
+    private let truth: [MeetingVoiceSpan]
+    private var fed: TimeInterval = 0
+    init(_ truth: [MeetingVoiceSpan]) { self.truth = truth }
+
+    func append(_ samples: [Float], sampleRate: Double) throws -> [MeetingVoiceSpan] {
+        let (from, to) = (fed, fed + Double(samples.count) / sampleRate)
+        fed = to
+        return truth.compactMap { span in
+            let start = max(span.start, from), end = min(span.end, to)
+            return end > start ? MeetingVoiceSpan(voice: span.voice, start: start, end: end) : nil
+        }
+    }
+
+    func finish() throws -> [MeetingVoiceSpan] { [] }
+}
+
+/// Writes saved exports as PDF into the temporary directory, as the panel would.
+@MainActor
+private final class SavedFiles {
+    var urls: [URL] = []
+    func write(_ export: MeetingExport, _ name: String) -> Bool {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(MeetingExportFormat.pdf.fileName(base: "\(name)-\(UUID())"))
+        guard (try? export.data(as: .pdf).write(to: url)) != nil else { return false }
+        urls.append(url)
+        return true
     }
 }
