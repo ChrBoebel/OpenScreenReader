@@ -49,7 +49,7 @@ final class MeetingController: ObservableObject {
   private let hostClock: () -> UInt64
   private let limits: Limits
   private let pasteboard: NSPasteboard
-  private let saveText: @MainActor (String, String) -> Bool
+  private let saveExport: @MainActor (MeetingExport, String) -> Bool
   private let confirmLosingUnsaved: @MainActor (LossReason) -> Bool
 
   /// Why unsaved text would be lost; the alert names the action.
@@ -83,7 +83,7 @@ final class MeetingController: ObservableObject {
     pasteboard: NSPasteboard = .general,
     notifications: NotificationCenter = NSWorkspace.shared.notificationCenter,
     appNotifications: NotificationCenter = .default,
-    save: @escaping @MainActor (String, String) -> Bool = MeetingController.saveWithPanel,
+    save: @escaping @MainActor (MeetingExport, String) -> Bool = MeetingController.saveWithPanel,
     confirmLosingUnsaved: @escaping @MainActor (LossReason) -> Bool = MeetingController.confirmWithAlert,
     presentsWindow: Bool = true
   ) {
@@ -95,7 +95,7 @@ final class MeetingController: ObservableObject {
     self.hostClock = hostClock
     self.limits = limits
     self.pasteboard = pasteboard
-    self.saveText = save
+    self.saveExport = save
     self.confirmLosingUnsaved = confirmLosingUnsaved
     self.presentsWindow = presentsWindow
     for name in [NSWorkspace.willSleepNotification, NSWorkspace.sessionDidResignActiveNotification] {
@@ -265,14 +265,14 @@ final class MeetingController: ObservableObject {
   @discardableResult func copy() -> Bool {
     guard !transcript.isEmpty else { return false }
     pasteboard.clearContents()
-    pasteboard.setString(transcript.exportText(title: title), forType: .string)
+    pasteboard.setString(export.markdown, forType: .string)
     hasUnsavedText = false
     return true
   }
 
   /// Returns whether the file was written; a cancelled panel is not a save.
   @discardableResult func save() -> Bool {
-    guard !transcript.isEmpty, saveText(transcript.exportText(title: title), fileName) else { return false }
+    guard !transcript.isEmpty, saveExport(export, fileName) else { return false }
     hasUnsavedText = false
     return true
   }
@@ -370,19 +370,26 @@ final class MeetingController: ObservableObject {
     return String(localized: "Meeting transcript, \(date)")
   }
 
+  /// The transcript as Copy and Save hand it on.
+  var export: MeetingExport { MeetingExport(transcript: transcript, title: title, duration: elapsed) }
+
+  /// Without an extension: the save panel adds the one of the chosen format.
   private var fileName: String {
     let date = (startedAt ?? Date()).formatted(.iso8601.year().month().day())
-    return String(localized: "Meeting transcript \(date).md")
+    return String(localized: "Meeting transcript \(date)")
   }
 
-  static func saveWithPanel(_ text: String, _ name: String) -> Bool {
+  /// The system save panel with a format menu, PDF first. Nothing is remembered
+  /// between saves: the transcript adds no preference keys.
+  static func saveWithPanel(_ export: MeetingExport, _ name: String) -> Bool {
     let panel = NSSavePanel()
-    panel.nameFieldStringValue = name
-    panel.allowedContentTypes = [.init(filenameExtension: "md") ?? .plainText]
+    let chooser = MeetingFormatChooser(panel: panel, baseName: name)
+    panel.accessoryView = chooser.view
     panel.canCreateDirectories = true
+    panel.isExtensionHidden = false
     guard panel.runModal() == .OK, let url = panel.url else { return false }
     do {
-      try text.write(to: url, atomically: true, encoding: .utf8)
+      try export.data(as: chooser.format).write(to: url, options: .atomic)
       return true
     } catch {
       NSAlert(error: error).runModal()
@@ -425,5 +432,38 @@ final class MeetingController: ObservableObject {
     }
     NSApp.activate(ignoringOtherApps: true)
     window?.makeKeyAndOrderFront(nil)
+  }
+}
+
+/// The "Format" menu below the save panel; switching it changes the file type and
+/// the extension of the name being typed.
+@MainActor
+private final class MeetingFormatChooser: NSObject {
+  private weak var panel: NSSavePanel?
+  private let popup = NSPopUpButton(frame: .zero, pullsDown: false)
+  let view: NSView
+  private(set) var format: MeetingExportFormat = .pdf
+
+  init(panel: NSSavePanel, baseName: String) {
+    self.panel = panel
+    let label = NSTextField(labelWithString: String(localized: "Format:"))
+    let stack = NSStackView(views: [label, popup])
+    stack.edgeInsets = NSEdgeInsets(top: 10, left: 20, bottom: 10, right: 20)
+    view = stack
+    super.init()
+    popup.addItems(withTitles: MeetingExportFormat.allCases.map(\.title))
+    popup.target = self
+    popup.action = #selector(changed)
+    popup.setAccessibilityLabel(String(localized: "Format"))
+    panel.allowedContentTypes = [format.contentType]
+    panel.nameFieldStringValue = format.fileName(base: baseName)
+  }
+
+  @objc private func changed() {
+    guard let panel, MeetingExportFormat.allCases.indices.contains(popup.indexOfSelectedItem) else { return }
+    format = MeetingExportFormat.allCases[popup.indexOfSelectedItem]
+    let base = (panel.nameFieldStringValue as NSString).deletingPathExtension
+    panel.allowedContentTypes = [format.contentType]
+    panel.nameFieldStringValue = format.fileName(base: base)
   }
 }

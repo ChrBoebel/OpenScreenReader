@@ -99,17 +99,13 @@ struct MeetingTranscript: Equatable {
     }
   }
 
-  /// Markdown for an explicit Copy or Save: speaker, time since start, text.
+  /// Markdown for an explicit Copy: speaker, time since start, text.
   func exportText(title: String) -> String {
-    var lines = ["# \(title)", ""]
-    for entry in entries {
-      let text = [entry.text, entry.pending].filter { !$0.isEmpty }.joined(separator: " ")
-      lines.append("**\(entry.speaker.label)** · \(MeetingClock.timestamp(entry.start))")
-      lines.append(text)
-      lines.append("")
-    }
-    return lines.joined(separator: "\n")
+    MeetingExport(transcript: self, title: title, duration: 0).markdown
   }
+
+  /// The name a turn is shown and exported under.
+  func label(of entry: MeetingTranscriptEntry) -> String { entry.speaker.label }
 
   private func visibleText(of item: MeetingRecognition) -> String? {
     guard item.speaker == .me else { return item.text }

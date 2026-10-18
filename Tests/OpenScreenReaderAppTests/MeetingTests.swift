@@ -559,7 +559,7 @@ private struct MeetingFixture {
             hostClock: { clock.ticks },
             pasteboard: pasteboard,
             notifications: notifications,
-            save: { text, _ in savedBox.items.append(text); return true },
+            save: { export, name in savedBox.items.append(export.markdown); savedBox.names.append(name); return true },
             confirmLosingUnsaved: { reason in confirmations.reasons.append(reason); return confirmations.answer },
             presentsWindow: false)
     }
@@ -577,7 +577,10 @@ private struct MeetingFixture {
 }
 
 @MainActor
-private final class SavedBox { var items: [String] = [] }
+private final class SavedBox {
+    var items: [String] = []
+    var names: [String] = []
+}
 
 @MainActor
 private final class Confirmations {
@@ -679,6 +682,23 @@ struct MeetingControllerTests {
         fixture.controller.save()
         #expect(fixture.saved.count == 1)
         #expect(fixture.controller.hasUnsavedText == false)
+    }
+
+    @Test
+    func saveHandsTheVisibleTranscriptAndADatedNameWithoutExtension() async throws {
+        let fixture = MeetingFixture()
+        await fixture.start()
+        await fixture.hear(heard(.others, 1, 2, "Guten Morgen."))
+        fixture.clock.seconds += 42
+        fixture.controller.tick()
+        fixture.controller.stop()
+        await fixture.controller.waitUntilSettled()
+        #expect(fixture.controller.export.duration == 42)
+        #expect(fixture.controller.export.turns.map(\.text) == ["Guten Morgen."])
+        fixture.controller.save()
+        let name = try #require(fixture.savedBox.names.first)
+        #expect(name.hasPrefix("Meeting transcript "))
+        #expect(!name.contains("."))
     }
 
     @Test
@@ -898,8 +918,10 @@ struct MeetingPreviewTests {
         fixture.controller.stop()
         await fixture.controller.waitUntilSettled()
         try await capture("4-finished")
-        try fixture.controller.transcript.exportText(title: "Meeting transcript")
-            .write(to: directory.appendingPathComponent("5-export.md"), atomically: true, encoding: .utf8)
+        for format in MeetingExportFormat.allCases {
+            try fixture.controller.export.data(as: format)
+                .write(to: directory.appendingPathComponent(format.fileName(base: "5-export")))
+        }
         // The four menu bar states side by side, as template images on light and dark bars.
         for (suffix, background) in [("light", NSColor(white: 0.93, alpha: 1)), ("dark", NSColor(white: 0.16, alpha: 1))] {
             let strip = NSImage(size: NSSize(width: 4 * 30 + 10, height: 30), flipped: false) { rect in

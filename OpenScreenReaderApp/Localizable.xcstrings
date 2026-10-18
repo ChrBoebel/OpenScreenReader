@@ -1521,16 +1521,6 @@
         }
       }
     },
-    "Meeting transcript %@.md": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Meeting-Mitschrift %@.md"
-          }
-        }
-      }
-    },
     "Meeting Transcript · Running": {
       "localizations": {
         "de": {
@@ -4587,6 +4577,106 @@
           "stringUnit": {
             "state": "translated",
             "value": "Das Lizenzdokument konnte nicht geöffnet werden."
+          }
+        }
+      }
+    },
+    "Meeting transcript %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meeting-Mitschrift %@"
+          }
+        }
+      }
+    },
+    "PDF": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PDF"
+          }
+        }
+      }
+    },
+    "Markdown": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Markdown"
+          }
+        }
+      }
+    },
+    "Plain Text": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reiner Text"
+          }
+        }
+      }
+    },
+    "Format:": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Format:"
+          }
+        }
+      }
+    },
+    "Format": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Format"
+          }
+        }
+      }
+    },
+    "The PDF could not be created.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das PDF konnte nicht erstellt werden."
+          }
+        }
+      }
+    },
+    "Duration %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dauer %@"
+          }
+        }
+      }
+    },
+    "Speakers: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beteiligte: %@"
+          }
+        }
+      }
+    },
+    "Transcribed on this Mac with Saywing. No audio was saved.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf diesem Mac mit Saywing transkribiert. Es wurde kein Audio gespeichert."
           }
         }
       }
