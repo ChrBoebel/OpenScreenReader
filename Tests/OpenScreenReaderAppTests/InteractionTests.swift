@@ -1564,12 +1564,13 @@ struct FeedbackAtSourceTests {
         let idle = MenuBarIcon.image(for: .idle)
         let reading = MenuBarIcon.image(for: .reading)
         let attention = MenuBarIcon.image(for: .attention)
-        for image in [idle, reading, attention] { #expect(image.isTemplate) }
-        let pngs = try [idle, reading, attention].map { image in
+        let recording = MenuBarIcon.image(for: .recording)
+        for image in [idle, reading, attention, recording] { #expect(image.isTemplate) }
+        let pngs = try [idle, reading, attention, recording].map { image in
             let tiff = try #require(image.tiffRepresentation)
             return try #require(NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]))
         }
-        #expect(Set(pngs).count == 3)
+        #expect(Set(pngs).count == 4)
         #expect(MenuBarIcon.image(for: .reading) === reading, "Images are cached, not redrawn per update")
         let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .conflict))
         #expect(model.menuBarIndicator == .attention)

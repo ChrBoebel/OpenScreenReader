@@ -9,6 +9,9 @@
 - [x] Owner approved Qwen3-ASR dictation integration with clipboard restore (2026-10-13); implemented in the private app build.
 - [x] Whisper Turbo becomes the default dictation model with an optional local vocabulary (owner decision 2026-10-14); [measurement and gaps](dictation-vocabulary-verification.md).
 - [ ] Complete dictation target-app matrix, real microphone/Hotkey walkthrough in the integrated bundle, clean-Mac packaging and distribution gates.
+- [x] Local meeting transcript (owner decision 2026-10-15, [ADR 0006](decisions/0006-local-meeting-transcript.md)): system audio tap + microphone, on-device `SpeechTranscriber`, echo gate, consent step, RAM-only transcript with explicit copy/save.
+- [ ] Meeting transcript gates: real call over speakers and headphones on the signed build, permission prompt, echo duplicates, word errors on real speech, 60-minute CPU/memory, no files written.
+- [ ] Meeting transcript candidates, each needing its own decision: Whisper refinement with the vocabulary, summaries, speaker diarisation, meeting detection, mixed-language meetings, macOS 14–15 support.
 
 ## Current delivery — 2026-09-09
 

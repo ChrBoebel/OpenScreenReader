@@ -315,7 +315,7 @@ struct SettingsView: View {
                 }
                 .padding(.vertical, 4)
             }
-            AppUpdateSettings(updates: model.updates, busy: !model.canChangeShortcut)
+            AppUpdateSettings(updates: model.updates, busy: model.isBusyForUpdates)
             Section {
                 Toggle("Interface sounds", isOn: $interfaceSoundsEnabled)
                     .toggleStyle(.checkbox)
@@ -389,6 +389,7 @@ struct SettingsView: View {
                 Label("Additional dictation models are downloaded from Hugging Face only when you choose to install one.", systemImage: "arrow.down.circle")
                 Label("Screenshots, recognized text and audio are never saved.", systemImage: "externaldrive.badge.xmark")
                 Label("Reading never touches the clipboard. Dictation uses it briefly to paste and then restores it.", systemImage: "doc.on.clipboard")
+                Label("A meeting transcript starts only after you confirm that everyone is informed. It hears your microphone and other apps, saves no audio and keeps the text in memory until you copy, save or discard it. macOS asks for system audio the first time.", systemImage: "person.2.wave.2")
             }
             .fixedSize(horizontal: false, vertical: true)
             Section("Permissions") {

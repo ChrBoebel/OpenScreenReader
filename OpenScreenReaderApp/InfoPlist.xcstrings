@@ -35,19 +35,36 @@
         }
       }
     },
+    "NSAudioCaptureUsageDescription": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saywing hört andere Apps nur während einer von dir gestarteten Meeting-Mitschrift und erkennt die Sprache lokal auf deinem Mac."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Saywing hears other apps only during a meeting transcript you start and recognizes the speech locally on your Mac."
+          }
+        }
+      }
+    },
     "NSMicrophoneUsageDescription": {
       "extractionState": "extracted_with_value",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Saywing nimmt deine Stimme nur während eines von dir gestarteten Diktats auf und erkennt den Text lokal auf deinem Mac."
+            "value": "Saywing nimmt deine Stimme nur während eines von dir gestarteten Diktats oder einer Meeting-Mitschrift auf und erkennt den Text lokal auf deinem Mac."
           }
         },
         "en": {
           "stringUnit": {
             "state": "new",
-            "value": "Saywing records your voice only during a dictation you start and recognizes the text locally on your Mac."
+            "value": "Saywing records your voice only during a dictation or meeting transcript you start and recognizes the text locally on your Mac."
           }
         }
       }

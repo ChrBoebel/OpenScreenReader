@@ -121,6 +121,16 @@
         }
       }
     },
+    "A meeting transcript starts only after you confirm that everyone is informed. It hears your microphone and other apps, saves no audio and keeps the text in memory until you copy, save or discard it. macOS asks for system audio the first time.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine Meeting-Mitschrift startet erst, wenn du bestätigst, dass alle informiert sind. Sie hört dein Mikrofon und andere Apps, speichert kein Audio und behält den Text im Arbeitsspeicher, bis du ihn kopierst, sicherst oder verwirfst. Beim ersten Mal fragt macOS nach der Systemaudio-Freigabe."
+          }
+        }
+      }
+    },
     "Accessibility": {
       "localizations": {
         "de": {
@@ -541,6 +551,16 @@
         }
       }
     },
+    "Close": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schließen"
+          }
+        }
+      }
+    },
     "Close hint": {
       "localizations": {
         "de": {
@@ -587,6 +607,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Position der Steuerung"
+          }
+        }
+      }
+    },
+    "Copied": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopiert"
+          }
+        }
+      }
+    },
+    "Copy": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopieren"
+          }
+        }
+      }
+    },
+    "Copy for Chat": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Für den Chat kopieren"
           }
         }
       }
@@ -731,6 +781,16 @@
         }
       }
     },
+    "Discard the unsaved transcript?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ungesicherte Mitschrift verwerfen?"
+          }
+        }
+      }
+    },
     "Discarded": {
       "localizations": {
         "de": {
@@ -841,6 +901,16 @@
         }
       }
     },
+    "Elapsed %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dauer %@"
+          }
+        }
+      }
+    },
     "Error": {
       "localizations": {
         "de": {
@@ -921,6 +991,16 @@
         }
       }
     },
+    "Everyone Is Informed – Start": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle sind informiert – starten"
+          }
+        }
+      }
+    },
     "Everything is processed on this Mac. Escape discards it.": {
       "localizations": {
         "de": {
@@ -977,6 +1057,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Schließe die aktuelle Auswahl oder Erkennung ab, bevor du einen weiteren Text hinzufügst."
+          }
+        }
+      }
+    },
+    "Finishing the last words…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die letzten Worte werden erkannt …"
           }
         }
       }
@@ -1141,6 +1231,16 @@
         }
       }
     },
+    "I'm transcribing this meeting locally on my Mac with Saywing. No audio is saved or uploaded.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ich schreibe dieses Meeting lokal auf meinem Mac mit Saywing mit. Es wird kein Audio gespeichert oder hochgeladen."
+          }
+        }
+      }
+    },
     "In System Settings: Privacy & Security › %@": {
       "localizations": {
         "de": {
@@ -1231,6 +1331,16 @@
         }
       }
     },
+    "It was neither copied nor saved and will be lost.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sie wurde weder kopiert noch gesichert und geht verloren."
+          }
+        }
+      }
+    },
     "It works. Saywing is ready to read.": {
       "localizations": {
         "de": {
@@ -1271,12 +1381,32 @@
         }
       }
     },
+    "Latest": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neueste"
+          }
+        }
+      }
+    },
     "Left": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Links"
+          }
+        }
+      }
+    },
+    "Let everyone know before you start. Recording other people usually requires their consent.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sag allen Bescheid, bevor du startest. Wer andere aufnimmt, braucht in der Regel ihre Einwilligung."
           }
         }
       }
@@ -1361,6 +1491,86 @@
         }
       }
     },
+    "Me": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ich"
+          }
+        }
+      }
+    },
+    "Me: your microphone.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ich: dein Mikrofon."
+          }
+        }
+      }
+    },
+    "Meeting Transcript": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meeting-Mitschrift"
+          }
+        }
+      }
+    },
+    "Meeting transcript %@.md": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meeting-Mitschrift %@.md"
+          }
+        }
+      }
+    },
+    "Meeting Transcript · Running": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meeting-Mitschrift · läuft"
+          }
+        }
+      }
+    },
+    "Meeting transcript, %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meeting-Mitschrift, %@"
+          }
+        }
+      }
+    },
+    "Meeting transcripts are not available": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meeting-Mitschriften sind nicht verfügbar"
+          }
+        }
+      }
+    },
+    "Meeting transcripts need macOS 26 or later, with on-device speech recognition.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meeting-Mitschriften brauchen macOS 26 oder neuer mit Spracherkennung auf dem Gerät."
+          }
+        }
+      }
+    },
     "Microphone": {
       "localizations": {
         "de": {
@@ -1437,6 +1647,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nach oben"
+          }
+        }
+      }
+    },
+    "New Transcript": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neue Mitschrift"
           }
         }
       }
@@ -1581,6 +1801,16 @@
         }
       }
     },
+    "Nothing is coming from other apps. If the meeting is playing, allow Saywing under Screen & System Audio Recording.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Von anderen Apps kommt nichts an. Läuft das Meeting, erlaube Saywing unter „Bildschirm- & Systemaudioaufnahme“."
+          }
+        }
+      }
+    },
     "Nothing was pasted.": {
       "localizations": {
         "de": {
@@ -1591,12 +1821,32 @@
         }
       }
     },
+    "Nothing was recognized.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es wurde nichts erkannt."
+          }
+        }
+      }
+    },
     "One name or term per line, up to %lld. They help the model spell words it rarely hears. The list stays on this Mac.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Ein Name oder Begriff pro Zeile, bis zu %lld. Sie helfen dem Modell, seltene Wörter richtig zu schreiben. Die Liste bleibt auf diesem Mac."
+          }
+        }
+      }
+    },
+    "Open Settings…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einstellungen öffnen …"
           }
         }
       }
@@ -1651,12 +1901,52 @@
         }
       }
     },
+    "Other apps can't be heard on this macOS version. Only your microphone is transcribed.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Andere Apps sind unter dieser macOS-Version nicht zu hören. Nur dein Mikrofon wird mitgeschrieben."
+          }
+        }
+      }
+    },
+    "Other apps can't be heard: %@ Only your microphone is transcribed.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Andere Apps sind nicht zu hören: %@ Nur dein Mikrofon wird mitgeschrieben."
+          }
+        }
+      }
+    },
     "Other Models": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Weitere Modelle"
+          }
+        }
+      }
+    },
+    "Others": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Andere"
+          }
+        }
+      }
+    },
+    "Others: the sound of every other app, such as Zoom, Teams or a browser call.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Andere: der Ton aller anderen Apps, etwa Zoom, Teams oder ein Anruf im Browser."
           }
         }
       }
@@ -2161,6 +2451,16 @@
         }
       }
     },
+    "Recognized on this Mac. No audio is saved; the text stays here until you copy, save or discard it.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erkannt auf diesem Mac. Es wird kein Audio gespeichert; der Text bleibt hier, bis du ihn kopierst, sicherst oder verwirfst."
+          }
+        }
+      }
+    },
     "Recognizing": {
       "localizations": {
         "de": {
@@ -2291,6 +2591,16 @@
         }
       }
     },
+    "Records only while you dictate or transcribe a meeting.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nimmt nur auf, während du diktierst oder ein Meeting mitschreibst."
+          }
+        }
+      }
+    },
     "Records only while you dictate.": {
       "localizations": {
         "de": {
@@ -2307,6 +2617,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Aus der Warteschlange entfernen"
+          }
+        }
+      }
+    },
+    "Replace the unsaved transcript?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ungesicherte Mitschrift ersetzen?"
           }
         }
       }
@@ -2417,6 +2737,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Beispielsatz"
+          }
+        }
+      }
+    },
+    "Saved": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gesichert"
+          }
+        }
+      }
+    },
+    "Save…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sichern …"
           }
         }
       }
@@ -2811,6 +3151,16 @@
         }
       }
     },
+    "Show Meeting Transcript…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meeting-Mitschrift anzeigen …"
+          }
+        }
+      }
+    },
     "Show Model": {
       "localizations": {
         "de": {
@@ -2841,6 +3191,26 @@
         }
       }
     },
+    "Show Transcript": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mitschrift anzeigen"
+          }
+        }
+      }
+    },
+    "Silent": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Still"
+          }
+        }
+      }
+    },
     "Size unavailable": {
       "localizations": {
         "de": {
@@ -2861,12 +3231,52 @@
         }
       }
     },
+    "Sound": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ton"
+          }
+        }
+      }
+    },
     "Speaking": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Spricht"
+          }
+        }
+      }
+    },
+    "Speech recognition for %@ is not installed on this Mac. Saywing does not download it.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Spracherkennung für %@ ist auf diesem Mac nicht installiert. Saywing lädt sie nicht herunter."
+          }
+        }
+      }
+    },
+    "Speech recognition is not available on this Mac.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Spracherkennung ist auf diesem Mac nicht verfügbar."
+          }
+        }
+      }
+    },
+    "Speech recognition stopped: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Spracherkennung wurde beendet: %@"
           }
         }
       }
@@ -2901,6 +3311,16 @@
         }
       }
     },
+    "Start New Transcript": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neue Mitschrift starten"
+          }
+        }
+      }
+    },
     "Start or finish dictation": {
       "localizations": {
         "de": {
@@ -2921,12 +3341,32 @@
         }
       }
     },
+    "Starting…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Startet …"
+          }
+        }
+      }
+    },
     "Status": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Status"
+          }
+        }
+      }
+    },
+    "Stop": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stopp"
           }
         }
       }
@@ -3011,6 +3451,16 @@
         }
       }
     },
+    "Stop Transcript": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mitschrift beenden"
+          }
+        }
+      }
+    },
     "Stopped": {
       "localizations": {
         "de": {
@@ -3041,6 +3491,16 @@
         }
       }
     },
+    "System audio could not start (error %lld).": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Systemaudio konnte nicht starten (Fehler %lld)."
+          }
+        }
+      }
+    },
     "Target changed": {
       "localizations": {
         "de": {
@@ -3067,6 +3527,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Testfeld"
+          }
+        }
+      }
+    },
+    "Text appears here as people speak.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hier erscheint der Text, sobald gesprochen wird."
           }
         }
       }
@@ -3501,6 +3971,36 @@
         }
       }
     },
+    "The transcript stopped after 10 minutes without sound.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Mitschrift wurde nach 10 Minuten ohne Ton beendet."
+          }
+        }
+      }
+    },
+    "The transcript stopped after 2 hours.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Mitschrift wurde nach 2 Stunden beendet."
+          }
+        }
+      }
+    },
+    "The transcript stops in 5 minutes.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Mitschrift endet in 5 Minuten."
+          }
+        }
+      }
+    },
     "This model is not available in this version for your Mac.": {
       "localizations": {
         "de": {
@@ -3597,6 +4097,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "Zeitlimit erreicht"
+          }
+        }
+      }
+    },
+    "Transcribe a Meeting": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meeting mitschreiben"
+          }
+        }
+      }
+    },
+    "Transcribe a Meeting…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meeting mitschreiben …"
+          }
+        }
+      }
+    },
+    "Transcribing a meeting": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meeting wird mitgeschrieben"
+          }
+        }
+      }
+    },
+    "Transcript": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mitschrift"
           }
         }
       }

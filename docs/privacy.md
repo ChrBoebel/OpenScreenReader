@@ -134,3 +134,32 @@ gespeichert und nicht automatisch ins Vokabular übernommen.
 ### Setup preferences (2026-10-14)
 
 Setup additionally saves the dictation shortcut, optional Fn setting and the model identifier of an explicitly requested installation. It never saves microphone audio, screen content or recognized text. Restoring an interrupted installation does not resume network requests automatically: another explicit download confirmation is required. Capturing a shortcut suspends activation keys, including Fn, so entering a combination cannot start recording. Downloads continue to use only the approved pinned manifests and verify every installed file before activation.
+
+## Meeting-Mitschrift — Eigentümerentscheidung 2026-10-15
+
+[ADR 0006](decisions/0006-local-meeting-transcript.md). Eine enge Ausnahme von „keine Aufnahme anderer Inhalte“, nur für eine ausdrücklich gestartete Mitschrift.
+
+- **Start nur nach Einwilligungs-Schritt:**
+  - Vor jedem Start erklärt ein Fenster, was aufgenommen wird, und bietet einen kopierbaren Hinweis für den Meeting-Chat.
+  - Der Hinweis wird nur auf Klick kopiert.
+  - Kein automatischer Start, keine Meeting-Erkennung, kein Posten in andere Apps.
+- **Zwei Quellen:**
+  - das Mikrofon („Ich“);
+  - das Systemaudio aller anderen Apps („Andere“) über einen privaten Core-Audio-Prozess-Tap, der Saywing selbst ausschließt. Saywings eigenes Vorlesen gelangt so nicht in die Spur „Andere“.
+  - Die Systemaudio-Freigabe fragt macOS beim ersten Start (`NSAudioCaptureUsageDescription`); Saywing nutzt keine private TCC-Schnittstelle.
+- **Erkennung:**
+  - Apples `SpeechTranscriber` auf dem Gerät (macOS 26 oder neuer), nur für bereits installierte Sprachen.
+  - Saywing fordert keine Sprachmodelle aus dem Netz an und hat in diesem Pfad keinen eigenen Netzwerkzugriff.
+  - Der Diktier-Worker wird nicht benutzt.
+- **Keine Dateien, kein Verlauf:**
+  - Audio liegt nur in kurzen Puffern im RAM, für die Erkennung und das Echo-Gate (je Spur höchstens etwa 2 s bei 8 kHz), und wird laufend verworfen.
+  - Kein Audio auf der Festplatte.
+  - Das Transkript bleibt nur im RAM, bis es verworfen, durch eine neue Mitschrift ersetzt oder die App beendet wird.
+  - Schreiben nur über „Kopieren“ (ausdrücklicher Klick) oder „Sichern …“ (Speicherdialog, Markdown).
+  - Keine neuen Einstellungs-Schlüssel.
+- **Ende:**
+  - Stopp, 2-h-Grenze (Hinweis 5 min vorher), 10 min Stille auf beiden Spuren, Systemruhe, Sitzungswechsel und App-Ende beenden die Aufnahme. Das Transkript bleibt bis zum Verwerfen erhalten.
+  - Esc, Vorlesen und Diktieren beenden sie nicht.
+  - Verspätete Erkennungsergebnisse nach dem Ende werden verworfen.
+- **Anzeige:** Während der Aufnahme trägt das Menüleistensymbol einen Ring, und das Menü zeigt „Mitschrift läuft“.
+- **Recht:** Die Aufnahme anderer Personen braucht deren Einwilligung (z. B. § 201 StGB, DSGVO). Saywing erinnert daran, prüft es aber nicht. Eine rechtliche Prüfung bleibt Release-Gate.
