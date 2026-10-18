@@ -211,6 +211,7 @@ def main():
     parser.add_argument('--sparkle-key-file', type=Path, help='Private temporary Ed25519 file for unattended CI signing')
     parser.add_argument('--notarize', action='store_true')
     parser.add_argument('--public-release', action='store_true', help='Requires completed release-approval.json gates and notarization')
+    parser.add_argument('--diarization-model', type=Path, help='Directory filled by fetch-diarization-model.py; bundles the voice model')
     args = parser.parse_args()
     validate_version(args.version, args.build)
     https_url(args.feed_url)
@@ -249,6 +250,8 @@ def main():
         f'SAYWING_UPDATE_FEED_URL={args.feed_url}', f'SAYWING_UPDATE_PUBLIC_KEY={args.public_key}')
     app = output / 'Saywing.app'
     run('/usr/bin/ditto', derived / 'Build/Products/Release/Saywing.app', app)
+    if args.diarization_model:
+        run('python3', REPO / 'scripts/bundle-diarization-model.py', app, args.diarization_model)
     dictation = source / 'Contents/Resources/Dictation'
     if portable.exists():
         for name in ['Speech', 'Dictation']:

@@ -290,3 +290,18 @@ struct MeetingVoiceTrackerTests {
         #expect(box.spans.isEmpty)
     }
 }
+
+@Suite("Meeting voice model")
+struct MeetingVoiceModelTests {
+    @Test
+    func theBundledModelIsFoundOnlyWithItsWeights() throws {
+        let resources = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: resources) }
+        #expect(MeetingVoiceModel.bundled(in: resources) == nil)
+        let model = resources.appendingPathComponent("Diarization/ls_eend_dih3_100ms.mlmodelc")
+        try FileManager.default.createDirectory(at: model.appendingPathComponent("weights"), withIntermediateDirectories: true)
+        #expect(MeetingVoiceModel.bundled(in: resources) == nil)
+        try Data([0]).write(to: model.appendingPathComponent("weights/weight.bin"))
+        #expect(MeetingVoiceModel.bundled(in: resources)?.lastPathComponent == "ls_eend_dih3_100ms.mlmodelc")
+    }
+}

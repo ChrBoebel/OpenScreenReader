@@ -107,3 +107,17 @@ final class MeetingVoiceTracker: @unchecked Sendable {
     if wasActive { onFailure(error.localizedDescription) }
   }
 }
+
+/// The voice model a build carries, placed by scripts/bundle-diarization-model.py.
+/// A build without it simply keeps the others as one speaker.
+enum MeetingVoiceModel {
+  static func bundled(in resources: URL? = Bundle.main.resourceURL) -> URL? {
+    guard let directory = resources?.appendingPathComponent("Diarization", isDirectory: true),
+      let contents = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+    else { return nil }
+    return contents.sorted { $0.path < $1.path }.first {
+      $0.pathExtension == "mlmodelc"
+        && FileManager.default.fileExists(atPath: $0.appendingPathComponent("weights/weight.bin").path)
+    }
+  }
+}
