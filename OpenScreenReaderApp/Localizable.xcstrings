@@ -4700,6 +4700,76 @@
           }
         }
       }
+    },
+    "Name This Voice": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stimme benennen"
+          }
+        }
+      }
+    },
+    "Name": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name"
+          }
+        }
+      }
+    },
+    "Rename": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Umbenennen"
+          }
+        }
+      }
+    },
+    "Rename…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Umbenennen …"
+          }
+        }
+      }
+    },
+    "Same Person As": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gleiche Person wie"
+          }
+        }
+      }
+    },
+    "The name is used in every turn of this voice and in the export. It is kept only with this transcript.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Name gilt für alle Beiträge dieser Stimme und für den Export. Er bleibt nur bei dieser Mitschrift."
+          }
+        }
+      }
+    },
+    "Name this voice or join it with another": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Stimme benennen oder mit einer anderen zusammenführen"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

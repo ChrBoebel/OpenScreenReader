@@ -975,7 +975,8 @@ struct MeetingPreviewTests {
         guard let path = ProcessInfo.processInfo.environment["OSR_MEETING_PREVIEW_DIR"] else { return }
         let directory = URL(fileURLWithPath: path)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let fixture = MeetingFixture()
+        let diarizer = DiarizerFake()
+        let fixture = MeetingFixture(diarizer: diarizer)
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 560),
                               styleMask: [.titled], backing: .buffered, defer: false)
         let host = NSHostingView(rootView: MeetingView(controller: fixture.controller)
@@ -1005,6 +1006,14 @@ struct MeetingPreviewTests {
         try await capture("2-consent")
         fixture.controller.confirmConsent()
         await fixture.controller.waitUntilSettled()
+        // Two voices among the others, the first one second by second until 5 s.
+        let voiceSecond = MeetingAudioChunk(samples: [Float](repeating: 0.05, count: 8_000), sampleRate: 8_000,
+                                            hostTime: fixture.clock.ticks)
+        for second in 0..<11 {
+            diarizer.voice = second < 5 ? 0 : 1
+            fixture.system.deliver?(voiceSecond)
+            await fixture.controller.waitUntilSettled()
+        }
         await fixture.hear(heard(.others, 1, 4, "Guten Morgen zusammen, kurzer Stand zum Projekt."))
         await fixture.hear(heard(.me, 5, 7, "Die Tests laufen alle grün."))
         await fixture.hear(heard(.others, 8, 10, "Dann plane ich den ersten Prototypen", final: false))
@@ -1017,6 +1026,8 @@ struct MeetingPreviewTests {
         fixture.controller.stop()
         await fixture.controller.waitUntilSettled()
         try await capture("4-finished")
+        fixture.controller.renameVoice(0, to: "Anna")
+        try await capture("4b-named")
         for format in MeetingExportFormat.allCases {
             try fixture.controller.export.data(as: format)
                 .write(to: directory.appendingPathComponent(format.fileName(base: "5-export")))
