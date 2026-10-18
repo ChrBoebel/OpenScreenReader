@@ -218,3 +218,21 @@ Auf Wunsch des Eigentümers nach dem Apple-Design-Skill und dem [Saywing-Markens
 - „Ich“ trägt Petrol, „Andere“ die Primärfarbe; das Etikett sagt es, Farbe ist nie das einzige Merkmal. Warnungen färben nur ihr Symbol (wie in Einrichtung und Einstellungen).
 - Bewusste Abweichung von der Diktierkapsel: Das Fenster zeigt „Aufnahme“ mit rotem Aufnahmesymbol und Dauer. Die Regel „kein Text, kein Timer“ gilt für die kleine Kapsel am Cursor; eine bis zu zweistündige Mitschrift, die andere Personen hört, braucht sichtbaren Zustand und Zeit bis zur Grenze.
 - Menüleiste: Ring als vierte Form neben Punkt und Dreieck, gleiche Größe, Lage und Aussparung.
+
+### Stimmen und PDF — 2026-10-18
+
+Eigentümerentscheidung „okey setze das bitte um“ ([ADR 0007](decisions/0007-meeting-speakers-and-pdf.md)).
+
+- **Stimmen:**
+  - Unterscheidet Saywing die Stimmen der anderen, heißen ihre Beiträge „Person 1“, „Person 2“ usw., nummeriert in der Reihenfolge ihrer ersten Worte.
+  - Vor dem Etikett steht eine ruhige Farbmarke. Die Farbe dient nur dem Überfliegen; das Etikett sagt, wer spricht.
+  - Ein Klick auf das Etikett öffnet „Umbenennen …“ (Dialog mit Namensfeld) und „Gleiche Person wie ▸“ (zusammenführen, wenn eine Person als zwei Stimmen erkannt wurde).
+  - Namen gelten sofort in allen Beiträgen und im Export. Eine Änderung zählt als ungesichert.
+  - Ohne Modell oder nach einem Fehler bleibt es bei „Andere“; ein Fehler während der Aufnahme wird einmal in der Fußleiste genannt.
+- **Sichern:**
+  - Der Speicherdialog hat das Menü „Format:“ mit PDF (vorgewählt), Markdown und reinem Text. Ein Wechsel ändert die Dateiendung im Namensfeld.
+  - Nichts wird zwischen zwei Sicherungen gemerkt.
+- **PDF:**
+  - A4, Titel, Dauer und Beteiligte, Hinweis „Auf diesem Mac mit Saywing transkribiert“, je Beitrag Name und Zeit, Seitenzahlen „1 / 3“.
+  - Feste Farben (Schwarz, Grau) unabhängig vom Erscheinungsbild des Macs.
+  - Getaggt für Screenreader.

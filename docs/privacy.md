@@ -163,3 +163,20 @@ Setup additionally saves the dictation shortcut, optional Fn setting and the mod
   - Verspätete Erkennungsergebnisse nach dem Ende werden verworfen.
 - **Anzeige:** Während der Aufnahme trägt das Menüleistensymbol einen Ring, und das Menü zeigt „Mitschrift läuft“.
 - **Recht:** Die Aufnahme anderer Personen braucht deren Einwilligung (z. B. § 201 StGB, DSGVO). Saywing erinnert daran, prüft es aber nicht. Eine rechtliche Prüfung bleibt Release-Gate.
+
+### Stimmen und PDF — Eigentümerentscheidung 2026-10-18
+
+[ADR 0007](decisions/0007-meeting-speakers-and-pdf.md).
+
+- **Stimmen unterscheiden:**
+  - Nur die Spur „Andere“, live auf dem Gerät, mit dem gebündelten LS-EEND-Modell.
+  - Kein Download, keine Netzwerkverbindung.
+  - Das Audio wird wie bei der Erkennung laufend verworfen. Fällt die Auswertung zurück, wird Audio verworfen statt gesammelt (höchstens etwa 5 s im RAM).
+- **Keine Stimmprofile:**
+  - Saywing speichert keine Stimmmerkmale und erkennt niemanden über Mitschriften hinweg wieder.
+  - Der Modellzustand endet mit der Mitschrift.
+  - Namen vergibt nur die Nutzerin oder der Nutzer, von Hand. Sie liegen wie Zusammenführungen nur im RAM beim Transkript.
+- **PDF:**
+  - Sichern bietet PDF, Markdown und reinen Text, weiterhin nur über den Speicherdialog.
+  - Das PDF enthält als Dokumentinformation nur den Titel und „Saywing“, keinen Autor, keinen Geräte- oder Benutzernamen.
+- **Recht:** Stimmen sind biometrische Daten (DSGVO Art. 9), sobald sie zur Identifizierung dienen. Saywing identifiziert niemanden und behält nichts. Das gehört in die bestehende rechtliche Prüfung vor einer Veröffentlichung.

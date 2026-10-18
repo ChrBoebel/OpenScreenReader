@@ -242,3 +242,18 @@ Modells oder Providers. [Messung und Grenzen](dictation-vocabulary-verification.
 | `MeetingView` | SwiftUI-Fenster: Einwilligung, Gesprächsverlauf mit Pegeln, Hinweis bei fehlendem Systemaudio, Abschlussaktionen |
 
 `AppModel` hält den Controller nur zur Anzeige: Menüleistenring vor allen anderen Zuständen, Updates warten. Vorlesen, Esc und Diktieren greifen nicht ein. Kein Teil des Moduls schreibt Dateien außer dem ausdrücklichen Sichern-Dialog, und keiner öffnet eine Netzwerkverbindung.
+
+### Stimmen und PDF-Export — 2026-10-18
+
+[ADR 0007](decisions/0007-meeting-speakers-and-pdf.md). Ergänzt das Modul um:
+
+| Baustein | Aufgabe |
+|---|---|
+| `MeetingVoiceDiarizing` | Schnittstelle für einen Diarizer auf der Spur „Andere“. Eine Queue, Zeiten in Sekunden des eingespeisten Audios, jeder Aufruf liefert nur neue Spannen |
+| `MeetingVoiceTracker` | Speist „Andere“ auf eigener Queue in den Diarizer und legt die Spannen über Anker auf die Meeting-Zeitachse, auch über Lücken. Fällt der Diarizer mehr als 5 s zurück, wird Audio verworfen statt gestaut. Stopp leert den Look-ahead, Verwerfen schaltet verspätete Ergebnisse stumm, ein Fehler beendet nur die Stimmentrennung |
+| `MeetingTranscript` (Stimmen) | Jedes Wort von „Andere“ geht an die Stimme, die in seiner Zeit am meisten sprach (sonst an die nächste innerhalb 0,6 s); ein Stimmwechsel teilt das Segment. Nummern in der Reihenfolge der ersten Wörter, stabil über Zusammenführen. Namen und Zusammenführungen nur im RAM |
+| `MeetingVoiceModel` | Findet das gebündelte LS-EEND-Modell in `Contents/Resources/Diarization`; ohne Modell bleibt „Andere“ eine Person |
+| `MeetingExport` | Sichtbare Beiträge mit Etikett; Markdown (auch „Kopieren“), reiner Text und PDF. Das PDF setzt Core Text auf A4-Seiten, nummeriert sie und schreibt eine Strukturbaum-Auszeichnung (Überschrift, Absätze) für Screenreader. Dokumentinfo nur Titel und „Saywing“ |
+| `MeetingView` | Farbmarke plus Name oder Nummer je Stimme; das Etikett öffnet „Umbenennen …“ und „Gleiche Person wie“. Der Sichern-Dialog hat ein Formatmenü, PDF zuerst |
+
+Offen: Der Adapter auf FluidAudios `LSEENDDiarizer` (Trait `Diarizer`) wartet auf die Build-Freigabe, siehe ADR 0007. Bis dahin liefert `makeVoiceDiarizer` keinen Diarizer.

@@ -11,7 +11,9 @@
 - [ ] Complete dictation target-app matrix, real microphone/Hotkey walkthrough in the integrated bundle, clean-Mac packaging and distribution gates.
 - [x] Local meeting transcript (owner decision 2026-10-15, [ADR 0006](decisions/0006-local-meeting-transcript.md)): system audio tap + microphone, on-device `SpeechTranscriber`, echo gate, consent step, RAM-only transcript with explicit copy/save.
 - [ ] Meeting transcript gates: real call over speakers and headphones on the signed build, permission prompt, echo duplicates, word errors on real speech, 60-minute CPU/memory, no files written.
-- [ ] Meeting transcript candidates, each needing its own decision: Whisper refinement with the vocabulary, summaries, speaker diarisation, meeting detection, mixed-language meetings, macOS 14–15 support.
+- [x] Meeting speakers and PDF export (owner decision 2026-10-18, [ADR 0007](decisions/0007-meeting-speakers-and-pdf.md)): voices of the others told apart and nameable, tagged PDF/Markdown/text export.
+- [ ] Meeting speakers runtime: FluidAudio `LSEENDDiarizer` adapter after the owner's build permission; variant chosen on recorded calls; gates of ADR 0007.
+- [ ] Meeting transcript candidates, each needing its own decision: Whisper refinement with the vocabulary, summaries, meeting detection, mixed-language meetings, macOS 14–15 support.
 
 ## Current delivery — 2026-09-09
 
