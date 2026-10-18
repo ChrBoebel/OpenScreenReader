@@ -167,6 +167,32 @@ final class MenuBarSmokeUITests: XCTestCase {
         continueAfterFailure = false
     }
 
+    /// Opens the meeting transcript from the menu and leaves at the consent step:
+    /// nothing records, so no microphone or system audio permission is involved.
+    @MainActor
+    func testMeetingTranscriptOpensAtTheConsentStepAndCancels() {
+        let app = makeApplication()
+        app.launch()
+        defer { app.terminate() }
+        openMenu(in: app, status: "Ready")
+        let entry = app.menuItems["Transcribe a Meeting…"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 3))
+        entry.click()
+        let window = app.windows["Meeting Transcript"]
+        XCTAssertTrue(window.waitForExistence(timeout: 5))
+        let start = window.buttons["Everyone Is Informed – Start"]
+        let unavailable = window.staticTexts["Meeting transcripts are not available"]
+        XCTAssertTrue(start.waitForExistence(timeout: 5) || unavailable.exists)
+        if start.exists {
+            XCTAssertTrue(window.staticTexts["Transcribe a Meeting"].exists)
+            window.buttons["Cancel"].click()
+        } else {
+            window.buttons["Close"].click()
+        }
+        XCTAssertTrue(app.descendants(matching: .statusItem)
+            .matching(NSPredicate(format: "title == 'Saywing, Ready'")).firstMatch.waitForExistence(timeout: 3))
+    }
+
     @MainActor
     func testMenuBarShellExposesCurrentStatusAndActions() {
         let app = makeApplication()
