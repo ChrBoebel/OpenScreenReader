@@ -4690,6 +4690,16 @@
           }
         }
       }
+    },
+    "Voices are no longer told apart: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stimmen werden nicht mehr unterschieden: %@"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

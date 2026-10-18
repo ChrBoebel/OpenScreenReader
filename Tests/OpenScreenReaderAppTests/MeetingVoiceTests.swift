@@ -171,3 +171,122 @@ struct MeetingVoiceTests {
         #expect(transcript.entries.map(\.voice) == [0])
     }
 }
+
+/// Reports a voice for each chunk it receives, in its own clock: seconds fed so far.
+final class DiarizerFake: MeetingVoiceDiarizing, @unchecked Sendable {
+    private let lock = NSLock()
+    private var _fed: TimeInterval = 0
+    private var _finished = false
+    var gate: DispatchSemaphore?
+    var failure: Error?
+    var voice = 0
+    var finalSpan: MeetingVoiceSpan?
+    var fed: TimeInterval { lock.withLock { _fed } }
+    var finished: Bool { lock.withLock { _finished } }
+
+    func append(_ samples: [Float], sampleRate: Double) throws -> [MeetingVoiceSpan] {
+        gate?.wait()
+        if let failure { throw failure }
+        let duration = Double(samples.count) / sampleRate
+        let start = lock.withLock { () -> TimeInterval in
+            defer { _fed += duration }
+            return _fed
+        }
+        return [MeetingVoiceSpan(voice: voice, start: start, end: start + duration)]
+    }
+
+    func finish() throws -> [MeetingVoiceSpan] {
+        lock.withLock { _finished = true }
+        return finalSpan.map { [$0] } ?? []
+    }
+}
+
+private final class VoiceBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _spans: [MeetingVoiceSpan] = []
+    private var _failures: [String] = []
+    var spans: [MeetingVoiceSpan] { lock.withLock { _spans } }
+    var failures: [String] { lock.withLock { _failures } }
+    func add(_ spans: [MeetingVoiceSpan]) { lock.withLock { _spans += spans } }
+    func fail(_ message: String) { lock.withLock { _failures.append(message) } }
+}
+
+private func second(at hostSeconds: TimeInterval = 0, rate: Double = 8_000) -> MeetingAudioChunk {
+    MeetingAudioChunk(samples: [Float](repeating: 0.1, count: Int(rate)), sampleRate: rate,
+                      hostTime: MeetingHostClock.hostTicks(forSeconds: hostSeconds))
+}
+
+@Suite("Meeting voice tracker")
+struct MeetingVoiceTrackerTests {
+    private func tracker(_ diarizer: DiarizerFake, _ box: VoiceBox, backlog: TimeInterval = 5) -> MeetingVoiceTracker {
+        MeetingVoiceTracker(diarizer: diarizer, backlogLimit: backlog,
+                            onVoices: { box.add($0) }, onFailure: { box.fail($0) })
+    }
+
+    @Test
+    func voicesLandOnTheMeetingTimelineAcrossAGap() {
+        let diarizer = DiarizerFake(), box = VoiceBox()
+        let tracker = tracker(diarizer, box)
+        tracker.append(second(), at: 12)
+        tracker.append(second(), at: 13)
+        // Audio stalled for a while; the diarizer's clock does not know that.
+        tracker.append(second(), at: 40)
+        tracker.drain()
+        #expect(box.spans == [
+            MeetingVoiceSpan(voice: 0, start: 12, end: 13),
+            MeetingVoiceSpan(voice: 0, start: 13, end: 14),
+            MeetingVoiceSpan(voice: 0, start: 40, end: 41),
+        ])
+    }
+
+    @Test
+    func finishFlushesTheLastVoicesAndCancelSilencesLateOnes() {
+        let diarizer = DiarizerFake(), box = VoiceBox()
+        diarizer.finalSpan = MeetingVoiceSpan(voice: 2, start: 0.5, end: 1)
+        let tracker = tracker(diarizer, box)
+        tracker.append(second(), at: 3)
+        tracker.finish()
+        #expect(diarizer.finished)
+        #expect(box.spans.last == MeetingVoiceSpan(voice: 2, start: 3.5, end: 4))
+        tracker.append(second(), at: 4)
+        tracker.drain()
+        #expect(box.spans.count == 2)
+
+        let other = DiarizerFake(), silenced = VoiceBox()
+        let cancelled = self.tracker(other, silenced)
+        other.gate = DispatchSemaphore(value: 0)
+        cancelled.append(second(), at: 0)
+        cancelled.cancel()
+        other.gate?.signal()
+        cancelled.drain()
+        #expect(silenced.spans.isEmpty)
+    }
+
+    @Test
+    func aSlowDiarizerDropsAudioInsteadOfHoardingIt() {
+        let diarizer = DiarizerFake(), box = VoiceBox()
+        diarizer.gate = DispatchSemaphore(value: 0)
+        let tracker = tracker(diarizer, box, backlog: 3)
+        for index in 0..<10 { tracker.append(second(), at: TimeInterval(index)) }
+        for _ in 0..<10 { diarizer.gate?.signal() }
+        tracker.drain()
+        #expect(diarizer.fed == 3)
+        // After the backlog cleared, audio flows again and lands at its own time.
+        tracker.append(second(), at: 30)
+        diarizer.gate?.signal()
+        tracker.drain()
+        #expect(box.spans.last == MeetingVoiceSpan(voice: 0, start: 30, end: 31))
+    }
+
+    @Test
+    func aFailingDiarizerReportsOnceAndStops() {
+        let diarizer = DiarizerFake(), box = VoiceBox()
+        diarizer.failure = MeetingError("model gone")
+        let tracker = tracker(diarizer, box)
+        tracker.append(second(), at: 0)
+        tracker.append(second(), at: 1)
+        tracker.finish()
+        #expect(box.failures == ["model gone"])
+        #expect(box.spans.isEmpty)
+    }
+}

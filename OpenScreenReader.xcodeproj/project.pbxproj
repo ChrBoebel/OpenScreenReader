@@ -17,6 +17,7 @@
 		DD2000000000000000000011 /* MeetingVoiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD1000000000000000000011 /* MeetingVoiceTests.swift */; };
 		DD2000000000000000000002 /* MeetingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD1000000000000000000002 /* MeetingTests.swift */; };
 		DD2000000000000000000009 /* MeetingExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD1000000000000000000009 /* MeetingExport.swift */; };
+		DD2000000000000000000012 /* MeetingVoices.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD1000000000000000000012 /* MeetingVoices.swift */; };
 		DD2000000000000000000001 /* MeetingCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD1000000000000000000001 /* MeetingCore.swift */; };
         CC2000000000000000000001 = {isa = PBXBuildFile; fileRef = CC1000000000000000000001; };
         CC2000000000000000000002 = {isa = PBXBuildFile; productRef = CC3000000000000000000001; };
@@ -82,6 +83,7 @@
 		DD1000000000000000000011 /* MeetingVoiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingVoiceTests.swift; sourceTree = "<group>"; };
 		DD1000000000000000000002 /* MeetingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingTests.swift; sourceTree = "<group>"; };
 		DD1000000000000000000009 /* MeetingExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Meeting/MeetingExport.swift; sourceTree = "<group>"; };
+		DD1000000000000000000012 /* MeetingVoices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Meeting/MeetingVoices.swift; sourceTree = "<group>"; };
 		DD1000000000000000000001 /* MeetingCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Meeting/MeetingCore.swift; sourceTree = "<group>"; };
         CC1000000000000000000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateController.swift; sourceTree = "<group>"; };
 		F00000000000000000000004 /* InterfaceSoundPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterfaceSoundPlayer.swift; sourceTree = "<group>"; };
@@ -179,6 +181,7 @@
 				DD1000000000000000000004 /* MeetingAudio.swift */,
 				DD1000000000000000000003 /* EchoGate.swift */,
 				DD1000000000000000000009 /* MeetingExport.swift */,
+				DD1000000000000000000012 /* MeetingVoices.swift */,
 				DD1000000000000000000001 /* MeetingCore.swift */,
 				BB1000000000000000000003 /* Localizable.xcstrings */,
 				BB1000000000000000000002 /* ShortcutRecorder.swift */,
@@ -384,6 +387,7 @@
 				DD2000000000000000000004 /* MeetingAudio.swift in Sources */,
 				DD2000000000000000000003 /* EchoGate.swift in Sources */,
 				DD2000000000000000000009 /* MeetingExport.swift in Sources */,
+				DD2000000000000000000012 /* MeetingVoices.swift in Sources */,
 				DD2000000000000000000001 /* MeetingCore.swift in Sources */,
 				BB2000000000000000000001 /* Permissions.swift in Sources */,
 				C52000000000000000000001 /* SetupFlow.swift in Sources */,

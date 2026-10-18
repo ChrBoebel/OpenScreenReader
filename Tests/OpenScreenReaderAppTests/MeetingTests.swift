@@ -547,13 +547,14 @@ private struct MeetingFixture {
     var saved: [String] { savedBox.items }
     let savedBox = SavedBox()
 
-    init(systemAvailable: Bool = true) {
+    init(systemAvailable: Bool = true, diarizer: DiarizerFake? = nil) {
         let provider = provider, microphone = microphone, system = system, clock = clock, savedBox = savedBox
         let confirmations = confirmations
         controller = MeetingController(
             provider: provider,
             makeMicrophone: { microphone },
             makeSystemAudio: { systemAvailable ? system : nil },
+            makeVoiceDiarizer: { diarizer },
             language: { .german },
             interfaceSounds: sounds,
             hostClock: { clock.ticks },
@@ -824,6 +825,104 @@ struct MeetingControllerTests {
         #expect(fixture.controller.notice == "Mic busy")
         #expect(fixture.provider.recognizer.cancelled)
         #expect(fixture.system.starts == 0 || fixture.system.stops >= 1)
+    }
+}
+
+@Suite("Meeting voices in the transcript", .serialized)
+@MainActor
+struct MeetingVoiceControllerTests {
+    private func othersSecond(_ fixture: MeetingFixture) {
+        fixture.system.deliver?(MeetingAudioChunk(samples: [Float](repeating: 0.1, count: 8_000), sampleRate: 8_000,
+                                                  hostTime: fixture.clock.ticks))
+    }
+
+    @Test
+    func withoutAVoiceModelTheOthersStayOneSpeaker() async {
+        let fixture = MeetingFixture()
+        await fixture.start()
+        #expect(!fixture.controller.tellsVoicesApart)
+        othersSecond(fixture)
+        await fixture.hear(heard(.others, 0.1, 0.9, "Hallo."))
+        #expect(fixture.controller.transcript.entries.map(\.label) == ["Others"])
+    }
+
+    @Test
+    func theOthersAudioReachesTheDiarizerAndNamesTheirTurns() async {
+        let diarizer = DiarizerFake()
+        let fixture = MeetingFixture(diarizer: diarizer)
+        await fixture.start()
+        #expect(fixture.controller.tellsVoicesApart)
+        fixture.microphone.deliver?(MeetingAudioChunk(samples: [Float](repeating: 0.1, count: 8_000), sampleRate: 8_000,
+                                                      hostTime: fixture.clock.ticks))
+        othersSecond(fixture)
+        await fixture.hear(heard(.others, 0.1, 0.9, "Hallo."))
+        await fixture.hear(heard(.me, 1.2, 1.8, "Hi."))
+        #expect(diarizer.fed == 1)
+        #expect(fixture.controller.transcript.entries.map(\.label) == ["Speaker 1", "Me"])
+    }
+
+    @Test
+    func stopFlushesTheLastVoicesAndDiscardIgnoresLateOnes() async {
+        let diarizer = DiarizerFake()
+        diarizer.voice = 4
+        // The look-ahead flush reports a voice after the last chunk.
+        diarizer.finalSpan = MeetingVoiceSpan(voice: 6, start: 1, end: 2)
+        let fixture = MeetingFixture(diarizer: diarizer)
+        await fixture.start()
+        othersSecond(fixture)
+        fixture.provider.recognizer.finalOnFinish = heard(.others, 1.1, 1.9, "Zum Schluss.")
+        await fixture.hear(heard(.others, 0.0, 0.4, "Anfang."))
+        fixture.controller.stop()
+        await fixture.controller.waitUntilSettled()
+        #expect(diarizer.finished)
+        #expect(fixture.controller.transcript.entries.map(\.label) == ["Speaker 1", "Speaker 2"])
+
+        let late = DiarizerFake()
+        let discarded = MeetingFixture(diarizer: late)
+        await discarded.start()
+        othersSecond(discarded)
+        discarded.controller.discard()
+        await discarded.controller.waitUntilSettled()
+        #expect(discarded.controller.transcript.voiceSpans.isEmpty)
+        #expect(!discarded.controller.tellsVoicesApart)
+    }
+
+    @Test
+    func namesAndMergesReachTheExportAndCountAsUnsaved() async {
+        let diarizer = DiarizerFake()
+        let fixture = MeetingFixture(diarizer: diarizer)
+        await fixture.start()
+        othersSecond(fixture)
+        await fixture.controller.waitUntilSettled()
+        diarizer.voice = 1
+        othersSecond(fixture)
+        await fixture.hear(heard(.others, 0.1, 0.9, "Eins."))
+        await fixture.hear(heard(.others, 1.1, 1.9, "Zwei."))
+        fixture.controller.stop()
+        await fixture.controller.waitUntilSettled()
+        fixture.controller.copy()
+        #expect(!fixture.controller.hasUnsavedText)
+        fixture.controller.renameVoice(0, to: "Anna")
+        #expect(fixture.controller.hasUnsavedText)
+        #expect(fixture.controller.export.turns.map(\.speaker) == ["Anna", "Speaker 2"])
+        fixture.controller.mergeVoice(1, into: 0)
+        #expect(fixture.controller.export.turns.map(\.text) == ["Eins. Zwei."])
+        #expect(fixture.controller.transcript.voices.map(\.label) == ["Anna"])
+    }
+
+    @Test
+    func aFailingDiarizerLeavesTheTranscriptRunning() async {
+        let diarizer = DiarizerFake()
+        diarizer.failure = MeetingError("model gone")
+        let fixture = MeetingFixture(diarizer: diarizer)
+        await fixture.start()
+        othersSecond(fixture)
+        await fixture.controller.waitUntilSettled()
+        #expect(fixture.controller.phase == .live)
+        #expect(!fixture.controller.tellsVoicesApart)
+        #expect(fixture.controller.notice?.contains("model gone") == true)
+        await fixture.hear(heard(.others, 0.1, 0.9, "Weiter."))
+        #expect(fixture.controller.transcript.entries.map(\.label) == ["Others"])
     }
 }
 

@@ -32,6 +32,8 @@ final class MeetingController: ObservableObject {
   /// No non-zero sample from other apps yet: the system audio permission is the likely cause.
   @Published private(set) var systemAudioMissing = false
   @Published private(set) var hasUnsavedText = false
+  /// The others' voices are being told apart in this transcript.
+  @Published private(set) var tellsVoicesApart = false
   private(set) var startedAt: Date?
 
   var isRecording: Bool { phase == .starting || phase == .live || phase == .stopping }
@@ -44,6 +46,7 @@ final class MeetingController: ObservableObject {
   private let provider: any MeetingRecognizerProviding
   private let makeMicrophone: @MainActor () -> any MeetingAudioSource
   private let makeSystemAudio: @MainActor () -> (any MeetingAudioSource)?
+  private let makeVoiceDiarizer: @Sendable () async -> (any MeetingVoiceDiarizing)?
   private let language: @MainActor () -> DictationLanguage
   private let interfaceSounds: (any InterfaceSoundPlaying)?
   private let hostClock: () -> UInt64
@@ -59,6 +62,7 @@ final class MeetingController: ObservableObject {
   private var generation: UUID?
   private var recognizer: (any MeetingRecognizing)?
   private var router: MeetingAudioRouter?
+  private var voices: MeetingVoiceTracker?
   private var microphone: (any MeetingAudioSource)?
   private var system: (any MeetingAudioSource)?
   private var startHost: UInt64 = 0
@@ -74,6 +78,7 @@ final class MeetingController: ObservableObject {
     makeSystemAudio: @escaping @MainActor () -> (any MeetingAudioSource)? = {
       if #available(macOS 14.2, *) { SystemAudioTapSource() } else { nil }
     },
+    makeVoiceDiarizer: @escaping @Sendable () async -> (any MeetingVoiceDiarizing)? = { nil },
     language: @escaping @MainActor () -> DictationLanguage = {
       DictationLanguage(rawValue: UserDefaults.standard.integer(forKey: "dictationLanguage.v1")) ?? .automatic
     },
@@ -90,6 +95,7 @@ final class MeetingController: ObservableObject {
     self.provider = provider
     self.makeMicrophone = makeMicrophone
     self.makeSystemAudio = makeSystemAudio
+    self.makeVoiceDiarizer = makeVoiceDiarizer
     self.language = language
     self.interfaceSounds = interfaceSounds
     self.hostClock = hostClock
@@ -170,8 +176,22 @@ final class MeetingController: ObservableObject {
       await recognizer.cancel()
       return
     }
+    // Loading the voice model may take a moment; it happens off the main thread
+    // and a missing model only means the others stay one speaker.
+    let diarizer = await makeVoiceDiarizer()
+    guard gate.accepts(id), phase == .starting else {
+      await recognizer.cancel()
+      return
+    }
+    if let diarizer {
+      voices = MeetingVoiceTracker(
+        diarizer: diarizer,
+        onVoices: { [weak self] spans in Task { @MainActor in self?.addVoices(spans, id) } },
+        onFailure: { [weak self] message in Task { @MainActor in self?.voicesFailed(message, id) } })
+      tellsVoicesApart = true
+    }
     startHost = hostClock()
-    let router = MeetingAudioRouter(startHostTime: startHost, recognizer: recognizer) { [weak self] spans in
+    let router = MeetingAudioRouter(startHostTime: startHost, recognizer: recognizer, voices: voices) { [weak self] spans in
       Task { @MainActor in self?.addEcho(spans, id) }
     }
     self.router = router
@@ -216,10 +236,12 @@ final class MeetingController: ObservableObject {
     stopSources()
     if wasLive { interfaceSounds?.play(.captured) }
     let recognizer = recognizer
+    let voices = voices
     let previous = lifecycle
     lifecycle = Task { [weak self] in
       await previous?.value
       await recognizer?.finish()
+      if let voices { await Task.detached { voices.finish() }.value }
       self?.router?.drain()
       guard let self, self.gate.accepts(id) else { return }
       self.recognizer = nil
@@ -240,6 +262,7 @@ final class MeetingController: ObservableObject {
     gate.cancel()
     generation = nil
     stopSources()
+    voices?.cancel()
     let recognizer = recognizer
     self.recognizer = nil
     let previous = lifecycle
@@ -257,6 +280,7 @@ final class MeetingController: ObservableObject {
   func shutdown() {
     gate.cancel()
     stopSources()
+    voices?.cancel()
     if let recognizer { Task { await recognizer.cancel() } }
     recognizer = nil
   }
@@ -277,6 +301,18 @@ final class MeetingController: ObservableObject {
     return true
   }
 
+  /// Names one of the others' voices; names live only with this transcript.
+  func renameVoice(_ voice: Int, to name: String) {
+    transcript.rename(voice: voice, to: name)
+    if !transcript.isEmpty { hasUnsavedText = true }
+  }
+
+  /// Joins two voices the diarizer split from one person.
+  func mergeVoice(_ voice: Int, into target: Int) {
+    transcript.merge(voice: voice, into: target)
+    if !transcript.isEmpty { hasUnsavedText = true }
+  }
+
   /// Copies the chat notice only because the user asked for it.
   func copyConsentNotice() {
     pasteboard.clearContents()
@@ -286,6 +322,7 @@ final class MeetingController: ObservableObject {
   /// For tests: waits for start/stop work and the main-actor hops of results.
   func waitUntilSettled() async {
     await lifecycle?.value
+    voices?.drain()
     for _ in 0..<20 { await Task.yield() }
     await lifecycle?.value
   }
@@ -322,6 +359,18 @@ final class MeetingController: ObservableObject {
     spans.forEach { transcript.addEcho($0) }
   }
 
+  private func addVoices(_ spans: [MeetingVoiceSpan], _ id: UUID) {
+    guard gate.accepts(id) else { return }
+    spans.forEach { transcript.addVoice($0) }
+  }
+
+  /// The transcript goes on; only telling the others apart stops.
+  private func voicesFailed(_ message: String, _ id: UUID) {
+    guard gate.accepts(id) else { return }
+    tellsVoicesApart = false
+    notice = String(localized: "Voices are no longer told apart: \(message)")
+  }
+
   private func recognitionFailed(_ message: String, _ id: UUID) {
     guard gate.accepts(id) else { return }
     stop(String(localized: "Speech recognition stopped: \(message)"))
@@ -330,6 +379,7 @@ final class MeetingController: ObservableObject {
   private func fail(_ id: UUID, _ message: String) {
     guard gate.accepts(id) else { return }
     stopSources()
+    voices?.cancel()
     let recognizer = recognizer
     self.recognizer = nil
     Task { await recognizer?.cancel() }
@@ -356,6 +406,8 @@ final class MeetingController: ObservableObject {
     systemAudioMissing = false
     startedAt = nil
     router = nil
+    voices = nil
+    tellsVoicesApart = false
   }
 
   private var isUnavailable: Bool {
