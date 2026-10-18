@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Foundation
 import PDFKit
@@ -111,5 +112,21 @@ struct MeetingExportTests {
         #expect(MeetingExportFormat.pdf.fileName(base: "Meeting transcript 2026-10-18") == "Meeting transcript 2026-10-18.pdf")
         #expect(MeetingExportFormat.markdown.fileName(base: "x") == "x.md")
         #expect(MeetingExportFormat.plainText.fileName(base: "x") == "x.txt")
+    }
+
+    @Test
+    @MainActor
+    func theFormatMenuStartsWithPDFAndSwitchesTheExtension() {
+        let panel = NSSavePanel()
+        let chooser = MeetingFormatChooser(panel: panel, baseName: "Meeting transcript 2026-10-18")
+        #expect(chooser.format == .pdf)
+        #expect(panel.nameFieldStringValue == "Meeting transcript 2026-10-18.pdf")
+        #expect(panel.allowedContentTypes == [.pdf])
+        panel.nameFieldStringValue = "Weekly sync.pdf"
+        chooser.select(.markdown)
+        #expect(panel.nameFieldStringValue == "Weekly sync.md")
+        chooser.select(.plainText)
+        #expect(panel.nameFieldStringValue == "Weekly sync.txt")
+        #expect(panel.allowedContentTypes == [.plainText])
     }
 }

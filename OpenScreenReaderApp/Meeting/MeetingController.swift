@@ -490,7 +490,7 @@ final class MeetingController: ObservableObject {
 /// The "Format" menu below the save panel; switching it changes the file type and
 /// the extension of the name being typed.
 @MainActor
-private final class MeetingFormatChooser: NSObject {
+final class MeetingFormatChooser: NSObject {
   private weak var panel: NSSavePanel?
   private let popup = NSPopUpButton(frame: .zero, pullsDown: false)
   let view: NSView
@@ -511,11 +511,18 @@ private final class MeetingFormatChooser: NSObject {
     panel.nameFieldStringValue = format.fileName(base: baseName)
   }
 
-  @objc private func changed() {
-    guard let panel, MeetingExportFormat.allCases.indices.contains(popup.indexOfSelectedItem) else { return }
-    format = MeetingExportFormat.allCases[popup.indexOfSelectedItem]
+  /// What choosing an entry in the menu does; also used by tests.
+  func select(_ format: MeetingExportFormat) {
+    guard let panel, let index = MeetingExportFormat.allCases.firstIndex(of: format) else { return }
+    popup.selectItem(at: index)
+    self.format = format
     let base = (panel.nameFieldStringValue as NSString).deletingPathExtension
     panel.allowedContentTypes = [format.contentType]
     panel.nameFieldStringValue = format.fileName(base: base)
+  }
+
+  @objc private func changed() {
+    guard MeetingExportFormat.allCases.indices.contains(popup.indexOfSelectedItem) else { return }
+    select(MeetingExportFormat.allCases[popup.indexOfSelectedItem])
   }
 }
