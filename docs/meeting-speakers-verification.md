@@ -69,3 +69,15 @@ Bis zur Freigabe liefert `makeVoiceDiarizer` keinen Diarizer, die App zeigt also
 1. Die UI-Automatisierung bestätigen, dann `xcodebuild test -only-testing:OpenScreenReaderUITests/MenuBarSmokeUITests/testMeetingTranscriptOpensAtTheConsentStepAndCancels` ausführen.
 2. Eine Mitschrift aufnehmen, stoppen, **Sichern …** wählen. Das Formatmenü zeigt PDF; ein Wechsel auf Markdown ändert die Endung. Das PDF in Vorschau öffnen und mit VoiceOver lesen.
 3. Nach der Freigabe für FluidAudio: Modell laden (`scripts/fetch-diarization-model.py .build/models/ls-eend`) und bündeln (`scripts/bundle-diarization-model.py <Saywing.app> .build/models/ls-eend`, vor dem Signieren). Dann einen Call mit mehreren Teilnehmenden mitschreiben.
+
+## Lokale Installation 2026-10-19
+
+Auf Wunsch des Eigentümers wurde der Branch (Stand 73296e1, PR #16) lokal installiert:
+
+- **Build:** Release-Build arm64.
+- **Laufzeiten:** Diktat- und Sprachlaufzeit samt Modellen wurden unverändert aus der bisherigen App übernommen. Gegenüber `main` sind `Runtime/Dictation` und `Runtime/Supertonic` unverändert.
+- **Signatur:** wie am 2026-10-16 ad hoc, mit `Saywing.entitlements`, ohne Hardened Runtime. `Sparkle.framework` ist ebenfalls ad hoc signiert.
+- **Prüfungen:** `codesign --verify --deep --strict` und `verify-app-permissions.py` bestanden. Die deutschen Texte für Formatmenü und Stimmen sind im Bundle.
+- **Ohne Stimmmodell:** Das Stimmmodell ist nicht gebündelt, weil der Adapter fehlt. Die Stimmen der anderen bleiben deshalb „Andere“.
+- **Rückfallkopie:** Die bisherige App (0.1.0, Build vom 2026-10-16) liegt unter `.build/previous-before-speakers/Saywing.app` im Worktree.
+- **Nicht geprüft:** Gestartet wurde die App aus der Agentensitzung nicht, weil die Sandbox Launch Services sperrt.
