@@ -253,9 +253,45 @@ struct MeetingTranscript: Equatable {
     } else if echoFraction(of: item) >= 0.8 {
       return nil
     }
-    let kept = withoutRepeatedRuns(Self.tokens(text), of: othersText(near: item))
+    let others = othersText(near: item)
+    let kept = withoutRepeatedRuns(Self.tokens(text), of: others)
+    if Self.soundsLikeAnEcho(kept, of: others) { return nil }
     let result = kept.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
     return result.contains(where: { $0.isLetter || $0.isNumber }) ? result : nil
+  }
+
+  /// The recogniser hears an echo through the room only roughly ("demorfest" for
+  /// "Oktoberfest"), so identical runs miss it. A segment of mine is the others'
+  /// echo when at least three of its words have three or more letters and 60 % of
+  /// those sound like words the others said at the same moment.
+  private static func soundsLikeAnEcho(_ mine: [String], of others: [String]) -> Bool {
+    let words = mine.map(normalized).filter { $0.count >= 3 }
+    let theirs = Set(others.map(normalized).filter { $0.count >= 3 })
+    guard words.count >= 3, !theirs.isEmpty else { return false }
+    let echoed = words.filter { word in theirs.contains { similar(word, $0) } }.count
+    return Double(echoed) >= 0.6 * Double(words.count)
+  }
+
+  /// Equal, one a prefix of the other ("gibt", "gibts"), or a few letters apart
+  /// in a longer word ("sender", "ständer").
+  private static func similar(_ a: String, _ b: String) -> Bool {
+    if a == b { return true }
+    let shorter = min(a.count, b.count)
+    if shorter >= 4, a.hasPrefix(b) || b.hasPrefix(a) { return true }
+    guard shorter >= 5 else { return false }
+    return editDistance(Array(a), Array(b)) <= max(a.count, b.count) / 3
+  }
+
+  private static func editDistance(_ a: [Character], _ b: [Character]) -> Int {
+    var previous = Array(0...b.count)
+    for (i, x) in a.enumerated() {
+      var current = [i + 1] + Array(repeating: 0, count: b.count)
+      for (j, y) in b.enumerated() {
+        current[j + 1] = min(previous[j + 1] + 1, current[j] + 1, previous[j] + (x == y ? 0 : 1))
+      }
+      previous = current
+    }
+    return previous[b.count]
   }
 
   private func inEcho(_ time: TimeInterval) -> Bool {

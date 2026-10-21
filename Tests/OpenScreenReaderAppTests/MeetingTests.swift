@@ -1,3 +1,4 @@
+import Accelerate
 import AppKit
 import SwiftUI
 import AVFoundation
@@ -93,6 +94,21 @@ struct MeetingTranscriptTests {
         #expect(mine == ["Danke, dann plane ich Freitag."])
     }
 
+    /// From a real call over laptop speakers (2026-10-21): the microphone heard the
+    /// others through the room and the recogniser wrote it down roughly.
+    @Test
+    func roughlyHeardEchoOfTheOthersIsHiddenWhileMyOwnWordsStay() {
+        var transcript = MeetingTranscript()
+        transcript.apply(heard(.me, 4, 8, "Test Test Test. Reli, die dies ist"))
+        transcript.apply(heard(.others, 27, 37, "Auf dem Oktoberfest hab ich auch schon erlebt, dass Leute sagen, Mai, du bist der kleine am ersten Dog Millionär. Wir haben einfach null Ahnung. Nein, er hat die Pommes genommen mit Ständer."))
+        transcript.apply(heard(.me, 27, 33, "Auf demorfest nein, Dorf Millionär. Sender."))
+        transcript.apply(heard(.others, 38, 53, "Wir brauchen. Nein, keine Insel, kein Strand machen Party auf dem Macker. Bot. Neues Gerät schon im Eimer, super. Bei der Wiesen gibt's im Prinzip sechs Kriterien. Lage, Lage, Lage, Wetter, Wetter, Wetter."))
+        transcript.apply(heard(.me, 40, 42, "auf gibt es . Strand"))
+        transcript.apply(heard(.me, 45, 47, "Nein, das Oktoberfest ist mir zu voll"))
+        let mine = transcript.entries.filter { $0.speaker == .me }.map(\.text)
+        #expect(mine == ["Test Test Test. Reli, die dies ist", "Nein, das Oktoberfest ist mir zu voll"])
+    }
+
     @Test
     func echoSpansMergeWhenTheyOverlap() {
         var transcript = MeetingTranscript()
@@ -181,6 +197,20 @@ private func delayed(_ signal: [Float], by seconds: Double, gain: Float, rate: D
     return (0..<signal.count).map { $0 >= shift ? signal[$0 - shift] * gain : 0 }
 }
 
+/// The scores of every analysis while feeding, for calibration.
+private func scores(_ gate: EchoGate, system: [Float], mic: [Float], rate: Double = 8_000) -> [Float] {
+    let chunk = Int(rate / 10)
+    var found: [Float] = []
+    for offset in stride(from: 0, to: min(system.count, mic.count), by: chunk) {
+        let end = min(offset + chunk, system.count, mic.count)
+        let before = gate.lastScore
+        _ = gate.append(Array(system[offset..<end]), at: Double(offset) / rate, track: .others)
+        _ = gate.append(Array(mic[offset..<end]), at: Double(offset) / rate, track: .me)
+        if gate.lastScore != before { found.append(gate.lastScore) }
+    }
+    return found
+}
+
 /// Feeds both tracks in 100 ms chunks, as the audio callbacks would.
 private func feed(_ gate: EchoGate, system: [Float], mic: [Float], from start: TimeInterval = 0,
                   rate: Double = 8_000) -> [ClosedRange<TimeInterval>] {
@@ -247,6 +277,114 @@ struct EchoGateTests {
         let spans = feed(gate, system: burst, mic: delayed(burst, by: 0.08, gain: 0.25), from: 10)
         // The microphone hears the burst 80 ms later.
         #expect(covered(spans, 10.08...10.68) > 0.9)
+    }
+}
+
+/// A small room: the direct sound after `delay`, then reflections whose energy
+/// falls by 60 dB over `reverb` seconds. Deterministic.
+private func roomEcho(_ signal: [Float], delay: Double, gain: Float, reverb: Double, rate: Double = 8_000) -> [Float] {
+    var source = SignalSource(seed: 99)
+    let length = Int(reverb * rate)
+    var response = [Float](repeating: 0, count: Int(delay * rate) + length)
+    response[Int(delay * rate)] = gain
+    for index in 1..<length {
+        let decay = Float(pow(10, -3 * Double(index) / Double(length)))
+        response[Int(delay * rate) + index] = source.noise() * gain * 0.35 * decay
+    }
+    // Laptop speakers carry little bass: a first-order high-pass near 200 Hz.
+    var highPassed = [Float](repeating: 0, count: signal.count)
+    let alpha: Float = 0.86
+    for index in 1..<signal.count {
+        highPassed[index] = alpha * (highPassed[index - 1] + signal[index] - signal[index - 1])
+    }
+    // vDSP.convolve gives y[n] = Σ s[n + L - 1 - k] · h[k]; leading zeros make it causal.
+    return vDSP.convolve([Float](repeating: 0, count: response.count - 1) + highPassed, withKernel: response)
+        .prefix(signal.count).map { $0 }
+}
+
+/// Real synthetic speech at 8 kHz, as the echo gate sees it; nil where `say` is unavailable.
+private func spoken(_ text: String, voice: String) throws -> [Float]? {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent("echo-\(UUID()).caf")
+    defer { try? FileManager.default.removeItem(at: url) }
+    let say = Process()
+    say.executableURL = URL(fileURLWithPath: "/usr/bin/say")
+    say.arguments = ["-v", voice, "--file-format=caff", "--data-format=LEF32@8000", "-o", url.path, text]
+    say.standardError = FileHandle.nullDevice
+    try say.run()
+    say.waitUntilExit()
+    guard say.terminationStatus == 0 else { return nil }
+    let file = try AVAudioFile(forReading: url)
+    guard file.processingFormat.sampleRate == 8_000,
+          let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length))
+    else { return nil }
+    try file.read(into: buffer)
+    let samples = Array(UnsafeBufferPointer(start: buffer.floatChannelData![0], count: Int(buffer.frameLength)))
+    return samples.count > 8_000 ? samples : nil
+}
+
+@Suite("Meeting echo in a room")
+struct RoomEchoTests {
+    private static let others = "Auf dem Oktoberfest hab ich auch schon erlebt, dass Leute sagen, du bist der kleine Millionär. Bei der Wiesn gibt es im Prinzip sechs Kriterien: Lage, Lage, Lage, Wetter, Wetter, Wetter. Servus, ich bin der Jürgen und betreibe einen Stand auf dem Oktoberfest."
+
+    /// The echo of real speech through laptop speakers and a room must be found.
+    @Test(arguments: [(0.03, Float(0.25), 0.4), (0.15, Float(0.12), 0.6), (0.25, Float(0.08), 0.3), (0.05, Float(0.03), 0.4), (0.05, Float(0.015), 0.4), (0.05, Float(0.01), 0.8)])
+    func roomEchoOfRealSpeechIsFound(delay: Double, gain: Float, reverb: Double) throws {
+        guard let system = try spoken(Self.others, voice: "Anna") else { return }
+        var noise = SignalSource(seed: 11)
+        let mic = zip(roomEcho(system, delay: delay, gain: gain, reverb: reverb), noise.speech(seconds: Double(system.count) / 8_000, level: 0.003))
+            .map { $0 + $1 }
+        let gate = EchoGate()
+        let spans = feed(gate, system: system, mic: mic)
+        let length = Double(system.count) / 8_000
+        let share = covered(spans, 1...length)
+        print("room echo delay \(delay) gain \(gain) reverb \(reverb): covered \(share), lag \(gate.lockedLag.map { String($0) } ?? "none")")
+        #expect(share > 0.7)
+    }
+
+    /// Calibration: real speech of two different people never correlates like an
+    /// echo, even the same text in two voices at the same time.
+    @Test
+    func unrelatedRealSpeechStaysFarBelowEchoScores() throws {
+        guard let others = try spoken(Self.others, voice: "Anna"),
+              let mine = try spoken(Self.others, voice: "Eddy (Deutsch (Deutschland))") else { return }
+        let length = min(others.count, mine.count)
+        let unrelated = scores(EchoGate(), system: Array(others.prefix(length)), mic: Array(mine.prefix(length)))
+        let echo = scores(EchoGate(), system: others, mic: roomEcho(others, delay: 0.05, gain: 0.03, reverb: 0.6))
+        let sortedEcho = echo.sorted()
+        print("calibration unrelated max \(unrelated.max() ?? 0), echo median \(sortedEcho[sortedEcho.count / 2]) min \(sortedEcho.first ?? 0)")
+        #expect((unrelated.max() ?? 0) < 0.1)
+    }
+
+    /// A quiet, reverberant echo is still found while I talk over it now and then.
+    @Test
+    func aQuietEchoIsFoundEvenWhileITalkOverIt() throws {
+        guard let system = try spoken(Self.others, voice: "Anna"),
+              let mine = try spoken("Ich finde, wir sollten zuerst über das Budget sprechen und dann über die Termine.", voice: "Eddy (Deutsch (Deutschland))")
+        else { return }
+        var mic = roomEcho(system, delay: 0.05, gain: 0.02, reverb: 0.8)
+        let from = 4 * 8_000
+        for index in mine.indices where from + index < mic.count { mic[from + index] += mine[index] * 0.5 }
+        let spans = feed(EchoGate(), system: system, mic: mic)
+        let share = covered(spans, 1...(Double(system.count) / 8_000))
+        print("double talk over quiet echo: covered \(share)")
+        #expect(share > 0.7)
+    }
+
+    /// My own sentence while the others are silent must stay mine, even in the
+    /// same room right after their echo.
+    @Test
+    func myOwnSpeechAfterTheirEchoStaysMine() throws {
+        guard let system = try spoken(Self.others, voice: "Anna"),
+              let mine = try spoken("Das sehe ich anders, wir sollten erst das Budget klären.", voice: "Eddy (Deutsch (Deutschland))")
+        else { return }
+        let pause = [Float](repeating: 0, count: 8_000)
+        let systemTrack = system + pause + [Float](repeating: 0, count: mine.count)
+        let micTrack = roomEcho(system, delay: 0.03, gain: 0.25, reverb: 0.4) + pause + mine
+        let spans = feed(EchoGate(), system: systemTrack, mic: micTrack)
+        let mineStart = Double(system.count + pause.count) / 8_000 + 0.6
+        let share = covered(spans, mineStart...(Double(systemTrack.count) / 8_000))
+        print("own speech after echo: covered \(share)")
+        #expect(share < 0.1)
     }
 }
 

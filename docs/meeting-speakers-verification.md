@@ -81,3 +81,30 @@ Auf Wunsch des Eigentümers wurde der Branch (Stand 73296e1, PR #16) lokal insta
 - **Ohne Stimmmodell:** Das Stimmmodell ist nicht gebündelt, weil der Adapter fehlt. Die Stimmen der anderen bleiben deshalb „Andere“.
 - **Rückfallkopie:** Die bisherige App (0.1.0, Build vom 2026-10-16) liegt unter `.build/previous-before-speakers/Saywing.app` im Worktree.
 - **Nicht geprüft:** Gestartet wurde die App aus der Agentensitzung nicht, weil die Sandbox Launch Services sperrt.
+
+## Echo bei „Ich“ — 2026-10-21
+
+**Befund des Eigentümers** (Call über Laptop-Lautsprecher): Unter „Ich“ standen verstümmelte Kopien dessen, was „Andere“ gesagt hatten, etwa „Auf demorfest nein, Dorf Millionär. Sender.“ zu „Auf dem Oktoberfest … Millionär … Ständer“. Zwei Ursachen:
+
+- **Textvergleich:** Er verlangte drei identische Wörter in Folge. Das Echo wird aber nur ungefähr erkannt, deshalb griff die Regel nie.
+  - Neu: Ein Segment von mir gilt als Echo, wenn mindestens drei seiner Wörter mit drei oder mehr Buchstaben vorkommen und davon 60 % wie Wörter der anderen aus demselben Moment klingen.
+  - Als ähnlich gilt ein Wort, wenn es gleich ist, ein Präfix ab 4 Buchstaben teilt oder sich bei Wörtern ab 5 Buchstaben um höchstens ein Drittel der Buchstaben unterscheidet.
+  - Getestet mit dem Originalausschnitt: Beide Echo-Zeilen verschwinden; „Test Test Test …“ und eine eigene Antwort zum selben Thema bleiben.
+- **Signalvergleich:** Die Schwelle 0,2 war ein unkalibrierter Startwert. Gemessen mit echter synthetischer Sprache und simuliertem Raum (Direktschall, Nachhall, Hochpass, leichte Verzerrung, Rauschen):
+
+| Situation | Median | Wert |
+|---|---|---|
+| Zwei verschiedene Stimmen, auch derselbe Text gleichzeitig | 0,06 | höchstens 0,085 |
+| Leises, verhalltes, verzerrtes Echo | 0,22 | mindestens 0,14 |
+| … mit eigener Stimme darüber | 0,17 | — |
+
+  Die Schwelle liegt jetzt bei 0,12. Die Bedingung, dass sich die Verzögerung in mehreren Analysen wiederholt, bleibt als zweite Sicherung.
+  - Neue Raumtests: Echo bei 30–250 ms Verzögerung und Faktor 0,01–0,25 wird zu 100 % gefunden, bei eigenem Sprechen darüber zu 79 %.
+  - Mein eigener Satz nach dem Echo bleibt zu 0 % markiert.
+  - Fremde Stimmen erreichen höchstens 0,081.
+
+**Ergebnis:**
+- Gesamtsuite: 277 Tests in 30 Suites bestanden.
+- Nicht geprüft: echter Raum am Gerät. Die Simulation ersetzt keine Messung mit Laptop-Lautsprechern und -Mikrofon.
+
+**Testumgebung:** Liegt DerivedData unter `~/Documents`, hängt der Test-Host seit heute beim Laden seiner Bibliotheken in `open()` („test runner hung before establishing connection“), vermutlich wegen des Ordnerschutzes von macOS. Mit `-derivedDataPath /tmp/…` laufen die Tests.

@@ -19,9 +19,12 @@ final class EchoGate {
     /// A new analysis every half second.
     var hop = 4_000
     var energyFloor: Float = 0.003
-    /// Normalised cross-correlation needed to call two windows related. Unrelated
-    /// speech stays below 0.05; the starting value awaits calibration on real calls.
-    var scoreFloor: Float = 0.2
+    /// Normalised cross-correlation needed to call two windows related. Measured
+    /// 2026-10-21 on real synthetic speech: two different voices, even saying the
+    /// same text at once, stay at or below 0.085; a quiet, reverberant, slightly
+    /// distorted echo with my own voice on top has a median of 0.17. The agreeing
+    /// delay below guards against chance peaks.
+    var scoreFloor: Float = 0.12
     /// The microphone usually hears the speakers 20–300 ms later; timestamps of the
     /// two devices may be off by a little in either direction.
     var lagRange: ClosedRange<Double> = -0.2...0.6
@@ -67,6 +70,8 @@ final class EchoGate {
   let configuration: Configuration
   /// The speaker-to-microphone delay of the current room, once found.
   private(set) var lockedLag: TimeInterval?
+  /// The strongest correlation of the last analysis; for calibration only.
+  private(set) var lastScore: Float = 0
   private var lockedAt: TimeInterval = 0
   private var microphone: Ring
   private var system: Ring
@@ -121,6 +126,7 @@ final class EchoGate {
     let found = correlation(
       system: system.read(endingAt: last, count: window),
       microphone: microphone.read(endingAt: last, count: window))
+    lastScore = found?.score ?? 0
     let analysis = Analysis(
       start: start, end: end, correlated: (found?.score ?? 0) >= configuration.scoreFloor, lag: found?.lag ?? 0)
     recent.append(analysis)
