@@ -80,7 +80,19 @@ enum SHA256Digest {
 
 protocol DictationModelFetching: Sendable {
   /// Writes the complete response body to `destination`; reports received bytes so far.
-  func fetch(_ url: URL, to destination: URL, progress: @escaping @Sendable (Int64) -> Void) async throws
+  /// Fails as soon as the body cannot have the pinned `expectedSize`.
+  func fetch(_ url: URL, expectedSize: Int64, to destination: URL,
+             progress: @escaping @Sendable (Int64) -> Void) async throws
+}
+
+enum DictationDownloadSize {
+  /// True when a download cannot match its pin: more bytes than pinned, or a different announced length.
+  static func violatesPin(written: Int64, announced: Int64, expected: Int64) -> Bool {
+    written > expected || (announced > 0 && announced != expected)
+  }
+  static var mismatch: DictationError {
+    DictationError(String(localized: "A downloaded model file did not match its pinned checksum."))
+  }
 }
 
 /// Knows which dictation models are bundled or installed, and installs missing ones
@@ -103,8 +115,18 @@ final class DictationModelStore: ObservableObject {
     self.resources = resources
     self.installRoot = installRoot
     self.fetcher = fetcher
+    removeStaleStaging()
     for model in DictationModel.allCases {
       availability[model] = modelRootIfPresent(for: model) == nil ? .notInstalled : .installed
+    }
+  }
+
+  /// A new store has no install running, so any staging folder is a leftover of a quit or crashed app.
+  private func removeStaleStaging() {
+    let manager = FileManager.default
+    for leftover in (try? manager.contentsOfDirectory(atPath: installRoot.path)) ?? []
+    where leftover.hasPrefix(".staging-") {
+      try? manager.removeItem(at: installRoot.appendingPathComponent(leftover))
     }
   }
 
@@ -218,7 +240,7 @@ final class DictationModelStore: ObservableObject {
         let url = URL(string: "https://huggingface.co/\(manifest.repo)/resolve/\(manifest.revision)/")!
           .appendingPathComponent(file.sourceFilename ?? file.rfilename)
         let base = completed
-        try await fetcher.fetch(url, to: destination) { [weak self] received in
+        try await fetcher.fetch(url, expectedSize: file.size, to: destination) { [weak self] received in
           Task { @MainActor in
             guard let self, self.tasks[model]?.id == id,
                   case .installing = self.availability[model] else { return }
@@ -237,6 +259,10 @@ final class DictationModelStore: ObservableObject {
     }
     try Task.checkCancellation()
     let target = installRoot.appendingPathComponent(model.directoryName, isDirectory: true)
+    // Verified files become read-only, so an accidental write cannot silently change a model.
+    for (file, _, _) in checks {
+      try manager.setAttributes([.posixPermissions: 0o444], ofItemAtPath: file.path)
+    }
     if manager.fileExists(atPath: target.path) { try manager.removeItem(at: target) }
     // The final directory appears only after every file has been verified.
     try manager.moveItem(at: staging, to: target)
@@ -264,7 +290,7 @@ final class DictationModelStore: ObservableObject {
 /// Plain HTTPS downloads without cookies or caches; redirects may only stay on Hugging Face.
 final class URLSessionModelFetcher: NSObject, DictationModelFetching, URLSessionDownloadDelegate, @unchecked Sendable {
   private let lock = NSLock()
-  private var pending: [Int: (destination: URL, progress: @Sendable (Int64) -> Void,
+  private var pending: [Int: (destination: URL, expectedSize: Int64, progress: @Sendable (Int64) -> Void,
                               continuation: CheckedContinuation<Void, any Error>)] = [:]
   private lazy var session: URLSession = {
     let configuration = URLSessionConfiguration.ephemeral
@@ -280,12 +306,13 @@ final class URLSessionModelFetcher: NSObject, DictationModelFetching, URLSession
       || host.hasSuffix(".hf.co")
   }
 
-  func fetch(_ url: URL, to destination: URL, progress: @escaping @Sendable (Int64) -> Void) async throws {
+  func fetch(_ url: URL, expectedSize: Int64, to destination: URL,
+             progress: @escaping @Sendable (Int64) -> Void) async throws {
     guard Self.allows(url) else { throw URLError(.unsupportedURL) }
     let task = session.downloadTask(with: url)
     try await withTaskCancellationHandler {
       try await withCheckedThrowingContinuation { continuation in
-        lock.withLock { pending[task.taskIdentifier] = (destination, progress, continuation) }
+        lock.withLock { pending[task.taskIdentifier] = (destination, expectedSize, progress, continuation) }
         task.resume()
       }
     } onCancel: {
@@ -310,14 +337,28 @@ final class URLSessionModelFetcher: NSObject, DictationModelFetching, URLSession
 
   func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64,
                   totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
-    let progress = lock.withLock { pending[downloadTask.taskIdentifier]?.progress }
-    progress?(totalBytesWritten)
+    guard let entry = lock.withLock({ pending[downloadTask.taskIdentifier] }) else { return }
+    // Stop a wrong or endless response at once instead of filling the disk before hash verification.
+    if DictationDownloadSize.violatesPin(
+      written: totalBytesWritten, announced: totalBytesExpectedToWrite, expected: entry.expectedSize)
+    {
+      finish(downloadTask, .failure(DictationDownloadSize.mismatch))
+      downloadTask.cancel()
+      return
+    }
+    entry.progress(totalBytesWritten)
   }
 
   func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
-    guard let destination = lock.withLock({ pending[downloadTask.taskIdentifier]?.destination }) else { return }
+    guard let entry = lock.withLock({ pending[downloadTask.taskIdentifier] }) else { return }
+    let destination = entry.destination
     guard let response = downloadTask.response as? HTTPURLResponse, response.statusCode == 200 else {
       finish(downloadTask, .failure(URLError(.badServerResponse)))
+      return
+    }
+    let size = (try? FileManager.default.attributesOfItem(atPath: location.path)[.size] as? NSNumber)?.int64Value
+    guard size == entry.expectedSize else {
+      finish(downloadTask, .failure(DictationDownloadSize.mismatch))
       return
     }
     // The temporary file disappears when this method returns.

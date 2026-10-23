@@ -3026,15 +3026,18 @@ final class DictationFetcherFake: DictationModelFetching, @unchecked Sendable {
     private let files: [String: Data]
     private let waitsForCancellation: Bool
     private var recorded: [URL] = []
+    private var sizes: [Int64] = []
     var requests: [URL] { lock.withLock { recorded } }
+    var expectedSizes: [Int64] { lock.withLock { sizes } }
 
     init(files: [String: Data] = [:], waitsForCancellation: Bool = false) {
         self.files = files
         self.waitsForCancellation = waitsForCancellation
     }
 
-    func fetch(_ url: URL, to destination: URL, progress: @escaping @Sendable (Int64) -> Void) async throws {
-        lock.withLock { recorded.append(url) }
+    func fetch(_ url: URL, expectedSize: Int64, to destination: URL,
+               progress: @escaping @Sendable (Int64) -> Void) async throws {
+        lock.withLock { recorded.append(url); sizes.append(expectedSize) }
         if waitsForCancellation { try await Task.sleep(for: .seconds(30)) }
         guard let data = files[url.lastPathComponent] else { throw URLError(.fileDoesNotExist) }
         try data.write(to: destination)
@@ -3090,6 +3093,45 @@ struct DictationModelInstallationTests {
         #expect(FileManager.default.fileExists(atPath: directory.appendingPathComponent("LICENSE-OpenAI").path))
         #expect(try FileManager.default.contentsOfDirectory(atPath: installRoot.path) == ["WhisperLargeV3"],
                 "No staging data remains after a successful install.")
+    }
+
+    @Test func downloadsAreBoundToTheirPinnedSizeAndInstalledFilesAreReadOnly() async throws {
+        let resources = try DictationModelFixture.resources(bundling: [.whisperTurbo])
+        let installRoot = resources.appendingPathComponent("Installed")
+        let fetcher = DictationFetcherFake(files: DictationModelFixture.largeFiles)
+        let store = DictationModelStore(resources: resources, installRoot: installRoot, fetcher: fetcher)
+        await store.install(.whisperLargeV3).value
+        #expect(store.availability[.whisperLargeV3] == .installed)
+        #expect(fetcher.expectedSizes == [DictationModelFixture.largeFiles["config.json"]!.count,
+                                          DictationModelFixture.largeFiles["model.safetensors"]!.count].map(Int64.init),
+                "Every request carries the manifest size the response must not exceed.")
+        let weights = installRoot.appendingPathComponent("WhisperLargeV3/weights.safetensors")
+        let mode = try FileManager.default.attributesOfItem(atPath: weights.path)[.posixPermissions] as? NSNumber
+        #expect(mode?.intValue == 0o444)
+        #expect(!FileManager.default.isWritableFile(atPath: weights.path))
+    }
+
+    @Test func pinnedSizeRuleStopsOversizedOrMisannouncedDownloads() {
+        #expect(!DictationDownloadSize.violatesPin(written: 10, announced: 100, expected: 100))
+        #expect(!DictationDownloadSize.violatesPin(written: 100, announced: -1, expected: 100),
+                "Unknown Content-Length is allowed up to the pinned size.")
+        #expect(DictationDownloadSize.violatesPin(written: 101, announced: -1, expected: 100))
+        #expect(DictationDownloadSize.violatesPin(written: 1, announced: 99, expected: 100))
+        #expect(DictationDownloadSize.violatesPin(written: 1, announced: 5_000_000_000, expected: 100))
+    }
+
+    @Test func staleStagingFoldersFromACrashAreRemovedWhenTheStoreStarts() throws {
+        let resources = try DictationModelFixture.resources(bundling: [.whisperTurbo])
+        let installRoot = resources.appendingPathComponent("Installed")
+        let manager = FileManager.default
+        for name in [".staging-WhisperLargeV3-crashed", ".staging-Model-crashed"] {
+            let folder = installRoot.appendingPathComponent(name)
+            try manager.createDirectory(at: folder, withIntermediateDirectories: true)
+            try Data(repeating: 1, count: 64).write(to: folder.appendingPathComponent("weights.safetensors"))
+        }
+        try manager.createDirectory(at: installRoot.appendingPathComponent("Unrelated"), withIntermediateDirectories: true)
+        _ = DictationModelStore(resources: resources, installRoot: installRoot, fetcher: DictationFetcherFake())
+        #expect(try manager.contentsOfDirectory(atPath: installRoot.path) == ["Unrelated"])
     }
 
     @Test func hashMismatchInstallsNothing() async throws {
@@ -3631,3 +3673,4 @@ struct SetupConfigurationTests {
         #expect(controller.pendingInstallModel == nil)
     }
 }
+
