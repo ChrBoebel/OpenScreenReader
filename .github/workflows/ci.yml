@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # The release workflow reuses exactly these checks before packaging.
+  workflow_call:
+
+permissions:
+  contents: read
+
+# Superseded pull-request runs are cancelled. Pushes to main and release
+# verification (workflow_call from a dispatch) always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Keep in sync with release.yml, CONTRIBUTING.md and docs/release-and-updates.md.
+  XCODE_VERSION: '26.6'
+
+jobs:
+  verify:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+      - name: Select pinned Xcode
+        run: |
+          sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
+          xcodebuild -version
+      - name: Check source and release rules
+        run: |
+          swift test
+          swift run OpenScreenReaderCoreBehaviorChecks
+          python3 -m unittest discover -s Tests/Release -v
+          python3 scripts/check-localization.py
+      - name: Test app
+        run: |
+          xcodebuild -project OpenScreenReader.xcodeproj -scheme OpenScreenReader \
+            -destination 'platform=macOS' -derivedDataPath .build/ci \
+            -clonedSourcePackagesDirPath .build/packages \
+            test -only-testing:OpenScreenReaderAppTests
+      - name: Build both macOS 14 Release architectures
+        run: |
+          for arch in arm64 x86_64; do
+            xcodebuild -project OpenScreenReader.xcodeproj -scheme OpenScreenReader \
+              -configuration Release -derivedDataPath .build/ci \
+              -clonedSourcePackagesDirPath .build/packages build \
+              ARCHS="$arch" MACOSX_DEPLOYMENT_TARGET=14.0 CODE_SIGNING_ALLOWED=NO
+          done
+
+  python-workers:
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Install hash-locked test dependencies
+        run: |
+          python3 -m venv "$RUNNER_TEMP/worker-tests"
+          "$RUNNER_TEMP/worker-tests/bin/pip" install --require-hashes --no-deps \
+            -r scripts/ci-test-requirements.txt
+      - name: Test speech and dictation workers (no models, no network)
+        run: |
+          "$RUNNER_TEMP/worker-tests/bin/python" -m unittest discover -s Tests/Dictation -v
+          "$RUNNER_TEMP/worker-tests/bin/python" -m unittest discover -s Tests/Fixtures -p 'test_supertonic_*.py' -v
