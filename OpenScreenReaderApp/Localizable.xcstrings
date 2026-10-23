@@ -1811,6 +1811,16 @@
         }
       }
     },
+    "Nothing is coming from your microphone. Check that it is not muted, that the right input is selected, and that Saywing may use the microphone.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vom Mikrofon kommt nichts an. Prüfe, ob es stummgeschaltet ist, ob der richtige Eingang gewählt ist und ob Saywing das Mikrofon verwenden darf."
+          }
+        }
+      }
+    },
     "Nothing was pasted.": {
       "localizations": {
         "de": {
@@ -2867,6 +2877,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Saywing wohnt in der Menüleiste. Drück überall %@, um einen Bereich vorlesen zu lassen."
+          }
+        }
+      }
+    },
+    "Saywing may not use the microphone. Allow it in System Settings › Privacy & Security › Microphone, then start the transcript again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saywing darf das Mikrofon nicht verwenden. Erlaube es in den Systemeinstellungen › Datenschutz & Sicherheit › Mikrofon und starte das Transkript dann erneut."
           }
         }
       }
@@ -4467,6 +4487,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Alles bereit"
+          }
+        }
+      }
+    },
+    "Your microphone stopped: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dein Mikrofon wurde beendet: %@"
+          }
+        }
+      }
+    },
+    "Your microphone stopped: %@ Only other apps are transcribed now.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dein Mikrofon wurde beendet: %@ Jetzt werden nur noch andere Apps transkribiert."
           }
         }
       }

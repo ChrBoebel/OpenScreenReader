@@ -22,6 +22,9 @@ struct MeetingError: LocalizedError {
 protocol MeetingAudioSource: AnyObject {
   func start(deliver: @escaping @Sendable (MeetingAudioChunk) -> Void) throws
   func stop()
+  /// Called on the main actor when the source stopped by itself and could not
+  /// recover, with the reason to show. Nothing more is delivered afterwards.
+  var onInterruption: ((String) -> Void)? { get set }
 }
 
 enum MeetingHostClock {
@@ -112,12 +115,41 @@ enum MeetingResampler {
 }
 
 /// "Me": the default microphone through its own engine, independent of dictation.
+/// When the input device changes, the engine stops itself; the source then starts
+/// again on the new default input, or reports that it could not.
 @MainActor
 final class MeetingMicrophoneSource: MeetingAudioSource {
   private let engine = AVAudioEngine()
   private var installed = false
+  private var deliver: (@Sendable (MeetingAudioChunk) -> Void)?
+  private var configurationObserver: NSObjectProtocol?
+  var onInterruption: ((String) -> Void)?
 
   func start(deliver: @escaping @Sendable (MeetingAudioChunk) -> Void) throws {
+    try startEngine(deliver)
+    self.deliver = deliver
+    configurationObserver = NotificationCenter.default.addObserver(
+      forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main
+    ) { [weak self] _ in MainActor.assumeIsolated { self?.inputConfigurationChanged() } }
+  }
+
+  /// Rebuilds the tap with the new input's format. The timeline downstream jumps
+  /// over the gap, and the recogniser and echo gate follow a new sample rate.
+  private func inputConfigurationChanged() {
+    guard let deliver, !engine.isRunning else { return }
+    if installed {
+      engine.inputNode.removeTap(onBus: 0)
+      installed = false
+    }
+    do {
+      try startEngine(deliver)
+    } catch {
+      stop()
+      onInterruption?(error.localizedDescription)
+    }
+  }
+
+  private func startEngine(_ deliver: @escaping @Sendable (MeetingAudioChunk) -> Void) throws {
     let node = engine.inputNode
     let format = node.outputFormat(forBus: 0)
     guard format.sampleRate >= 8_000, format.channelCount > 0, format.commonFormat == .pcmFormatFloat32 else {
@@ -150,6 +182,9 @@ final class MeetingMicrophoneSource: MeetingAudioSource {
   }
 
   func stop() {
+    deliver = nil
+    if let configurationObserver { NotificationCenter.default.removeObserver(configurationObserver) }
+    configurationObserver = nil
     if installed {
       engine.inputNode.removeTap(onBus: 0)
       installed = false
@@ -169,6 +204,8 @@ final class SystemAudioTapSource: MeetingAudioSource {
   private var aggregateID = AudioObjectID(kAudioObjectUnknown)
   private var procID: AudioDeviceIOProcID?
   private let queue = DispatchQueue(label: "Saywing.meeting.system-audio", qos: .userInitiated)
+  /// The process tap follows output changes by itself; it reports no interruptions.
+  var onInterruption: ((String) -> Void)?
 
   func start(deliver: @escaping @Sendable (MeetingAudioChunk) -> Void) throws {
     stop()
