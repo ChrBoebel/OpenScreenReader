@@ -8,18 +8,18 @@ The standard-model decision does **not** approve a portable runtime, model redis
 
 ## Local installation
 
-`scripts/install-supertonic-runtime.rb VERIFIED_COMPARISON_ROOT PYTHON UV` is an explicit developer operation, never invoked by the app. It checks pinned sizes/hashes, reuses local files, creates a separate environment with `uv --offline` and exact package versions, retains the unchanged upstream helper and MIT LICENSE, records runtime hashes, and refuses to overwrite existing destinations. It cannot silently download missing packages; missing cache data fails the installation. Existing Qwen files are untouched.
+`scripts/install-supertonic-runtime.rb VERIFIED_COMPARISON_ROOT BUILT_SPEECH_RUNTIME` is an explicit developer operation, never invoked by the app. The runtime argument is the self-contained interpreter built by `scripts/build-python-runtime.py --runtime speech` from the hash-locked `Runtime/Supertonic/requirements-lock.txt` (see [runtime build](../runtime-build.md)). The installer checks pinned model sizes/hashes and the runtime's lock hash, retains the unchanged upstream helper and MIT LICENSE, records runtime hashes, and refuses to overwrite existing destinations. It does not download anything. Existing Qwen files are untouched.
 
 Actual installation:
 
 - model: `~/Library/Application Support/OpenScreenReader/DevelopmentModels/supertonic-3-3cadd1ee`;
 - runtime: `~/Library/Application Support/OpenScreenReader/SupertonicRuntime`;
-- Python: 3.12.14; ONNX Runtime 1.23.2; NumPy 2.2.6;
+- Python: 3.12.15 (python-build-standalone 20261013); ONNX Runtime 1.23.2; NumPy 2.2.6 — the only two packages the worker imports;
 - complete package pins and per-file hashes: runtime `installation-receipt.json`;
 - model and helper integrity: runtime `model-manifest.json`, checked before every synthesis;
 - upstream model LICENSE and README retained in the model directory; helper MIT license and ONNX/package notices retained in the runtime.
 
-The environment still relies on the pre-existing external Python base interpreter under the local Codex dependency bundle. It is **not self-contained or portable**. App execution uses the absolute `venv/bin/python3` path; do not rely on activation/console-script paths from this staged venv. Removal of the external interpreter breaks this development runtime. Replacing that dependency with hermetic native ONNX or bundled Python and auditing the complete license/SBOM/signing chain remain release work. No system Python, package installation, or shell is started by the app; the app starts the explicitly installed Python interpreter only.
+Since 2026-10-23 the development runtime is self-contained: `venv/` holds the pinned, hash-verified CPython build itself rather than a virtual environment pointing at an external interpreter (the earlier installation depended on an undocumented local interpreter and is superseded). App execution uses the absolute `venv/bin/python3` path. Auditing the complete license/signing chain remains release work. No system Python, package installation, or shell is started by the app; the app starts the explicitly installed Python interpreter only.
 
 ## Runtime and privacy
 
