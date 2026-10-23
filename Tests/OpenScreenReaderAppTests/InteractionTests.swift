@@ -213,7 +213,7 @@ struct InteractionTests {
     func regionSelectionUsesNonactivatingPanelsAndRemovesThemOnCancel() throws {
         let controller = RegionSelectionOverlayController()
         let existing = Set(NSApp.windows.map(\.windowNumber))
-        controller.start(onSelection: { _ in }, onCancel: {})
+        controller.start(onSelection: { _ in }, onCancel: { _ in })
         defer { controller.cancel() }
         let panels = NSApp.windows.filter { !existing.contains($0.windowNumber) }
         #expect(panels.count == NSScreen.screens.count)
@@ -322,6 +322,84 @@ struct InteractionTests {
         await f.model.waitForInteractionToSettle()
         #expect(f.model.status == .stopped)
         #expect(f.model.queuedTextCount == 0)
+    }
+
+    @Test
+    func onlyEscapeEndingTheAddedSelectionStopsReading() async throws {
+        let f = QueueFixture()
+        await f.model.handleReadRequest()
+        f.selection.complete(Self.ocrRegion)
+        await f.model.waitForCaptureToSettle()
+        try await f.speech.waitForReads(1)
+        for reason in [SelectionCancelReason.invalidSelection, .displaysChanged] {
+            f.model.enqueueAddRequest()
+            await f.model.waitForInteractionToSettle()
+            #expect(f.model.isAddingToQueue)
+            f.selection.end(reason)
+            await f.model.waitForInteractionToSettle()
+            #expect(f.model.status == .speaking, "\(reason) must not interrupt playback.")
+            #expect(f.model.isReadingActive)
+            #expect(!f.model.isAddingToQueue)
+            #expect(f.model.queueNotice != nil)
+            #expect(f.speech.texts.count == 1)
+        }
+        f.model.enqueueAddRequest()
+        await f.model.waitForInteractionToSettle()
+        f.selection.end(.escape)
+        await f.model.waitForInteractionToSettle()
+        #expect(f.model.status == .stopped)
+        #expect(!f.model.isReadingActive)
+    }
+
+    @Test
+    func endingTheFirstSelectionByItselfStillCancelsIt() async {
+        let f = QueueFixture()
+        await f.model.handleReadRequest()
+        #expect(f.model.status == .selecting)
+        f.selection.end(.invalidSelection)
+        await f.model.waitForInteractionToSettle()
+        #expect(f.model.status == .stopped)
+        #expect(!f.model.isReadingActive)
+    }
+
+    @Test
+    func queueEmptiedWhileAdvancingEndsTheReadingCleanly() async throws {
+        let f = QueueFixture()
+        await f.model.handleReadRequest()
+        f.selection.complete(Self.ocrRegion)
+        await f.model.waitForCaptureToSettle()
+        try await f.speech.waitForReads(1)
+        f.ocr.result = OCRResult(lines: ["Gleich entfernt"])
+        f.model.enqueueAddRequest()
+        await f.model.waitForInteractionToSettle()
+        f.selection.complete(Self.ocrRegion)
+        await f.model.waitForQueueInputToSettle()
+        let id = try #require(f.model.queueEntries.first?.id)
+        // Settings removes the entry after the coordinator released the finished
+        // text, before the queue advances.
+        let model = f.model
+        f.speech.onStopCurrent = { model.removeQueueEntry(id) }
+        f.speech.finishFirst()
+        await f.model.waitForSpeechToSettle()
+        await f.model.waitForInteractionToSettle()
+        #expect(f.model.queuedTextCount == 0)
+        #expect(f.model.status == .ready)
+        #expect(!f.model.isReadingActive)
+        #expect(f.speech.texts == ["Hello world"])
+    }
+
+    @Test
+    func quittingStopsTheSpeechWorker() async {
+        let center = NotificationCenter()
+        let speech = SpeechFake()
+        let model = AppModel(shortcutStore: MemoryShortcutStore(),
+            hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+            speechService: speech, appNotifications: center)
+        #expect(!speech.stopped)
+        center.post(name: NSApplication.willTerminateNotification, object: nil)
+        for _ in 0..<100 where !speech.stopped { await Task.yield() }
+        #expect(speech.stopped)
+        _ = model
     }
 
     @Test
@@ -2419,7 +2497,12 @@ private final class QueueSpeechFake: SpeechReading {
         preparedText = nil
         stopCurrent()
     }
+    /// Runs once inside the next stopCurrent, like a Settings edit landing in that moment.
+    var onStopCurrent: (() -> Void)?
     func stopCurrent() {
+        let hook = onStopCurrent
+        onStopCurrent = nil
+        hook?()
         let pending = completions
         completions.removeAll()
         for completion in pending { completion.resume(throwing: CancellationError()) }
@@ -2482,18 +2565,29 @@ private final class RegionSelectionControllerFake: RegionSelectionControlling {
     private(set) var startCount = 0
     private(set) var cancelCount = 0
     private var completion: ((ScreenRegionSelection) -> Void)?
+    private var cancellation: ((SelectionCancelReason) -> Void)?
 
     func start(
         onSelection: @escaping (ScreenRegionSelection) -> Void,
-        onCancel: @escaping () -> Void
+        onCancel: @escaping (SelectionCancelReason) -> Void
     ) {
         startCount += 1
         completion = onSelection
+        cancellation = onCancel
     }
 
     func cancel() {
         cancelCount += 1
         completion = nil
+        cancellation = nil
+    }
+
+    /// The overlay ending by itself: Escape, a too-small drag, or a display change.
+    func end(_ reason: SelectionCancelReason) {
+        let cancellation = cancellation
+        completion = nil
+        self.cancellation = nil
+        cancellation?(reason)
     }
 
     func complete(_ selection: ScreenRegionSelection) {
@@ -3501,7 +3595,7 @@ struct WindowPreviewTests {
         // Popovers bring their own material; offscreen they need a background to be legible.
         try render(ReadingErrorView(model: failing).background(Color(nsColor: .windowBackgroundColor)), "reading-error-help")
         let overlay = RegionSelectionOverlayController(defaults: preferences)
-        overlay.start(onSelection: { _ in }, onCancel: {})
+        overlay.start(onSelection: { _ in }, onCancel: { _ in })
         if let view = NSApp.windows.first(where: { $0.title == "Select Screen Region" && $0.isVisible })?.contentView,
            let pill = view.subviews.first {
             let area = pill.frame.insetBy(dx: -60, dy: -30)

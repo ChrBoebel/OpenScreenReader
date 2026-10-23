@@ -3601,6 +3601,26 @@
         }
       }
     },
+    "The additional region was too small to read. Press the shortcut to select it again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der zusätzliche Bereich war zu klein zum Lesen. Drücke den Kurzbefehl, um ihn erneut auszuwählen."
+          }
+        }
+      }
+    },
+    "The audio output changed, so reading stopped. Start it again to hear it on the new output.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Audioausgabe hat sich geändert, daher wurde das Vorlesen beendet. Starte es erneut, um es über die neue Ausgabe zu hören."
+          }
+        }
+      }
+    },
     "The clipboard changed while pasting was prepared.": {
       "localizations": {
         "de": {
@@ -3707,6 +3727,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Die Bildschirmanordnung hat sich geändert. Bitte wähle den Bereich erneut aus."
+          }
+        }
+      }
+    },
+    "The displays changed. Press the shortcut to select the additional region again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Bildschirme haben sich geändert. Drücke den Kurzbefehl, um den zusätzlichen Bereich erneut auszuwählen."
           }
         }
       }
