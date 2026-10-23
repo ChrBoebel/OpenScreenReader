@@ -92,4 +92,65 @@ class ProtocolTests(unittest.TestCase):
    p=Path(d);(p/'WhisperTurbo').mkdir();(p/'outside').write_bytes(b'x')
    (p/'whisper-turbo-manifest.json').write_text(json.dumps({'files':[{'rfilename':'../outside','size':1,'verified_sha256':hashlib.sha256(b'x').hexdigest()}]}))
    with self.assertRaises(ValueError):worker.verify_model(p,'whisper-turbo')
+ def whisper_fixture(self,d,files=None):
+  import hashlib
+  p=Path(d);(p/'WhisperTurbo').mkdir()
+  files=files or {'weights.safetensors':b'w','config.json':b'{}'}
+  for name,data in files.items():(p/'WhisperTurbo'/name).write_bytes(data)
+  manifest={'files':[{'rfilename':'.gitattributes','size':3}]+[{'rfilename':name,'size':len(data),'verified_sha256':hashlib.sha256(data).hexdigest()} for name,data in files.items()]}
+  (p/'whisper-turbo-manifest.json').write_text(json.dumps(manifest))
+  return p
+ def test_unlisted_model_files_are_rejected_because_backends_glob_for_weights(self):
+  import tempfile
+  for extra in ['extra.safetensors','nested/model.safetensors','LICENSE.safetensors','config 2.json']:
+   with tempfile.TemporaryDirectory() as d:
+    p=self.whisper_fixture(d)
+    target=p/'WhisperTurbo'/extra;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(b'x')
+    with self.assertRaises(ValueError,msg=extra):worker.verify_model(p,'whisper-turbo')
+ def test_known_metadata_files_beside_the_model_are_ignored(self):
+  import tempfile
+  with tempfile.TemporaryDirectory() as d:
+   p=self.whisper_fixture(d)
+   for name in ['.DS_Store','VERIFIED.json','LICENSE-OpenAI','LICENSE-Apache-2.0']:(p/'WhisperTurbo'/name).write_bytes(b'x')
+   self.assertEqual(worker.verify_model(p,'whisper-turbo'),(p/'WhisperTurbo').resolve())
+ def test_files_changed_between_hashing_and_loading_are_rejected(self):
+  import tempfile,os
+  with tempfile.TemporaryDirectory() as d:
+   p=self.whisper_fixture(d)
+   path,identity=worker.verify_model_files(p,'whisper-turbo')
+   worker.ensure_unchanged(path,identity)
+   (path/'added.safetensors').write_bytes(b'x')
+   with self.assertRaises(ValueError):worker.ensure_unchanged(path,identity)
+   os.remove(path/'added.safetensors');worker.ensure_unchanged(path,identity)
+   # A same-size replacement under the same name is a different file.
+   (path/'swap').write_bytes(b'v');os.replace(path/'swap',path/'weights.safetensors')
+   with self.assertRaises(ValueError):worker.ensure_unchanged(path,identity)
+ def test_load_checks_the_model_again_after_the_backend_has_read_it(self):
+  import tempfile
+  with tempfile.TemporaryDirectory() as d:
+   p=self.whisper_fixture(d)
+   original=worker.load_backend
+   def tampering(root,backend,model_id,model_path):
+    (model_path/'late.safetensors').write_bytes(b'x');return lambda *a:''
+   worker.load_backend=tampering
+   try:
+    with self.assertRaises(ValueError):worker.load_transcriber(p,'whisper-turbo')
+   finally:worker.load_backend=original
+ def test_only_a_valid_request_id_is_echoed(self):
+  self.assertEqual(worker.request_id({'id':'abc'}),'abc')
+  for packet in [{'id':[1,2]},{'id':{'x':1}},{'id':'x'*81},{'id':7},['id'],'id',None]:
+   self.assertIsNone(worker.request_id(packet))
+ def test_worker_loop_answers_malformed_requests_without_echoing_their_content(self):
+  import io,sys
+  lines=[json.dumps({'id':['secret'],'rate':16000}),json.dumps({'id':'ok','rate':0}),json.dumps(self.packet())]
+  stdin=io.TextIOWrapper(io.BytesIO(('\n'.join(lines)+'\n').encode()));stdout=io.StringIO()
+  saved=(sys.stdin,sys.stdout,sys.argv,worker.load_transcriber)
+  sys.stdin,sys.stdout,sys.argv=stdin,stdout,['worker.py','--model','whisper-turbo']
+  worker.load_transcriber=lambda root,model,model_root=None:(lambda audio,language,vocabulary:'Hallo')
+  try:self.assertEqual(worker.main(),0)
+  finally:sys.stdin,sys.stdout,sys.argv,worker.load_transcriber=saved
+  replies=[json.loads(line) for line in stdout.getvalue().splitlines()]
+  self.assertEqual([r['type'] for r in replies],['ready','error','error','result'])
+  self.assertIsNone(replies[1]['id']);self.assertNotIn('secret',stdout.getvalue())
+  self.assertEqual(replies[2]['id'],'ok');self.assertEqual(replies[3],{'type':'result','id':'test','text':'Hallo'})
 if __name__=='__main__':unittest.main()

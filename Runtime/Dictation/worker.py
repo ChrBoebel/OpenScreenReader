@@ -44,6 +44,11 @@ def recognize_with_vocabulary(run,terms):
  if terms and looks_degenerate(text,terms):text=run([])
  return text
 
+def request_id(packet):
+ # Only a valid identifier is echoed; anything else in the request stays inside the worker.
+ if isinstance(packet,dict) and isinstance(packet.get('id'),str) and len(packet['id'])<=80:return packet['id']
+ return None
+
 def decode_request(packet):
  import numpy as np
  if not isinstance(packet,dict) or not isinstance(packet.get('id'),str) or len(packet['id'])>80:raise ValueError('invalid_id')
@@ -67,20 +72,49 @@ def prepare_audio(audio,rate):
  if len(audio)<1600 or float(np.sqrt(np.mean(audio**2)))<0.0003:return None
  return audio
 
-def verify_model(root,model_id='qwen3-asr',model_root=None):
+# Exact names no backend loads: Finder metadata, the legacy packaging receipt and the license
+# copy the portable whisper.cpp layout places beside its pinned model.
+IGNORED_MODEL_FILES={'.DS_Store','VERIFIED.json','LICENSE-OpenAI','LICENSE-Apache-2.0'}
+
+def file_identity(stat):
+ return (stat.st_dev,stat.st_ino,stat.st_size,stat.st_mtime_ns)
+
+def model_identity(model_path):
+ # Every file below the model folder; a swapped, changed or added file changes this map.
+ found={}
+ for directory,_,names in os.walk(model_path):
+  for name in names:
+   path=Path(directory)/name
+   found[path.relative_to(model_path).as_posix()]=file_identity(path.stat())
+ return found
+
+def verify_model_files(root,model_id='qwen3-asr',model_root=None):
  # The manifest always comes from the signed bundle; only the files may be installed elsewhere.
  if model_id not in MODELS:raise ValueError('unknown_model')
  directory,manifest_name=MODELS[model_id]
  model_path=((model_root or root)/directory).resolve(strict=True)
  manifest=json.loads((root/manifest_name).read_text())
+ # Backends glob for weights, so any unlisted file could be loaded without a hash check.
+ listed={entry['rfilename'] for entry in manifest['files']}
+ present=model_identity(model_path)
+ if any(name not in listed and Path(name).name not in IGNORED_MODEL_FILES for name in present):raise ValueError('model_extra_file')
  for entry in manifest['files']:
   if entry['rfilename']=='.gitattributes':continue
   file=(model_path/entry['rfilename']).resolve(strict=True)
   if not file.is_relative_to(model_path):raise ValueError('model_path')
-  if file.stat().st_size!=entry['size']:raise ValueError('model_size')
-  with file.open('rb') as f:digest=hashlib.file_digest(f,'sha256').hexdigest()
+  with file.open('rb') as f:
+   if file_identity(os.fstat(f.fileno()))!=present.get(entry['rfilename']):raise ValueError('model_changed')
+   if os.fstat(f.fileno()).st_size!=entry['size']:raise ValueError('model_size')
+   digest=hashlib.file_digest(f,'sha256').hexdigest()
   if digest!=entry['verified_sha256']:raise ValueError('model_hash')
- return model_path
+ return model_path,present
+
+def verify_model(root,model_id='qwen3-asr',model_root=None):
+ return verify_model_files(root,model_id,model_root)[0]
+
+def ensure_unchanged(model_path,identity):
+ # Narrows the window between hashing and loading: the loaded files must be the hashed ones.
+ if model_identity(model_path)!=identity:raise ValueError('model_changed')
 
 def backend_for(root,model_id):
  config=root/'runtime-backends.json'
@@ -124,7 +158,12 @@ class CppTranscriber:
 
 def load_transcriber(root,model_id,model_root=None):
  backend=backend_for(root,model_id)
- model_path=verify_model(root,model_id,model_root)
+ model_path,identity=verify_model_files(root,model_id,model_root)
+ recognize=load_backend(root,backend,model_id,model_path)
+ ensure_unchanged(model_path,identity)
+ return recognize
+
+def load_backend(root,backend,model_id,model_path):
  if backend=='whisper.cpp':return CppTranscriber(root,model_path)
  import mlx.core as mx
  if model_id.startswith('whisper-'):
@@ -171,16 +210,18 @@ def main():
   line=sys.stdin.buffer.readline(MAX_LINE+1)
   if not line:return 0
   if len(line)>MAX_LINE:send({'type':'fatal','code':'request_too_large','message':'The recording is too large to process.'});return 1
-  identifier=None
+  identifier=packet=audio=text=None
   try:
-   packet=json.loads(line);identifier=packet.get('id')
+   packet=json.loads(line);identifier=request_id(packet)
    audio,rate,language,vocabulary=decode_request(packet)
    with contextlib.redirect_stdout(sys.stderr):
     audio=prepare_audio(audio,rate)
     text='' if audio is None else recognize(audio,language,vocabulary)
    if len(text.encode('utf-8'))>100000:raise ValueError('output_limit')
    send({'type':'result','id':identifier,'text':text})
-   del packet,audio,text,line
   except Exception:
    send({'type':'error','id':identifier,'code':'processing_failed','message':'The recording could not be processed. Please try again.'})
+  finally:
+   # Never keep a user's PCM or text while waiting for the next request, also after a failure.
+   packet=audio=text=line=None
 if __name__=='__main__':raise SystemExit(main())
