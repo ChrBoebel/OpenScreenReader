@@ -29,9 +29,7 @@ No mature open-source macOS app was identified that combines all of the followin
 - **VoxScreen:** close Windows concept including repeated-region capture, but no reusable license was identified.
 - **TRex, macOCR, and Raycast ScreenOCR:** demand and maturity signals for local screen OCR, but without natural TTS.
 
-Primary research report before repository creation:
-
-`market-research-ocr-tts-macos.md` in the originating BB workspace. Important external facts must be rechecked against upstream sources before release documentation is published.
+The primary market research report predates this repository and is not published here. Important external facts must be rechecked against upstream sources before release documentation is published.
 
 ## Local TTS benchmark on Apple M4, 16 GB
 
