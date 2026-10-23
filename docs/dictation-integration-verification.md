@@ -48,7 +48,7 @@ The bundle is a local development app, not a public/notarized release. Fresh-Mac
 
 ## Repeating the checks
 
-With the bundled runtime present and Xcode selected, run `bash scripts/verify-dictation.sh /absolute/Saywing.app/Contents/Resources/Dictation` for the private-pasteboard, protocol and actual model checks. App lifecycle checks are in `DictationIntegrationTests` within the Xcode app test target. Explicit `--dictation-smoke` starts the two public GUI examples and writes only boolean/status results beside the test bundle; normal launch does neither. `--dictation-setup` opens the setup window without requesting permissions or recording.
+With the bundled runtime present and Xcode selected, run `bash scripts/verify-dictation.sh /absolute/Saywing.app/Contents/Resources/Dictation` for the private-pasteboard, protocol and actual model checks. App lifecycle checks are in `DictationIntegrationTests` within the Xcode app test target. In Debug builds only, explicit `--dictation-smoke` starts the two public GUI examples and writes only boolean/status results beside the test bundle; normal launch does neither. `--dictation-setup` opens the setup window without requesting permissions or recording.
 
 ## Installed local build
 

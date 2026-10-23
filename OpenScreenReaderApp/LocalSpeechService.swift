@@ -163,12 +163,18 @@ final class LocalSpeechService: SpeechReading {
         return config.isInstalled ? (config.bundled ? String(localized: "Bundled · offline development preview") : String(localized: "Installed for local development")) : String(localized: "Not installed")
     }
     static var installedConfiguration: SpeechRuntimeConfiguration {
-        if let root = Bundle.main.resourceURL?.appendingPathComponent("Speech"),
-           FileManager.default.fileExists(atPath: root.path) {
+        let bundledRoot = Bundle.main.resourceURL?.appendingPathComponent("Speech")
+        if let root = bundledRoot, FileManager.default.fileExists(atPath: root.path) {
             // A damaged bundle must fail visibly, never fall back to this Mac's development runtime.
             return .init(root: root, bundled: true)
         }
+        #if DEBUG
+        // Only development builds may run the explicit local installation in Application Support.
         return .init(root: developmentRoot)
+        #else
+        // Release builds never run code from a user-writable folder; without the bundle they fail closed.
+        return .init(root: bundledRoot ?? URL(fileURLWithPath: "/nonexistent/Speech"), bundled: true)
+        #endif
     }
     init(configuration: SpeechRuntimeConfiguration = LocalSpeechService.installedConfiguration) {
         self.configuration = configuration
