@@ -113,6 +113,64 @@ struct SpeechBufferingTests {
     }
 
     @Test
+    func outputChangeEndsTheReadingAtOnceAndDropsQueuedAudio() async throws {
+        let player = SpeechAudioPlayer(sampleRate: 44_100)
+        defer { player.stop() }
+        player.setPaused(true)
+        for _ in 0..<3 { try await player.enqueue(Data(repeating: 0, count: 96_000)) {} }
+        #expect(player.queuedFrames == 72_000)
+        let drain = Task { try await player.finish {} }
+        try await Task.sleep(for: .milliseconds(40))
+        // A change the engine survived loses nothing and ends nothing.
+        NotificationCenter.default.post(name: .AVAudioEngineConfigurationChange, object: player.engine)
+        try await Task.sleep(for: .milliseconds(40))
+        #expect(player.queuedFrames == 72_000)
+        #expect(!player.outputChanged)
+        // A real output change stops the engine first.
+        player.engine.stop()
+        NotificationCenter.default.post(name: .AVAudioEngineConfigurationChange, object: player.engine)
+        do { try await drain.value; Issue.record("The drain outlived the output change") }
+        catch { #expect(error as? SpeechFailure == .outputChanged) }
+        #expect(player.queuedFrames == 0)
+        do { try await player.enqueue(Data(repeating: 0, count: 9_600)) {}; Issue.record("Audio was queued for the old output") }
+        catch { #expect(error as? SpeechFailure == .outputChanged) }
+        player.reset()
+        #expect(!player.outputChanged)
+        try await player.enqueue(Data(repeating: 0, count: 9_600)) {}
+        try await player.finish {}
+        #expect(player.queuedFrames == 0)
+    }
+
+    @Test
+    func engineStoppedBeforeTheNoticeIsNotSilentlyRestarted() async throws {
+        let player = SpeechAudioPlayer(sampleRate: 44_100)
+        defer { player.stop() }
+        player.setPaused(true)
+        try await player.enqueue(Data(repeating: 0, count: 96_000)) {}
+        player.engine.stop()
+        do { try await player.enqueue(Data(repeating: 0, count: 96_000)) {}; Issue.record("Engine restarted after a gap") }
+        catch { #expect(error as? SpeechFailure == .outputChanged) }
+        #expect(player.queuedFrames == 0)
+        #expect(!player.engine.isRunning)
+    }
+
+    @Test
+    func blockedPacketReadsLeaveTheCooperativePoolFree() async throws {
+        let count = ProcessInfo.processInfo.activeProcessorCount * 2
+        let pipes = (0..<count).map { _ in Pipe() }
+        defer { pipes.forEach { try? $0.fileHandleForWriting.close(); try? $0.fileHandleForReading.close() } }
+        let readers = pipes.map { SpeechPacketReader(handle: $0.fileHandleForReading) }
+        let pending = readers.map { reader in Task.detached { try await reader.nextLine() } }
+        try await Task.sleep(for: .milliseconds(100))
+        let probe = PoolProbe()
+        Task.detached { await MainActor.run { probe.ran = true } }
+        for _ in 0..<200 where !probe.ran { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(probe.ran, "Blocking pipe reads starved Swift's cooperative thread pool.")
+        pipes.forEach { try? $0.fileHandleForWriting.close() }
+        for task in pending { #expect(try await task.value == nil) }
+    }
+
+    @Test
     func shortPacketReturnsBeforeWriterCloses() async throws {
         let pipe = Pipe()
         defer { try? pipe.fileHandleForReading.close(); try? pipe.fileHandleForWriting.close() }
@@ -2348,6 +2406,12 @@ struct ReadingPanelTests {
         #expect(!panel.isVisible)
     }
 }
+
+@MainActor
+private final class PoolProbe { var ran = false }
+
+/// Stands in for the engine that posts a configuration change.
+private final class ConfigurationSource: Sendable {}
 
 @MainActor
 private final class ReadingPanelFake: ReadingStatusPresenting {
