@@ -2561,6 +2561,16 @@
         }
       }
     },
+    "Recording stopped": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufnahme beendet"
+          }
+        }
+      }
+    },
     "Recording · %lld / 60 s": {
       "localizations": {
         "de": {
@@ -3757,6 +3767,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Der globale Kurzbefehl konnte nicht registriert werden (Fehler %d)."
+          }
+        }
+      }
+    },
+    "The input device changed while recording. Nothing was pasted; please record again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Eingabegerät hat sich während der Aufnahme geändert. Es wurde nichts eingefügt; bitte nimm erneut auf."
           }
         }
       }
