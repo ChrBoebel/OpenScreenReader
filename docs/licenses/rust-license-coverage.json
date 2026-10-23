@@ -2712,7 +2712,7 @@
       "standard_library_notices": "RustToolchain/1.99.0",
       "compiler_version_evidence": "binary /rustc/ commit cross-checked with official rust-lang/rust src/version; local rustc -Vv for rebuilt tokenizer",
       "compiled_package_ids": [
-        "path+file:///Users/christopherbobel/.codex/worktrees/saywing-release-pr/OpenScreenReader/.build/rust-license-build/tiktoken-0.14.0#tiktoken@0.14.0",
+        "path+file://<repository>/.build/rust-license-build/tiktoken-0.14.0#tiktoken@0.14.0",
         "registry+https://github.com/rust-lang/crates.io-index#aho-corasick@1.1.5",
         "registry+https://github.com/rust-lang/crates.io-index#bit-set@0.8.0",
         "registry+https://github.com/rust-lang/crates.io-index#bit-vec@0.8.0",
