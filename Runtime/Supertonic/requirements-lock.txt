@@ -1,0 +1,10 @@
+# Saywing speech worker runtime: CPython 3.12 for macOS 14.0+ (arm64, x86_64).
+# Only packages the worker imports; installed with pip --require-hashes --no-deps
+# --only-binary :all:. Edit pins here, then refresh hashes with
+#   python3 scripts/build-python-runtime.py --runtime speech --update-hashes --cache DIR
+numpy==2.2.6 \
+    --hash=sha256:71594f7c51a18e728451bb50cc60a3ce4e6538822731b2933209a1f3614e9282 \
+    --hash=sha256:894b3a42502226a1cac872f840030665f33326fc3dac8e57c607905773cdcde3
+onnxruntime==1.23.2 \
+    --hash=sha256:218295a8acae83905f6f1aed8cacb8e3eb3bd7513a13fe4ba3b2664a19fc4a6b \
+    --hash=sha256:b8f029a6b98d3cf5be564d52802bb50a8489ab73409fa9db0bf583eabb7c2321
