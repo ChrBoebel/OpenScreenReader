@@ -1,0 +1,17 @@
+Saywing (OpenScreenReader)
+Copyright 2026 Christopher Böbel
+
+This product's source code is licensed under the Apache License, Version 2.0
+(see LICENSE).
+
+Builds of Saywing include third-party software, models and voices that remain
+under their own licenses, not under the Apache License, Version 2.0. In
+particular, the bundled Supertonic 3 speech model and its voice styles are
+licensed under the BigScience Open RAIL-M License, including its use-based
+restrictions (paragraph 5 and Attachment A); see
+docs/licenses/SUPERTONIC-MODEL-TERMS.md.
+
+The original license texts and notices are kept in docs/licenses/ in this
+repository. Inside the app they are available offline in Settings > Read Aloud >
+Model Terms and Licenses & Model Terms (THIRD-PARTY-NOTICES.html and the
+Licenses folder in the application resources).
