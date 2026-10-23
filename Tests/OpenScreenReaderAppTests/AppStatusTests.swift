@@ -170,6 +170,19 @@ struct AppStatusTests {
         #expect(table.values.allSatisfy { !$0.isEmpty })
     }
 
+    /// Open RAIL-M §4: every build, not only release packaging, carries the unchanged
+    /// pinned license and the binding use restrictions for the bundled model.
+    @Test
+    func everyBuildBundlesTheSupertonicModelTerms() throws {
+        let license = try #require(ModelTerms.licenseURL(in: .main))
+        #expect(try SHA256Digest.hex(ofFileAt: license) == ModelTerms.pinnedLicenseSHA256)
+        let document = try #require(ModelTerms.document(in: .main))
+        #expect(document.contains("3cadd1ee6394adea1bd021217a0e650ede09a323"))
+        #expect(document.contains("Binding terms for users of the model"))
+        #expect(document.contains("You agree not to use the Model or Derivatives of the Model:"))
+        #expect(document.hasSuffix(try String(contentsOf: license, encoding: .utf8)), "The full license follows the terms unchanged.")
+    }
+
     @Test
     func appBundleIsConfiguredAsMenuBarOnly() {
         #expect(Bundle.main.object(forInfoDictionaryKey: "LSUIElement") as? Bool == true)
