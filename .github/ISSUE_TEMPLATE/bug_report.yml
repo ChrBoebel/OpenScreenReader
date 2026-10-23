@@ -1,0 +1,102 @@
+name: Bug report
+description: Something in Saywing does not work as expected.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a problem.
+
+        **Privacy warning:** do not paste private screen text, dictated text, meeting transcripts, screenshots of private content, or audio recordings. Use public or made-up example text instead.
+
+        **Security vulnerabilities** must not be reported here. Use the repository's Security tab → "Report a vulnerability" (see SECURITY.md).
+  - type: input
+    id: app-version
+    attributes:
+      label: Saywing version
+      description: Shown in Settings, for example "0.9 (101)". For a source build, give the commit hash.
+    validations:
+      required: true
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS version
+      description: Apple menu → About This Mac, for example "macOS 15.6".
+    validations:
+      required: true
+  - type: dropdown
+    id: chip
+    attributes:
+      label: Mac chip
+      options:
+        - Apple Silicon (M1/M2/M3/M4 or later)
+        - Intel
+        - Intel build running under Rosetta on Apple Silicon
+    validations:
+      required: true
+  - type: input
+    id: mac-model
+    attributes:
+      label: Mac model and memory
+      description: Optional, for example "MacBook Air M2, 16 GB".
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected feature
+      multiple: true
+      options:
+        - Read aloud (region selection, OCR, speech)
+        - Dictation
+        - Meeting transcript
+        - Setup and permissions
+        - Settings and shortcuts
+        - Updates
+        - Other
+    validations:
+      required: true
+  - type: checkboxes
+    id: permissions
+    attributes:
+      label: Permissions granted to Saywing
+      description: System Settings → Privacy & Security. Tick everything that is enabled for Saywing.
+      options:
+        - label: Screen Recording
+        - label: Input Monitoring
+        - label: Accessibility
+        - label: Microphone
+        - label: System audio recording (meeting transcript)
+  - type: input
+    id: dictation-model
+    attributes:
+      label: Dictation model (if relevant)
+      description: For example "Whisper Turbo", "Qwen3-ASR" or "Whisper Large v3", and the target app you dictated into.
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Use public or made-up example text.
+      placeholder: |
+        1. Press ⌥R
+        2. Select a paragraph of a public web page
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the exact error message shown by Saywing, if any.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Additional context
+      description: Optional. Crash reports or Console messages can help. Remove any private text before pasting them.
+      render: text
