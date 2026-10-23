@@ -51,10 +51,20 @@ final class DictationWorker: DictationTranscribing {
     let child = Process()
     let stdin = Pipe()
     let stdout = Pipe()
+    guard
+      let sandbox = WorkerSandbox.arguments(
+        resources: resources, modelRoot: modelRoot,
+        python: resources.appendingPathComponent("Python/bin/python3"))
+    else {
+      onMessage?(
+        .init(
+          type: "fatal",
+          message: String(localized: "The local dictation runtime is missing or could not start.")))
+      return
+    }
     child.executableURL = URL(fileURLWithPath: "/usr/bin/sandbox-exec")
-    child.arguments = [
-      "-f", resources.appendingPathComponent("worker.sb").path,
-      resources.appendingPathComponent("Python/bin/python3").path, "-I", "-B", "-u",
+    child.arguments = sandbox + [
+      "-I", "-B", "-u",
       resources.appendingPathComponent("worker.py").path,
       "--model", model.rawValue,
     ] + (modelRoot.map { ["--model-root", $0.path] } ?? [])

@@ -351,9 +351,10 @@ private final class SpeechWorkerSession {
         input = requests.fileHandleForWriting
         output = audio.fileHandleForReading
         reader = SpeechPacketReader(handle: output)
+        guard let sandbox = WorkerSandbox.arguments(resources: configuration.root, modelRoot: nil,
+                                                    python: configuration.executable) else { throw SpeechFailure.notInstalled }
         worker.executableURL = URL(fileURLWithPath: "/usr/bin/sandbox-exec")
-        worker.arguments = ["-p", "(version 1)(allow default)(deny network*)(deny file-write*)(allow file-write* (literal \"/dev/null\"))",
-            configuration.executable.path, "-I", "-B", configuration.script.path, "--model", configuration.model.path, "--session"]
+        worker.arguments = sandbox + ["-I", "-B", configuration.script.path, "--model", configuration.model.path, "--session"]
         worker.environment = ["PATH": "/usr/bin:/bin", "HF_HUB_OFFLINE": "1", "HF_HUB_DISABLE_TELEMETRY": "1"]
         worker.currentDirectoryURL = configuration.executable.deletingLastPathComponent()
         worker.standardInput = requests

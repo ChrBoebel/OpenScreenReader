@@ -3756,3 +3756,77 @@ struct DictationClipboardPrivacyTests {
     }
 }
 
+@Suite("Local worker sandbox", .serialized)
+struct WorkerSandboxTests {
+    private static let repository = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        .deletingLastPathComponent().deletingLastPathComponent()
+
+    /// An ad-hoc signed copy of `/bin/cat` stands in for the bundled interpreter at `bin/python3`.
+    private static func interpreter(in root: URL) throws -> URL {
+        let bin = root.appendingPathComponent("bin")
+        try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+        let python = bin.appendingPathComponent("python3")
+        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/bin/cat"), to: python)
+        // A copied platform binary is killed at launch until it carries its own signature.
+        let sign = Process()
+        sign.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        sign.arguments = ["--force", "--sign", "-", python.path]
+        sign.standardError = FileHandle.nullDevice
+        try sign.run()
+        sign.waitUntilExit()
+        try #require(sign.terminationStatus == 0)
+        return python
+    }
+
+    @Test func bundledProfileFileIsTheAppProfile() throws {
+        let file = try String(contentsOf: Self.repository.appendingPathComponent("Runtime/Dictation/worker.sb"), encoding: .utf8)
+        #expect(file == WorkerSandbox.profile, "Scripts and integration checks must test the profile the app uses.")
+    }
+
+    @Test func argumentsUseCanonicalPathsAndFailClosedWhenMissing() throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("sandbox-args-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let python = try Self.interpreter(in: root)
+        let arguments = try #require(WorkerSandbox.arguments(resources: root, modelRoot: nil, python: python))
+        let canonical = try #require(WorkerSandbox.canonicalPath(root))
+        #expect(canonical.hasPrefix("/private/"), "Seatbelt needs the real path, not Foundation's /var alias.")
+        #expect(arguments.contains("RESOURCES=\(canonical)") && arguments.contains("MODEL_ROOT=\(canonical)"))
+        #expect(arguments.contains("PYTHON=\(canonical)/bin/python3") && arguments.contains("PYTHON_HOME=\(canonical)"))
+        #expect(arguments.last == python.path)
+        #expect(WorkerSandbox.arguments(resources: root.appendingPathComponent("missing"), modelRoot: nil,
+                                        python: python) == nil)
+        #expect(WorkerSandbox.arguments(resources: root, modelRoot: nil, python: URL(fileURLWithPath: "/bin/cat")) == nil,
+                "An interpreter directly below / would make the whole disk readable.")
+    }
+
+    /// Runs the real profile with a copy of `/bin/cat` standing in for the interpreter.
+    @Test func profileAllowsOnlyTheRuntimeAndDeniesWritesProcessesAndOtherFiles() throws {
+        let manager = FileManager.default
+        let base = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("sandbox-run-\(UUID().uuidString)")
+        defer { try? manager.removeItem(at: base) }
+        let runtime = base.appendingPathComponent("Runtime"), outside = base.appendingPathComponent("Outside")
+        try manager.createDirectory(at: runtime, withIntermediateDirectories: true)
+        try manager.createDirectory(at: outside, withIntermediateDirectories: true)
+        try Data("runtime".utf8).write(to: runtime.appendingPathComponent("allowed.txt"))
+        try Data("private".utf8).write(to: outside.appendingPathComponent("secret.txt"))
+        let cat = try Self.interpreter(in: runtime)
+        func run(_ executable: URL, _ arguments: [String]) throws -> (Int32, String) {
+            let process = Process(), output = Pipe()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/sandbox-exec")
+            let sandbox = try #require(WorkerSandbox.arguments(resources: runtime, modelRoot: nil, python: cat))
+            process.arguments = Array(sandbox.dropLast()) + [executable.path] + arguments
+            process.standardOutput = output
+            process.standardError = FileHandle.nullDevice
+            try process.run()
+            process.waitUntilExit()
+            let text = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+            return (process.terminationStatus, text)
+        }
+        let allowed = try run(cat, [runtime.appendingPathComponent("allowed.txt").path])
+        #expect(allowed == (0, "runtime"))
+        let secret = try run(cat, [outside.appendingPathComponent("secret.txt").path])
+        #expect(secret.0 != 0 && !secret.1.contains("private"), "Files outside the runtime and model stay unreadable.")
+        let other = try run(URL(fileURLWithPath: "/bin/echo"), ["escaped"])
+        #expect(other.0 != 0 && !other.1.contains("escaped"), "Only the interpreter may be executed.")
+    }
+}
