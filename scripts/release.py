@@ -20,6 +20,11 @@ REPO = Path(__file__).resolve().parents[1]
 RELEASE_GATES = ('license_review', 'clean_mac', 'offline_privacy', 'update_roundtrip')
 MACHO = {bytes.fromhex(value) for value in (
     'cffaedfe', 'cefaedfe', 'feedfacf', 'feedface', 'cafebabe', 'bebafeca', 'cafebabf', 'bfbafeca')}
+# Owner defaults. Forks and other maintainers override them through environment
+# variables (CI: repository variables) instead of editing this file.
+DEFAULT_PUBLIC_DOWNLOAD_PREFIX = 'https://www.christopherboebel.com/downloads/saywing'
+DEFAULT_SIGNING_IDENTITY = 'Developer ID Application: Christopher Böbel (S28WSHSSJD)'
+DEFAULT_NOTARY_PROFILE = 'Saywing-Notary-S28WSHSSJD'
 
 
 def run(*args, **kwargs):
@@ -51,9 +56,13 @@ def release_target(architecture):
     if architecture not in ('arm64', 'x86_64'):
         raise ValueError('Unsupported release architecture')
     suffix = '/x86_64' if architecture == 'x86_64' else ''
-    return {'url_prefix': 'https://www.christopherboebel.com/downloads/saywing' + suffix,
+    return {'url_prefix': public_download_prefix() + suffix,
             'storage_prefix': 'saywing' + suffix,
             'approval': REPO / ('docs/release-approval-x86_64.json' if suffix else 'docs/release-approval.json')}
+
+
+def public_download_prefix():
+    return https_url(os.environ.get('SAYWING_PUBLIC_DOWNLOAD_PREFIX') or DEFAULT_PUBLIC_DOWNLOAD_PREFIX).rstrip('/')
 
 
 def require_release_approval(path, architecture='arm64'):
@@ -204,8 +213,8 @@ def main():
     parser.add_argument('--feed-url', required=True)
     parser.add_argument('--download-url-prefix', required=True)
     parser.add_argument('--public-key', required=True)
-    parser.add_argument('--identity', default='Developer ID Application: Christopher Böbel (S28WSHSSJD)')
-    parser.add_argument('--notary-profile', default='Saywing-Notary-S28WSHSSJD')
+    parser.add_argument('--identity', default=os.environ.get('SAYWING_SIGNING_IDENTITY') or DEFAULT_SIGNING_IDENTITY)
+    parser.add_argument('--notary-profile', default=os.environ.get('SAYWING_NOTARY_PROFILE') or DEFAULT_NOTARY_PROFILE)
     parser.add_argument('--keychain')
     parser.add_argument('--sparkle-account', default='saywing')
     parser.add_argument('--sparkle-key-file', type=Path, help='Private temporary Ed25519 file for unattended CI signing')
