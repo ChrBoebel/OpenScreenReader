@@ -257,7 +257,8 @@ def main():
             shutil.copy2(source / 'Contents/Resources' / name, app / 'Contents/Resources' / name)
     else:
         run('python3', REPO / 'scripts/bundle-dictation-runtime.py', app, dictation,
-            '--speech-from', source, '--whisper-model', dictation / 'WhisperTurbo', '--development-only', '--defer-app-signing')
+            '--speech-from', source, '--whisper-model', dictation / 'WhisperTurbo',
+            '--public-release' if args.public_release else '--development-only', '--defer-app-signing')
     refresh_project_workers(app)
     corresponding_source = source / 'Contents/Resources/CorrespondingSource'
     if corresponding_source.is_dir():
