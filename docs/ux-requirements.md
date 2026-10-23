@@ -1,5 +1,7 @@
 # UX requirements
 
+> **Language:** this document is currently written in German. An English translation is planned; the [README](../README.md) summarizes the current behavior in English.
+
 ## Primärer Ablauf
 
 Update 2026-09-09: Der Eigentümer hat Pause/Fortsetzen, eine bearbeitbare Warteschlange und Einrichtung freigegeben. Die Kapsel bleibt textfrei; ihre kleine ···/+N-Taste öffnet eine native Steuerungsansicht mit Pause/Fortsetzen, Tempo, Weiter und wartenden Texten. Erst dieser explizite Klick zeigt maximal 100 Zeichen pro Eintrag. Entfernen, Nach-oben/-unten und Jetzt-lesen verwenden stabile Eintrags-IDs, nicht veraltete Indizes. Esc/Stop beendet auch eine Pause. Frühere Aussagen „keine Vorschau“/„Pause außerhalb“ gelten für die geschlossene Kapsel, nicht für diese neue explizite Ansicht.
@@ -118,7 +120,7 @@ voreingestellt. Darunter nimmt das Feld „Vokabular“ einen Namen oder Begriff
 auf (auch durch Komma getrennt, höchstens 50). Änderungen gelten ab dem nächsten
 Diktat; leere Zeilen und Duplikate werden ignoriert.
 
-The integrated dictation capsule shares Saywing’s reading material and motion language, with distinct discard and finish/paste controls. Native states, accessibility behavior and actual verification are recorded in [dictation capsule verification](dictation-capsule-verification.md).
+The integrated dictation capsule shares Saywing’s reading material and motion language, with distinct discard and finish/paste controls.
 
 ## Apple-Design-Verfeinerung — 2026-10-14
 
@@ -130,7 +132,6 @@ Freigabe durch den Eigentümer: alle Punkte des Reviews vom 14.10.2026 umsetzen.
 - **Einrichtung:** ein Ablauf für Vorlesen und Diktieren; seit 2026-10-14 als geführte Einrichtung (unten). Der frühere Hinweis, der Vorlesetest brauche nur die Bildschirmaufnahme, war falsch: Die Erfassung startet ohne Eingabeüberwachung nicht (ADR 0005).
 - **Auswahl:** Leertaste verschiebt, Umschalt fixiert die zuerst unbewegte Kante, Wahl wächst von der Mitte – wie bei ⌘⇧4. Die Abdunklung blendet in 90 ms ein, Eingaben gelten sofort, das Overlay schließt weiterhin sofort. Ein kurzer Hinweis erscheint bei den ersten fünf Auswahlen.
 - **Klick liest Absatz:** Ein Klick ohne Ziehen erkennt einen begrenzten Bereich (max. 1200 × 800 pt) um den Zeiger und liest nur den Absatz darunter; der Rest wird sofort verworfen. Details unter [Datenschutz](privacy.md).
-- Nachweise und Grenzen: [Apple-Design-Verfeinerung](apple-design-refinements-verification.md).
 
 ## Geführte Einrichtung
 
@@ -146,23 +147,22 @@ Freigabe durch den Eigentümer am 2026-10-14 nach dem Vorschlag auf Basis des Ap
 - **Fertig** zeigt die Menüleiste mit hervorgehobenem Saywing-Symbol, und unter dem echten Menüleistensymbol erscheint „Hier wohnt Saywing“, denn die App hat kein Dock-Symbol. Fehlende Freigaben stehen dort mit je einer Aktion.
 - **Rechtzeitig fragen:** Fehlt eine Lese-Freigabe, öffnet der Kurzbefehl direkt die Einrichtung, statt erst eine Auswahl zu ermöglichen, die danach scheitert. Der Diktierhinweis „Einrichtung öffnen…“ springt direkt zu den Diktier-Schritten.
 - **Bewegung:** Die neue Seite gleitet aus der Bewegungsrichtung herein, kritisch gedämpft (`response 0,35`, ohne Überschwingen); die alte blendet aus. Bei reduzierter Bewegung gibt es nur eine Überblendung, das Häkchen erscheint dann ohne Zeichnen. Jeder Seiten- und Ergebniswechsel wird für VoiceOver angesagt.
-- Nachweise und Grenzen: [Geführte Einrichtung — Verifikation](guided-setup-verification.md).
 
 ## Rückmeldung am Ort des Geschehens
 
-Freigabe durch den Eigentümer am 2026-10-14 („setze das alles um“) nach dem dritten Review mit dem Apple-Design-Skill.
+Freigabe am 2026-10-14 nach dem dritten Review mit dem Apple-Design-Skill.
 
 - **Fehlerhilfe an der Kapsel:** Nach einem Fehler öffnet das „?“ der Lesekapsel ein Popover direkt an der Kapsel, mit dem konkreten Grund und genau einem nächsten Schritt: „Erneut versuchen“, bei belegtem Kurzbefehl „Kurzbefehl-Einstellungen …“ (öffnet den Tab Kurzbefehle) und bei fehlender Freigabe „Einrichtung öffnen …“ (springt zum fehlenden Schritt).
 - **Diktat am Cursor:** Die Diktierkapsel erscheint direkt unter der Einfügestelle, bei Platzmangel darüber und immer auf dem Bildschirm. Ohne ermittelbare Einfügestelle erscheint sie dort, wo der Nutzer die Lesekapsel angedockt hat. Während eines Diktats springt sie nicht.
 - **Diktier-Testfenster:** ein Satz Anleitung, Status, Testfeld, Aufnehmen/Verwerfen. „Nicht eingefügt“ mit Ergebnis und Kopieren erscheint nur, wenn das Einfügen scheiterte oder nicht bestätigt wurde. Freigaben laufen über die Einrichtung.
 - **Klänge beim Diktieren:** dieselben Hinweisklänge wie beim Vorlesen und dieselbe Einstellung: „fertig“ bei bestätigtem Einfügen, „Achtung“ bei unbestätigtem Einfügen oder einem Problem. Der Klang fällt mit dem sichtbaren Zustand zusammen. Statusmeldungen während einer Aufnahme bleiben stumm und werden nicht angesagt.
-- **Mikrofonklänge und Freihand (Eigentümerentscheidung 2026-10-14, „setze alles um, entscheide alles“):** Das Diktieren war bisher stumm; jetzt hat es drei eigene kurze Klänge aus der Holz-und-Wasser-Familie, jeder unter 450 ms, leiser als die Vorleseklänge und mit fast der ganzen Energie in den ersten 150 ms.
+- **Mikrofonklänge und Freihand (Projektentscheidung 2026-10-14):** Das Diktieren war bisher stumm; jetzt hat es drei eigene kurze Klänge aus der Holz-und-Wasser-Familie, jeder unter 450 ms, leiser als die Vorleseklänge und mit fast der ganzen Energie in den ersten 150 ms.
   - **Mikrofon an** (Fn gedrückt): ein weicher Marimba-Schlag auf C4 mit einem kleinen steigenden Tropfen. Er erklingt mit dem Erscheinen der Kapsel, sobald das Mikrofon offen ist.
   - **Freihand eingerastet** (Fn doppelt oder Fn + Leertaste): derselbe Schlag eine Quinte höher auf G4. Auf „Mikrofon an“ folgend ergibt das eine steigende Quinte. Die Beenden-Taste der Kapsel füllt sich hell petrolfarben und rastet einmal mit einer kritisch gedämpften Feder von 86 auf 100 % ein; ohne Text, Timer oder zusätzliches Leuchten. Starts über ⌥⇧Leertaste oder die Aufnahmetaste im Testfenster sind von Anfang an freihändig und erklingen nur mit diesem einen Klang.
   - **Mikrofon aus** (loslassen, Fn, Beenden-Taste oder 60-s-Grenze): ein gedämpfter Schlag auf G3 ohne Wasser. Er erklingt erst, nachdem das Mikrofon geschlossen ist, und ist deshalb nie Teil der Aufnahme.
   - Verwerfen (Esc, Kreuz, dritter schneller Tipp, verworfener Einzeltipp) bleibt stumm und beendet einen noch klingenden Mikrofonklang sofort. Ein Klang, der auf einen anderen folgt, blendet diesen in 30 ms aus statt ihn hart abzuschneiden.
   - Bestätigtes Einfügen wird schon 150 ms nach dem Einfügen zurückgelesen. Ist der Text da, erscheinen Häkchen und Abschlussklang gemeinsam mit dem Text statt eine Sekunde später; die Zwischenablage wird weiterhin erst nach 1 s bzw. 2 s wiederhergestellt. Sonst entscheidet wie bisher die Prüfung zu diesem Zeitpunkt.
-  - Bewusst offen: Mikrofon an und Freihand eingerastet erklingen, während das Mikrofon schon aufnimmt. Über Lautsprecher kann der kurze Klang in den ersten etwa 150 ms der Aufnahme landen. Eine Messung mit den echten Modellen steht aus (siehe [Prüfprotokoll](dictation-sounds-handsfree-verification.md)); mit Kopfhörern tritt das nicht auf.
+  - Bewusst offen: Mikrofon an und Freihand eingerastet erklingen, während das Mikrofon schon aufnimmt. Über Lautsprecher kann der kurze Klang in den ersten etwa 150 ms der Aufnahme landen. Eine Messung mit den echten Modellen steht aus; mit Kopfhörern tritt das nicht auf.
 - **Menüleistensymbol:** ein Punkt während des Vorlesens, ein kleines Dreieck nach einem Fehler. Der Zustand ist an der Form erkennbar, nicht an der Farbe, und das Symbol bleibt eine Vorlage. Für Aufnahmen zeigt macOS seine eigene Mikrofonanzeige.
 - **Barrierefreiheit (Audit 2026-10-14):**
   - Diktat-Ergebnisse, Pause/Fortsetzen, neue Texte in der Warteschlange, das Auswahl-Overlay, Kurzbefehl-Hinweise und das Warten auf die Systemeinstellungen werden angesagt. Fehler werden mit hoher Priorität angesagt. Der Sprechbeginn und laufende Aufnahmen werden nicht angesagt, damit VoiceOver weder über die Stimme spricht noch mit aufgenommen wird.
@@ -176,7 +176,6 @@ Freigabe durch den Eigentümer am 2026-10-14 („setze das alles um“) nach dem
   - In der Einrichtung landet der VoiceOver-Fokus auf dem neuen Seitentitel.
   - Das Menü bietet „Fertig & einfügen“ während einer Aufnahme und „Diktieren ausprobieren …“.
   - Öffnet man die Wiedergabesteuerung über das Menü, erhält sie den Tastaturfokus; ein Klick auf die Kapsel lässt die aktive App vorne.
-- Nachweise und Grenzen: [Geführte Einrichtung — Verifikation](guided-setup-verification.md#rückmeldung-am-ort-des-geschehens).
 
 
 ### Einrichtung: Modell und Kurzbefehle (2026-10-14)
@@ -189,7 +188,7 @@ Freigabe durch den Eigentümer am 2026-10-14 („setze das alles um“) nach dem
 
 ## Meeting-Mitschrift — 2026-10-15
 
-Eigentümerentscheidung „okey baue es“ auf den Vorschlag nach der Wispr-Flow-Analyse ([ADR 0006](decisions/0006-local-meeting-transcript.md)).
+Projektentscheidung vom 2026-10-15 ([ADR 0006](decisions/0006-local-meeting-transcript.md)).
 
 - **Start:**
   - Menü „Meeting mitschreiben …“ öffnet das Mitschrift-Fenster mit dem Einwilligungs-Schritt.
@@ -211,7 +210,7 @@ Eigentümerentscheidung „okey baue es“ auf den Vorschlag nach der Wispr-Flow
 
 ### Design-Review Meeting-Mitschrift — 2026-10-16
 
-Auf Wunsch des Eigentümers nach dem Apple-Design-Skill und dem [Saywing-Markensystem](brand-identity/BRAND_SYSTEM.md) geprüft; Befunde und Umsetzung im [Prüfprotokoll](meeting-transcript-verification.md#design-review-2026-10-16).
+Nach dem Apple-Design-Skill und dem [Saywing-Markensystem](brand-identity/BRAND_SYSTEM.md) geprüft.
 
 - Gleiche Sprache wie die Einrichtung: Symbol auf Petrol-getönter Kreisfläche, zentrierter Titel mit einem erklärenden Satz, Fußleiste mit großer Bedienung und Hauptaktion rechts, Petrol als Akzent (`AccentColor`), kritisch gedämpfte Seitenwechsel bzw. Überblendung bei reduzierter Bewegung.
 - Pegel im Kapsel-Vokabular: fünf 2,5-pt-Balken mit 3 pt Abstand je Spur in Petrol, fünfmal pro Sekunde aktualisiert und kritisch gedämpft geglättet; Stille als flache, gedämpfte Punkte.
