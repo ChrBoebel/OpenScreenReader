@@ -105,6 +105,23 @@ final class DictationModelStore: ObservableObject {
     self.fetcher = fetcher
     for model in DictationModel.allCases {
       availability[model] = modelRootIfPresent(for: model) == nil ? .notInstalled : .installed
+      restoreBundledLicenses(of: model)
+    }
+  }
+
+  /// Installs made before their manifest listed a license text (Qwen3-ASR) receive the
+  /// copy bundled in the app. Nothing is downloaded or overwritten; the worker still
+  /// verifies every manifest file before loading.
+  private func restoreBundledLicenses(of model: DictationModel) {
+    guard let root = modelRootIfPresent(for: model), root != resources,
+          let manifest = try? manifest(for: model) else { return }
+    let directory = root.appendingPathComponent(model.directoryName, isDirectory: true)
+    for file in manifest.installableFiles where file.source != nil {
+      let destination = directory.appendingPathComponent(file.rfilename)
+      guard destination.standardizedFileURL.path.hasPrefix(directory.standardizedFileURL.path + "/"),
+            !FileManager.default.fileExists(atPath: destination.path) else { continue }
+      try? FileManager.default.copyItem(
+        at: resources.appendingPathComponent("Licenses").appendingPathComponent(file.rfilename), to: destination)
     }
   }
 
