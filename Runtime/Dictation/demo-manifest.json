@@ -1,0 +1,36 @@
+[
+  {
+    "id": "de_de-10004059102127011984.wav",
+    "lang": "de",
+    "file": "Deutsch.wav",
+    "source_member": "test/10004059102127011984.wav",
+    "reference_raw": "Für die besten Aussichten auf Hongkong sollten Sie die Insel verlassen und zum gegenüberliegenden Ufer von Kowloon fahren.",
+    "reference_normalized": "für die besten aussichten auf hongkong sollten sie die insel verlassen und zum gegenüberliegenden ufer von kowloon fahren",
+    "metadata": [
+      "f ü r | d i e | b e s t e n | a u s s i c h t e n | a u f | h o n g k o n g | s o l l t e n | s i e | d i e | i n s e l | v e r l a s s e n | u n d | z u m | g e g e n ü b e r l i e g e n d e n | u f e r | v o n | k o w l o o n | f a h r e n |",
+      "287040",
+      "MALE"
+    ],
+    "sha256": "1603ed8fcea31a7f32f51d137eaa3516d15aca947898b81a136f4a9732f08ad2",
+    "bytes": 1148218,
+    "duration_s": 17.94,
+    "sample_rate": 16000
+  },
+  {
+    "id": "en_us-1003119935936341070.wav",
+    "lang": "en",
+    "file": "English.wav",
+    "source_member": "test/1003119935936341070.wav",
+    "reference_raw": "However, due to the slow communication channels, styles in the west could lag behind by 25 to 30 year.",
+    "reference_normalized": "however due to the slow communication channels styles in the west could lag behind by 25 to 30 year",
+    "metadata": [
+      "h o w e v e r | d u e | t o | t h e | s l o w | c o m m u n i c a t i o n | c h a n n e l s | s t y l e s | i n | t h e | w e s t | c o u l d | l a g | b e h i n d | b y | 2 5 | t o | 3 0 | y e a r |",
+      "168960",
+      "MALE"
+    ],
+    "sha256": "33aca50159ec2e3cbcc894eb26faa916d6badb1b49fb75994973561540a7f012",
+    "bytes": 675898,
+    "duration_s": 10.56,
+    "sample_rate": 16000
+  }
+]

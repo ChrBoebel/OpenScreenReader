@@ -1,0 +1,23 @@
+{
+  "purpose": "Pinned public build inputs that no other manifest records. scripts/assemble-release-runtime.py downloads them at build time only and verifies size and SHA-256 before use.",
+  "supertonic_upstream": {
+    "repository": "https://github.com/supertone-inc/supertonic",
+    "revision": "7e2804f96016a7028cb1ed627353c61c1e9dd281",
+    "license": "MIT, Copyright (c) 2025 Supertone Inc.",
+    "files": [
+      {"path": "helper.py", "source": "py/helper.py", "bytes": 15027, "sha256": "b14b1da8a018aa4db6ca8cbb927c32590bfc889b49116ea344c56e8351d94279"},
+      {"path": "LICENSE", "source": "LICENSE", "bytes": 1070, "sha256": "0dfe0d0ba84416fe3879d9a34f4909d8d0137c78d1e95834177b0414ac096fa2"},
+      {"path": "README.md", "source": "README.md", "bytes": 28449, "sha256": "dba0c154c4fe9f968472a9e854dea260190dbfdd2330ce0f982c0c49ce24e419"}
+    ]
+  },
+  "demo_audio": {
+    "dataset": "google/fleurs",
+    "revision": "70bb2e84b976b7e960aa89f1c648e09c59f894dd",
+    "license": "CC-BY-4.0",
+    "clips": "Runtime/Dictation/demo-manifest.json",
+    "archives": {
+      "de_de": {"path": "data/de_de/audio/test.tar.gz", "bytes": 568734559, "sha256": "e86b42dfcdef749926cd92135045f87c25966c09e50d01c401adb04ee7d8628f"},
+      "en_us": {"path": "data/en_us/audio/test.tar.gz", "bytes": 289851356, "sha256": "d9c2e37b41aacd41bc283554a0a82b5476b36887049774ecb2819dcaaa55a356"}
+    }
+  }
+}

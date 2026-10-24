@@ -2,7 +2,6 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
-import zipfile
 
 spec = importlib.util.spec_from_file_location('portable', Path(__file__).resolve().parents[2] / 'scripts/portable_runtime.py')
 portable = importlib.util.module_from_spec(spec)
@@ -31,24 +30,12 @@ class PortableRuntimeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'External'):
             portable.validate_load_commands('cmd LC_LOAD_DYLIB\nname /opt/homebrew/lib/test.dylib (offset 24)\n', '14.0')
 
-    def test_wheel_cannot_escape_target(self):
+    def test_archive_paths_cannot_escape_the_output(self):
         with tempfile.TemporaryDirectory() as temp:
-            root=Path(temp); z=root/'bad.whl'
-            with zipfile.ZipFile(z,'w') as f: f.writestr('../outside','bad')
-            with self.assertRaises(ValueError): portable.install_wheel(z,root/'site')
-            self.assertFalse((root/'outside').exists())
-
-    def test_wheel_keeps_licenses_and_relocates_purelib(self):
-        with tempfile.TemporaryDirectory() as temp:
-            root=Path(temp); z=root/'ok.whl'
-            with zipfile.ZipFile(z,'w') as f:
-                f.writestr('demo.data/purelib/demo.py','pass')
-                f.writestr('demo.dist-info/licenses/LICENSE','notice')
-                f.writestr('demo.data/scripts/command','unused')
-            portable.install_wheel(z,root/'site')
-            self.assertTrue((root/'site/demo.py').is_file())
-            self.assertEqual((root/'site/demo.dist-info/licenses/LICENSE').read_text(),'notice')
-            self.assertFalse((root/'site/demo.data/scripts/command').exists())
+            root=Path(temp)
+            for name in ['../outside', '/etc/passwd', 'a/../../outside']:
+                with self.assertRaises(ValueError): portable.safe_path(root,name)
+            self.assertEqual(portable.safe_path(root,'python/bin'), root/'python/bin')
 
     def test_download_cache_rejects_changed_bytes(self):
         with tempfile.TemporaryDirectory() as temp:

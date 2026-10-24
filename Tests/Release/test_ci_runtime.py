@@ -11,32 +11,56 @@ spec = importlib.util.spec_from_file_location('prepare_release_ci', scripts / 'p
 ci = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ci)
 
-class RuntimeExtractionTests(unittest.TestCase):
-    def test_dmg_validates_ticket_and_always_unmounts_after_copy_failure(self):
-        with tempfile.TemporaryDirectory() as temp:
-            base = Path(temp); archive = base / 'runtime.dmg'; archive.touch()
-            calls = []
-            def run(*args, **kwargs):
-                calls.append(tuple(str(a) for a in args))
-                if args[:2] == ('hdiutil', 'attach'):
-                    (base / 'runtime-mount/Saywing.app').mkdir()
-                if args[0] == '/usr/bin/ditto': raise RuntimeError('copy failed')
-            with patch.object(ci, 'run', side_effect=run):
-                with self.assertRaisesRegex(RuntimeError, 'copy failed'):
-                    ci.extract_runtime(archive, base / 'saywing-runtime', 'dmg')
-            self.assertEqual(calls[0][:3], ('xcrun', 'stapler', 'validate'))
-            self.assertIn('-readonly', calls[1]); self.assertIn('-nobrowse', calls[1])
-            self.assertEqual(calls[-1][:2], ('hdiutil', 'detach'))
+class RuntimePreparationTests(unittest.TestCase):
+    def prepare(self, temp, architecture='arm64', approval=None, run=None):
+        import os
+        from unittest.mock import MagicMock
+        run = run or MagicMock()
+        env = {'GITHUB_ACTIONS': 'true', 'RUNNER_TEMP': temp, 'SAYWING_ARCHITECTURE': architecture,
+               'SAYWING_FEED_URL': 'https://downloads.example.com/saywing/appcast.xml',
+               'SAYWING_DOWNLOAD_URL_PREFIX': 'https://downloads.example.com/saywing'}
+        with patch.dict(os.environ, env), patch.object(ci, 'run', run), \
+             patch.object(ci, 'require_release_approval', side_effect=approval) as gate, \
+             patch.object(sys, 'argv', ['prepare-release-ci.py', 'runtime']):
+            ci.main()
+        return run, gate
 
-    def test_zip_compatibility_and_unknown_format_rejection(self):
+    def test_builds_the_runtime_from_pinned_public_inputs_for_each_architecture(self):
+        for architecture in ['arm64', 'x86_64']:
+            with self.subTest(architecture=architecture), tempfile.TemporaryDirectory() as temp:
+                run, gate = self.prepare(temp, architecture)
+                base = Path(temp).resolve()
+                gate.assert_called_once()
+                self.assertEqual(gate.call_args.args[1], architecture)
+                args = [str(a) for a in run.call_args.args]
+                self.assertTrue(args[1].endswith('scripts/assemble-release-runtime.py'))
+                option = lambda name: args[args.index(name) + 1]
+                self.assertEqual(option('--architecture'), architecture)
+                # release.yml restores its download cache at exactly this path.
+                self.assertEqual(option('--cache'), str(base / 'saywing-runtime-cache'))
+                # release.yml passes this path to scripts/release.py --runtime-app.
+                self.assertEqual(option('--output'), str(base / 'saywing-runtime/Saywing.app'))
+                self.assertIn('--public-release', args)
+
+    def test_open_release_gate_fails_before_any_download_or_build(self):
+        from unittest.mock import MagicMock
         with tempfile.TemporaryDirectory() as temp:
-            base = Path(temp)
-            with patch.object(ci, 'run') as run:
-                ci.extract_runtime(base / 'runtime.zip', base / 'output', 'zip')
-                self.assertEqual(run.call_args.args[:4], ('/usr/bin/ditto', '-x', '-k', base / 'runtime.zip'))
-                run.reset_mock()
-                with self.assertRaises(ValueError): ci.extract_runtime(base / 'runtime', base / 'output', 'exe')
-                run.assert_not_called()
+            run = MagicMock()
+            with self.assertRaisesRegex(ValueError, 'gates'):
+                self.prepare(temp, approval=ValueError('Public release gates remain open: clean_mac'), run=run)
+            run.assert_not_called()
+            self.assertEqual(list(Path(temp).iterdir()), [])
+
+    def test_no_private_runtime_archive_or_storage_credentials_remain(self):
+        source = (scripts / 'prepare-release-ci.py').read_text()
+        for name in ['SAYWING_RUNTIME_SHA256', 'SAYWING_RUNTIME_FORMAT', 'SAYWING_S3', 'boto3', 'saywing/runtime/']:
+            self.assertNotIn(name, source)
+        workflow = (scripts.parent / '.github/workflows/release.yml').read_text()
+        package = workflow[workflow.index('\n  package:'):workflow.index('\n  publish:')]
+        for name in ['SAYWING_RUNTIME_SHA256', 'SAYWING_INTEL_RUNTIME_SHA256', 'SAYWING_RUNTIME_FORMAT', 'SAYWING_S3', 'saywing-publisher']:
+            self.assertNotIn(name, package)
+        self.assertIn('--runtime-app "$RUNNER_TEMP/saywing-runtime/Saywing.app"', package)
+        self.assertIn('path: ${{ runner.temp }}/saywing-runtime-cache', package)
 
 
 class CredentialLifetimeTests(unittest.TestCase):

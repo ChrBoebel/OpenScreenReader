@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""Build isolated Python runtimes from reviewed, hash-pinned artifacts. Build-time network only."""
-import argparse
+"""Shared verification primitives for the runtime build and release scripts.
+
+Pinned downloads (size + SHA-256 checked before use), safe archive paths and the
+Mach-O audit (architecture, macOS 14 minimum, no external load paths). Used by
+scripts/build-python-runtime.py, scripts/assemble-release-runtime.py,
+scripts/build-whisper-cpp.sh and scripts/release.py. Build-time network only.
+"""
 import hashlib
-import json
 from pathlib import Path
 import re
-import shutil
 import subprocess
 import tarfile
-import zipfile
 
 MACHO = {bytes.fromhex(x) for x in ('cffaedfe','cefaedfe','feedfacf','feedface','cafebabe','bebafeca','cafebabf','bfbafeca')}
 
@@ -30,8 +32,10 @@ def download(pin, cache):
         temp=path.with_suffix('.partial')
         try:
             print('Fetching',pin.get('filename',pin.get('version','Python')),flush=True)
+            # Large model archives get at least 0.5 MB/s before the transfer is abandoned.
+            limit=str(max(600,pin['bytes']//500_000))
             subprocess.run(['/usr/bin/curl','--fail','--location','--silent','--show-error',
-                            '--proto','=https','--proto-redir','=https','--retry','3','--retry-all-errors','--connect-timeout','30','--max-time','600',
+                            '--proto','=https','--proto-redir','=https','--retry','3','--retry-all-errors','--connect-timeout','30','--max-time',limit,
                             '--output',str(temp),pin['url']],check=True)
             verify_file(temp,pin);temp.rename(path)
         finally: temp.unlink(missing_ok=True)
@@ -44,25 +48,6 @@ def safe_path(root, relative):
     result=root/relative
     if not result.resolve().is_relative_to(root.resolve()): raise ValueError('External archive path')
     return result
-
-def install_wheel(archive, site):
-    site.mkdir(parents=True,exist_ok=True)
-    with zipfile.ZipFile(archive) as wheel:
-        for entry in wheel.infolist():
-            safe_path(site,entry.filename)
-            if (entry.external_attr >> 16) & 0o170000 == 0o120000: raise ValueError('Wheel symlink')
-            parts=Path(entry.filename).parts
-            if not parts: continue
-            if parts[0].endswith('.data'):
-                if len(parts)<3: continue
-                relative=Path(*parts[2:]) if parts[1] in ('purelib','platlib') else Path('_wheel_data',*parts)
-            else: relative=Path(*parts)
-            target=safe_path(site,relative)
-            if entry.is_dir(): target.mkdir(parents=True,exist_ok=True);continue
-            target.parent.mkdir(parents=True,exist_ok=True)
-            if target.exists(): raise ValueError('Overlapping wheel file: '+str(relative))
-            with wheel.open(entry) as source,target.open('wb') as out: shutil.copyfileobj(source,out)
-            target.chmod(0o755 if (entry.external_attr >> 16) & 0o111 else 0o644)
 
 def version(value): return tuple((list(map(int,value.split('.')))+[0,0])[:3])
 
@@ -113,28 +98,3 @@ def extract_python(archive, staging):
             if entry.issym() and not (dest.parent/entry.linkname).resolve().is_relative_to(staging.resolve()): raise ValueError('External tar symlink')
         tar.extractall(staging)
     return staging/'python'
-
-def build(lock_path, output, cache):
-    lock=json.loads(lock_path.read_text())
-    if output.exists(): raise ValueError('Refusing existing output')
-    archive=download(lock['python'],cache)
-    staging=output.with_name(output.name+'.staging')
-    if staging.exists(): raise ValueError('Refusing existing staging directory')
-    staging.mkdir(parents=True)
-    python=extract_python(archive,staging)
-    site=python/'lib/python3.12/site-packages'
-    if site.exists(): shutil.rmtree(site)
-    site.mkdir(parents=True)
-    # Wheel entrypoints and bundled pip are development tools, not runtime dependencies.
-    for path in (python/'bin').iterdir():
-        if path.name not in ('python3','python3.12','python'): path.unlink()
-    for pin in lock['wheels']: install_wheel(download(pin,cache),site)
-    native=audit(python,lock['architecture'],lock['minimum_macos'])
-    (python/'runtime-provenance.json').write_text(json.dumps({'lock':lock,'native_audit':native},indent=2)+'\n')
-    python.rename(output);staging.rmdir()
-    print('Built verified runtime:',output,flush=True)
-
-if __name__=='__main__':
-    p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--lock',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--cache',type=Path,required=True)
-    a=p.parse_args();build(a.lock,a.output,a.cache)
