@@ -61,10 +61,19 @@ enum SpeechFailure: Error, LocalizedError {
     case notInstalled, tooLong, failed
     var errorDescription: String? {
         switch self {
-        case .notInstalled: String(localized: "The local Supertonic development runtime is not installed. No text was sent to a server.")
+        case .notInstalled: Self.notInstalledDescription
         case .tooLong: String(localized: "This development version reads up to 8,000 characters. Select a smaller region.")
         case .failed: String(localized: "Local speech could not finish. Please try a smaller region. No cloud or system voice was substituted.")
         }
+    }
+
+    private static var notInstalledDescription: String {
+        #if DEBUG
+        return String(localized: "The local Supertonic development runtime is not installed. No text was sent to a server.")
+        #else
+        // Release builds run only the bundled runtime, so a missing one means a damaged app copy.
+        return String(localized: "The local speech runtime is missing from this copy of Saywing. Reinstall Saywing to restore it. No text was sent to a server.")
+        #endif
     }
 }
 

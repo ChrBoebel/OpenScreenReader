@@ -3741,6 +3741,16 @@
         }
       }
     },
+    "The local speech runtime is missing from this copy of Saywing. Reinstall Saywing to restore it. No text was sent to a server.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In dieser Saywing-Installation fehlt die lokale Sprachausgabe. Installiere Saywing erneut, um sie wiederherzustellen. Es wurde kein Text an einen Server gesendet."
+          }
+        }
+      }
+    },
     "The local dictation model sent an invalid response.": {
       "localizations": {
         "de": {
