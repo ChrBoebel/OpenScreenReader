@@ -17,6 +17,8 @@ import sys
 builder_spec = importlib.util.spec_from_file_location('build_python_runtime', Path(__file__).resolve().parent / 'build-python-runtime.py')
 builder = importlib.util.module_from_spec(builder_spec)
 builder_spec.loader.exec_module(builder)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import dictation_models  # noqa: E402
 
 # Google FLEURS demo clips (Demos/manifest.json) are redistributed unchanged.
 FLEURS_ATTRIBUTION = """Demo audio (Dictation/Demos)
@@ -39,7 +41,9 @@ parser.add_argument('app', type=Path)
 parser.add_argument('resources', type=Path, help='Existing verified runtime with Python/, Demos/ and (for --with-qwen) Model/')
 parser.add_argument('--whisper-model', type=Path, required=True, help='Verified pinned Whisper Turbo model directory')
 parser.add_argument('--whisper-large-model', type=Path, help='Also bundle this verified pinned Whisper Large v3 model directory')
-parser.add_argument('--with-qwen', action='store_true', help='Also bundle the Qwen3-ASR model from resources/Model')
+parser.add_argument('--with-qwen', action='store_true',
+                    help='Also bundle the Qwen3-ASR model: only the files in Runtime/Dictation/model-manifest.json, '
+                         'from resources/Model, license entries with a source field from Dictation/Licenses')
 parser.add_argument('--speech-from', type=Path, help='Reuse verified self-contained Speech resources from an existing app')
 mode = parser.add_mutually_exclusive_group(required=True)
 mode.add_argument('--development-only', action='store_true', help='Local development build')
@@ -76,24 +80,25 @@ for whisper_dir, manifest_name, _, _ in bundled_whisper:
     if not all((whisper_source/name).is_file() for name in ['LICENSE-OpenAI', 'LICENSE-Apache-2.0']):
         raise SystemExit('Missing Whisper model license notice')
     whisper_manifests[manifest_name] = (whisper_source, whisper_manifest)
-for item in manifest['files'] if args.with_qwen else []:
-    if item['rfilename'].startswith('.'):
-        continue
-    asset = (source/'Model'/item['rfilename']).resolve(strict=True)
-    if not asset.is_relative_to((source/'Model').resolve()):
-        raise SystemExit('Model path escapes source')
-    with asset.open('rb') as f:
-        digest = sha256(f)
-    if asset.stat().st_size != item['size'] or digest != item['verified_sha256']:
-        raise SystemExit('Pinned model verification failed')
+# Bundled model licenses come from the verified Whisper Turbo directory (copied to Dictation/Licenses).
+BUNDLED_LICENSES = ['LICENSE-OpenAI', 'LICENSE-Apache-2.0']
+if args.with_qwen:
+    try:
+        # Only manifest files are bundled; entries with a `source` field come from those licenses.
+        for item in manifest['files']:
+            if item.get('verified_sha256') and 'source' in item and item['rfilename'] not in BUNDLED_LICENSES:
+                raise ValueError('Manifest license text is not bundled in Dictation/Licenses: ' + item['rfilename'])
+        dictation_models.model_plan(manifest, source/'Model', args.whisper_model.resolve(strict=True))
+    except (ValueError, FileNotFoundError) as error:
+        raise SystemExit('Qwen model rejected: ' + str(error))
 if not (source/'Python/lib/python3.12/LICENSE.txt').is_file():
     raise SystemExit('Missing CPython license')
 try:
     inventory_json = builder.verify_runtime(source/'Python', 'dictation', repo/'Runtime/Dictation/installed-packages.json')
 except ValueError as error:
     raise SystemExit('Dictation runtime rejected: ' + str(error))
-components = ['Python', 'Demos'] + (['Model'] if args.with_qwen else [])
-for component in components:
+components = ['Python', 'Demos']
+for component in components + (['Model'] if args.with_qwen else []):
     for path in (source/component).rglob('*'):
         if 'pkgconfig' in path.parts or path.name == 'python3.1':
             continue  # Build-time metadata/manual alias from the interpreter toolchain.
@@ -141,14 +146,25 @@ for _, manifest_name, directory, _ in bundled_whisper:
 for _, _, _, notice in whisper_models:
     shutil.copy2(repo/'docs/research'/notice, target/(Path(notice).stem.removesuffix('-dictation').upper()+'-NOTICES.md'))
 (target/'Licenses').mkdir()
-for name in ['LICENSE-OpenAI', 'LICENSE-Apache-2.0']:
+for name in BUNDLED_LICENSES:
     shutil.copy2(args.whisper_model.resolve(strict=True)/name, target/'Licenses'/name)
+if args.with_qwen:
+    dictation_models.copy_model(manifest, source/'Model', target/'Licenses', target/'Model')
 for name in ['worker.py', 'worker.sb', 'model-manifest.json', 'whisper-turbo-manifest.json',
              'whisper-large-v3-manifest.json', 'requirements-lock.txt']:
     shutil.copy2(repo/'Runtime/Dictation'/name, target/name)
 (target/'installed-packages.json').write_text(inventory_json)
+vendored = [lib['path'] for package in json.loads(inventory_json)['packages'] for lib in package['vendored_native_libraries']]
+gnu_notice = ''
+if any(Path(path).name.startswith('libquadmath') for path in vendored):
+    # SciPy's license file names the LGPL but does not contain its text.
+    gnu_notice = ('\nGNU Lesser General Public License 2.1 (libquadmath, see above)\n' + '=' * 62 + '\n'
+                  'Corresponding source (GCC 13.4.0 with the Homebrew Darwin patch): Contents/Resources/CorrespondingSource\n'
+                  'of the app, see its README.md. The library is a separate dylib and may be replaced.\n\n'
+                  + (repo/'docs/licenses/GCC-13.4.0/libquadmath/COPYING.LIB').read_text(encoding='utf-8'))
 (target/'THIRD-PARTY-NOTICES.txt').write_text(
-    (source/'Python/THIRD-PARTY-NOTICES.txt').read_text(encoding='utf-8') + '\n' + FLEURS_ATTRIBUTION, encoding='utf-8')
+    (source/'Python/THIRD-PARTY-NOTICES.txt').read_text(encoding='utf-8') + '\n' + FLEURS_ATTRIBUTION + gnu_notice,
+    encoding='utf-8')
 subprocess.run([sys.executable, repo/'scripts/patch-dictation-runtime.py', target], check=True)
 shutil.copy2(repo/'docs/licenses/mlx-examples-MIT.txt', target/'Licenses/LICENSE-mlx-examples')
 (target/'RuntimeCache/dynamo').mkdir(parents=True)

@@ -188,6 +188,96 @@ class ReleaseTests(unittest.TestCase):
                     release.main()
             self.assertEqual((parsed[-1].identity, parsed[-1].notary_profile), (identity, profile))
 
+    def license_repo(self, root, omit=()):
+        for relative, _ in release.DMG_LICENSE_FILES:
+            if relative not in omit:
+                (root / relative).parent.mkdir(parents=True, exist_ok=True)
+                (root / relative).write_text('text of ' + relative)
+        return root
+
+    def signed_app(self, root):
+        app = root / 'Saywing.app'
+        (app / 'Contents/Resources').mkdir(parents=True)
+        (app / 'Contents/Resources/THIRD-PARTY-NOTICES.html').write_text('<html>notices</html>')
+        return app
+
+    def test_dmg_license_documents_fail_loudly_when_missing(self):
+        with tempfile.TemporaryDirectory() as temp:
+            repo = self.license_repo(Path(temp), omit=('NOTICE', 'docs/licenses/SUPERTONIC-MODEL-TERMS.md'))
+            with self.assertRaisesRegex(ValueError, 'NOTICE, docs/licenses/SUPERTONIC-MODEL-TERMS.md'):
+                release.dmg_license_files(repo)
+            (repo / 'NOTICE').write_text('')
+            (repo / 'docs/licenses/SUPERTONIC-MODEL-TERMS.md').symlink_to(repo / 'LICENSE')
+            with self.assertRaisesRegex(ValueError, 'NOTICE, docs/licenses/SUPERTONIC-MODEL-TERMS.md'):
+                release.dmg_license_files(repo)
+
+    def test_dmg_shows_license_and_model_terms_beside_the_app(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            repo, image = self.license_repo(root / 'repo'), root / 'image'
+            image.mkdir()
+            names = release.stage_dmg_licenses(image, self.signed_app(root), repo)
+            self.assertEqual(names, ['LICENSE', 'NOTICE', 'SUPERTONIC-MODEL-TERMS.md', 'Supertonic-3-Open-RAIL-M.txt',
+                                     'THIRD-PARTY-NOTICES.html'])
+            self.assertEqual((image / 'Licenses/SUPERTONIC-MODEL-TERMS.md').read_text(),
+                             'text of docs/licenses/SUPERTONIC-MODEL-TERMS.md')
+            self.assertFalse(any(path.is_symlink() for path in (image / 'Licenses').iterdir()))
+            (root / 'Saywing.app/Contents/Resources/THIRD-PARTY-NOTICES.html').unlink()
+            with self.assertRaisesRegex(ValueError, 'THIRD-PARTY-NOTICES'):
+                release.stage_dmg_licenses(root / 'other', root / 'Saywing.app', repo)
+
+    def test_repository_license_documents_for_the_dmg(self):
+        # NOTICE and SUPERTONIC-MODEL-TERMS.md are added by the model-terms change; until it is
+        # merged the release script must refuse to build.
+        present = [relative for relative, _ in release.DMG_LICENSE_FILES if (release.REPO / relative).is_file()]
+        if len(present) == len(release.DMG_LICENSE_FILES):
+            release.dmg_license_files()
+        else:
+            with self.assertRaises(ValueError):
+                release.dmg_license_files()
+        self.assertIn('LICENSE', present)
+        self.assertIn('docs/licenses/Supertonic-3-Open-RAIL-M.txt', present)
+
+    def test_packaged_dmg_contains_licenses_folder(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        import plistlib
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            repo, app, output = self.license_repo(root / 'repo'), self.signed_app(root), root / 'out'
+            output.mkdir()
+            args = SimpleNamespace(build='7', version='1.2.3', feed_url='https://example.com/appcast.xml',
+                                   public_key='key', sparkle_account='saywing', notarize=False, public_release=False,
+                                   download_url_prefix='https://example.com', sparkle_key_file=None, architecture='arm64',
+                                   identity='Developer ID Application: Example (TEAM123456)')
+            (app / 'Contents/Info.plist').write_bytes(plistlib.dumps({
+                'CFBundleVersion': '7', 'CFBundleShortVersionString': '1.2.3',
+                'SUFeedURL': args.feed_url, 'SUPublicEDKey': 'key'}))
+            seen = {}
+            def fake_run(*command, **kwargs):
+                if command[0] == '/usr/bin/hdiutil':
+                    source = Path(command[command.index('-srcfolder') + 1])
+                    seen['licenses'] = sorted(path.name for path in (source / 'Licenses').iterdir())
+                    seen['app'] = (source / 'Saywing.app').is_dir()
+                    Path(command[-1]).write_bytes(b'dmg')
+                return SimpleNamespace(stdout='key' if str(command[0]).endswith('generate_keys') else '')
+            with patch.object(release, 'run', side_effect=fake_run), patch.object(release, 'REPO', repo), \
+                 patch.object(release, 'generate_feed'):
+                release.package_signed_app(app, output, args, Path('/tools'))
+            self.assertTrue(seen['app'])
+            self.assertEqual(seen['licenses'], ['LICENSE', 'NOTICE', 'SUPERTONIC-MODEL-TERMS.md',
+                                                'Supertonic-3-Open-RAIL-M.txt', 'THIRD-PARTY-NOTICES.html'])
+            self.assertFalse((output / 'image').exists())
+
+    def test_committed_approvals_explain_an_open_license_review(self):
+        for architecture in ['arm64', 'x86_64']:
+            path = release.release_target(architecture)['approval']
+            record = json.loads(path.read_text())
+            if record['license_review'] is not True:
+                self.assertTrue(record.get('license_review_note', '').strip(), path.name)
+                with self.assertRaisesRegex(ValueError, 'license_review'):
+                    release.require_release_approval(path, architecture)
+
     def test_version_numbers_are_monotonic_and_path_safe(self):
         release.validate_version('0.1.0', '42')
         for version, build in [('0.1.0', '0'), ('../oops', '3'), ('1.0', 'abc'), ('1.2.3', '1/2')]:

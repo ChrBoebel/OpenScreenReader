@@ -1,5 +1,6 @@
 {
-  "license_review": true,
+  "license_review": false,
+  "license_review_note": "2026-10-24 owner decision: the license review is not complete while the gates in docs/decisions/0003-bundled-default-model.md remain open: Supertonic model terms in the DMG, notices and corresponding sources for the rebuilt minimal runtimes, independent interpreter provenance, and legal review of the model-terms wording. The earlier 2026-10-15 review covered the previous runtime and no longer applies.",
   "clean_mac": false,
   "offline_privacy": true,
   "update_roundtrip": true,
