@@ -5,12 +5,22 @@ import hashlib
 from html import escape
 import json
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
 
 REPO = Path(__file__).resolve().parents[1]
+SOURCE_RECORDS = REPO / 'docs/licenses/native-corresponding-sources.json'
+# Maintainer download cache for --fetch-sources; never bundled into the app.
 SOURCE_CACHE = REPO / '.build/license-corresponding-source'
+# ADR 0007: the app ships a written offer and exact pointers, never the source archives.
+# The publish job archives the exact files for every published build (scripts/publish-release.py).
+SOURCE_DOCUMENTS = ('README.md', 'sources.json')
+SOURCE_REQUESTS = 'https://github.com/ChrBoebel/saywing/issues'
+MAINTAINER_PROFILE = 'https://github.com/ChrBoebel'
+COPYLEFT = re.compile(r'\b(L?GPL|MPL)')
+SHA256 = re.compile(r'[0-9a-f]{64}')
 MH_MAGIC_64 = (b'\xcf\xfa\xed\xfe', b'\xce\xfa\xed\xfe')
 FAT_MAGIC = (b'\xca\xfe\xba\xbe', b'\xca\xfe\xba\xbf')
 MH_DYLIB = 6
@@ -115,35 +125,68 @@ def verify_copyleft_libraries(resources, records):
     return found
 
 
-def copyleft_section(records, found):
-    """License, replaceability and source-availability statement for the GNU libraries."""
-    rows = []
+def written_offer():
+    return ('<p><strong>Written offer.</strong> For at least three years from the date on which the Saywing '
+            'maintainers distributed the Saywing build that contains this notice, and for as long as they offer '
+            'updates or support for that build if that is longer, the Saywing maintainers will give any third party, '
+            'on request, a complete machine-readable copy of every source file listed below for that build: the '
+            'complete corresponding source of the GNU libraries and the source code form of the Mozilla Public '
+            'License 2.0 components. They provide it free of charge as a download or, if you ask for it, on a '
+            'physical medium for no more than the cost of physically performing that distribution. Ask through the '
+            'project issue tracker at <a href="' + SOURCE_REQUESTS + '">' + SOURCE_REQUESTS + '</a> and name the '
+            'Saywing version, build and Mac architecture shown in Settings; if you cannot use the issue tracker, use '
+            'the contact shown on the maintainer profile <a href="' + MAINTAINER_PROFILE + '">' + MAINTAINER_PROFILE
+            + '</a>. The maintainers keep an identical copy of every listed file for each published build.</p>'
+            '<p>The source archives are not included in this app. Each one is also published at the upstream address '
+            'below; check any copy against the listed size and SHA-256. CorrespondingSource/sources.json in this app '
+            'lists the same records in machine-readable form, and CorrespondingSource/README.md explains how to '
+            'rebuild and replace the GNU libraries.</p>')
+
+
+def pointer(record):
+    return ('<li><code>' + escape(record['file']) + '</code>, ' + str(record['bytes']) + ' bytes, SHA-256 <code>'
+            + escape(record['sha256']) + '</code>, from <a href="' + escape(record['url']) + '">'
+            + escape(record['url']) + '</a></li>')
+
+
+def source_section(records, found):
+    """Written offer, GNU replaceability statement, MPL-2.0 source information and exact pointers."""
+    if not records:
+        return ''
+    gnu = []
     for item in records:
         if not item.get('dynamic_libraries'):
             continue
         paths = [path for name in item['dynamic_libraries'] for path in found.get(name, [])]
         sources = [record for record in records if record.get('component') == item['component']]
-        rows.append('<h3>' + escape(item['component']) + '</h3><p>License: ' + escape(item['license']) + '.</p>'
-                    '<p>Separate dynamic libraries in this app, unmodified from their upstream package:</p><ul>'
-                    + ''.join('<li><code>' + escape(path) + '</code></li>' for path in paths) + '</ul><p>'
-                    + escape(item.get('binary_origin', '')) + '</p><p>Complete corresponding source:</p><ul>'
-                    + ''.join('<li><code>CorrespondingSource/' + escape(record['file']) + '</code>, ' + str(record['bytes'])
-                              + ' bytes, SHA-256 <code>' + escape(record['sha256']) + '</code>, from '
-                              + escape(record['url']) + '</li>' for record in sources) + '</ul>')
-    if not rows:
-        return ''
-    return ('<h2>GNU libraries: license, replacement and source</h2>'
-            '<p>The libraries below are licensed under the GNU Lesser General Public License version 2.1 or later, '
-            'or the GNU General Public License version 3 or later with the GCC Runtime Library Exception 3.1. '
-            'Their complete license texts are under Licenses/GCC-13.4.0 below. They are loaded at run time as '
-            'separate files, so you may replace them with a modified or compatible version as described in '
-            'CorrespondingSource/README.md. Saywing imposes no additional restriction on modifying them for your '
-            'own use or on reverse engineering for debugging such modifications.</p>'
-            '<p>The complete corresponding source is distributed with this app in the CorrespondingSource folder; '
-            'availability.json shows whether this copy includes every archive. If a copy you received lacks any of '
-            'them, the exact files are available from the addresses below (verify the SHA-256), and the Saywing '
-            'maintainers will provide them on request through the project repository for at least three years '
-            'after the last distribution of this version.</p>' + ''.join(rows))
+        gnu.append('<h3>' + escape(item['component']) + '</h3><p>License: ' + escape(item['license']) + '.</p>'
+                   '<p>Separate dynamic libraries in this app, unmodified from their upstream package:</p><ul>'
+                   + ''.join('<li><code>' + escape(path) + '</code></li>' for path in paths) + '</ul><p>'
+                   + escape(item.get('binary_origin', '')) + '</p><p>Complete corresponding source '
+                   '(not included in this app; see the written offer above):</p><ul>'
+                   + ''.join(pointer(record) for record in sources) + '</ul>')
+    mpl = [item for item in records if 'MPL' in item.get('license', '')]
+    html = '<h2>Source code offer</h2>' + written_offer()
+    if gnu:
+        html += ('<h2>GNU libraries: license, replacement and source</h2>'
+                 '<p>The libraries below are licensed under the GNU Lesser General Public License version 2.1 or later, '
+                 'or the GNU General Public License version 3 or later with the GCC Runtime Library Exception 3.1. '
+                 'Their complete license texts are under Licenses/GCC-13.4.0 below. They are loaded at run time as '
+                 'separate files, so you may replace them with a modified or compatible version as described in '
+                 'CorrespondingSource/README.md. Saywing imposes no additional restriction on modifying them for your '
+                 'own use or on reverse engineering for debugging such modifications.</p>' + ''.join(gnu))
+    if mpl:
+        html += ('<h2>Mozilla Public License 2.0 components</h2>'
+                 '<p>The following components are covered by the Mozilla Public License 2.0, whose complete text is '
+                 'included below. Their source code form is available from the address given, and from the Saywing '
+                 'maintainers under the written offer above.</p><ul>'
+                 + ''.join('<li>' + escape(item.get('component', item['file'])) + ' (' + escape(item['license'])
+                           + '): <code>' + escape(item['file']) + '</code>, ' + str(item['bytes'])
+                           + ' bytes, SHA-256 <code>' + escape(item['sha256']) + '</code>, from <a href="'
+                           + escape(item['url']) + '">' + escape(item['url']) + '</a>; license text: '
+                           + ', '.join('<code>' + escape(text) + '</code>' for text in item['license_texts']) + '</li>'
+                           for item in mpl) + '</ul>')
+    return html + '<h2>All source archives for this build</h2><ul>' + ''.join(pointer(record) for record in records) + '</ul>'
 
 
 def notice_files(resources):
@@ -162,7 +205,7 @@ def notice_files(resources):
         yield path
 
 
-def render_index(resources, copyleft=''):
+def render_index(resources, sources=''):
     sections = []
     for path in notice_files(resources):
         content = path.read_text(encoding='utf-8')
@@ -180,66 +223,94 @@ def render_index(resources, copyleft=''):
 <h2>Supertonic 3</h2>
 <p>Use and redistribution of the bundled Supertonic 3 model and voice are governed by the BigScience Open RAIL-M license, including paragraph 5 and Attachment A (use restrictions). These terms apply to the model and its derivatives, not to unrelated Saywing source code or other components. The complete unchanged license is included below.</p>
 <p>Für die Nutzung und Weitergabe des mitgelieferten Supertonic-3-Modells und seiner Stimme gilt die BigScience Open RAIL-M-Lizenz einschließlich Absatz 5 und Anhang A (Nutzungsbeschränkungen). Diese Bedingungen gelten für das Modell und seine Ableitungen, nicht für unabhängigen Saywing-Quellcode oder andere Komponenten. Der vollständige unveränderte Lizenztext folgt unten.</p>
-<h2>Corresponding source</h2>
-<p>The CorrespondingSource folder beside this document contains the available original native-library sources and build instructions. Its availability.json records inclusion; sources.json records exact URLs, sizes and hashes. This does not change the license of Saywing or other components.</p>
-''' + copyleft + '''
+''' + sources + '''
 <h2>Original license texts and notices</h2>
 <p>This document is available offline. The paths identify the original notices inside this app. An inventory does not certify that all distribution obligations have been fulfilled.</p>
 ''' + '\n'.join(sections) + '</html>\n'
 
 
-def bundle_sources(resources, cache, records, required=False):
-    destination = resources / 'CorrespondingSource'
-    inputs = []
-    names = {item['file'] for item in records}
+def corresponding_sources(architecture):
+    """Source records for one architecture; records without `architectures` apply to both."""
+    return for_architecture(json.loads(SOURCE_RECORDS.read_text()), architecture)
+
+
+def validate_source_records(records):
+    """Every pointer is exact; every copyleft record names the license texts shipped in the app."""
     for item in records:
-        name = item['file']
+        name = item.get('file', '')
         if Path(name).name != name or name in ('', '.', '..'):
-            raise ValueError('Invalid corresponding-source filename')
-        source = destination / name if (destination / name).is_file() else cache / name
-        if not source.is_file():
-            if required:
-                raise FileNotFoundError('Missing corresponding source: ' + name)
-            continue
-        if source.is_symlink() or source.stat().st_size != item['bytes'] or hashlib.sha256(source.read_bytes()).hexdigest() != item['sha256']:
-            raise ValueError('Corresponding source hash/size mismatch: ' + name)
-        inputs.append((source, destination / name))
+            raise ValueError('Invalid corresponding-source filename: ' + repr(name))
+        if not str(item.get('url', '')).startswith('https://') or not isinstance(item.get('bytes'), int) \
+                or item['bytes'] <= 0 or not SHA256.fullmatch(str(item.get('sha256', ''))):
+            raise ValueError('Corresponding source needs an HTTPS URL, size and SHA-256: ' + name)
+        if not str(item.get('license', '')).strip():
+            raise ValueError('Corresponding source needs its license: ' + name)
+        if COPYLEFT.search(item['license']) and not item.get('license_texts'):
+            raise ValueError('Copyleft corresponding source needs its shipped license texts: ' + name)
+
+
+def reject_bundled_sources(resources, records):
+    """The app carries the offer and pointers only; any archive in it fails the build."""
+    folder = resources / 'CorrespondingSource'
+    if folder.exists():
+        extra = sorted(str(path.relative_to(resources)) for path in folder.rglob('*')
+                       if str(path.relative_to(folder)) not in SOURCE_DOCUMENTS)
+        if extra:
+            raise ValueError('Source archives must not be bundled in the app (ADR 0007): ' + ', '.join(extra))
+    names = {item['file'] for item in records}
+    bundled = sorted(str(path.relative_to(resources)) for path in resources.rglob('*') if path.name in names)
+    if bundled:
+        raise ValueError('Source archives must not be bundled in the app (ADR 0007): ' + ', '.join(bundled))
+
+
+def write_source_pointers(resources, records):
+    destination = resources / 'CorrespondingSource'
     destination.mkdir(parents=True, exist_ok=True)
-    # Archives of components that are no longer shipped must not linger from an input app.
-    for path in destination.iterdir():
-        if path.name not in names | {'sources.json', 'availability.json', 'README.md'}:
-            shutil.rmtree(path) if path.is_dir() and not path.is_symlink() else path.unlink()
-    for source, target in inputs:
-        if source.resolve() != target.resolve():
-            shutil.copy2(source, target)
     (destination / 'sources.json').write_text(json.dumps(records, indent=2) + '\n')
-    (destination / 'availability.json').write_text(json.dumps({'included': len(inputs), 'expected': len(records)}, indent=2) + '\n')
+    shutil.copy2(REPO / 'docs/licenses/CorrespondingSource-README.md', destination / 'README.md')
+
+
+def verify_license_texts(resources, records):
+    shipped = {path.resolve() for path in notice_files(resources)}
+    for item in records:
+        for relative in item.get('license_texts', []):
+            if Path(relative).is_absolute() or '..' in Path(relative).parts:
+                raise ValueError('License text path escapes the app: ' + relative)
+            if (resources / relative).resolve() not in shipped:
+                raise ValueError('Missing license text for ' + item['file'] + ': ' + relative)
+
+
+def fetch_source(item, directory):
+    """Build or publish time only: download one source archive and verify size and SHA-256."""
+    target = directory / Path(item['file']).name
+    if not target.is_file():
+        partial = target.with_name(target.name + '.partial')
+        subprocess.run(['/usr/bin/curl', '--fail', '--location', '--silent', '--show-error', '--proto', '=https',
+                        '--proto-redir', '=https', '--output', str(partial), item['url']], check=True)
+        partial.rename(target)
+    if target.stat().st_size != item['bytes'] or hashlib.sha256(target.read_bytes()).hexdigest() != item['sha256']:
+        target.unlink()
+        raise ValueError('Corresponding source hash/size mismatch: ' + item['file'])
+    return target
 
 
 def fetch_sources(cache, records):
-    """Build time only: download missing corresponding sources and verify size and SHA-256."""
+    """Maintainer tool: download and verify every source archive, e.g. to answer a request."""
     cache.mkdir(parents=True, exist_ok=True)
     for item in records:
-        target = cache / Path(item['file']).name
-        if not target.is_file():
-            partial = target.with_name(target.name + '.partial')
-            subprocess.run(['/usr/bin/curl', '--fail', '--location', '--silent', '--show-error', '--proto', '=https',
-                            '--output', str(partial), item['url']], check=True)
-            partial.rename(target)
-        if target.stat().st_size != item['bytes'] or hashlib.sha256(target.read_bytes()).hexdigest() != item['sha256']:
-            target.unlink()
-            raise ValueError('Corresponding source hash/size mismatch: ' + item['file'])
+        fetch_source(item, cache)
         print('Verified', item['file'], flush=True)
 
 
-def bundle_notices(resources, require_sources=False):
+def bundle_notices(resources):
     sources = REPO / 'docs/licenses'
     portable = resources / 'portable-runtime.json'
     architecture = json.loads(portable.read_text())['architecture'] if portable.exists() else 'arm64'
-    source_records = for_architecture(json.loads((sources / 'native-corresponding-sources.json').read_text()), architecture)
+    source_records = corresponding_sources(architecture)
+    validate_source_records(source_records)
+    reject_bundled_sources(resources, source_records)
     gnu_libraries = verify_copyleft_libraries(resources, source_records)
-    bundle_sources(resources, SOURCE_CACHE, source_records, required=require_sources)
-    shutil.copy2(sources / 'CorrespondingSource-README.md', resources / 'CorrespondingSource/README.md')
+    write_source_pointers(resources, source_records)
     records = json.loads((sources / 'portable-supplement-sources.json').read_text())
     rust_proof = json.loads((sources / 'rust-license-coverage.json').read_text())
     verify_rust_coverage(resources, rust_proof, architecture)
@@ -263,9 +334,10 @@ def bundle_notices(resources, require_sources=False):
         'packages, vendored native libraries and license texts; the model manifests identify the\n'
         'bundled models.\n')
 
+    verify_license_texts(resources, source_records)
     # Exact originals remain in place; the readable index is generated before signing.
     (resources / 'THIRD-PARTY-NOTICES.html').write_text(
-        render_index(resources, copyleft_section(source_records, gnu_libraries)), encoding='utf-8')
+        render_index(resources, source_section(source_records, gnu_libraries)), encoding='utf-8')
     inventory = [{'path': str(p.relative_to(resources)), 'sha256': hashlib.sha256(p.read_bytes()).hexdigest()}
                  for p in notice_files(resources)]
     (target / 'notice-inventory.json').write_text(json.dumps(inventory, indent=2) + '\n')
@@ -276,12 +348,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('resources', type=Path, nargs='?')
     parser.add_argument('--fetch-sources', action='store_true',
-                        help='Download and verify every corresponding-source archive into .build/license-corresponding-source')
-    parser.add_argument('--require-sources', action='store_true', help='Fail unless every corresponding source is bundled')
+                        help='Maintainer tool: download and verify every source archive into .build/license-corresponding-source '
+                             '(not bundled; used to inspect or answer a source request)')
     args = parser.parse_args()
     if not args.resources and not args.fetch_sources:
         parser.error('resources or --fetch-sources is required')
     if args.fetch_sources:
-        fetch_sources(SOURCE_CACHE, json.loads((REPO / 'docs/licenses/native-corresponding-sources.json').read_text()))
+        fetch_sources(SOURCE_CACHE, json.loads(SOURCE_RECORDS.read_text()))
     if args.resources:
-        print('Bundled notice files:', bundle_notices(args.resources.resolve(strict=True), require_sources=args.require_sources))
+        print('Bundled notice files:', bundle_notices(args.resources.resolve(strict=True)))

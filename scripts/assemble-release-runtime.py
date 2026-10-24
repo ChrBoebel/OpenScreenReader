@@ -8,14 +8,17 @@ Build-time network only. Every input is pinned in the repository and verified
 - Supertonic 3 model: docs/research/supertonic-comparison-manifest.json (Hugging Face revision);
 - Supertonic helper/license and FLEURS demo archives: Runtime/Portable/release-inputs.json;
 - Whisper Turbo: Runtime/Dictation/whisper-turbo-manifest.json (MLX, arm64) or
-  Runtime/Portable/whisper-turbo-cpp-manifest.json plus whisper-cpp-source.json (Intel);
-- corresponding sources: docs/licenses/native-corresponding-sources.json.
+  Runtime/Portable/whisper-turbo-cpp-manifest.json plus whisper-cpp-source.json (Intel).
+
+Source archives of the GNU and MPL-2.0 components are not release inputs: the app ships a
+written offer and exact pointers, and scripts/publish-release.py archives the archives for
+every published build (docs/decisions/0007-gcc-runtime-libraries.md).
 
   python3 scripts/assemble-release-runtime.py --architecture arm64 --public-release \\
       --cache .build/runtime-cache --output .build/runtime-arm64/Saywing.app
 
 The output is a new Saywing.app containing only Contents/Resources (Speech/,
-Dictation/, portable-runtime.json, CorrespondingSource/ and notices). Pass it to
+Dictation/, portable-runtime.json and notices). Pass it to
 scripts/release.py --runtime-app. Nothing here signs, notarizes or publishes.
 """
 import argparse
@@ -37,7 +40,6 @@ HF = 'https://huggingface.co'
 SPEECH_MANIFEST = REPO / 'docs/research/supertonic-comparison-manifest.json'
 RELEASE_INPUTS = REPO / 'Runtime/Portable/release-inputs.json'
 DEMO_MANIFEST = REPO / 'Runtime/Dictation/demo-manifest.json'
-CORRESPONDING_SOURCES = REPO / 'docs/licenses/native-corresponding-sources.json'
 WHISPER_CPP_SOURCE = REPO / 'Runtime/Portable/whisper-cpp-source.json'
 PUBLIC_PURPOSE = 'Saywing release build; components are redistributed under the licenses in THIRD-PARTY-NOTICES.txt'
 DEVELOPMENT_PURPOSE = 'Local development build; not notarized'
@@ -132,22 +134,10 @@ def demo_pins():
             for locale, item in demo['archives'].items()}
 
 
-def corresponding_source_pins(architecture):
-    pins = {}
-    for record in read_json(CORRESPONDING_SOURCES):
-        # Same selection as scripts/bundle_notices.py: records without the field apply to both.
-        if architecture not in record.get('architectures', builder.ARCHITECTURES):
-            continue
-        if Path(record['file']).name != record['file']:
-            raise ValueError('Invalid corresponding-source filename')
-        pins['source/' + record['file']] = pin(record['file'], record['url'], record['bytes'], record['sha256'])
-    return pins
-
-
 def input_pins(architecture):
     if architecture not in builder.ARCHITECTURES:
         raise ValueError('Unsupported architecture')
-    return {**speech_pins(), **whisper_pins(architecture), **demo_pins(), **corresponding_source_pins(architecture)}
+    return {**speech_pins(), **whisper_pins(architecture), **demo_pins()}
 
 
 def fetch(pins, cache):
@@ -295,7 +285,7 @@ def assemble_dictation_x86_64(resources, inputs, fetched, bridge, public):
                   bundled_models={'whisper-turbo-manifest.json': read_json(cpp_manifest)['revision']})
 
 
-def finish(resources, architecture, fetched):
+def finish(resources, architecture):
     (resources / 'portable-runtime.json').write_text(json.dumps({
         'architecture': architecture, 'minimum_macos': builder.MINIMUM_MACOS,
         'status': 'Built from pinned public inputs (docs/runtime-build.md); clean macOS 14 and native Intel tests remain release gates',
@@ -303,9 +293,6 @@ def finish(resources, architecture, fetched):
     copy_file(REPO / 'LICENSE', resources / 'LICENSE-Saywing')
     # scripts/release.py removes this notice for approved public releases and rewrites it otherwise.
     (resources / 'DEVELOPMENT-PREVIEW.txt').write_text('Runtime input assembled by scripts/assemble-release-runtime.py.\n')
-    for name, path in fetched.items():
-        if name.startswith('source/'):
-            copy_file(path, resources / 'CorrespondingSource' / name.removeprefix('source/'))
     portable.audit(resources, architecture, builder.MINIMUM_MACOS)
 
 
@@ -329,7 +316,7 @@ def assemble(architecture, cache, output, work, public):
     else:
         bridge = build_whisper_cpp(fetched['whisper-cpp-source'], work / 'whisper-cpp')
         assemble_dictation_x86_64(resources, inputs, fetched, bridge, public)
-    finish(resources, architecture, fetched)
+    finish(resources, architecture)
     output.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(app), str(output))
     shutil.rmtree(work)

@@ -35,25 +35,6 @@ class NoticeTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 notices.verify_supplements(root, [{'license_file': 'NOTICE', 'license_sha256': '0' * 64}])
 
-    def test_source_archives_are_verified_before_copy(self):
-        import hashlib
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp); cache = root / 'cache'; cache.mkdir()
-            (cache / 'source.tar.gz').write_bytes(b'original')
-            records = [{'file': 'source.tar.gz', 'bytes': 8, 'sha256': hashlib.sha256(b'original').hexdigest()}]
-            notices.bundle_sources(root / 'resources', cache, records, required=True)
-            self.assertEqual((root / 'resources/CorrespondingSource/source.tar.gz').read_bytes(), b'original')
-            (cache / 'source.tar.gz').write_bytes(b'tampered')
-            with self.assertRaises(ValueError):
-                notices.bundle_sources(root / 'other', cache, records, required=True)
-
-    def test_missing_required_source_is_rejected(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            with self.assertRaises((ValueError, FileNotFoundError)):
-                notices.bundle_sources(root / 'resources', root / 'cache',
-                    [{'file': 'source.tar.gz', 'bytes': 1, 'sha256': '0' * 64}], required=True)
-
     def test_named_supplement_is_visible_in_index(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); (root / 'Licenses').mkdir()
@@ -84,7 +65,10 @@ def macho(filetype):
 
 
 GCC_RECORD = {'file': 'gcc.tar.xz', 'url': 'https://example.org/gcc.tar.xz', 'bytes': 1, 'sha256': '0' * 64,
-              'component': 'GCC runtime', 'license': 'LGPL-2.1-or-later', 'dynamic_libraries': ['libquadmath.0.dylib']}
+              'component': 'GCC runtime', 'license': 'LGPL-2.1-or-later', 'dynamic_libraries': ['libquadmath.0.dylib'],
+              'license_texts': ['Licenses/GCC/COPYING.LIB']}
+MPL_RECORD = {'file': 'eigen.zip', 'url': 'https://example.org/eigen.zip', 'bytes': 2, 'sha256': '1' * 64,
+              'component': 'Eigen', 'license': 'MPL-2.0', 'license_texts': ['Speech/ThirdPartyNotices.txt']}
 
 
 class CopyleftLibraryTests(unittest.TestCase):
@@ -129,25 +113,87 @@ class CopyleftLibraryTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'missing'):
                 notices.verify_copyleft_libraries(Path(tmp), [GCC_RECORD])
 
-    def test_source_offer_names_license_replacement_and_exact_archive(self):
-        section = notices.copyleft_section([GCC_RECORD], {'libquadmath.0.dylib': ['Dictation/libquadmath.0.dylib']})
+    def test_source_offer_names_license_replacement_and_exact_pointers(self):
+        section = notices.source_section([GCC_RECORD, MPL_RECORD], {'libquadmath.0.dylib': ['Dictation/libquadmath.0.dylib']})
         for text in ['Lesser General Public License version 2.1', 'replace them', 'reverse engineering',
-                     'Dictation/libquadmath.0.dylib', 'CorrespondingSource/gcc.tar.xz', '0' * 64,
-                     'https://example.org/gcc.tar.xz', 'three years']:
+                     'Dictation/libquadmath.0.dylib', 'gcc.tar.xz', '0' * 64, 'https://example.org/gcc.tar.xz',
+                     # Written offer: duration from distribution, any third party, cost cap, contact without e-mail.
+                     'at least three years from the date', 'any third party', 'no more than the cost',
+                     notices.SOURCE_REQUESTS, 'Mozilla Public License 2.0', 'Eigen', 'https://example.org/eigen.zip',
+                     '1' * 64, 'not included in this app']:
             self.assertIn(text, section)
-        self.assertEqual(notices.copyleft_section([], {}), '')
+        self.assertNotIn('CorrespondingSource/gcc.tar.xz', section)
+        self.assertNotIn('@', section)  # No personal e-mail address in the offer.
+        self.assertEqual(notices.source_section([], {}), '')
 
-    def test_stale_archives_from_an_input_app_are_removed(self):
-        import hashlib
+
+class SourcePointerTests(unittest.TestCase):
+    def test_source_archives_inside_the_app_are_rejected(self):
+        for relative in ['CorrespondingSource/gcc.tar.xz', 'CorrespondingSource/other.tar.gz', 'Dictation/gcc.tar.xz']:
+            with self.subTest(relative=relative), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); (root / relative).parent.mkdir(parents=True)
+                (root / relative).write_bytes(b'archive')
+                with self.assertRaisesRegex(ValueError, 'must not be bundled'):
+                    notices.reject_bundled_sources(root, [GCC_RECORD])
+
+    def test_pointer_documents_are_the_only_corresponding_source_files(self):
+        import json
         with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp); cache = root / 'cache'; cache.mkdir()
-            (cache / 'current.tar.gz').write_bytes(b'current')
-            stale = root / 'resources/CorrespondingSource/libsndfile-1.2.2.tar.xz'
-            stale.parent.mkdir(parents=True); stale.write_bytes(b'old')
-            records = [{'file': 'current.tar.gz', 'bytes': 7, 'sha256': hashlib.sha256(b'current').hexdigest()}]
-            notices.bundle_sources(root / 'resources', cache, records, required=True)
-            self.assertFalse(stale.exists())
-            self.assertTrue((root / 'resources/CorrespondingSource/current.tar.gz').is_file())
+            root = Path(tmp)
+            notices.write_source_pointers(root, [GCC_RECORD, MPL_RECORD])
+            folder = root / 'CorrespondingSource'
+            self.assertEqual(sorted(path.name for path in folder.iterdir()), ['README.md', 'sources.json'])
+            self.assertEqual(json.loads((folder / 'sources.json').read_text()), [GCC_RECORD, MPL_RECORD])
+            self.assertIn('written offer', (folder / 'README.md').read_text().lower())
+            notices.reject_bundled_sources(root, [GCC_RECORD, MPL_RECORD])  # Pointers alone are accepted.
+
+    def test_records_need_exact_pointers_and_copyleft_license_texts(self):
+        notices.validate_source_records([GCC_RECORD, MPL_RECORD])
+        for change in [{'url': 'http://example.org/gcc.tar.xz'}, {'sha256': 'abc'}, {'bytes': 0},
+                       {'file': '../gcc.tar.xz'}, {'license': ''}, {'license_texts': []}]:
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                notices.validate_source_records([{**GCC_RECORD, **change}])
+        mit = {key: value for key, value in MPL_RECORD.items() if key != 'license_texts'}
+        notices.validate_source_records([{**mit, 'license': 'MIT'}])  # Only copyleft records must point to texts.
+
+    def test_copyleft_license_texts_must_ship_as_notices(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with self.assertRaisesRegex(ValueError, 'license text'):
+                notices.verify_license_texts(root, [GCC_RECORD])
+            (root / 'Licenses/GCC').mkdir(parents=True)
+            (root / 'Licenses/GCC/COPYING.LIB').write_text('GNU LESSER GENERAL PUBLIC LICENSE')
+            notices.verify_license_texts(root, [GCC_RECORD])
+            with self.assertRaises(ValueError):
+                notices.verify_license_texts(root, [{**GCC_RECORD, 'license_texts': ['../outside/COPYING']}])
+
+    def test_release_bundle_ships_offer_pointers_and_license_texts_but_no_archives(self):
+        import json
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'portable-runtime.json').write_text(json.dumps({'architecture': 'x86_64'}))
+            dylibs = root / 'Dictation/Python/lib/python3.12/site-packages/scipy/.dylibs'
+            dylibs.mkdir(parents=True)
+            for name in ['libquadmath.0.dylib', 'libgfortran.5.dylib', 'libgcc_s.1.1.dylib']:
+                (dylibs / name).write_bytes(macho(6))
+            onnx = root / 'Speech/SupertonicRuntime/python/lib/python3.12/site-packages/onnxruntime/ThirdPartyNotices.txt'
+            onnx.parent.mkdir(parents=True)
+            onnx.write_text('Eigen\nMozilla Public License Version 2.0\n')
+            notices.bundle_notices(root)
+            records = notices.corresponding_sources('x86_64')
+            self.assertEqual(json.loads((root / 'CorrespondingSource/sources.json').read_text()), records)
+            self.assertEqual(sorted(path.name for path in (root / 'CorrespondingSource').iterdir()), ['README.md', 'sources.json'])
+            for name in [record['file'] for record in records]:
+                self.assertFalse(list(root.rglob(name)), name)
+            index = (root / 'THIRD-PARTY-NOTICES.html').read_text()
+            for text in ['at least three years', 'gcc-13.4.0.tar.xz', 'https://ftp.gnu.org/gnu/gcc/gcc-13.4.0/gcc-13.4.0.tar.xz',
+                         'GCC RUNTIME LIBRARY EXCEPTION', 'GNU LESSER GENERAL PUBLIC LICENSE', 'Mozilla Public License']:
+                self.assertIn(text, index)
+            self.assertTrue((root / 'Licenses/GCC-13.4.0/COPYING.RUNTIME').is_file())
+            # A stale archive from an older runtime input fails the release instead of shipping.
+            (root / 'CorrespondingSource/gcc-13.4.0.tar.xz').write_bytes(b'archive')
+            with self.assertRaisesRegex(ValueError, 'must not be bundled'):
+                notices.bundle_notices(root)
 
     def test_fetched_source_with_wrong_hash_is_discarded(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -170,6 +216,11 @@ class CommittedLicenseRecordTests(unittest.TestCase):
             self.assertTrue(item['url'].startswith('https://'), item['file'])
             self.assertGreater(item['bytes'], 0)
             self.assertRegex(item['sha256'], '^[0-9a-f]{64}$')
+        notices.validate_source_records(records)
+        for item in records:
+            for text in item.get('license_texts', []):
+                if text.startswith('Licenses/'):
+                    self.assertTrue((self.licenses / text.removeprefix('Licenses/')).is_file(), text)
         libraries = {name for item in records for name in item.get('dynamic_libraries', [])}
         self.assertEqual(libraries, {'libquadmath.0.dylib', 'libgfortran.5.dylib', 'libgcc_s.1.1.dylib'})
         self.assertIn('gcc-13.4.0.tar.xz', names)
