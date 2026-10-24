@@ -26,7 +26,7 @@ The MVP runtime path must not require or establish a network connection on its o
 - installed size and system requirements;
 - integrity check or SHA-256 hash.
 
-**Exception for app updates (project decision 2026-10-14):** Configured release builds check for new versions over HTTPS on every app launch, immediately after the updater starts, and afterwards on Sparkle's four-hour schedule (project owner's request 2026-10-15). The launch check respects disabled automatic update checks. Only available updates that have not been skipped are offered; if there is no update or no connection, no launch dialog appears. Active reading, dictation and model installation operations keep their existing protection. Settings → General allows turning this off and checking manually. The server sees the IP address and the usual HTTP metadata; no screen, text or audio data is transmitted, and optional system profiles are turned off. Signed update files are downloaded/installed only on user action; a relaunch waits until active work has finished. Release notes are not fetched separately. Developer builds without a valid feed configuration do not start an updater. A missing connection blocks neither reading aloud nor dictation. [Release and update procedure](release-and-updates.md).
+**Exception for app updates (project decision 2026-10-14):** Configured release builds check for new versions over HTTPS on every app launch, immediately after the updater starts, and afterwards on Sparkle's four-hour schedule (project owner's request 2026-10-15). The launch check respects disabled automatic update checks. Only available updates that have not been skipped are offered; if there is no update or no connection, no launch dialog appears. Active reading, dictation and model installation operations keep their existing protection. Settings → General allows turning this off and checking manually. The server sees the IP address and the usual HTTP metadata; no screen, text or audio data is transmitted, and optional system profiles are turned off. Signed update files are downloaded/installed only on user action; if work is still active at relaunch, the relaunch is postponed and only resumes when the user chooses “Install Update and Restart…” again after the work has finished. Quitting the app drops a postponed relaunch. Release notes are not fetched separately. Developer builds without a valid feed configuration do not start an updater. A missing connection blocks neither reading aloud nor dictation. [Release and update procedure](release-and-updates.md).
 
 **Exception for dictation models (project decision 2026-10-14):** Builds bundle only
 Whisper Turbo. The app downloads Qwen3-ASR and Whisper Large v3 only when the user
@@ -37,14 +37,22 @@ bundled manifest; redirects are allowed only to
 no cache. Before use, every file is checked against the size and SHA-256 from the
 manifest, and only then moved to
 `~/Library/Application Support/Saywing/DictationModels`; cancellation or a failed
-check leaves nothing behind. License texts come from the app bundle. The dictation
-worker itself stays without network access and re-checks the hashes on load.
+check leaves nothing behind. License texts come from the app bundle. A download that delivers more bytes than
+pinned or announces a different length is cancelled immediately. Verified files are
+stored read-only (0444); when model management starts, leftover `.staging-*` folders
+from a crashed run are deleted. The dictation worker itself stays without network
+access, re-checks the hashes on load, refuses model folders containing files not
+listed in the manifest (except `.DS_Store`, `VERIFIED.json` and the license copies
+`LICENSE-OpenAI`/`LICENSE-Apache-2.0`), and checks after loading that device, inode,
+size and modification time of all files are unchanged. This narrows, but does not
+eliminate, the window between check and load against a process running with the
+same user rights.
 No automatic download, no download at launch, no fallback.
 
 ## Storage and lifecycle
 
 - The new, explicitly opened playback view may show up to 100 characters per waiting text. The closed capsule stays free of text. Entries are addressed by ephemeral UUIDs; removing/reordering also replaces the prepared audio where applicable. Stop still clears everything and closes the view. Pause only holds the existing bounded RAM buffers and the active session, without writing files. Setup stores only `setupDismissed.v1`, never a supposedly passed permission result or progress; the step is derived from the current grants every time setup opens.
-- A private packaging experiment may carry the existing model and the pinned runtime as program components in `Contents/Resources/Speech`. No runtime download and no fallback to the developer installation if this bundle folder exists but is damaged. Redistribution, the complete license chain and a test on a fresh Mac remain release gates.
+- A private packaging experiment may carry the existing model and the pinned runtime as program components in `Contents/Resources/Speech`. No runtime download and no fallback to the developer installation if this bundle folder exists but is damaged. Release builds never use the developer installation under `~/Library/Application Support/OpenScreenReader` and report “not installed” without the bundle folder; only Debug builds may use it. The `--dictation-smoke` check mode likewise exists only in Debug builds. Redistribution, the complete license chain and a test on a fresh Mac remain release gates.
 
 - Reading speed is stored as a number under `speechPlaybackRate.v1`; the separate add shortcut is stored as key/modifiers under `enqueueShortcut.v1`. No audio, text or screen data is stored this way. Up to five waiting OCR texts of at most 8,000 characters/48,000 UTF-8 bytes each stay in RAM only. They are released after FIFO playback; a full stop, an error or quitting clears the list and discards late capture/OCR results. The list contains text, selection geometry and counters, never screenshots. The speech service may pre-generate audio in RAM only for the list's next entry; no pre-synthesis of the whole list. Exactly one worker stays loaded within the session and processes texts serially. The current and next transport buffers and the player are each limited to eight seconds of source audio (about 4.04 MiB combined), regardless of speed. This bounds the Swift PCM queues, not in-flight packets, transport encoding or the total memory of the audio engine and model worker. Stop/Esc/quit clear both transport buffers and the audio queue and terminate the warm worker. Without active/prepared work, keeping the worker warm ends after at most 30 s. No new file history, telemetry or runtime network connection.
 - For the panel position, only `readingPanelEdge` (bottom/left/right) and `readingPanelOffset` (normalized offset 0–1) are stored locally in UserDefaults. No display ID, absolute screen coordinates or movement recordings. Dragging uses only normal mouse events of the app's own status surface and needs no additional permission; the position preview starts neither capture nor OCR nor speech.
@@ -73,7 +81,7 @@ No automatic download, no download at launch, no fallback.
 
 ## Verifiability
 
-The current development path passes OCR text to the local Supertonic worker through an anonymous pipe, not as a command-line argument or file. PCM is played in memory. An additional development profile denies the worker network access and file writes except to `/dev/null`; Python runs without bytecode writes and without user-specific import paths. The installed models and dependencies are provided only in the explicit development step, never downloaded by the app. Playback and cancellation tests also check that the clipboard stays unchanged. This does not replace the still-pending verification of the fully bundled release artifact. Actual test results and limitations: [Supertonic integration](research/supertonic-integration.md); earlier Qwen measurements remain documented in the [runtime evaluation](research/swift-runtime-evaluation.md).
+The current development path passes OCR text to the local Supertonic worker through an anonymous pipe, not as a command-line argument or file. PCM is played in memory. The worker runs under the shared worker profile (see “Worker sandbox”); Python runs without bytecode writes and without user-specific import paths. The installed models and dependencies are provided only in the explicit development step, never downloaded by the app. Playback and cancellation tests also check that the clipboard stays unchanged. This does not replace the still-pending verification of the fully bundled release artifact. Actual test results and limitations: [Supertonic integration](research/supertonic-integration.md); earlier Qwen measurements remain documented in the [runtime evaluation](research/swift-runtime-evaluation.md).
 
 The repository should document how users can verify the privacy promises themselves:
 
@@ -83,6 +91,39 @@ The repository should document how users can verify the privacy promises themsel
 4. inspection of the clipboard;
 5. reproducible or traceable release builds;
 6. complete overview of third-party and model licenses.
+
+## Worker sandbox — 2026-10-23
+
+The dictation and speech workers start through `sandbox-exec` with the same profile
+(`WorkerSandbox.profile` in the app, byte-identical as `Runtime/Dictation/worker.sb`
+for scripts and integration checks). It is an allow-list profile (`deny default`)
+based on Apple's `bsd.sb`:
+
+- Reads only in the runtime folder, the model folder, the interpreter's prefix, the
+  system libraries from `bsd.sb`/`system.sb` and the Metal shader caches; metadata
+  (`stat`) stays readable everywhere, contents of the home folder do not.
+- No network, no file writes except `/dev/null`, no `fork`, no `exec` other than the
+  interpreter itself, no Apple Events.
+- Mach services only from the base list of `system.sb` (including logging,
+  read-only `cfprefsd`, `trustd`) plus `com.apple.MTLCompilerService` and the GPU
+  clients `AGXDeviceUserClient`/`IOSurfaceRootUserClient` for MLX. Launch Services,
+  the pasteboard (`com.apple.pasteboard.1`), TCC (`tccd`, `tccd.system`),
+  WindowServer and `nsurlsessiond` are explicitly blocked.
+
+Checked on 2026-10-23 with the installed app on Apple Silicon (macOS 26): Whisper
+Turbo, Whisper Large v3 and Qwen3-ASR (installed model folder) transcribe the demos,
+Supertonic reads aloud and cancels; network, writes, child processes and reads
+outside the runtime/model fail.
+
+Remaining limits: this is not a “ban on every form of exfiltration”. The worker can
+still answer Saywing through its stdout pipe and talk to the permitted system
+services. Apple marks `sandbox-exec` as deprecated and `bsd.sb` is a private system
+interface; if macOS changes it, the worker no longer starts (it fails closed, not
+open). The Intel path (whisper.cpp on the CPU, Supertonic on the CPU) has not yet
+been tested under this profile on real Intel hardware. The workers inherit Saywing's
+TCC responsibility (microphone, Accessibility, screen recording); they access none of
+these sources themselves, and `tccd` is blocked. Detaching that responsibility would
+only be possible through private API and is not used.
 
 ## Product communication
 
@@ -97,9 +138,11 @@ Absolute, unprovable statements such as “100 % secure” should not be used.
 
 ## Dictation — approved 2026-10-13
 
-Microphone permission and recording are separate actions. The microphone does not start at app launch, while loading or when permission is granted. At most 60 s of PCM stay in RAM and are passed through anonymous pipes to the selected local dictation model. The worker has an OS-level ban on network access and file writes (except `/dev/null`). It loads only bundled or explicitly installed, hash-verified models; no cloud or developer-path fallback. Model choice, language and restore delay are the stored dictation settings. The visible last result/test field stays in RAM until discarded/cleared/quit, without history.
+Microphone permission and recording are separate actions. The microphone does not start at app launch, while loading or when permission is granted. At most 60 s of PCM stay in RAM and are passed through anonymous pipes to the selected local dictation model. The worker runs under the shared worker profile (see “Worker sandbox”): no network, no file writes (except `/dev/null`), no child processes and no access to files outside the runtime and model. It loads only bundled or explicitly installed, hash-verified models; no cloud or developer-path fallback. Model choice, language and restore delay are the stored dictation settings. The visible last result/test field stays in RAM until discarded/cleared/quit, without history.
 
-During dictation, the field content and cursor position, where available, are kept in RAM only for target validation. Password fields and unrecognized fields are rejected. All readable clipboard formats up to 16 MiB are backed up before pasting; data that cannot be fully backed up prevents automatic pasting. A new copy takes precedence. Cancellation/normal app exit immediately restores a clipboard that is still owned by the app; a hard crash during the short paste window can prevent this. Clipboard managers can see the text despite the concealed marker. The manual “Copy Result” action keeps the explicitly requested copy.
+During dictation, the field content and cursor position, where available, are kept in RAM only for target validation. Password fields and unrecognized fields are rejected. All readable clipboard formats up to 16 MiB are backed up before pasting; data that cannot be fully backed up prevents automatic pasting. A new copy takes precedence. Promised files (file promises) are rejected from the type list alone, before any app has to produce data. Cancellation/normal app exit immediately restores a clipboard that is still owned by the app; a hard crash during the short paste window can prevent this. The pasted text carries the nspasteboard.org markers `ConcealedType`, `TransientType` and `AutoGeneratedType`; the text and the restore are written with `currentHostOnly` and do not reach the Universal Clipboard of other devices. Clipboard managers that ignore these markers can still see the text.
+
+**Password managers (decision 2026-10-23):** If the backed-up clipboard carries one of these three markers, for example a password copied from a password manager, it is cleared after pasting instead of restored — again only while the pasted text still belongs to Saywing; a newer copy still takes precedence. Writing it back would look like a new copy to the password manager and prevent its timed clearing; the password would stay on the clipboard indefinitely. The status line tells the user that the clipboard was cleared instead of restored. The manual “Copy Result” action keeps the explicitly requested copy.
 
 Microphone and Accessibility are requested only through a setup button; no live recording through demos or self-tests. Reading aloud stops before a recording; starting reading aloud discards active dictation. Esc, discard, system sleep/session switch and app exit clean up active jobs and invalidate late results. [Details and evidence](research/qwen-dictation-runtime.md).
 

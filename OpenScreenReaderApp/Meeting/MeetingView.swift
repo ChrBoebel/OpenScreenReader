@@ -213,6 +213,9 @@ private struct MeetingTranscriptView: View {
   var body: some View {
     VStack(spacing: 0) {
       header
+      if controller.microphoneMissing && controller.phase == .live {
+        microphoneHint.transition(.opacity)
+      }
       if controller.systemAudioMissing && controller.phase == .live {
         systemAudioHint.transition(.opacity)
       }
@@ -222,6 +225,7 @@ private struct MeetingTranscriptView: View {
       footer
     }
     .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 1), value: controller.systemAudioMissing)
+    .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 1), value: controller.microphoneMissing)
   }
 
   private var header: some View {
@@ -256,6 +260,17 @@ private struct MeetingTranscriptView: View {
     .frame(height: 24)
     .padding(.horizontal, 18)
     .padding(.vertical, 12)
+  }
+
+  private var microphoneHint: some View {
+    HStack(alignment: .firstTextBaseline, spacing: 12) {
+      MeetingNotice(text: String(localized: "Nothing is coming from your microphone. Check that it is not muted, that the right input is selected, and that Saywing may use the microphone."))
+      Button("Open Settings…") { SaywingPermission.microphone.openSettings() }
+    }
+    .padding(12)
+    .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    .padding(.horizontal, 14)
+    .padding(.bottom, 10)
   }
 
   private var systemAudioHint: some View {

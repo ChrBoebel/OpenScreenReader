@@ -44,9 +44,13 @@ struct MeetingTranscript: Equatable {
   private(set) var finals: [MeetingRecognition] = []
   private(set) var volatile: [MeetingSpeaker: MeetingRecognition] = [:]
   private(set) var echoSpans: [ClosedRange<TimeInterval>] = []
+  /// Visible turns in time order, derived once per change. SwiftUI reads this on
+  /// every render (five times a second while live); the echo filter is quadratic.
+  private(set) var entries: [MeetingTranscriptEntry] = []
 
   /// Volatile results replace each other; a final result replaces them all.
   mutating func apply(_ recognition: MeetingRecognition) {
+    defer { entries = derivedEntries() }
     let text = recognition.text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard recognition.isFinal else {
       volatile[recognition.speaker] = text.isEmpty ? nil : recognition
@@ -63,6 +67,7 @@ struct MeetingTranscript: Equatable {
 
   /// Marks a stretch where the microphone only heard the others through the speakers.
   mutating func addEcho(_ span: ClosedRange<TimeInterval>) {
+    defer { entries = derivedEntries() }
     var merged = span
     var kept: [ClosedRange<TimeInterval>] = []
     for existing in echoSpans {
@@ -81,7 +86,7 @@ struct MeetingTranscript: Equatable {
   /// Visible turns in time order. "Me" loses what was only the others through the
   /// speakers: whole segments inside an echo, words timed inside one, and runs of
   /// three or more words the others said at the same moment.
-  var entries: [MeetingTranscriptEntry] {
+  private func derivedEntries() -> [MeetingTranscriptEntry] {
     let items = (finals + volatile.values.sorted { $0.speaker.rawValue < $1.speaker.rawValue })
       .compactMap { item in visibleText(of: item).map { (item: item, text: $0) } }
       .sorted { $0.item.start < $1.item.start }

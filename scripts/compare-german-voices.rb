@@ -7,6 +7,7 @@ require 'base64'
 require 'timeout'
 require 'tmpdir'
 require 'digest'
+require_relative 'worker_sandbox'
 
 abort 'Usage: ruby scripts/compare-german-voices.rb WORKER MODEL_DIRECTORY [TEMPERATURE]' unless (2..3).cover?(ARGV.length)
 worker, model = ARGV.first(2).map { |path| File.expand_path(path) }
@@ -22,7 +23,10 @@ abort 'Unexpected prepared tokenizer' unless Digest::SHA256.file(File.join(model
   '39c94a2d71ba8b0d33757e052581c63feaca79f7639421baedd595493d4fccc3'
 directory = Dir.mktmpdir('openscreenreader-stimmen-', '/private/tmp')
 phrase = 'Guten Morgen. Heute lesen wir einen deutschen Text über Bücher, schöne Städte und frische Brötchen. Der nächste Zug fährt um fünfzehn Uhr dreißig nach München.'
-profile = '(version 1)(allow default)(deny network*)(deny file-write*)(allow file-write* (literal "/dev/null"))'
+# The app's deny-default worker profile: reads only the worker folder, its prefix and the model.
+sandbox = WorkerSandbox.command(resources: File.dirname(worker), executable: worker, model_root: model)
+abort 'Missing local worker or model' unless sandbox
+environment = { 'PATH' => '/usr/bin:/bin', 'HF_HUB_OFFLINE' => '1', 'HF_HUB_DISABLE_TELEMETRY' => '1' }
 results = []
 $stdout.sync = true
 puts "Temporary comparison directory: #{directory}"
@@ -33,9 +37,8 @@ puts "Temporary comparison directory: #{directory}"
   peak = 0.0
   complete = false
   ready = false
-  Open3.popen2({ 'HF_HUB_OFFLINE' => '1', 'HF_HUB_DISABLE_TELEMETRY' => '1' },
-               '/usr/bin/sandbox-exec', '-p', profile, worker, '--model', model,
-               err: File::NULL) do |input, output, process|
+  Open3.popen2(environment, *sandbox, '--model', model,
+               unsetenv_others: true, chdir: File.dirname(worker), err: File::NULL) do |input, output, process|
     begin
       input.puts(JSON.generate(text: phrase, voice: voice, language: 'German', seed: 42, temperature: temperature))
       input.flush

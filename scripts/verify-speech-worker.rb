@@ -4,17 +4,21 @@ require 'open3'
 require 'json'
 require 'base64'
 require 'timeout'
+require_relative 'worker_sandbox'
 
 abort 'Usage: ruby scripts/verify-speech-worker.rb WORKER MODEL_DIRECTORY' unless ARGV.length == 2
 worker, model = ARGV.map { |path| File.expand_path(path) }
-profile = '(version 1)(allow default)(deny network*)(deny file-write*)(allow file-write* (literal "/dev/null"))'
+# The app's deny-default worker profile: reads only the worker folder, its prefix and the model.
+sandbox = WorkerSandbox.command(resources: File.dirname(worker), executable: worker, model_root: model)
+abort 'Missing worker or model directory' unless sandbox
+environment = { 'PATH' => '/usr/bin:/bin', 'HF_HUB_OFFLINE' => '1', 'HF_HUB_DISABLE_TELEMETRY' => '1' }
 started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 first_audio = nil
 sample_count = 0
 peak = 0.0
 complete = false
-Open3.popen3({ 'HF_HUB_OFFLINE' => '1', 'HF_HUB_DISABLE_TELEMETRY' => '1' },
-             '/usr/bin/sandbox-exec', '-p', profile, worker, '--model', model) do |input, output, error, process|
+Open3.popen3(environment, *sandbox, '--model', model,
+             unsetenv_others: true, chdir: File.dirname(worker)) do |input, output, error, process|
   begin
     input.puts(JSON.generate(text: 'Hallo Welt. Dies ist ein lokaler Sprachtest.'))
     input.flush
@@ -46,7 +50,7 @@ Open3.popen3({ 'HF_HUB_OFFLINE' => '1', 'HF_HUB_DISABLE_TELEMETRY' => '1' },
     input.close
     abort 'Worker did not complete successfully' unless complete && process.value.success?
     abort 'Worker produced no audible signal' unless sample_count > 0 && peak > 0.0001
-    puts JSON.pretty_generate(network: 'denied by Seatbelt', file_writes: 'denied except /dev/null',
+    puts JSON.pretty_generate(sandbox: 'Runtime/Dictation/worker.sb', network: 'denied', file_writes: 'denied except /dev/null',
                               first_audio_seconds: first_audio.round(3), samples: sample_count,
                               audio_seconds: (sample_count / 24_000.0).round(3), peak: peak.round(4))
   ensure

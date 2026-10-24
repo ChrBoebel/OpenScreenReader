@@ -1,0 +1,8 @@
+# Saywing dictation worker runtime: CPython 3.12 for macOS 14.0+ (x86_64).
+# Only packages the worker imports; installed with pip --require-hashes --no-deps
+# --only-binary :all:. Edit pins here, then refresh hashes with
+#   python3 scripts/build-python-runtime.py --runtime dictation --update-hashes --cache DIR
+numpy==2.2.6 \
+    --hash=sha256:71594f7c51a18e728451bb50cc60a3ce4e6538822731b2933209a1f3614e9282
+scipy==1.17.1 \
+    --hash=sha256:c80be5ede8f3f8eded4eff73cc99a25c388ce98e555b17d31da05287015ffa5b

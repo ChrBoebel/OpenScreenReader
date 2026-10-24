@@ -77,6 +77,10 @@ final class DictationController: NSObject, ObservableObject {
   var timeout: DispatchWorkItem?, panelHide: DispatchWorkItem?,
     restore: DispatchWorkItem?
   var lease: ClipboardLease?
+  /// A paste that was sent but not read back when it was discarded. Its clipboard
+  /// is restored by the scheduled restore, after the full wait, never earlier: a
+  /// slow target app may still be reading the dictated text.
+  private(set) var deferredLease: ClipboardLease?
   var shortcutAvailable = true
   var localEscape: Any?
   var smoke = false, smokeIndex = 0, smokeFailures = [String]()
@@ -673,6 +677,11 @@ final class DictationController: NSObject, ObservableObject {
       guard request != nil else { return }
       let recorder = makeRecorder()
       record = recorder
+      let recording = request
+      recorder.onInterruption = { [weak self] in
+        guard let self, self.request == recording, self.phase == "recording" else { return }
+        self.failRecording(DictationError.inputDeviceChanged)
+      }
       try recorder.start()
       phase = "recording"
       recordingStart = Date()
@@ -715,11 +724,22 @@ final class DictationController: NSObject, ObservableObject {
     fnShortcuts.resetGesture()
     recordingTimer?.invalidate()
     recordingTimer = nil
-    let audio = record.finish()
+    let audio: AudioPacket
+    do { audio = try record.finish() } catch {
+      self.record = nil
+      failRecording(error)
+      return
+    }
     self.record = nil
     // After the microphone is closed, so the cue is never part of the recording.
     interfaceSounds?.play(.captured)
     send(audio)
+  }
+  /// The recording cannot be trusted any more: discard it and say why, visibly.
+  private func failRecording(_ error: Error) {
+    cancel(restart: false)
+    setStatus(String(localized: "Recording stopped"), error.localizedDescription, floating: true)
+    hidePanelLater()
   }
   func send(_ audio: AudioPacket) {
     guard let id = request else { return }
@@ -806,13 +826,20 @@ final class DictationController: NSObject, ObservableObject {
       return
     }
     do {
-      let transaction = try ClipboardLease.begin(text, on: .general)
+      // A new paste takes its snapshot only after an earlier discarded paste gave the
+      // clipboard back; that paste had at least a whole recording's time to land.
+      _ = deferredLease?.restore()
+      deferredLease = nil
+      let transaction = try ClipboardLease.begin(text, on: NSPasteboard.general)
       lease = transaction
       // Recheck after taking the clipboard snapshot, before the single paste action.
       try target.paste()
       phase = "pasting"
       setStatus(
-        String(localized: "Paste sent"), String(localized: "The clipboard will be restored in a moment."), floating: true)
+        String(localized: "Paste sent"),
+        transaction.clearsInsteadOfRestoring
+          ? String(localized: "Your clipboard held a password or other private item. It will be cleared, not restored.")
+          : String(localized: "The clipboard will be restored in a moment."), floating: true)
       // Most fields show the text within a few frames. Reading it back early lets the
       // tick and the completion cue land with the text, not a second later; the
       // clipboard is still restored only after the full wait for slow apps.
@@ -825,7 +852,14 @@ final class DictationController: NSObject, ObservableObject {
       confirmation = early
       schedulePasteCallback(0.15, early)
       let work = DispatchWorkItem { [weak self] in
-        guard let self, self.gate.accepts(id) else { return }
+        guard let self else { _ = transaction.restore(); return }
+        if self.deferredLease === transaction {
+          // Discarded after the paste was sent: only give the clipboard back.
+          _ = transaction.restore()
+          self.deferredLease = nil
+          return
+        }
+        guard self.gate.accepts(id) else { return }
         let announced = self.insertionConfirmed
         let confirmed = announced || target.confirms(text)
         _ = transaction.restore()
@@ -835,7 +869,9 @@ final class DictationController: NSObject, ObservableObject {
         self.setResultVisible(!confirmed)
         self.setStatus(
           confirmed ? String(localized: "Pasted") : String(localized: "Paste sent"),
-          confirmed
+          confirmed && transaction.clearsInsteadOfRestoring
+            ? String(localized: "Your clipboard held a password or other private item. It was cleared, not restored.")
+            : confirmed
             ? String(localized: "Ready for the next recording.")
             : String(localized: "Please check the target field. Nothing is retried; the result stays in the dictation window."),
           floating: !announced, capsuleState: confirmed ? .inserted : .unconfirmed)
@@ -872,6 +908,10 @@ final class DictationController: NSObject, ObservableObject {
   func cancel(restart: Bool = true) {
     fnShortcuts.resetGesture()
     let wasProcessing = phase == "processing"
+    // Once Cmd+V is sent, the target may read the clipboard at any moment. Unless the
+    // text was already read back in the field, restoring now could paste the previous
+    // clipboard (possibly something private) instead; the scheduled restore keeps its wait.
+    let pasteInFlight = phase == "pasting" && lease != nil && restore != nil && !insertionConfirmed
     // Discarding is silent, like stopping a reading: a cue still sounding ends now.
     if isActive { interfaceSounds?.stop() }
     activationID = nil
@@ -889,9 +929,13 @@ final class DictationController: NSObject, ObservableObject {
     recordingTimer = nil
     record?.cancel()
     record = nil
-    restore?.cancel()
+    if pasteInFlight {
+      deferredLease = lease
+    } else {
+      restore?.cancel()
+      _ = lease?.restore()
+    }
     restore = nil
-    _ = lease?.restore()
     lease = nil
     disarmEscape()
     latestText = ""
@@ -933,14 +977,17 @@ final class DictationController: NSObject, ObservableObject {
       if smoke { finishSmoke(error: "demo failed") }
     }
   }
+  #if DEBUG
+  /// Development-only sample-paste check (`--dictation-smoke`); Release builds cannot enter it.
   func startSmoke() {
     smoke = true
     showWindow()
     if worker.ready { runSmoke() }
   }
+  #endif
   func runSmoke() {
     guard smoke else { return }
-    if smokeClipboard == nil { smokeClipboard = try? ClipboardSnapshot.capture(.general) }
+    if smokeClipboard == nil { smokeClipboard = try? ClipboardSnapshot.capture(NSPasteboard.general) }
     if smokeIndex < 2 {
       scratch.string = "Anfang MARKER ENDE"
       scratch.setSelectedRange((scratch.string as NSString).range(of: "MARKER"))
@@ -953,7 +1000,7 @@ final class DictationController: NSObject, ObservableObject {
     guard smoke else { return }
     smoke = false
     if let error { smokeFailures.append(error) }
-    let unchanged = (try? ClipboardSnapshot.capture(.general)) == smokeClipboard
+    let unchanged = (try? ClipboardSnapshot.capture(NSPasteboard.general)) == smokeClipboard
     let report: [String: Any] = [
       "demos_completed": smokeIndex, "clipboard_restored": unchanged, "failures": smokeFailures,
       "accessibility_trusted": AXIsProcessTrusted(), "shortcut_registered": shortcutAvailable,

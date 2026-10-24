@@ -20,6 +20,16 @@ REPO = Path(__file__).resolve().parents[1]
 RELEASE_GATES = ('license_review', 'clean_mac', 'offline_privacy', 'update_roundtrip')
 MACHO = {bytes.fromhex(value) for value in (
     'cffaedfe', 'cefaedfe', 'feedfacf', 'feedface', 'cafebabe', 'bebafeca', 'cafebabf', 'bfbafeca')}
+# Owner defaults. Forks and other maintainers override them through environment
+# variables (CI: repository variables) instead of editing this file.
+DEFAULT_PUBLIC_DOWNLOAD_PREFIX = 'https://www.christopherboebel.com/downloads/saywing'
+DEFAULT_SIGNING_IDENTITY = 'Developer ID Application: Christopher Böbel (S28WSHSSJD)'
+DEFAULT_NOTARY_PROFILE = 'Saywing-Notary-S28WSHSSJD'
+# Visible beside the app in every DMG: the source license, its NOTICE, and the Supertonic 3
+# model terms with the complete unchanged Open RAIL-M text (paragraph 5, Attachment A).
+DMG_LICENSE_FILES = (('LICENSE', 'LICENSE'), ('NOTICE', 'NOTICE'),
+                     ('docs/licenses/SUPERTONIC-MODEL-TERMS.md', 'SUPERTONIC-MODEL-TERMS.md'),
+                     ('docs/licenses/Supertonic-3-Open-RAIL-M.txt', 'Supertonic-3-Open-RAIL-M.txt'))
 
 
 def run(*args, **kwargs):
@@ -51,9 +61,13 @@ def release_target(architecture):
     if architecture not in ('arm64', 'x86_64'):
         raise ValueError('Unsupported release architecture')
     suffix = '/x86_64' if architecture == 'x86_64' else ''
-    return {'url_prefix': 'https://www.christopherboebel.com/downloads/saywing' + suffix,
+    return {'url_prefix': public_download_prefix() + suffix,
             'storage_prefix': 'saywing' + suffix,
             'approval': REPO / ('docs/release-approval-x86_64.json' if suffix else 'docs/release-approval.json')}
+
+
+def public_download_prefix():
+    return https_url(os.environ.get('SAYWING_PUBLIC_DOWNLOAD_PREFIX') or DEFAULT_PUBLIC_DOWNLOAD_PREFIX).rstrip('/')
 
 
 def require_release_approval(path, architecture='arm64'):
@@ -177,6 +191,29 @@ def sign_bundle(app, identity):
     run('python3', REPO / 'scripts/verify-app-permissions.py', app)
 
 
+def dmg_license_files(repo=None):
+    """Return [(source, DMG name)]; fail before any build if a license document is missing."""
+    repo = repo or REPO
+    missing = [relative for relative, _ in DMG_LICENSE_FILES
+               if (repo / relative).is_symlink() or not (repo / relative).is_file() or not (repo / relative).stat().st_size]
+    if missing:
+        raise ValueError('License documents for the DMG are missing: ' + ', '.join(missing)
+                         + ' (NOTICE and SUPERTONIC-MODEL-TERMS.md come with the model-terms change)')
+    return [(repo / relative, name) for relative, name in DMG_LICENSE_FILES]
+
+
+def stage_dmg_licenses(image_root, app, repo=None):
+    """Copy the license documents and the app's offline notice index into image_root/Licenses."""
+    index = app / 'Contents/Resources/THIRD-PARTY-NOTICES.html'
+    if index.is_symlink() or not index.is_file():
+        raise ValueError('The signed app has no THIRD-PARTY-NOTICES.html')
+    target = image_root / 'Licenses'
+    target.mkdir()
+    for source, name in dmg_license_files(repo) + [(index, 'THIRD-PARTY-NOTICES.html')]:
+        shutil.copyfile(source, target / name)
+    return sorted(path.name for path in target.iterdir())
+
+
 def notarize(path, profile, keychain, log_dir):
     # notarytool timeout leaves Apple's job running. Retain the submission ID/log;
     # never treat a timeout as accepted or automatically resubmit that upload.
@@ -204,8 +241,8 @@ def main():
     parser.add_argument('--feed-url', required=True)
     parser.add_argument('--download-url-prefix', required=True)
     parser.add_argument('--public-key', required=True)
-    parser.add_argument('--identity', default='Developer ID Application: Christopher Böbel (S28WSHSSJD)')
-    parser.add_argument('--notary-profile', default='Saywing-Notary-S28WSHSSJD')
+    parser.add_argument('--identity', default=os.environ.get('SAYWING_SIGNING_IDENTITY') or DEFAULT_SIGNING_IDENTITY)
+    parser.add_argument('--notary-profile', default=os.environ.get('SAYWING_NOTARY_PROFILE') or DEFAULT_NOTARY_PROFILE)
     parser.add_argument('--keychain')
     parser.add_argument('--sparkle-account', default='saywing')
     parser.add_argument('--sparkle-key-file', type=Path, help='Private temporary Ed25519 file for unattended CI signing')
@@ -213,6 +250,7 @@ def main():
     parser.add_argument('--public-release', action='store_true', help='Requires completed release-approval.json gates and notarization')
     args = parser.parse_args()
     validate_version(args.version, args.build)
+    dmg_license_files()
     https_url(args.feed_url)
     https_url(args.download_url_prefix)
     key = base64.b64decode(args.public_key, validate=True)
@@ -257,7 +295,8 @@ def main():
             shutil.copy2(source / 'Contents/Resources' / name, app / 'Contents/Resources' / name)
     else:
         run('python3', REPO / 'scripts/bundle-dictation-runtime.py', app, dictation,
-            '--speech-from', source, '--whisper-model', dictation / 'WhisperTurbo', '--development-only', '--defer-app-signing')
+            '--speech-from', source, '--whisper-model', dictation / 'WhisperTurbo',
+            '--public-release' if args.public_release else '--development-only', '--defer-app-signing')
     refresh_project_workers(app)
     corresponding_source = source / 'Contents/Resources/CorrespondingSource'
     if corresponding_source.is_dir():
@@ -327,6 +366,7 @@ def package_signed_app(app, output, args, tools):
     image_root.mkdir()
     shutil.copytree(app, image_root / 'Saywing.app', symlinks=True, copy_function=copy_runtime_file)
     (image_root / 'Applications').symlink_to('/Applications')
+    stage_dmg_licenses(image_root, app)
     image = publish / f'Saywing-{args.version}-{args.build}.dmg'
     run('/usr/bin/hdiutil', 'create', '-volname', 'Saywing', '-srcfolder', image_root, '-format', 'UDZO', image)
     shutil.rmtree(image_root)  # Temporary image source; the signed app and final DMG remain.
