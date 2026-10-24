@@ -19,4 +19,4 @@ What changed, and why?
 
 List remaining work, or write “None identified for this change.”
 
-This PR targets `main` and remains open until the owner approves merging. A source merge is not approval to publish an app release.
+This PR targets `main` and remains open until a maintainer approves merging. A source merge is not approval to publish an app release.

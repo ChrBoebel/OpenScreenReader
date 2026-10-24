@@ -10,12 +10,40 @@ import sys
 
 from release import REPO, digest, https_url, require_release_approval, run, sparkle_tools, release_target
 
+# Owner defaults; forks override these through repository variables.
+DEFAULT_TEAM_ID = 'S28WSHSSJD'
+NOTARY_PROFILE = 'Saywing-CI'
+
 
 def required(name):
     value = os.environ.get(name, '')
     if not value:
         raise ValueError('Missing CI configuration: ' + name)
     return value
+
+
+def notary_credentials(temp):
+    """Read notarization credentials without creating files.
+
+    Preferred: an App Store Connect API key (SAYWING_NOTARY_API_KEY = .p8 contents,
+    SAYWING_NOTARY_API_KEY_ID, optional SAYWING_NOTARY_API_ISSUER for team keys).
+    notarytool then reads the key from a mode-0600 file, so no secret is on argv.
+    Fallback: Apple ID + app-specific password. notarytool has no non-interactive
+    stdin/env input for that password, so it remains visible in the runner's
+    process list for the duration of store-credentials (documented residual risk).
+    """
+    api_key = os.environ.get('SAYWING_NOTARY_API_KEY', '')
+    if api_key:
+        if '-----BEGIN PRIVATE KEY-----' not in api_key:
+            raise ValueError('SAYWING_NOTARY_API_KEY must contain the .p8 private key')
+        options = ['--key', temp / 'saywing-notary-key.p8', '--key-id', required('SAYWING_NOTARY_API_KEY_ID')]
+        issuer = os.environ.get('SAYWING_NOTARY_API_ISSUER', '')
+        if issuer:
+            options += ['--issuer', issuer]
+        return options, api_key
+    team_id = os.environ.get('SAYWING_TEAM_ID') or DEFAULT_TEAM_ID
+    return ['--apple-id', required('SAYWING_APPLE_ID'), '--team-id', team_id,
+            '--password', required('SAYWING_APPLE_APP_PASSWORD')], None
 
 
 def extract_runtime(archive, destination, archive_format):
@@ -80,8 +108,7 @@ def main():
         certificate = base64.b64decode(required('SAYWING_CERTIFICATE_P12'), validate=True)
         certificate_password = required('SAYWING_CERTIFICATE_PASSWORD')
         sparkle_key = required('SAYWING_SPARKLE_PRIVATE_KEY')
-        apple_id = required('SAYWING_APPLE_ID')
-        apple_password = required('SAYWING_APPLE_APP_PASSWORD')
+        notary_options, notary_key = notary_credentials(temp)
         password = secrets.token_urlsafe(32)
         # Mask the temporary keychain password before invoking tools.
         print('::add-mask::' + password, flush=True)
@@ -92,10 +119,13 @@ def main():
         run('security', 'unlock-keychain', '-p', password, keychain)
         run('security', 'list-keychains', '-d', 'user', '-s', keychain)
         cert_file, key_file = temp / 'saywing-cert.p12', temp / 'saywing-sparkle.key'
+        notary_key_file = temp / 'saywing-notary-key.p8'
         try:
             with cert_file.open('xb') as stream:
                 os.chmod(cert_file, 0o600)
                 stream.write(certificate)
+            # Residual risk: `security import` accepts the P12 password only via -P (or an
+            # interactive prompt), so it is briefly visible to processes on this runner.
             run('security', 'import', cert_file, '-k', keychain, '-P', certificate_password,
                 '-T', '/usr/bin/codesign', '-T', '/usr/bin/security')
             run('security', 'set-key-partition-list', '-S', 'apple-tool:,apple:', '-s', '-k', password, keychain,
@@ -108,15 +138,20 @@ def main():
             (temp / 'saywing-default-keychain.txt').write_text(default)
             run('security', 'default-keychain', '-d', 'user', '-s', keychain)
             run(sparkle_tools(REPO / '.build/packages') / 'generate_keys', '--account', 'saywing', '-f', key_file)
-            run('xcrun', 'notarytool', 'store-credentials', 'Saywing-CI', '--keychain', keychain,
-                '--apple-id', apple_id, '--team-id', 'S28WSHSSJD', '--password', apple_password)
+            if notary_key is not None:
+                with notary_key_file.open('x') as stream:
+                    os.chmod(notary_key_file, 0o600)
+                    stream.write(notary_key)
+            # The stored profile keeps its credentials inside the temporary keychain.
+            run('xcrun', 'notarytool', 'store-credentials', NOTARY_PROFILE, '--keychain', keychain, *notary_options)
         finally:
             cert_file.unlink(missing_ok=True)
+            notary_key_file.unlink(missing_ok=True)
             # Keep the mode-0600 Sparkle key until the always-run cleanup step.
             # Separate Sparkle executables cannot share an interactive keychain ACL in CI.
     elif mode == 'cleanup':
         # Remove secret files even if restoring the runner keychain later fails.
-        for name in ('saywing-cert.p12', 'saywing-sparkle.key'):
+        for name in ('saywing-cert.p12', 'saywing-sparkle.key', 'saywing-notary-key.p8'):
             (temp / name).unlink(missing_ok=True)
         default = temp / 'saywing-default-keychain.txt'
         if default.exists():

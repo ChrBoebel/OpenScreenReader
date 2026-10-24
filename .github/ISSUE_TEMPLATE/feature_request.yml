@@ -1,0 +1,34 @@
+name: Feature request
+description: Suggest an improvement or a new capability.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Saywing processes everything locally and keeps no history. Proposals that need cloud services, accounts, telemetry, or persistent storage of screen content conflict with the project's principles (see docs/privacy.md) and are unlikely to be accepted. Saywing is not intended to replace VoiceOver.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and what makes it hard today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How should it work from the user's point of view?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: principles
+    attributes:
+      label: Project principles
+      options:
+        - label: The proposal works without cloud processing, an account or telemetry.
+          required: true
+        - label: The proposal does not require storing screenshots, recognized text or audio persistently.
