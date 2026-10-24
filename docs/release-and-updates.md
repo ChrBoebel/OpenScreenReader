@@ -195,7 +195,7 @@ conditions are evaluated before environment variables become available):
 | `SAYWING_SPARKLE_PUBLIC_KEY` | Sparkle Ed25519 public key (owner default above) |
 | `SAYWING_SIGNING_IDENTITY` | Developer ID Application identity (owner default above) |
 | `SAYWING_TEAM_ID` | Apple team ID for Apple-ID notarization (owner default above) |
-| `SAYWING_RELEASE_REPOSITORY` | `owner/repo` allowed to publish (default `ChrBoebel/OpenScreenReader`) |
+| `SAYWING_RELEASE_REPOSITORY` | `owner/repo` allowed to publish (default `ChrBoebel/saywing`) |
 
 Secrets in the `saywing-release` environment:
 
