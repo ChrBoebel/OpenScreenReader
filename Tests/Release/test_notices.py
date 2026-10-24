@@ -198,3 +198,19 @@ class CommittedLicenseRecordTests(unittest.TestCase):
                     self.assertIn(package['name'] + '-' + package['version'], rust)
         for path in self.licenses.rglob('*.json'):
             self.assertNotIn('/Users/', path.read_text(), path)
+
+
+class UnsignedDigestTests(unittest.TestCase):
+    @unittest.skipUnless(Path('/usr/bin/cc').exists() and Path('/usr/bin/codesign').exists(), 'needs Xcode command-line tools')
+    def test_linker_signed_and_resigned_copies_normalize_to_the_same_digest(self):
+        import shutil, subprocess
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); (root / 'lib.c').write_text('int answer(void) { return 42; }\n')
+            library = root / 'liblinker.dylib'
+            subprocess.run(['/usr/bin/cc', '-dynamiclib', '-o', str(library), str(root / 'lib.c')], check=True,
+                           capture_output=True)
+            resigned = root / 'libresigned.dylib'
+            shutil.copy2(library, resigned)
+            subprocess.run(['/usr/bin/codesign', '--force', '--sign', '-', str(resigned)], check=True, capture_output=True)
+            self.assertNotEqual(library.read_bytes(), resigned.read_bytes())
+            self.assertEqual(notices.unsigned_digest(library), notices.unsigned_digest(resigned))

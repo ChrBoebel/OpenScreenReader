@@ -31,12 +31,15 @@ def verify_supplements(directory, records):
 
 def unsigned_digest(path):
     # Developer ID signing changes the seal, not the reviewed native code.
-    # Normalize a temporary copy so re-signing does not invalidate provenance.
+    # Normalize a temporary copy so re-signing does not invalidate provenance. Removing a
+    # linker-generated signature leaves different padding than removing a codesign one,
+    # so the copy is signed ad hoc first: raw wheel files and bundled copies then agree.
     with tempfile.TemporaryDirectory() as tmp:
         copy = Path(tmp) / path.name
         shutil.copy2(path, copy)
-        subprocess.run(['/usr/bin/codesign', '--remove-signature', str(copy)], check=True,
-                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        for command in (['--force', '--sign', '-'], ['--remove-signature']):
+            subprocess.run(['/usr/bin/codesign', *command, str(copy)], check=True,
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         return hashlib.sha256(copy.read_bytes()).hexdigest()
 
 
