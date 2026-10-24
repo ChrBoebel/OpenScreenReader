@@ -1,219 +1,217 @@
 # UX requirements
 
-> **Language:** this document is currently written in German. An English translation is planned; the [README](../README.md) summarizes the current behavior in English.
+## Primary flow
 
-## Primärer Ablauf
+Update 2026-09-09: The project owner approved Pause/Resume, an editable queue and setup. The capsule stays free of text; its small ···/+N button opens a native controls view with Pause/Resume, speed, Next and the waiting texts. Only this explicit click shows at most 100 characters per entry. Remove, Move Up/Down and Read Now use stable entry IDs, not stale indexes. Esc/Stop also ends a pause. Earlier statements “no preview”/“pause outside” apply to the closed capsule, not to this new explicit view.
 
-Update 2026-09-09: Der Eigentümer hat Pause/Fortsetzen, eine bearbeitbare Warteschlange und Einrichtung freigegeben. Die Kapsel bleibt textfrei; ihre kleine ···/+N-Taste öffnet eine native Steuerungsansicht mit Pause/Fortsetzen, Tempo, Weiter und wartenden Texten. Erst dieser explizite Klick zeigt maximal 100 Zeichen pro Eintrag. Entfernen, Nach-oben/-unten und Jetzt-lesen verwenden stabile Eintrags-IDs, nicht veraltete Indizes. Esc/Stop beendet auch eine Pause. Frühere Aussagen „keine Vorschau“/„Pause außerhalb“ gelten für die geschlossene Kapsel, nicht für diese neue explizite Ansicht.
+Setup appears the first time the menu bar item is shown and is reachable later through “Set Up & Test…”. Permissions are requested only on click. Since 2026-10-14 (project owner approval “sounds good, implement it”), it is a guided flow with one decision per page; details under “Guided setup”. A granted permission is labelled only “Allowed”; “It works” appears only after the real reading test has played speech. Errors offer direct access to setup and to the specific error message through ?.
 
-Die Einrichtung erscheint beim ersten Anzeigen des Menüleistenelements und ist später über „Set Up & Test…“ erreichbar. Freigaben werden nur auf Klick angefragt. Seit 2026-10-14 (Eigentümerfreigabe „klingt gut, setze das um“) ist sie ein geführter Ablauf mit einer Entscheidung pro Seite; Details unter „Geführte Einrichtung“. Eine erteilte Freigabe heißt nur „Erlaubt“; „Es funktioniert“ erscheint erst, nachdem der echte Lesetest Sprache abgespielt hat. Fehler bieten über ? direkten Zugang zur Einrichtung und zur konkreten Fehlermeldung.
+1. The user presses a freely configurable global hotkey.
+2. An unobtrusive transparent selection overlay appears over all screens.
+3. The user drags out a rectangular region.
+4. On release, the overlay disappears immediately.
+5. The app captures only the selected region.
+6. Apple Vision recognizes the text locally, initially focused on German and English.
+7. The text is normalized and split into short speakable segments.
+8. Local TTS starts automatically; no additional click is necessary.
+9. Pressing the hotkey again during speech/preparation opens another region selection for the queue. `Esc` or an explicit Stop button immediately stops OCR, synthesis, the queue and audio playback. During a selection/capture/OCR that is already running, further key presses create neither duplicates nor a cancellation.
 
-1. Der Nutzer drückt einen frei konfigurierbaren globalen Hotkey.
-2. Über allen Bildschirmen erscheint ein zurückhaltendes transparentes Auswahl-Overlay.
-3. Der Nutzer zieht einen rechteckigen Bereich auf.
-4. Beim Loslassen verschwindet das Overlay sofort.
-5. Die App erfasst ausschließlich den ausgewählten Bereich.
-6. Apple Vision erkennt den Text lokal, zunächst mit Fokus auf Deutsch und Englisch.
-7. Der Text wird normalisiert und in kurze sprechbare Segmente geteilt.
-8. Die lokale TTS beginnt automatisch; es ist kein zusätzlicher Klick notwendig.
-9. Der erneut gedrückte Hotkey öffnet während Sprache/Vorbereitung eine weitere Bereichsauswahl für die Warteschlange. `Esc` oder ein expliziter Stop-Knopf stoppt OCR, Synthese, Warteschlange und Audiowiedergabe unmittelbar. Während einer bereits laufenden Auswahl/Aufnahme/OCR erzeugen weitere Tastendrücke weder Duplikate noch einen Abbruch.
+The official MVP includes a verified default model. The user does not have to select or separately download a model before reading aloud for the first time. Model name, version, source, installed size and license remain viewable in Settings.
 
-Der offizielle MVP enthält ein geprüftes Standardmodell. Der Nutzer muss vor dem ersten Vorlesen kein Modell auswählen oder separat herunterladen. Modellname, Version, Quelle, installierte Größe und Lizenz bleiben in den Einstellungen einsehbar.
+## Interaction requirements
 
-## Interaktionsanforderungen
+- The app lives primarily in the menu bar and does not open a permanent main window.
+- The hotkey is configurable and must not override common system shortcuts without asking.
+- The selection frame works on every monitor and with different scaling factors. In the MVP, a single drag stays limited to the monitor on which it started; combining across displays is a later candidate.
+- `Esc` already cancels the region selection.
+- The mouse pointer and the overlay must not appear in the screenshot.
+- Status indicators for “Recognizing”, “Speaking” and “Stopped” stay small and non-modal.
+- Errors are shown in an understandable and actionable way.
+- An empty or unreadable result does not start TTS.
+- Keyboard operation and VoiceOver labels are considered from the start.
 
-- Die App lebt primär in der Menüleiste und öffnet kein permanentes Hauptfenster.
-- Der Hotkey ist konfigurierbar und darf gängige Systemkürzel nicht ungefragt überschreiben.
-- Der Auswahlrahmen funktioniert auf jedem Monitor und mit unterschiedlichen Skalierungen. Im MVP bleibt ein einzelner Ziehvorgang auf den Monitor begrenzt, auf dem er begonnen wurde; displayübergreifendes Zusammensetzen ist ein späterer Kandidat.
-- `Esc` bricht bereits die Bereichsauswahl ab.
-- Der Mauszeiger und das Overlay dürfen nicht im Screenshot erscheinen.
-- Statusanzeigen für „Erkennen“, „Sprechen“ und „Gestoppt“ bleiben klein und nicht modal.
-- Fehler werden verständlich und handlungsorientiert angezeigt.
-- Ein leeres beziehungsweise nicht lesbares Ergebnis startet keine TTS.
-- Bedienung per Tastatur und VoiceOver-Bezeichnungen wird von Beginn an berücksichtigt.
+## Small reading panel
 
-## Kleines Vorlese-Panel
+- Selection 2026-09-22: The interaction area measures 136 × 44 pt (at the sides 44 × 136 pt); since 2026-10-13 the visible surface inside it is 136 × 28 pt. At rest it shows nine wave bars and Stop; hover cross-fades the wave to Pause/Resume and ···/+N. Size and Stop position remain unchanged. Both secondary buttons have separate 40 × 44 pt targets, Stop 44 × 44 pt. From 5 pt of movement on, the secondary buttons also drag instead of click; cancellation suppresses pending clicks. Pause is active only during playback. While the popover is open, the buttons stay visible. The “Playback Controls…” menu item and VoiceOver actions provide access without hover. Popovers open toward the center of the screen. Error help (?) stays visible; normal end states hide the secondary buttons. The discarded 160 pt variant and the earlier hover widening with an Esc keycap are dropped.
 
-- Auswahl 2026-09-22: Die Interaktionsfläche misst 136 × 44 pt (seitlich 44 × 136 pt); seit 13.10.2026 ist die sichtbare Oberfläche darin 136 × 28 pt groß. In Ruhe zeigt sie neun Wellenbalken und Stop; Hover überblendet die Welle zu Pause/Fortsetzen und ···/+N. Größe und Stop-Position bleiben unverändert. Beide sekundären Tasten haben getrennte 40 × 44 pt große Ziele, Stop 44 × 44 pt. Ab 5 pt Bewegung wird auch auf den sekundären Tasten gezogen statt geklickt; Abbruch unterdrückt ausstehende Klicks. Pause ist erst während der Wiedergabe aktiv. Bei geöffnetem Popover bleiben die Tasten sichtbar. Menü „Playback Controls…“ und VoiceOver-Aktionen bieten Zugang ohne Hover. Popover öffnen zur Bildschirmmitte. Fehlerhilfe (?) bleibt sichtbar, normale Endzustände blenden sekundäre Tasten aus. Die verworfene 160-pt-Variante und die frühere Hover-Verbreiterung mit Esc-Keycap entfallen.
+- A non-activating, non-modal panel appears only after capture has finished: “Recognizing text…”, “Preparing…”, “Reading aloud”.
+- It stays at the bottom center of the selected display, within its usable area with a margin to the Dock. It follows neither the mouse nor the selection rectangle.
+- The Stop button and `Esc` end the complete job. Pressing the hotkey again adds text instead of cancelling (project decision of 2026-09-09). No additional confirmation click before reading aloud.
+- “Done” and “Stopped” stay for 1.1 seconds and then retract within 240 ms. “No text recognized” and errors stay visible with a close button; error details are in the app menu. A new job removes any old panel immediately before the selection, without waiting for an animation.
+- Reading control: visible capsule 136 × 28 pt, transparent interaction area 136 × 44 pt, fixed drawing surface 300 × 92 pt. Hover does not change the size; end states are 100 pt wide, hints temporarily wider. Deep blue material, a fine light petrol edge and a soft shadow match the dictation bar. Apricot is reserved for hints.
+- Both activities use nine rounded light petrol bars: 2.5 pt wide, 3 pt apart, 2–18 pt high; with gently lighter petrol tips and subtle light scattering at speech level. Their height follows the actual level with a fast rise and a slower decay. Silence stays flat. Recognizing, preparing and waiting show the same brightness sweep across flat dots. No artificial breathing or syllable animation, no fake progress. CADisplayLink and time-based smoothing keep the response consistent across different refresh rates.
+- After capture, the selection frame visibly falls as a light petrol ghost into a glowing dot at the stored edge position on the selected display and springs open into the capsule there; the open sound coincides with the landing. The flight window is click-through; a new job or cancellation removes it immediately.
+- End states replace the bars with a drawn symbol (checkmark, stop square, amber ring with exclamation mark) that draws itself. No additional pulse or glow ring. The button becomes a close cross. Hints show two words for about two seconds, then only the symbol; hover shows the text again. Full titles and details are always in the Accessibility labels, and every state change is posted as a VoiceOver announcement.
+- Position: horizontal at the bottom or vertical at the left/right edge (92 × 300 point drawing surface); symbols and the 44 × 44 point Stop button stay upright. Drag the waveform or status surface; from 5 points of movement on, the panel follows directly. Since 2026-10-14, the throw direction determines the edge on release: the pointer velocity of the last 100 ms is projected forward with Apple's deceleration rate 0.998, and the edge nearest to that point wins. One spring per axis (response 0.3 s) takes over the velocity without a transition edge; a calm drop is critically damped, and only a throw may overshoot slightly. Beyond the usable area, the capsule gives way progressively (rubber band) instead of stopping hard. When switching between horizontal and vertical, the capsule reshapes; the haptic feedback comes on snapping. Reduce Motion skips this movement. The Dock and menu bar are left out through the usable screen area. Edge and relative offset are kept locally. Settings offers the same three positions and a preview without OCR/TTS. Side hints use a tooltip and VoiceOver instead of rotated text.
+- Continuous motion: the same native view persists for the duration of the job. Both capsules appear with a 140 ms fade-in and critically damped scaling from 96 to 100 percent. Size changes follow a critically damped spring without decorative overshoot or deformation. Reading aloud retracts within 240 ms on normal completion. Buttons give visual feedback directly on press; the Stop target stays 44 × 44 pt. The flight from the selection frame to the capsule starts fast (ease-out, 380 ms). Cancellation starts immediately and never waits for motion.
+- With “Reduce motion”, spatial and running animations are dropped; the bars stand still, and opening keeps only a short fade-in. “Reduce transparency” or “Increase contrast” makes the body opaque; increased contrast additionally strengthens the outline.
+- Three original, locally synthesized stereo sounds (since 2026-10-14 without the button tick and tock: stopping is a cancellation and stays silent) from a family of wood and water: marimba bars with 1 : 4 : 10 partials, water drops as a rising bubble chirp, a deep log drum hit underneath and a small synthetic room. Open on landing (900 ms, two rising bars G3 → C4 with a drop), natural completion (1.0 s, deliberately subtle: a quiet low marimba fundamental and three rising drops, peak level 0.36 instead of 0.5), missing text/error (800 ms, two muted falling wood hits). The spectral centroid of the main sounds lies around 250 to 280 Hz, with a supporting mid layer for laptop speakers. Open and completion alternate between two voicings. Since 2026-10-14, three short microphone sounds for dictation have been added (see “Sounds during dictation”). Enabled by default, effect volume 70 %, separately adjustable and switchable off via “Interface sounds”. No sound for stopping itself; cue sounds that are playing are stopped before speech playback and on cancellation. Sound is never the only cue.
+- The panel shows only status, never OCR text or a preview. Status changes and the Stop click must not take focus from the app currently in use.
+- Speed: 0.75× to 2× in the menu and Settings, live and stored locally; pitch unchanged. Pause and voice selection stay outside the capsule.
+- Additional texts: press the same reading hotkey again or choose “Add Screen Region to Queue…”, without interrupting the current voice. The previous separate shortcut remains an optional extra but is not needed. At most five waiting texts, FIFO, a subtle +N on the capsule; “Next Text” in the menu skips the current text. Esc/the Stop button always clear the complete queue, including during an additional selection. Full queues and empty/failed additions show a message without interrupting the current voice. No caching on disk, no history. If the voice ends during an additional selection/OCR, the app waits, cancellably, for the next text.
 
-- Ein nicht aktivierendes, nicht modales Panel erscheint erst nach abgeschlossener Aufnahme: „Text erkennen …“, „Vorbereiten …“, „Vorlesen“.
-- Es bleibt unten mittig auf dem ausgewählten Display, innerhalb dessen nutzbarer Fläche mit Abstand zum Dock. Es folgt weder Maus noch Auswahlrechteck.
-- Der Stop-Knopf und `Esc` beenden den vollständigen Auftrag. Der erneute Hotkey fügt Text hinzu, statt abzubrechen (Eigentümerentscheidung vom 2026-09-09). Kein zusätzlicher Bestätigungsklick vor dem Vorlesen.
-- „Fertig“ und „Gestoppt“ bleiben 1,1 Sekunden und ziehen sich anschließend innerhalb von 240 ms zurück. „Kein Text erkannt“ und Fehler bleiben mit einem Schließen-Knopf sichtbar; Details zu Fehlern stehen im App-Menü. Ein neuer Auftrag entfernt jedes alte Panel sofort vor der Auswahl, ohne auf eine Animation zu warten.
-- Vorlese-Control: sichtbare Kapsel 136 × 28 pt, transparente Interaktionsfläche 136 × 44 pt, feste Zeichenfläche 300 × 92 pt. Hover verändert die Größe nicht; Endzustände sind 100 pt breit, Hinweise vorübergehend breiter. Tiefblaues Material, feine helle Petrol-Kante und ein weicher Schatten entsprechen der Diktierleiste. Apricot bleibt Hinweisen vorbehalten.
-- Beide Aktivitäten verwenden neun abgerundete helle Petrol-Balken: 2,5 pt breit, 3 pt Abstand, 2–18 pt hoch; mit sanft helleren Petrol-Spitzen und dezenter Lichtstreuung bei Sprachpegel. Ihre Höhe folgt dem tatsächlichen Pegel mit schnellem Anstieg und langsamerem Ausklingen. Stille bleibt flach. Erkennen, Vorbereiten und Warten zeigen denselben Helligkeitslauf über flache Punkte. Keine künstliche Atem- oder Silbenanimation, kein vorgetäuschter Fortschritt. CADisplayLink und zeitabhängige Glättung halten die Reaktion bei unterschiedlichen Bildwiederholraten konsistent.
-- Nach der Aufnahme fällt der Auswahlrahmen als heller Petrol-Geist sichtbar in einen leuchtenden Punkt an der gespeicherten Randposition auf dem gewählten Display und springt dort zur Kapsel auf; der Öffnungsklang fällt auf die Landung. Das Flug-Fenster ist klick-durchlässig; ein neuer Auftrag oder Abbruch entfernt es sofort.
-- Endzustände ersetzen die Balken durch ein gezeichnetes Symbol (Häkchen, Stop-Quadrat, Bernstein-Ring mit Ausrufezeichen), das sich selbst zeichnet. Kein zusätzlicher Puls oder Leuchtring. Die Taste wird zum Schließen-Kreuz. Hinweise zeigen zwei Worte für rund zwei Sekunden, danach nur das Symbol; Hover zeigt den Text erneut. Vollständige Titel und Details stehen immer in den Accessibility-Labels, jeder Zustandswechsel wird als VoiceOver-Ansage gepostet.
-- Position: unten horizontal oder am linken/rechten Rand vertikal (92 × 300 Punkte Zeichenfläche); Symbole und die 44 × 44 Punkte große Stop-Taste bleiben aufrecht. Wellenform bzw. Statusfläche ziehen, ab 5 Punkten Bewegung folgt das Panel direkt. Seit 2026-10-14 bestimmt beim Loslassen die Wurfrichtung den Rand: Die Zeigergeschwindigkeit der letzten 100 ms wird mit Apples Abbremsrate 0,998 hochgerechnet, der nächstgelegene Rand zu diesem Punkt gewinnt. Eine Feder je Achse (Antwortzeit 0,3 s) übernimmt die Geschwindigkeit ohne Übergangskante; ruhiges Ablegen ist kritisch gedämpft, nur ein Wurf darf leicht überschwingen. Jenseits der nutzbaren Fläche gibt die Kapsel progressiv nach (Gummiband) statt hart zu stoppen. Beim Wechsel zwischen waagerecht und senkrecht formt sich die Kapsel neu; die Haptik kommt beim Einrasten. Reduce Motion überspringt diese Bewegung. Dock und Menüleiste werden durch die nutzbare Bildschirmfläche ausgespart. Rand und relativer Versatz bleiben lokal erhalten. Einstellungen bieten dieselben drei Positionen und eine Vorschau ohne OCR/TTS. Seitliche Hinweise nutzen Tooltip und VoiceOver statt gedrehten Texts.
-- Zusammenhängende Bewegung: derselbe native View bleibt während des Auftrags bestehen. Beide Kapseln erscheinen mit 140-ms-Einblendung und kritisch gedämpfter Skalierung von 96 auf 100 Prozent. Größenwechsel folgen einer kritisch gedämpften Feder ohne dekoratives Überschwingen oder Verformen. Das Vorlesen zieht sich beim normalen Abschluss innerhalb von 240 ms zurück. Tasten geben direkt beim Drücken visuelle Rückmeldung, die Stop-Zielfläche bleibt 44 × 44 pt. Der Flug vom Auswahlrahmen zur Kapsel startet schnell (Ease-out, 380 ms). Abbruch beginnt sofort und wartet nie auf Bewegung.
-- Bei „Bewegung reduzieren“ entfallen räumliche und laufende Animationen; die Balken stehen still, beim Öffnen bleibt nur eine kurze Einblendung. „Transparenz reduzieren“ oder „Kontrast erhöhen“ macht den Körper deckend, erhöhter Kontrast verstärkt zusätzlich die Kontur.
-- Drei originale, lokal synthetisierte Stereo-Klänge (seit 2026-10-14 ohne Tasten-Tick und -Tock: Stoppen ist ein Abbruch und bleibt still) aus einer Familie aus Holz und Wasser: Marimba-Stäbe mit 1 : 4 : 10-Teiltönen, Wassertropfen als aufsteigender Blasen-Chirp, ein tiefer Log-Drum-Schlag darunter und ein kleiner synthetischer Raum. Öffnen bei der Landung (900 ms, zwei steigende Stäbe G3 → C4 mit einem Tropfen), natürlicher Abschluss (1,0 s, bewusst dezent: leiser tiefer Marimba-Grundton und drei aufsteigende Tropfen, Spitzenpegel 0,36 statt 0,5), fehlender Text/Fehler (800 ms, zwei gedämpfte fallende Holzschläge). Spektraler Schwerpunkt der Hauptklänge liegt um 250 bis 280 Hz, mit einer tragenden Mitten-Schicht für Laptop-Lautsprecher. Öffnen und Abschluss wechseln zwischen zwei Voicings. Seit 2026-10-14 kommen drei kurze Mikrofonklänge für das Diktieren hinzu (siehe „Klänge beim Diktieren“). Standardmäßig aktiviert, Effektlautstärke 70 %, separat regelbar und abschaltbar über „Interface sounds“. Kein Ton beim Stoppen selbst; vor Sprachwiedergabe und bei Abbruch werden laufende Hinweisklänge gestoppt. Ton ist nie der einzige Hinweis.
-- Das Panel zeigt ausschließlich Status, nie OCR-Text oder eine Vorschau. Statuswechsel und Stop-Klick dürfen den Fokus der gerade benutzten App nicht übernehmen.
-- Geschwindigkeit: 0,75× bis 2× in Menü und Einstellungen, live und lokal gespeichert; Tonhöhe unverändert. Pause und Stimmenauswahl bleiben außerhalb der Kapsel.
-- Zusätzliche Texte: denselben Vorlese-Hotkey erneut drücken oder „Add Screen Region to Queue…“ wählen, ohne die aktuelle Stimme zu unterbrechen. Der bisherige separate Shortcut bleibt ein optionaler Zusatz, ist aber nicht nötig. Maximal fünf wartende Texte, FIFO, dezentes +N an der Kapsel; „Next Text“ im Menü überspringt den aktuellen Text. Esc/Stop-Knopf leeren immer die vollständige Warteschlange, auch während einer Zusatz-Auswahl. Volle Warteschlangen, leere/fehlerhafte Zusätze zeigen eine Meldung, ohne die laufende Stimme zu unterbrechen. Kein Zwischenspeichern auf Platte, keine Historie. Endet die Stimme während einer Zusatz-Auswahl/OCR, wartet die App abbrechbar auf den nächsten Text.
+## Performance targets
 
-## Performance-Ziele
+- Queue: one speech process stays loaded for the session. As soon as the current synthesis has finished, at most the next text is precomputed while playback is still running (at most eight seconds of source audio in the preparation buffer). A prepared handoff gets a short 120 ms gap, no additional loading animation or cue sounds. Texts added late may still require waiting. Stop/Esc also clear the preparation and the warm model. Skipping keeps the prepared successor; if a current synthesis that is still running has to be cancelled hard, a worker restart may be necessary.
 
-- Warteschlange: Ein Sprachprozess bleibt für die Sitzung geladen. Sobald die aktuelle Synthese abgeschlossen ist, wird während der noch laufenden Wiedergabe höchstens der nächste Text vorausberechnet (maximal acht Sekunden Quell-Audio im Vorbereitungsbuffer). Eine vorbereitete Übergabe erhält 120 ms kurze Trennung, keine zusätzliche Ladeanimation oder Hinweisklänge. Spät hinzugefügte Texte können trotzdem Wartezeit benötigen. Stop/Esc löschen auch Vorbereitung und warmes Modell. Überspringen bewahrt den vorbereiteten Nachfolger; muss eine noch laufende aktuelle Synthese hart abgebrochen werden, kann ein Neustart des Workers nötig sein.
+- With a warm default model, the first audio block should be ready in less than 500 ms after the OCR text is complete, where possible. This is a target, not evidence for the current Supertonic development path.
+- The first sentence is played while later sentences are still being synthesized.
+- Cancellation response: target under 100 ms until audio falls silent.
+- The model is kept warm for a limited time; the exact duration is set based on energy and RAM measurements.
+- An economy mode may use a smaller model.
+- The larger installation file caused by the bundled model is clearly stated on the website before download.
 
-- Bei warmem Standardmodell soll der erste Audioblock möglichst in weniger als 500 ms nach abgeschlossenem OCR-Text bereitstehen. Dies ist ein Ziel, kein Nachweis für den aktuellen Supertonic-Entwicklungspfad.
-- Der erste Satz wird abgespielt, während spätere Sätze noch synthetisiert werden.
-- Abbruchreaktion: Zielwert unter 100 ms bis Audio verstummt.
-- Das Modell wird zeitlich begrenzt warm gehalten; die genaue Dauer wird anhand von Energie- und RAM-Messungen festgelegt.
-- Ein sparsamer Modus darf ein kleineres Modell verwenden.
-- Die größere Installationsdatei durch das gebündelte Modell wird vor dem Download auf der Website klar angegeben.
+## Text fidelity
 
-## Texttreue
+The pipeline needs test cases and, where appropriate, a fidelity mode for:
 
-Die Pipeline benötigt Testfälle und gegebenenfalls einen Treuemodus für:
+- numbers, dates and amounts of money;
+- abbreviations and initials;
+- URLs and email addresses;
+- product codes and identifiers;
+- mixed-language texts;
+- OCR line breaks and hyphens;
+- tables, columns and source code.
 
-- Zahlen, Daten und Geldbeträge;
-- Abkürzungen und Initialen;
-- URLs und E-Mail-Adressen;
-- Produktcodes und Kennziffern;
-- gemischtsprachige Texte;
-- OCR-Zeilenumbrüche und Trennstriche;
-- Tabellen, Spalten und Quellcode.
+Pleasant prosody must not justify omitted words or paraphrasing.
 
-Schöne Prosodie darf keine Wortauslassungen oder sinngemäße Umformulierungen rechtfertigen.
+## Not in the first MVP
 
-## Nicht im ersten MVP
+- cloud voices;
+- translation;
+- summaries or chat;
+- voice cloning;
+- document library;
+- persistent history;
+- full screen reader navigation;
+- Windows or iOS versions.
 
-- Cloud-Stimmen;
-- Übersetzung;
-- Zusammenfassungen oder Chat;
-- Voice Cloning;
-- Dokumentbibliothek;
-- dauerhafte Historie;
-- vollständige Screenreader-Navigation;
-- Windows- oder iOS-Versionen.
+## Later candidates
 
-## Spätere Kandidaten
+- read the previous region again;
+- repeatedly monitor the same region;
+- repeat a sentence;
+- optional copying;
+- sentence or word highlighting;
+- custom pronunciation corrections;
+- additional local TTS providers.
 
-- vorherigen Bereich erneut lesen;
-- denselben Bereich wiederholt überwachen;
-- Satz wiederholen;
-- optional kopieren;
-- Satz- oder Worthervorhebung;
-- eigene Aussprachekorrekturen;
-- zusätzliche lokale TTS-Provider.
+## Dictation — integrated after project owner approval 2026-10-13
 
-## Diktieren — integriert nach Eigentümerfreigabe 2026-10-13
+Since 2026-10-14: permissions in the shared setup (“Set Up & Test…”); model, language (Automatic/German/English) and 1/2 s clipboard restore under Settings → Dictation; test window via “Try Dictation…” with its own test field; demo audio samples only in debug builds. ⌥⇧Space starts/ends dictation in the previously focused field; Esc discards. The non-activating status surface shows recording/recognition/pasting and offers Discard. Text appears after stopping, not during recording. A cold start may keep PCM in RAM, bounded, until the selected model is ready. Reading aloud ends before recording; starting reading aloud discards dictation. No automatic recording after the permission dialog and no Return key press to submit. If the target changed, the result is kept in the dictation window for manual copying. An exact read-back check distinguishes “Pasted” from “Paste sent”. Universal text field compatibility is not guaranteed.
 
-Seit 2026-10-14: Freigaben in der gemeinsamen Einrichtung („Set Up & Test…“), Modell, Sprache (Automatisch/Deutsch/English) und 1/2 s Clipboard-Restore unter Einstellungen → Diktieren, Testfenster über „Try Dictation…“ mit eigenem Testfeld; Demo-Hörproben nur in Debug-Builds. ⌥⇧Leertaste startet/beendet im zuvor fokussierten Feld; Esc verwirft. Die nicht aktivierende Statusfläche zeigt Aufnahme/Erkennung/Einfügen und bietet Verwerfen. Text erscheint nach dem Stoppen, nicht während der Aufnahme. Ein Kaltstart darf PCM begrenzt im RAM halten, bis das ausgewählte Modell bereit ist. Vorlesen endet vor Aufnahme; Start von Vorlesen verwirft Diktieren. Keine automatische Aufnahme nach Berechtigungsdialog und keine Enter-Taste zum Absenden. Geänderte Ziele behalten das Ergebnis zur manuellen Kopie im Diktierfenster. Exakte Rückleseprüfung unterscheidet „Eingefügt“ von „Einfügen ausgelöst“. Universelle Textfeld-Kompatibilität wird nicht zugesichert.
+## Keyboard decision 2026-10-13
 
-## Tastaturentscheidung 2026-10-13
+Reading aloud uses **⌥R** by default (explicitly only two keys); repeating it still adds another region to the queue. Stored combinations are kept, including the earlier default ⌘⇧Y. The project owner then explicitly chose ⌘⇧Y for their own installation; this choice must not be overwritten on relaunch. Dictation uses **hold/release Fn**, **double Fn** or **Fn+Space** for hands-free, Fn again to finish and Esc to discard. Single short Fn taps are discarded; a third quick tap also discards. Since 2026-10-14, locking in is audible and visible (the “hands-free locked” sound, a filled finish button), and the test window names both ways: hold or press twice. Other Fn combinations should remain usable unchanged. ⌥⇧Space remains the alternative without Fn. Fn requires available global keyboard control with Accessibility permission.
 
-Vorlesen nutzt standardmäßig **⌥R** (ausdrücklich nur zwei Tasten); Wiederholen fügt weiterhin einen weiteren Bereich zur Queue hinzu. Gespeicherte Kombinationen bleiben erhalten, einschließlich des früheren Standards ⌘⇧Y. Der Eigentümer hat anschließend ausdrücklich ⌘⇧Y für seine Installation gewählt; diese Wahl darf beim Neustart nicht überschrieben werden. Diktieren nutzt **Fn halten/loslassen**, **Fn doppelt** oder **Fn+Leertaste** für freihändig, erneutes Fn zum Abschließen sowie Esc zum Verwerfen. Einzelne kurze Fn-Tipps werden verworfen, ein dritter schneller Tipp verwirft ebenfalls. Seit 2026-10-14 ist das Einrasten hör- und sichtbar (Klang „Freihand eingerastet“, gefüllte Beenden-Taste), und das Testfenster nennt beide Wege: halten oder zweimal drücken. Andere Fn-Kombinationen sollen unverändert nutzbar bleiben. ⌥⇧Leertaste bleibt die Alternative ohne Fn. Fn setzt verfügbare globale Tastatursteuerung mit Bedienungshilfenfreigabe voraus.
+## Dictation model selection — 2026-10-13
 
-## Auswahl des Diktiermodells — 2026-10-13
+Settings → Dictation offers Qwen3-ASR, Whisper Turbo and (since 2026-10-14) Whisper Large v3 in the “Model” field (until 2026-10-13 in the dictation window). The default is Whisper Turbo, which every build includes. Models that are not installed are listed there as “Install *model*… (size)”; selecting one opens a confirmation with download size and source, after which the row shows progress and “Cancel”, and on errors “Try Again”. After installation, the model is selected.
+The choice is kept after a relaunch. The selected model loads automatically;
+the loading status names it and does not start a recording. During an active dictation,
+the selection is locked. On a loading error, the selected option stays visible,
+without an automatic switch or download. Language, shortcuts and paste behavior
+are the same for both models.
 
-Einstellungen → Diktieren bietet Qwen3-ASR, Whisper Turbo und (seit 2026-10-14) Whisper Large v3 im Feld „Modell“ an (bis 2026-10-13 im Diktierfenster). Standard ist Whisper Turbo, das jeder Build mitbringt. Nicht installierte Modelle stehen dort als „… installieren… (Größe)“; die Auswahl öffnet eine Bestätigung mit Downloadgröße und Quelle, danach zeigt die Zeile Fortschritt und „Abbrechen“, bei Fehlern „Erneut versuchen“. Nach der Installation wird das Modell ausgewählt.
-Die Wahl bleibt nach einem Neustart erhalten. Das gewählte Modell lädt automatisch;
-der Ladestatus benennt es und startet keine Aufnahme. Während eines aktiven Diktats
-ist die Auswahl gesperrt. Bei einem Ladefehler bleibt die gewählte Option sichtbar,
-ohne automatischen Wechsel oder Download. Sprache, Tastenkürzel und Einfügeverhalten
-sind für beide Modelle gleich.
-
-Seit 2026-10-14 steht Whisper Turbo an erster Stelle und ist ohne gespeicherte Wahl
-voreingestellt. Darunter nimmt das Feld „Vokabular“ einen Namen oder Begriff pro Zeile
-auf (auch durch Komma getrennt, höchstens 50). Änderungen gelten ab dem nächsten
-Diktat; leere Zeilen und Duplikate werden ignoriert.
+Since 2026-10-14, Whisper Turbo is listed first and is preselected when no choice
+has been stored. Below it, the “Vocabulary” field takes one name or term per line
+(also comma-separated, at most 50). Changes apply from the next
+dictation on; empty lines and duplicates are ignored.
 
 The integrated dictation capsule shares Saywing’s reading material and motion language, with distinct discard and finish/paste controls.
 
-## Apple-Design-Verfeinerung — 2026-10-14
+## Apple design refinement — 2026-10-14
 
-Freigabe durch den Eigentümer: alle Punkte des Reviews vom 14.10.2026 umsetzen.
+Approved by the project owner: implement all points of the review of 2026-10-14.
 
-- **Eine Sprache pro Oberfläche:** englische Quelltexte, vollständiger deutscher String Catalog, die App folgt der Systemsprache.
-- **Menü:** Status zuerst; Hinweise nur, wenn sie Information hinzufügen; „Bildschirmbereich vorlesen…“ zeigt den globalen Kurzbefehl; Pause, Nächster Text, Hinzufügen und Wiedergabesteuerung erscheinen nur während des Vorlesens; Fehler bieten „Einrichtung öffnen…“.
-- **Einstellungen:** Tabs Allgemein, Vorlesen, Diktieren, Kurzbefehle, Datenschutz. Kurzbefehle werden in einem Aufnahmefeld gedrückt statt über Checkboxen gebaut; der zusätzliche Warteschlangen-Kurzbefehl liegt unter „Erweitert“. Freigaben zeigen ihren Status und öffnen ihren eigenen Bereich in den Systemeinstellungen.
-- **Einrichtung:** ein Ablauf für Vorlesen und Diktieren; seit 2026-10-14 als geführte Einrichtung (unten). Der frühere Hinweis, der Vorlesetest brauche nur die Bildschirmaufnahme, war falsch: Die Erfassung startet ohne Eingabeüberwachung nicht (ADR 0005).
-- **Auswahl:** Leertaste verschiebt, Umschalt fixiert die zuerst unbewegte Kante, Wahl wächst von der Mitte – wie bei ⌘⇧4. Die Abdunklung blendet in 90 ms ein, Eingaben gelten sofort, das Overlay schließt weiterhin sofort. Ein kurzer Hinweis erscheint bei den ersten fünf Auswahlen.
-- **Klick liest Absatz:** Ein Klick ohne Ziehen erkennt einen begrenzten Bereich (max. 1200 × 800 pt) um den Zeiger und liest nur den Absatz darunter; der Rest wird sofort verworfen. Details unter [Datenschutz](privacy.md).
+- **One language per surface:** English source strings, a complete German String Catalog; the app follows the system language.
+- **Menu:** status first; hints only when they add information; “Read Screen Region…” shows the global shortcut; Pause, Next Text, Add and Playback Controls appear only while reading aloud; errors offer “Open Setup…”.
+- **Settings:** tabs General, Read Aloud, Dictation, Shortcuts, Privacy. Shortcuts are pressed in a recording field instead of being built from checkboxes; the additional queue shortcut is under “Advanced”. Permissions show their status and open their own section in System Settings.
+- **Setup:** one flow for reading aloud and dictation; since 2026-10-14 as a guided setup (below). The earlier note that the reading test needed only Screen Recording was wrong: capture does not start without Input Monitoring (ADR 0005).
+- **Selection:** Space moves, Shift locks the edge that was initially unmoved, Option grows the selection from the center – as with ⌘⇧4. The dimming fades in over 90 ms, input takes effect immediately, and the overlay still closes immediately. A short hint appears for the first five selections.
+- **Click reads a paragraph:** a click without dragging recognizes a bounded area (max. 1200 × 800 pt) around the pointer and reads only the paragraph under it; the rest is discarded immediately. Details under [Privacy](privacy.md).
 
-## Geführte Einrichtung
+## Guided setup
 
-Freigabe durch den Eigentümer am 2026-10-14 nach dem Vorschlag auf Basis des Apple-Design-Skills („ask at the right moment, only for what's needed“).
+Approved by the project owner on 2026-10-14 after the proposal based on the Apple design skill (“ask at the right moment, only for what's needed”).
 
-- **Eine Entscheidung pro Seite**, festes Fenster (500 × 560 pt). Symbol und Titel stehen auf jeder Seite an derselben Stelle. Die Hauptaktion steht rechts unten (Return), „Zurück“ links unten, „Später“/„Nicht jetzt“ ist immer gleichwertig erreichbar.
-- **Reihenfolge:** Willkommen → Bildschirmaufnahme → Eingabeüberwachung → Lesetest → „Auch mit der Stimme schreiben?“ → (bei Ja) Mikrofon → Bedienungshilfen → Diktiertest → Fertig. Die Reihenfolge ergibt sich nur aus den aktuellen Freigaben. Erteilte Schritte werden übersprungen, und ein Test, der ohne seine Freigabe nur scheitern würde, entfällt. Wer wiederkommt, landet beim ersten fehlenden Schritt und nie wieder beim Willkommen. Nichts über den Fortschritt wird gespeichert.
-- **Titel nach Nutzen, nicht nach Systembegriff** („Den markierten Text lesen“, „Jederzeit mit Esc stoppen“). Der Name in den Systemeinstellungen steht klein darunter, damit man ihn wiederfindet.
-- **Warten auf die Systemeinstellungen:** Nach „Freigeben…“ prüft Saywing alle 300 ms, und nur solange dieser Schritt wartet. Ist die Freigabe da, zeichnet sich ein Häkchen, Saywing holt sein Fenster nach vorn und blättert nach 0,9 s weiter. Ist Bildschirmaufnahme eingeschaltet, aber noch nicht wirksam, bietet die Seite „Beenden & neu öffnen“ an; die Einrichtung setzt danach fort (`--resume-setup`).
-- **Hinweis neben den Systemeinstellungen:** Solange gewartet wird und die Systemeinstellungen vorne sind, schwebt neben ihrem Fenster eine kleine Karte: „Saywing einschalten“ mit dem App-Symbol, das sich in die Liste ziehen lässt. Die Karte ist schließbar und verschwindet, sobald die Freigabe da ist.
-- **Lesetest im Fenster:** Der Kurzbefehl wird als Taste gezeigt, darunter steht ein eigener Beispielsatz. Der Nutzer zieht wie gewohnt einen Rahmen darum; die echte Pipeline liest vor. Das Einrichtungsfenster ist das einzige eigene Fenster, das die Erfassung lesen darf, damit kein privater Bildschirminhalt nötig ist. Esc während des Vorlesens zählt als Erfolg.
-- **Diktieren** wird angeboten, nicht verlangt. Der Test nutzt das vorhandene Diktier-Testfeld.
-- **Fertig** zeigt die Menüleiste mit hervorgehobenem Saywing-Symbol, und unter dem echten Menüleistensymbol erscheint „Hier wohnt Saywing“, denn die App hat kein Dock-Symbol. Fehlende Freigaben stehen dort mit je einer Aktion.
-- **Rechtzeitig fragen:** Fehlt eine Lese-Freigabe, öffnet der Kurzbefehl direkt die Einrichtung, statt erst eine Auswahl zu ermöglichen, die danach scheitert. Der Diktierhinweis „Einrichtung öffnen…“ springt direkt zu den Diktier-Schritten.
-- **Bewegung:** Die neue Seite gleitet aus der Bewegungsrichtung herein, kritisch gedämpft (`response 0,35`, ohne Überschwingen); die alte blendet aus. Bei reduzierter Bewegung gibt es nur eine Überblendung, das Häkchen erscheint dann ohne Zeichnen. Jeder Seiten- und Ergebniswechsel wird für VoiceOver angesagt.
+- **One decision per page**, fixed window (500 × 560 pt). Symbol and title are in the same place on every page. The main action is at the bottom right (Return), “Back” at the bottom left, and “Later”/“Not Now” is always reachable with equal weight.
+- **Order:** Welcome → Screen Recording → Input Monitoring → reading test → “Write with your voice too?” → (if yes) Microphone → Accessibility → dictation test → Done. The order follows only from the current permissions. Granted steps are skipped, and a test that could only fail without its permission is dropped. Anyone who comes back lands on the first missing step and never on Welcome again. Nothing about progress is stored.
+- **Titles by benefit, not by system term** (“Read the text you mark”, “Stop anytime with Escape”). The name used in System Settings is shown small underneath so that it can be found again.
+- **Waiting for System Settings:** After “Allow…”, Saywing checks every 300 ms, and only while this step is waiting. Once the permission is there, a checkmark draws itself, Saywing brings its window to the front and pages forward after 0.9 s. If Screen Recording is turned on but not yet effective, the page offers “Quit & Reopen”; setup then continues (`--resume-setup`).
+- **Hint next to System Settings:** while waiting and while System Settings is in front, a small card floats next to its window: “Turn on Saywing”, with the app icon, which can be dragged into the list. The card can be closed and disappears as soon as the permission is there.
+- **Reading test in the window:** the shortcut is shown as a key, with a dedicated sample sentence below it. The user drags a frame around it as usual; the real pipeline reads it aloud. The setup window is the only one of the app's own windows that capture may read, so no private screen content is needed. Esc while reading aloud counts as success.
+- **Dictation** is offered, not required. The test uses the existing dictation test field.
+- **Done** shows the menu bar with the Saywing icon highlighted, and “Saywing lives here” appears under the real menu bar icon, because the app has no Dock icon. Missing permissions are listed there, each with one action.
+- **Ask at the right time:** if a reading permission is missing, the shortcut opens setup directly instead of first allowing a selection that would then fail. The dictation hint “Open Setup…” jumps directly to the dictation steps.
+- **Motion:** the new page slides in from the direction of movement, critically damped (`response 0.35`, without overshoot); the old one fades out. With reduced motion there is only a cross-fade, and the checkmark then appears without drawing. Every page and result change is announced for VoiceOver.
 
-## Rückmeldung am Ort des Geschehens
+## Feedback where it happens
 
-Freigabe am 2026-10-14 nach dem dritten Review mit dem Apple-Design-Skill.
+Approved on 2026-10-14 after the third review with the Apple design skill.
 
-- **Fehlerhilfe an der Kapsel:** Nach einem Fehler öffnet das „?“ der Lesekapsel ein Popover direkt an der Kapsel, mit dem konkreten Grund und genau einem nächsten Schritt: „Erneut versuchen“, bei belegtem Kurzbefehl „Kurzbefehl-Einstellungen …“ (öffnet den Tab Kurzbefehle) und bei fehlender Freigabe „Einrichtung öffnen …“ (springt zum fehlenden Schritt).
-- **Diktat am Cursor:** Die Diktierkapsel erscheint direkt unter der Einfügestelle, bei Platzmangel darüber und immer auf dem Bildschirm. Ohne ermittelbare Einfügestelle erscheint sie dort, wo der Nutzer die Lesekapsel angedockt hat. Während eines Diktats springt sie nicht.
-- **Diktier-Testfenster:** ein Satz Anleitung, Status, Testfeld, Aufnehmen/Verwerfen. „Nicht eingefügt“ mit Ergebnis und Kopieren erscheint nur, wenn das Einfügen scheiterte oder nicht bestätigt wurde. Freigaben laufen über die Einrichtung.
-- **Klänge beim Diktieren:** dieselben Hinweisklänge wie beim Vorlesen und dieselbe Einstellung: „fertig“ bei bestätigtem Einfügen, „Achtung“ bei unbestätigtem Einfügen oder einem Problem. Der Klang fällt mit dem sichtbaren Zustand zusammen. Statusmeldungen während einer Aufnahme bleiben stumm und werden nicht angesagt.
-- **Mikrofonklänge und Freihand (Projektentscheidung 2026-10-14):** Das Diktieren war bisher stumm; jetzt hat es drei eigene kurze Klänge aus der Holz-und-Wasser-Familie, jeder unter 450 ms, leiser als die Vorleseklänge und mit fast der ganzen Energie in den ersten 150 ms.
-  - **Mikrofon an** (Fn gedrückt): ein weicher Marimba-Schlag auf C4 mit einem kleinen steigenden Tropfen. Er erklingt mit dem Erscheinen der Kapsel, sobald das Mikrofon offen ist.
-  - **Freihand eingerastet** (Fn doppelt oder Fn + Leertaste): derselbe Schlag eine Quinte höher auf G4. Auf „Mikrofon an“ folgend ergibt das eine steigende Quinte. Die Beenden-Taste der Kapsel füllt sich hell petrolfarben und rastet einmal mit einer kritisch gedämpften Feder von 86 auf 100 % ein; ohne Text, Timer oder zusätzliches Leuchten. Starts über ⌥⇧Leertaste oder die Aufnahmetaste im Testfenster sind von Anfang an freihändig und erklingen nur mit diesem einen Klang.
-  - **Mikrofon aus** (loslassen, Fn, Beenden-Taste oder 60-s-Grenze): ein gedämpfter Schlag auf G3 ohne Wasser. Er erklingt erst, nachdem das Mikrofon geschlossen ist, und ist deshalb nie Teil der Aufnahme.
-  - Verwerfen (Esc, Kreuz, dritter schneller Tipp, verworfener Einzeltipp) bleibt stumm und beendet einen noch klingenden Mikrofonklang sofort. Ein Klang, der auf einen anderen folgt, blendet diesen in 30 ms aus statt ihn hart abzuschneiden.
-  - Bestätigtes Einfügen wird schon 150 ms nach dem Einfügen zurückgelesen. Ist der Text da, erscheinen Häkchen und Abschlussklang gemeinsam mit dem Text statt eine Sekunde später; die Zwischenablage wird weiterhin erst nach 1 s bzw. 2 s wiederhergestellt. Sonst entscheidet wie bisher die Prüfung zu diesem Zeitpunkt.
-  - Bewusst offen: Mikrofon an und Freihand eingerastet erklingen, während das Mikrofon schon aufnimmt. Über Lautsprecher kann der kurze Klang in den ersten etwa 150 ms der Aufnahme landen. Eine Messung mit den echten Modellen steht aus; mit Kopfhörern tritt das nicht auf.
-- **Menüleistensymbol:** ein Punkt während des Vorlesens, ein kleines Dreieck nach einem Fehler. Der Zustand ist an der Form erkennbar, nicht an der Farbe, und das Symbol bleibt eine Vorlage. Für Aufnahmen zeigt macOS seine eigene Mikrofonanzeige.
-- **Barrierefreiheit (Audit 2026-10-14):**
-  - Diktat-Ergebnisse, Pause/Fortsetzen, neue Texte in der Warteschlange, das Auswahl-Overlay, Kurzbefehl-Hinweise und das Warten auf die Systemeinstellungen werden angesagt. Fehler werden mit hoher Priorität angesagt. Der Sprechbeginn und laufende Aufnahmen werden nicht angesagt, damit VoiceOver weder über die Stimme spricht noch mit aufgenommen wird.
-  - Im Auswahl-Overlay liest Return den Absatz unter dem Zeiger.
-  - Tab verlässt das Diktier-Testfeld.
-  - Pause und Optionen der Lesekapsel sind sichtbar, solange VoiceOver oder die Schaltersteuerung aktiv ist.
-  - Warteschlangen-Zeilen tragen den Text als Namen.
-  - Die Kurzbefehlsfelder sind nach ihrer Aufgabe benannt und melden Änderungen.
-  - Status-Texte stehen in voller Kontrastfarbe; die Farbe trägt nur das Symbol.
-  - Der Auswahlrahmen hat eine dunkle Außenlinie; bei erhöhtem Kontrast ist er schwarz-weiß.
-  - In der Einrichtung landet der VoiceOver-Fokus auf dem neuen Seitentitel.
-  - Das Menü bietet „Fertig & einfügen“ während einer Aufnahme und „Diktieren ausprobieren …“.
-  - Öffnet man die Wiedergabesteuerung über das Menü, erhält sie den Tastaturfokus; ein Klick auf die Kapsel lässt die aktive App vorne.
+- **Error help at the capsule:** after an error, the “?” of the reading capsule opens a popover directly at the capsule, with the specific reason and exactly one next step: “Try Again”; “Shortcut Settings…” if the shortcut is taken (opens the Shortcuts tab); and “Open Setup…” if a permission is missing (jumps to the missing step).
+- **Dictation at the cursor:** the dictation capsule appears directly below the insertion point, above it if space is lacking, and always on screen. If no insertion point can be determined, it appears where the user docked the reading capsule. It does not jump during a dictation.
+- **Dictation test window:** one sentence of instructions, status, test field, Record/Discard. “Not pasted” with the result and Copy appears only if pasting failed or was not confirmed. Permissions go through setup.
+- **Sounds during dictation:** the same cue sounds as for reading aloud and the same setting: “done” on confirmed pasting, “attention” on unconfirmed pasting or a problem. The sound coincides with the visible state. Status messages during a recording stay silent and are not announced.
+- **Microphone sounds and hands-free (project decision 2026-10-14):** dictation used to be silent; now it has three short sounds of its own from the wood-and-water family, each under 450 ms, quieter than the reading sounds and with almost all of the energy in the first 150 ms.
+  - **Microphone on** (Fn pressed): a soft marimba hit on C4 with a small rising drop. It sounds as the capsule appears, as soon as the microphone is open.
+  - **Hands-free locked** (double Fn or Fn + Space): the same hit a fifth higher, on G4. Following “microphone on”, this makes a rising fifth. The capsule's finish button fills with light petrol and snaps in once with a critically damped spring from 86 to 100 %; without text, timer or additional glow. Starts via ⌥⇧Space or the record button in the test window are hands-free from the beginning and sound only this one sound.
+  - **Microphone off** (release, Fn, finish button or the 60 s limit): a muted hit on G3 without water. It sounds only after the microphone has closed and is therefore never part of the recording.
+  - Discarding (Esc, cross, third quick tap, discarded single tap) stays silent and immediately ends a microphone sound that is still playing. A sound that follows another fades the previous one out over 30 ms instead of cutting it off hard.
+  - Confirmed pasting is read back as early as 150 ms after pasting. If the text is there, the checkmark and completion sound appear together with the text instead of a second later; the clipboard is still restored only after 1 s or 2 s. Otherwise, as before, the check at that point decides.
+  - Deliberately open: microphone on and hands-free locked sound while the microphone is already recording. Over speakers, the short sound can end up in the first roughly 150 ms of the recording. A measurement with the real models is pending; with headphones this does not occur.
+- **Menu bar icon:** a dot while reading aloud, a small triangle after an error. The state can be recognized by shape, not by color, and the icon stays a template. For recordings, macOS shows its own microphone indicator.
+- **Accessibility (audit 2026-10-14):**
+  - Dictation results, Pause/Resume, new texts in the queue, the selection overlay, shortcut hints and waiting for System Settings are announced. Errors are announced with high priority. The start of speech and ongoing recordings are not announced, so that VoiceOver neither speaks over the voice nor gets recorded.
+  - In the selection overlay, Return reads the paragraph under the pointer.
+  - Tab leaves the dictation test field.
+  - Pause and Options of the reading capsule are visible while VoiceOver or Switch Control is active.
+  - Queue rows carry the text as their name.
+  - The shortcut fields are named after their task and report changes.
+  - Status texts use the full-contrast color; color carries only the symbol.
+  - The selection frame has a dark outer line; with increased contrast it is black and white.
+  - In setup, VoiceOver focus lands on the new page title.
+  - The menu offers “Finish & Paste” during a recording and “Try Dictation…”.
+  - Opening Playback Controls from the menu gives it keyboard focus; a click on the capsule keeps the active app in front.
 
 
-### Einrichtung: Modell und Kurzbefehle (2026-10-14)
+### Setup: model and shortcuts (2026-10-14)
 
-- Der geführte Ablauf ergänzt zwischen Berechtigungen und Ausprobieren jeweils Modell und Kurzbefehle. Begrüßung, Berechtigungshilfe und das optionale Diktierangebot bleiben erhalten. Der aktuelle Schritt bleibt auch nach Neustarts erhalten. Modell und Kurzbefehle lassen sich ohne Freigaben konfigurieren; Tests prüfen die erforderlichen Freigaben erneut.
-- Beim Diktieren steht das mitgelieferte Whisper Turbo zuerst; weitere Modelle sind aufklappbar. Installierte Modelle lassen sich verwenden, fehlende freigegebene Modelle nach Bestätigung laden. Die Bestätigung nennt Größe und Quelle. Downloadfortschritt und anschließende Dateiprüfung werden getrennt angezeigt und sind abbrechbar.
-- Ein unterbrochener Download behält die gewünschte Auswahl, startet beim nächsten App-Start aber nicht automatisch neu. „Laden“ bietet einen bestätigten neuen Versuch. Bis zur vollständigen Prüfung wird das neue Modell nicht aktiviert; der Diktiertest bleibt bei ausstehender Auswahl gesperrt.
-- Vorlesen und Diktieren erhalten eigene Aufnahmefelder für Tastenkombinationen. Konflikte mit dem jeweils anderen oder dem zusätzlichen Warteschlangen-Kurzbefehl werden erklärt. Fehlgeschlagene Registrierung überschreibt keine gespeicherte Wahl. Fn-Gesten können separat deaktiviert werden. Escape bleibt Abbruch.
-- Während der Tastenaufnahme sind Vorlesen, Warteschlange, Diktierkurzbefehl und Fn pausiert. Nach Abschluss oder Abbruch werden die gespeicherten Kurzbefehle wieder registriert. Einrichtung und Einstellungen verwenden dieselben Komponenten und Präferenzen.
+- Between permissions and trying it out, the guided flow adds model and shortcut steps for each activity. Welcome, permission help and the optional dictation offer are kept. The current step is kept even across relaunches. Model and shortcuts can be configured without permissions; tests re-check the required permissions.
+- For dictation, the bundled Whisper Turbo comes first; further models can be expanded. Installed models can be used, and missing approved models can be downloaded after confirmation. The confirmation states size and source. Download progress and the subsequent file verification are shown separately and can be cancelled.
+- An interrupted download keeps the desired selection but does not restart automatically at the next app launch. “Download…” offers a confirmed new attempt. The new model is not activated until verification is complete; the dictation test stays locked while a selection is pending.
+- Reading aloud and dictation get their own recording fields for key combinations. Conflicts with the other one or with the additional queue shortcut are explained. A failed registration does not overwrite a stored choice. Fn gestures can be disabled separately. Escape remains cancel.
+- While a key is being recorded, reading aloud, the queue, the dictation shortcut and Fn are paused. After completion or cancellation, the stored shortcuts are registered again. Setup and Settings use the same components and preferences.
 
-## Meeting-Mitschrift — 2026-10-15
+## Meeting transcript — 2026-10-15
 
-Projektentscheidung vom 2026-10-15 ([ADR 0006](decisions/0006-local-meeting-transcript.md)).
+Project decision of 2026-10-15 ([ADR 0006](decisions/0006-local-meeting-transcript.md)).
 
 - **Start:**
-  - Menü „Meeting mitschreiben …“ öffnet das Mitschrift-Fenster mit dem Einwilligungs-Schritt.
-  - Der Schritt erklärt in drei Zeilen, was aufgenommen wird. Er enthält einen kopierbaren Satz für den Meeting-Chat und die Taste „Alle sind informiert – starten“.
-  - Ist die Funktion nicht verfügbar (macOS älter als 26 oder Sprache nicht installiert), sagt das Fenster genau das, statt einen Start anzubieten.
+  - The menu item “Transcribe a Meeting…” opens the transcript window with the consent step.
+  - The step explains in three lines what will be recorded. It contains a copyable sentence for the meeting chat and the button “Everyone Is Informed – Start”.
+  - If the feature is not available (macOS older than 26 or language not installed), the window says exactly that instead of offering a start.
 - **Live:**
-  - Das Fenster zeigt „Ich“ und „Andere“ als Gesprächsverlauf.
-  - Vorläufiger Text steht in Sekundärfarbe und wird ersetzt, sobald er feststeht.
-  - Der Verlauf scrollt mit, solange man unten ist.
-  - Zwei kleine Pegel zeigen, dass beide Spuren ankommen. Kommt 20 s lang kein Ton von anderen Apps, erscheint ein Hinweis auf die Systemaudio-Freigabe.
-  - Stopp ist die einzige Taste (⌘. wie überall am Mac; Return beendet nichts versehentlich). Schließen blendet das Fenster nur aus; das Menü bringt es zurück.
-  - Mitlaufen nur, solange man unten ist: Wer zum Nachlesen hochscrollt, bleibt dort; „Neueste“ springt zurück.
-- **Danach:** links „Verwerfen“ und „Neue Mitschrift“ (das Transkript verlassen), rechts „Kopieren“ und „Sichern …“ (behalten, Hauptaktion). Kopieren und Sichern bestätigen sich kurz mit Häkchen in der Taste. Verwerfen und Neue Mitschrift fragen nur nach, solange der Text weder kopiert noch gesichert wurde.
-- **Klänge:** Start mit „Mikrofon an“, Ende mit „Mikrofon aus“, beides aus der bestehenden Familie und mit derselben Einstellung.
-- **Menü:**
-  - Während der Aufnahme „Mitschrift · läuft“ mit „Mitschrift anzeigen“ und „Mitschrift beenden“.
-  - Das Menüleistensymbol trägt einen Ring, also eine eigene Form. Anders als beim Diktieren reicht die Mikrofonanzeige des Systems hier nicht, weil auch Systemaudio aufgenommen wird.
-- Esc, Vorlesen und Diktieren lassen eine laufende Mitschrift unberührt.
+  - The window shows “Me” and “Others” as a conversation.
+  - Volatile text is shown in the secondary color and is replaced as soon as it is final.
+  - The view scrolls along while you are at the bottom.
+  - Two small level meters show that both tracks are arriving. If no sound comes from other apps for 20 s, a hint about the system audio permission appears.
+  - Stop is the only button (⌘. as everywhere on the Mac; Return does not end anything by accident). Closing only hides the window; the menu brings it back.
+  - Following along only while you are at the bottom: anyone who scrolls up to reread stays there; “Latest” jumps back.
+- **Afterwards:** on the left “Discard” and “New Transcript” (leave the transcript), on the right “Copy” and “Save…” (keep it, main action). Copy and Save confirm briefly with a checkmark in the button. Discard and New Transcript ask for confirmation only as long as the text has been neither copied nor saved.
+- **Sounds:** start with “microphone on”, end with “microphone off”, both from the existing family and with the same setting.
+- **Menu:**
+  - During recording, “Meeting Transcript · Running” with “Show Transcript” and “Stop Transcript”.
+  - The menu bar icon carries a ring, i.e. a shape of its own. Unlike with dictation, the system's microphone indicator is not enough here, because system audio is recorded as well.
+- Esc, reading aloud and dictation leave a running transcript untouched.
 
-### Design-Review Meeting-Mitschrift — 2026-10-16
+### Meeting transcript design review — 2026-10-16
 
-Nach dem Apple-Design-Skill und dem [Saywing-Markensystem](brand-identity/BRAND_SYSTEM.md) geprüft.
+Reviewed against the Apple design skill and the [Saywing brand system](brand-identity/BRAND_SYSTEM.md).
 
-- Gleiche Sprache wie die Einrichtung: Symbol auf Petrol-getönter Kreisfläche, zentrierter Titel mit einem erklärenden Satz, Fußleiste mit großer Bedienung und Hauptaktion rechts, Petrol als Akzent (`AccentColor`), kritisch gedämpfte Seitenwechsel bzw. Überblendung bei reduzierter Bewegung.
-- Pegel im Kapsel-Vokabular: fünf 2,5-pt-Balken mit 3 pt Abstand je Spur in Petrol, fünfmal pro Sekunde aktualisiert und kritisch gedämpft geglättet; Stille als flache, gedämpfte Punkte.
-- „Ich“ trägt Petrol, „Andere“ die Primärfarbe; das Etikett sagt es, Farbe ist nie das einzige Merkmal. Warnungen färben nur ihr Symbol (wie in Einrichtung und Einstellungen).
-- Bewusste Abweichung von der Diktierkapsel: Das Fenster zeigt „Aufnahme“ mit rotem Aufnahmesymbol und Dauer. Die Regel „kein Text, kein Timer“ gilt für die kleine Kapsel am Cursor; eine bis zu zweistündige Mitschrift, die andere Personen hört, braucht sichtbaren Zustand und Zeit bis zur Grenze.
-- Menüleiste: Ring als vierte Form neben Punkt und Dreieck, gleiche Größe, Lage und Aussparung.
+- Same language as setup: symbol on a petrol-tinted circle, centered title with one explanatory sentence, footer with large controls and the main action on the right, petrol as the accent (`AccentColor`), critically damped page transitions or a cross-fade with reduced motion.
+- Level meters in the capsule vocabulary: five 2.5 pt bars with 3 pt spacing per track in petrol, updated five times per second and smoothed with critical damping; silence as flat, muted dots.
+- “Me” is shown in petrol, “Others” in the primary color; the label says which is which, and color is never the only distinguishing feature. Warnings color only their symbol (as in setup and Settings).
+- Deliberate deviation from the dictation capsule: the window shows “Recording” with a red recording symbol and the duration. The rule “no text, no timer” applies to the small capsule at the cursor; a transcript of up to two hours that hears other people needs a visible state and the time remaining until the limit.
+- Menu bar: the ring as a fourth shape next to the dot and triangle, with the same size, position and inset.
