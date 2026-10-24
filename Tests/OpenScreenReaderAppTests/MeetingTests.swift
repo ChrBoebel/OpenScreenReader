@@ -302,10 +302,34 @@ private func roomEcho(_ signal: [Float], delay: Double, gain: Float, reverb: Dou
         .prefix(signal.count).map { $0 }
 }
 
+/// The installed German `say` voice whose name is `name` or starts with "`name` (".
+/// Voice names are localized ("Eddy", "Eddy (German
+/// (Germany))"), and `say` silently falls back to the default voice for an unknown
+/// name, so tests resolve by locale instead of passing a display name.
+private func germanVoice(_ name: String) -> String? {
+    let list = Process()
+    let pipe = Pipe()
+    list.executableURL = URL(fileURLWithPath: "/usr/bin/say")
+    list.arguments = ["-v", "?"]
+    list.standardOutput = pipe
+    list.standardError = FileHandle.nullDevice
+    guard (try? list.run()) != nil else { return nil }
+    let output = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+    list.waitUntilExit()
+    for line in output.split(separator: "\n") {
+        guard let match = line.firstMatch(of: /^(.+?)\s+([a-z]{2,3}_[A-Z0-9]{2,3})\s+#/),
+              match.2 == "de_DE" else { continue }
+        let voice = String(match.1)
+        if voice == name || voice.hasPrefix(name + " (") { return voice }
+    }
+    return nil
+}
+
 /// Real synthetic speech at 8 kHz, as the echo gate sees it; nil where `say` is unavailable.
 private func spoken(_ text: String, voice: String) throws -> [Float]? {
     let url = FileManager.default.temporaryDirectory.appendingPathComponent("echo-\(UUID()).caf")
     defer { try? FileManager.default.removeItem(at: url) }
+    guard let voice = germanVoice(voice) else { return nil }
     let say = Process()
     say.executableURL = URL(fileURLWithPath: "/usr/bin/say")
     say.arguments = ["-v", voice, "--file-format=caff", "--data-format=LEF32@8000", "-o", url.path, text]
@@ -346,7 +370,7 @@ struct RoomEchoTests {
     @Test
     func unrelatedRealSpeechStaysFarBelowEchoScores() throws {
         guard let others = try spoken(Self.others, voice: "Anna"),
-              let mine = try spoken(Self.others, voice: "Eddy (Deutsch (Deutschland))") else { return }
+              let mine = try spoken(Self.others, voice: "Eddy") else { return }
         let length = min(others.count, mine.count)
         let unrelated = scores(EchoGate(), system: Array(others.prefix(length)), mic: Array(mine.prefix(length)))
         let echo = scores(EchoGate(), system: others, mic: roomEcho(others, delay: 0.05, gain: 0.03, reverb: 0.6))
@@ -359,7 +383,7 @@ struct RoomEchoTests {
     @Test
     func aQuietEchoIsFoundEvenWhileITalkOverIt() throws {
         guard let system = try spoken(Self.others, voice: "Anna"),
-              let mine = try spoken("Ich finde, wir sollten zuerst über das Budget sprechen und dann über die Termine.", voice: "Eddy (Deutsch (Deutschland))")
+              let mine = try spoken("Ich finde, wir sollten zuerst über das Budget sprechen und dann über die Termine.", voice: "Eddy")
         else { return }
         var mic = roomEcho(system, delay: 0.05, gain: 0.02, reverb: 0.8)
         let from = 4 * 8_000
@@ -375,7 +399,7 @@ struct RoomEchoTests {
     @Test
     func myOwnSpeechAfterTheirEchoStaysMine() throws {
         guard let system = try spoken(Self.others, voice: "Anna"),
-              let mine = try spoken("Das sehe ich anders, wir sollten erst das Budget klären.", voice: "Eddy (Deutsch (Deutschland))")
+              let mine = try spoken("Das sehe ich anders, wir sollten erst das Budget klären.", voice: "Eddy")
         else { return }
         let pause = [Float](repeating: 0, count: 8_000)
         let systemTrack = system + pause + [Float](repeating: 0, count: mine.count)
@@ -543,7 +567,8 @@ struct AppleMeetingRecognizerTests {
         defer { try? FileManager.default.removeItem(at: url) }
         let say = Process()
         say.executableURL = URL(fileURLWithPath: "/usr/bin/say")
-        say.arguments = ["-v", "Anna", "-o", url.path, "Guten Morgen zusammen. Kurzer Stand zum Projekt."]
+        guard let anna = germanVoice("Anna") else { return }
+        say.arguments = ["-v", anna, "-o", url.path, "Guten Morgen zusammen. Kurzer Stand zum Projekt."]
         try say.run()
         say.waitUntilExit()
         guard say.terminationStatus == 0 else { return }
@@ -578,7 +603,7 @@ struct AppleMeetingRecognizerTests {
         let provider = SystemMeetingRecognizerProvider()
         guard case let .available(locale) = await provider.availability(for: .german) else { return }
         let others = try #require(try speech("Wir haben in dieser Woche die neue Funktion fertiggestellt und alle Tests laufen grün.", voice: "Anna"))
-        let mine = try #require(try speech("Danke, dann plane ich den Prototypen für Freitag.", voice: "Eddy (Deutsch (Deutschland))")
+        let mine = try #require(try speech("Danke, dann plane ich den Prototypen für Freitag.", voice: "Eddy")
             ?? speech("Danke, dann plane ich den Prototypen für Freitag.", voice: "Anna"))
         let rate = 22_050.0
         let gap = [Float](repeating: 0, count: Int(rate))
@@ -629,8 +654,8 @@ struct AppleMeetingRecognizerTests {
         guard case .available = await provider.availability(for: .german) else { return }
         let lines = [
             ("Anna", "Guten Morgen zusammen, ich fange mit dem Stand zum Projekt an."),
-            ("Grandpa (Deutsch (Deutschland))", "Danke. Haben wir das Budget für die neuen Server schon freigegeben?"),
-            ("Eddy (Deutsch (Deutschland))", "Dann schicke ich die Bestellung heute noch raus."),
+            ("Grandpa", "Danke. Haben wir das Budget für die neuen Server schon freigegeben?"),
+            ("Eddy", "Dann schicke ich die Bestellung heute noch raus."),
         ]
         let rate = 22_050.0
         var track: [Float] = []
@@ -691,6 +716,7 @@ struct AppleMeetingRecognizerTests {
     private func speech(_ text: String, voice: String) throws -> [Float]? {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("meeting-\(UUID()).caf")
         defer { try? FileManager.default.removeItem(at: url) }
+        guard let voice = germanVoice(voice) else { return nil }
         let say = Process()
         say.executableURL = URL(fileURLWithPath: "/usr/bin/say")
         say.arguments = ["-v", voice, "--file-format=caff", "--data-format=LEF32@22050", "-o", url.path, text]
