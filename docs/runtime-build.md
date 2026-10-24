@@ -105,6 +105,59 @@ forbidden content when reused with `--speech-from`.
 For local development speech, install the built speech runtime with
 `ruby scripts/install-supertonic-runtime.rb VERIFIED_COMPARISON_ROOT .build/runtime/speech-arm64`.
 
+## Release input and CI
+
+`scripts/assemble-release-runtime.py` produces the complete runtime input for
+`scripts/release.py --runtime-app` from public sources only:
+
+```sh
+python3 scripts/assemble-release-runtime.py --architecture arm64  --public-release --cache .build/runtime-cache --output .build/runtime-arm64/Saywing.app
+python3 scripts/assemble-release-runtime.py --architecture x86_64 --public-release --cache .build/runtime-cache --output .build/runtime-x86_64/Saywing.app
+```
+
+It first downloads every input into the content-addressed cache (file name = SHA-256)
+and verifies size and SHA-256 before anything is built or unpacked:
+
+| Input | Source | Pin |
+| --- | --- | --- |
+| Supertonic 3 model and voices | `huggingface.co/Supertone/supertonic-3` | `docs/research/supertonic-comparison-manifest.json` (revision, size, SHA-256 per file) |
+| Supertonic `helper.py`, `LICENSE`, `README.md` | `raw.githubusercontent.com/supertone-inc/supertonic` | `Runtime/Portable/release-inputs.json` (helper cross-checked with the model manifest) |
+| Whisper Turbo MLX 4-bit (arm64) | `huggingface.co/mlx-community/whisper-large-v3-turbo-4bit`; OpenAI and Apache license texts from their recorded URLs | `Runtime/Dictation/whisper-turbo-manifest.json` |
+| Whisper Turbo GGML q5_0 (x86_64) | `huggingface.co/ggerganov/whisper.cpp` | `Runtime/Portable/whisper-turbo-cpp-manifest.json` |
+| whisper.cpp 1.9.5 source (x86_64) | `codeload.github.com` | `Runtime/Portable/whisper-cpp-source.json` |
+| FLEURS demo clips | `test.tar.gz` archives of `huggingface.co/datasets/google/fleurs`; only the two listed members are read | archives in `Runtime/Portable/release-inputs.json`, clips in `Runtime/Dictation/demo-manifest.json` |
+| Corresponding sources | URLs recorded per file; records with `architectures` only for those | `docs/licenses/native-corresponding-sources.json` |
+
+Then it builds both worker runtimes with `scripts/build-python-runtime.py`, and assembles
+`Contents/Resources` of a new `Saywing.app`:
+
+- `Speech/`: the speech runtime as `SupertonicRuntime/python`, the project worker, helper,
+  model manifest and `DevelopmentModels/supertonic-3-3cadd1ee`, with an integrity receipt;
+- `Dictation/`: on arm64 written by `scripts/bundle-dictation-runtime.py` (inventory check,
+  hardened-runtime patch, receipt) into a staging bundle; on Intel the dictation runtime,
+  the GGML model, the whisper.cpp bridge built by `scripts/build-whisper-cpp.sh` with its
+  build provenance, `runtime-backends.json` (`whisper-turbo` only), notices and receipt;
+- `portable-runtime.json`, `LICENSE-Saywing`, `CorrespondingSource/`, and a native audit of
+  every Mach-O file (architecture, macOS 14, no external load paths).
+
+Inputs come to about 2 GB per architecture, mostly the two models and the FLEURS archives
+(860 MB for two clips of 1.8 MB; the dataset publishes audio only as archives).
+Additional hosts beyond the runtime build: `huggingface.co` (redirecting to its CDN),
+`raw.githubusercontent.com`, `codeload.github.com`, `www.apache.org` and the corresponding-source
+hosts. Intel needs CMake.
+
+**CI.** The `package` job of `.github/workflows/release.yml` runs this for each matrix
+architecture (arm64; x86_64 only with `SAYWING_INTEL_RELEASE_ENABLED`) through
+`scripts/prepare-release-ci.py runtime`, after the release-approval gate, into
+`$RUNNER_TEMP/saywing-runtime/Saywing.app`, then passes that to `scripts/release.py`.
+No private archive, storage credential or secret is involved. The download cache
+(`$RUNNER_TEMP/saywing-runtime-cache`) is kept with `actions/cache`, keyed by architecture
+and the hash of every pin file. That is safe because all cached content is re-verified
+against committed hashes on every use (a modified entry fails the build; pip installs
+only `--require-hashes` pins), and the release job runs only from `workflow_dispatch` on
+`main`: caches written by pull-request runs belong to their merge refs and are never
+restored on `main`.
+
 ## Verification, 2026-10-23
 
 Built on Apple Silicon (macOS 26) from the pins above. Sizes compared with the earlier
