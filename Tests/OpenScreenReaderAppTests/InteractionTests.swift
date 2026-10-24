@@ -3199,11 +3199,19 @@ struct DictationIntegrationTests {
         defer { try? FileManager.default.removeItem(at: resources) }
         let bin = resources.appendingPathComponent("Python/bin")
         try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
-        try "(version 1)(allow default)".write(to: resources.appendingPathComponent("worker.sb"), atomically: true, encoding: .utf8)
+        // The worker sandbox lets only the interpreter itself run, so a `#!/bin/sh` stand-in
+        // would be refused. A signed zsh copy runs worker.py as a script without any exec.
         let python = bin.appendingPathComponent("python3")
-        try "#!/bin/sh\nprintf '{\"type\":\"fatal\",\"code\":\"load_failed\"}\\n'\nexit 1\n"
-            .write(to: python, atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: python.path)
+        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/bin/zsh"), to: python)
+        let sign = Process()
+        sign.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        sign.arguments = ["--force", "--sign", "-", python.path]
+        sign.standardError = FileHandle.nullDevice
+        try sign.run()
+        sign.waitUntilExit()
+        try #require(sign.terminationStatus == 0)
+        try "print -r -- '{\"type\":\"fatal\",\"code\":\"load_failed\"}'\nexit 1\n"
+            .write(to: resources.appendingPathComponent("worker.py"), atomically: true, encoding: .utf8)
         let worker = DictationWorker()
         defer { worker.stop() }
         for _ in 0..<12 {
