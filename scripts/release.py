@@ -25,6 +25,11 @@ MACHO = {bytes.fromhex(value) for value in (
 DEFAULT_PUBLIC_DOWNLOAD_PREFIX = 'https://www.christopherboebel.com/downloads/saywing'
 DEFAULT_SIGNING_IDENTITY = 'Developer ID Application: Christopher Böbel (S28WSHSSJD)'
 DEFAULT_NOTARY_PROFILE = 'Saywing-Notary-S28WSHSSJD'
+# Visible beside the app in every DMG: the source license, its NOTICE, and the Supertonic 3
+# model terms with the complete unchanged Open RAIL-M text (paragraph 5, Attachment A).
+DMG_LICENSE_FILES = (('LICENSE', 'LICENSE'), ('NOTICE', 'NOTICE'),
+                     ('docs/licenses/SUPERTONIC-MODEL-TERMS.md', 'SUPERTONIC-MODEL-TERMS.md'),
+                     ('docs/licenses/Supertonic-3-Open-RAIL-M.txt', 'Supertonic-3-Open-RAIL-M.txt'))
 
 
 def run(*args, **kwargs):
@@ -186,6 +191,29 @@ def sign_bundle(app, identity):
     run('python3', REPO / 'scripts/verify-app-permissions.py', app)
 
 
+def dmg_license_files(repo=None):
+    """Return [(source, DMG name)]; fail before any build if a license document is missing."""
+    repo = repo or REPO
+    missing = [relative for relative, _ in DMG_LICENSE_FILES
+               if (repo / relative).is_symlink() or not (repo / relative).is_file() or not (repo / relative).stat().st_size]
+    if missing:
+        raise ValueError('License documents for the DMG are missing: ' + ', '.join(missing)
+                         + ' (NOTICE and SUPERTONIC-MODEL-TERMS.md come with the model-terms change)')
+    return [(repo / relative, name) for relative, name in DMG_LICENSE_FILES]
+
+
+def stage_dmg_licenses(image_root, app, repo=None):
+    """Copy the license documents and the app's offline notice index into image_root/Licenses."""
+    index = app / 'Contents/Resources/THIRD-PARTY-NOTICES.html'
+    if index.is_symlink() or not index.is_file():
+        raise ValueError('The signed app has no THIRD-PARTY-NOTICES.html')
+    target = image_root / 'Licenses'
+    target.mkdir()
+    for source, name in dmg_license_files(repo) + [(index, 'THIRD-PARTY-NOTICES.html')]:
+        shutil.copyfile(source, target / name)
+    return sorted(path.name for path in target.iterdir())
+
+
 def notarize(path, profile, keychain, log_dir):
     # notarytool timeout leaves Apple's job running. Retain the submission ID/log;
     # never treat a timeout as accepted or automatically resubmit that upload.
@@ -222,6 +250,7 @@ def main():
     parser.add_argument('--public-release', action='store_true', help='Requires completed release-approval.json gates and notarization')
     args = parser.parse_args()
     validate_version(args.version, args.build)
+    dmg_license_files()
     https_url(args.feed_url)
     https_url(args.download_url_prefix)
     key = base64.b64decode(args.public_key, validate=True)
@@ -337,6 +366,7 @@ def package_signed_app(app, output, args, tools):
     image_root.mkdir()
     shutil.copytree(app, image_root / 'Saywing.app', symlinks=True, copy_function=copy_runtime_file)
     (image_root / 'Applications').symlink_to('/Applications')
+    stage_dmg_licenses(image_root, app)
     image = publish / f'Saywing-{args.version}-{args.build}.dmg'
     run('/usr/bin/hdiutil', 'create', '-volname', 'Saywing', '-srcfolder', image_root, '-format', 'UDZO', image)
     shutil.rmtree(image_root)  # Temporary image source; the signed app and final DMG remain.
