@@ -1,5 +1,7 @@
 # Proposed architecture
 
+> **Language:** this document is currently written in German. An English translation is planned; the [README](../README.md) summarizes the current behavior in English.
+
 > Diese Architektur ist eine begründete Ausgangshypothese. Die Prozessgrenzen und Packaging-Strategie werden durch technische Spikes validiert, bevor der vollständige MVP entsteht.
 
 Aktueller Entwicklungsstand: Nach der Hörentscheidung des Eigentümers vom 2026-09-05 ist Supertonic 3 das Standardmodell, zunächst mit M1. Ein lokaler Python-/ONNX-Prozess ist über dieselbe `SpeechReading`-Schnittstelle an OCR und AVAudioEngine angeschlossen; siehe [Supertonic-Integration](research/supertonic-integration.md). Der bisherige Swift-/MLX-Qwen-Spike bleibt als Vergleich erhalten, wird von der App aber weder gestartet noch als Fallback verwendet. Dies legt die portable Produktions-Runtime und Release-Verpackung noch nicht fest.
@@ -71,7 +73,7 @@ Die App-Shell injiziert `ReadingPanelController` über `ReadingStatusPresenting`
 
 Das Vorlese-Control (`ReadingControlView`) ist ein layer-basierter nativer `NSView` auf einer festen 300 × 92 pt großen Zeichenfläche; die sichtbare Kapsel ist 44 pt hoch und zwischen 44 pt (Punkt) und rund 250 pt (Hinweistext) breit, der Rest ist Platz für den gezeichneten Schatten. Die Kapsel ist ein Container mit `NSVisualEffectView` (Material `hudWindow`, hinter dem Fenster), einer sehr dunklen Tönung, Tiefen- und Glanzverlauf, Randlicht, einem radialen Leuchten, neun `CAShapeLayer`-Balken mit eigenem Leuchten, einem Wander-Licht für die Erkennung, einem Symbol-Layer, einem Bloom-Ring und zwei bei Hover eingeblendeten sekundären Tasten. Ein `NSTextField` zeigt nur bei Hinweisen kurz Text; die Stop-Taste ist ein echter 44-pt-`NSButton`. `ReadingStatusPresenting.show` erhält für den ersten sichtbaren Zustand zusätzlich das Auswahlrechteck in Bildschirmpunkten; `SelectionFlightWindow` (klick-durchlässig, nur auf dem gewählten Display) lässt einen Mint-Geist des Rahmens per Core-Animation-Pfadmorph in den Landepunkt fallen. Erst danach erscheint das Panel, gleichzeitig spielt der Controller den Öffnungsklang; `hide()` bricht den Flug sofort ab. Zustandswechsel werden zusätzlich als VoiceOver-Ansage gepostet. Es gibt kein Auto Layout und keinen SwiftUI-Host; alle Frames werden pro Bild von Hand gesetzt, sodass keine Constraint-Schleife entstehen kann. Ein `CADisplayLink` aus `NSView.displayLink(target:selector:)` treibt eine von Hand integrierte Feder (Öffnen mit Überschwingen, Schließen kritisch gedämpft) sowie die Zustandsüberblendungen; sein Ziel ist ein schwach referenzierender Proxy, damit der View freigegeben werden kann. Bei ruhenden Endzuständen pausiert der Link. Die Stop-Taste spielt beim Drücken über den Controller einen Tap-Klang und löst `NSHapticFeedbackManager` aus; dieser Pfad ist von der Pipeline entkoppelt und wird durch die Abbruchbereinigung nicht abgeschnitten. `PlaybackEnvelope` berechnet außerhalb des Audiothreads 20-ms-Pegelfenster aus dem vorhandenen PCM. `AppModel` fragt den zur gerenderten Sampleposition gehörenden Pegel alle 33 ms ab; Auftragsschutz und Ressourcenabbau beenden diesen Takt. Provider ohne Pegelunterstützung liefern über `SpeechReading` den Standardwert null.
 
-`AppModel` blendet das Panel vor Auswahl/Aufnahme aus und veröffentlicht sichtbare Arbeitszustände erst nach der Aufnahme. Der vorhandene ScreenCaptureKit-Filter schließt zusätzlich die eigene App aus. Das `NSPanel` ist nicht aktivierend, wird nie Key/Main Window und bleibt beim Wechsel in andere Apps sichtbar. Eigene Generationen und abgebrochene Timer verhindern, dass ein veralteter Button oder eine alte Ausblendung einen neuen Auftrag beeinflusst. Bildschirmänderungen positionieren es neu oder blenden es aus, wenn sein Display fehlt. [Verifikation und Grenzen](reading-panel-verification.md).
+`AppModel` blendet das Panel vor Auswahl/Aufnahme aus und veröffentlicht sichtbare Arbeitszustände erst nach der Aufnahme. Der vorhandene ScreenCaptureKit-Filter schließt zusätzlich die eigene App aus. Das `NSPanel` ist nicht aktivierend, wird nie Key/Main Window und bleibt beim Wechsel in andere Apps sichtbar. Eigene Generationen und abgebrochene Timer verhindern, dass ein veralteter Button oder eine alte Ausblendung einen neuen Auftrag beeinflusst. Bildschirmänderungen positionieren es neu oder blenden es aus, wenn sein Display fehlt.
 
 ## TTS-Prozess
 
@@ -91,7 +93,7 @@ Pro Job begrenzt `SpeechPreparationBuffer` die RAM-Pakete auf acht Quell-Sekunde
 
 Die App beendet die Sitzung bei Gesamtstopp, Fehler oder leerer Warteschlange. Ein separater generationsgeschützter 30-s-Leerlauftimer begrenzt Warmhalten ohne aktiven/vorbereiteten Auftrag, etwa beim Warten auf eine zusätzliche Auswahl. Packet-Watchdogs (90 s bis Audio, danach 30 s ohne Workerpaket) laufen nicht während regulärer Buffer-Backpressure. Vor jedem Prozessstart sowie nach jedem asynchronen Übergang werden Cancellation und Jobidentität geprüft.
 
-Text und PCM laufen über anonyme Pipes, die Wiedergabe erfolgt im App-Prozess. Der Worker darf weder Netzwerkverbindungen aufbauen noch Dateien schreiben (ausgenommen `/dev/null`). Python läuft isoliert und ohne Bytecode-Schreibzugriffe. `scripts/update-supertonic-worker.rb` aktualisiert explizit nur den projekt-eigenen Worker samt Receipt-Hash, verweigert lokale Abweichungen und lädt weder Modelle noch Pakete nach. [Messungen und Grenzen](warm-queue-verification.md).
+Text und PCM laufen über anonyme Pipes, die Wiedergabe erfolgt im App-Prozess. Der Worker darf weder Netzwerkverbindungen aufbauen noch Dateien schreiben (ausgenommen `/dev/null`). Python läuft isoliert und ohne Bytecode-Schreibzugriffe. `scripts/update-supertonic-worker.rb` aktualisiert explizit nur den projekt-eigenen Worker samt Receipt-Hash, verweigert lokale Abweichungen und lädt weder Modelle noch Pakete nach.
 
 Weitergehendes Warmhalten über abgeschlossene Sitzungen hinweg bleibt eine noch nicht implementierte Vergleichsoption. Eine mögliche Variante hätte folgende Eigenschaften:
 
@@ -214,7 +216,7 @@ sonst Fehler `processing_failed`). Whisper erhält die Begriffe als `initial_pro
 („A, B, C.“), gekürzt auf das Token-Budget des Prompts, Qwen3-ASR als `hotwords`.
 Ergibt die Erkennung eine Wiederholungsschleife oder nur die Begriffsliste, dekodiert
 derselbe Worker dieselbe Aufnahme einmal ohne Vokabular. Das ist kein Wechsel des
-Modells oder Providers. [Messung und Grenzen](dictation-vocabulary-verification.md).
+Modells oder Providers.
 
 ### Setup configuration (2026-10-14)
 

@@ -28,11 +28,16 @@ struct OpenScreenReaderApp: App {
             if !testing { dictation?.loadModel(); _ = model.updates }
             model.offerSetupIfNeeded()
         }
+        #if DEBUG
+        // The sample-paste check is a development tool; Release builds ignore the argument.
         if ProcessInfo.processInfo.arguments.contains("--dictation-smoke") {
             // Showing an AppKit window while SwiftUI constructs its StateObject
             // re-enters the scene graph. Begin the explicit GUI check next turn.
             DispatchQueue.main.async { dictation?.startSmoke() }
-        } else if ProcessInfo.processInfo.arguments.contains("--dictation-setup") {
+            return model
+        }
+        #endif
+        if ProcessInfo.processInfo.arguments.contains("--dictation-setup") {
             DispatchQueue.main.async { dictation?.showWindow() }
         }
         return model
