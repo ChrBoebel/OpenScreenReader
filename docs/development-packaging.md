@@ -26,7 +26,7 @@ The package uses ad-hoc signatures. No certificate purchase, Developer ID signin
 
 On the development Mac, isolated imports resolved inside the bundle. A relocated bundle's real local speech, three-second pause/resume and playback/loading cancellation passed under the worker's deny-network/deny-write sandbox. Deep strict signature verification passed.
 
-Before distribution, obtain a reproducible, independently pinned interpreter source/build provenance record, audit every native and transitive license/notice (including any notices not present in wheel metadata), verify load-command resolution and signing on a fresh Mac, audit offline/data flows, and complete the selected distribution signing/notarization workflow. Existing licenses are retained; their presence alone is not a complete legal/redistribution audit. Do not publish this development DMG as an end-user release.
+The interpreter's source/build provenance is recorded in `Runtime/Portable/python-provenance.json` (see [interpreter provenance](research/interpreter-provenance.md)). Before distribution, audit every native and transitive license/notice (including any notices not present in wheel metadata), verify load-command resolution and signing on a fresh Mac, audit offline/data flows, and complete the selected distribution signing/notarization workflow. Existing licenses are retained; their presence alone is not a complete legal/redistribution audit. Do not publish this development DMG as an end-user release.
 
 ## Integrated local dictation
 

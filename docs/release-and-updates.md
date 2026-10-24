@@ -358,13 +358,16 @@ Done:
 - the Supertonic model terms in the DMG;
 - notices for the rebuilt minimal runtimes;
 - the GCC runtime library decision with the written source offer and per-build source
-  archive ([ADR 0007](decisions/0007-gcc-runtime-libraries.md)).
+  archive ([ADR 0007](decisions/0007-gcc-runtime-libraries.md));
+- the interpreter provenance record (`Runtime/Portable/python-provenance.json`,
+  [Interpreter provenance](research/interpreter-provenance.md)). It covers the
+  python-build-standalone commit, the build recipe, the CPython patch set and the
+  dependency sources. It also records the check that each pinned stripped archive and the
+  full archive whose licenses are shipped come from the same build.
 
 Still open:
 
-- the maintainer's legal review of the model-terms wording;
-- the interpreter provenance record. The CPython archives are pinned and hash-verified with
-  their license texts, but no build recipe or CPython patch set is recorded.
+- the maintainer's legal review of the model-terms wording.
 
 The 2026-10-15 review covered the earlier runtime. No public release can be built until the
 maintainer closes this gate; the beta exception covers only `clean_mac`.
