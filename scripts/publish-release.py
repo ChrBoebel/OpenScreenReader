@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publish approved releases to the existing Railway website's private bucket.
+"""Publish approved releases to a private S3-compatible download bucket.
 
 Immutable files first, full public download verification second, one conditional
 current.json pointer last. Does not create resources or export credentials.
@@ -11,9 +11,11 @@ import os
 from pathlib import Path
 import urllib.request
 
-from release import REPO, digest, https_url, require_release_approval, validate_version, release_target
+from release import REPO, digest, https_url, public_download_prefix, require_release_approval, validate_version, release_target
 
-PUBLIC_PREFIX = 'https://www.christopherboebel.com/downloads/saywing'
+# Override with SAYWING_PUBLIC_DOWNLOAD_PREFIX and SAYWING_RELEASE_REPOSITORY.
+PUBLIC_PREFIX = public_download_prefix()
+DEFAULT_REPOSITORY = 'ChrBoebel/OpenScreenReader'
 MAX_SINGLE_UPLOAD = 5 * 1024**3
 
 
@@ -129,7 +131,7 @@ def verify_public_download(metadata):
 
 def current_main():
     repository = os.environ['GITHUB_REPOSITORY']
-    if repository != 'ChrBoebel/OpenScreenReader':
+    if repository != (os.environ.get('SAYWING_RELEASE_REPOSITORY') or DEFAULT_REPOSITORY):
         raise ValueError('Unexpected release repository')
     request = urllib.request.Request(f'https://api.github.com/repos/{repository}/git/ref/heads/main',
         headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})

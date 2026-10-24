@@ -104,6 +104,16 @@ def audit(root, arch, minimum='14.0'):
     if not records: raise ValueError('No native runtime files')
     return records
 
+def extract_python(archive, staging):
+    # Called only after download() verified the archive's pinned size and SHA-256.
+    with tarfile.open(archive) as tar:
+        for entry in tar.getmembers():
+            dest=safe_path(staging,entry.name)
+            if entry.isdev() or entry.isfifo() or entry.islnk(): raise ValueError('Unsupported tar member')
+            if entry.issym() and not (dest.parent/entry.linkname).resolve().is_relative_to(staging.resolve()): raise ValueError('External tar symlink')
+        tar.extractall(staging)
+    return staging/'python'
+
 def build(lock_path, output, cache):
     lock=json.loads(lock_path.read_text())
     if output.exists(): raise ValueError('Refusing existing output')
@@ -111,13 +121,7 @@ def build(lock_path, output, cache):
     staging=output.with_name(output.name+'.staging')
     if staging.exists(): raise ValueError('Refusing existing staging directory')
     staging.mkdir(parents=True)
-    with tarfile.open(archive) as tar:
-        for entry in tar.getmembers():
-            dest=safe_path(staging,entry.name)
-            if entry.isdev() or entry.isfifo() or entry.islnk(): raise ValueError('Unsupported tar member')
-            if entry.issym() and not (dest.parent/entry.linkname).resolve().is_relative_to(staging.resolve()): raise ValueError('External tar symlink')
-        tar.extractall(staging)
-    python=staging/'python'
+    python=extract_python(archive,staging)
     site=python/'lib/python3.12/site-packages'
     if site.exists(): shutil.rmtree(site)
     site.mkdir(parents=True)

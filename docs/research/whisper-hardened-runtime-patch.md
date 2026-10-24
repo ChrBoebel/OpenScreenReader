@@ -36,8 +36,7 @@ network denial and write denial. This test uses bundled public audio fixtures,
 not a microphone recording or user text. The packaging helper was also applied
 twice to an isolated copy of the exact upstream source to verify idempotence.
 
-The first notarization submission `3260e295-f88e-4002-b873-69f64e474606` predates
-this correction and must not be used as evidence for the corrected bundle.
-The replacement DMG and Apple result are tracked in the release verification
-record. Hosted CI builds/signs this correction but does not prove on-device MLX
+The first notarization submission predates this correction and must not be used
+as evidence for the corrected bundle; the corrected DMG was notarized separately.
+Hosted CI builds/signs this correction but does not prove on-device MLX
 inference; the real Apple Silicon runtime test remains a separate release check.

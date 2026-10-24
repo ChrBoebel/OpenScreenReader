@@ -58,9 +58,10 @@ extension SpeechReading {
 }
 
 enum SpeechFailure: Error, LocalizedError {
-    case notInstalled, tooLong, failed
+    case notInstalled, tooLong, failed, outputChanged
     var errorDescription: String? {
         switch self {
+        case .outputChanged: String(localized: "The audio output changed, so reading stopped. Start it again to hear it on the new output.")
         case .notInstalled: Self.notInstalledDescription
         case .tooLong: String(localized: "This development version reads up to 8,000 characters. Select a smaller region.")
         case .failed: String(localized: "Local speech could not finish. Please try a smaller region. No cloud or system voice was substituted.")
@@ -448,15 +449,26 @@ private final class SpeechWorkerSession {
     }
 }
 
-/// Framing runs away from the main actor, in bounded blocks rather than an
-/// actor hop for every byte of base64 audio. Killing the owned worker unblocks
-/// a pending pipe read. Only one consumer calls nextLine at a time.
-actor SpeechPacketReader {
+/// Framing runs on the reader's own serial queue, never on Swift's cooperative
+/// pool: a pipe read can block for the full synthesis deadline (up to 90 s), and a
+/// blocked cooperative thread would starve unrelated async work. Bounded blocks
+/// avoid an actor hop for every byte of base64 audio. Killing the owned worker
+/// unblocks a pending pipe read. Only one consumer calls nextLine at a time.
+final class SpeechPacketReader: @unchecked Sendable {
     private let handle: FileHandle
+    private let queue = DispatchQueue(label: "Saywing.speech.packet-reader", qos: .userInitiated)
+    // Touched only on `queue`.
     private var pending = Data()
     init(handle: FileHandle) { self.handle = handle }
 
-    func nextLine() throws -> Data? {
+    func nextLine() async throws -> Data? {
+        try await withCheckedThrowingContinuation { continuation in
+            queue.async { [self] in continuation.resume(with: Result { try readLine() }) }
+        }
+    }
+
+    private func readLine() throws -> Data? {
+        dispatchPrecondition(condition: .onQueue(queue))
         while true {
             if let newline = pending.firstIndex(of: 10) {
                 guard pending.distance(from: pending.startIndex, to: newline) <= 140_000 else {
@@ -549,7 +561,8 @@ final class SpeechAudioPlayer {
         return Int(ceil(Double(sampleRate) * rate * headroom))
     }
     var capacityFrames: Int { sampleRate * 8 }
-    private let engine = AVAudioEngine()
+    /// Internal so tests can stop it the way an output change does.
+    let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
     private let timePitch = AVAudioUnitTimePitch()
     var playbackRate: Double {
@@ -562,6 +575,12 @@ final class SpeechAudioPlayer {
     private var waiter: CheckedContinuation<Void, Error>?
     private var draining = false
     private var envelope = PlaybackEnvelope()
+    /// The engine was started for the current reading and not stopped since.
+    private var engineActive = false
+    /// The output device changed under a reading. Its scheduled audio is gone, so the
+    /// reading fails visibly instead of continuing with a silent gap; `reset` clears it.
+    private(set) var outputChanged = false
+    private var configurationObserver: NSObjectProtocol?
     var playbackLevel: Double {
         guard player.isPlaying,
               let time = player.lastRenderTime.flatMap({ player.playerTime(forNodeTime: $0) }) else { return 0 }
@@ -573,22 +592,53 @@ final class SpeechAudioPlayer {
         engine.attach(player)
         engine.attach(timePitch)
         timePitch.pitch = 0
+        // AVAudioEngine stops itself when the output hardware changes (headphones,
+        // AirPlay, a display's speakers). Its scheduled buffers never finish then.
+        configurationObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main
+        ) { [weak self] _ in MainActor.assumeIsolated { self?.outputConfigurationChanged() } }
     }
-    isolated deinit { stop() }
+    isolated deinit {
+        if let configurationObserver { NotificationCenter.default.removeObserver(configurationObserver) }
+        stop()
+    }
 
     func reset() {
         stop()
+        outputChanged = false
         diagnostics = Diagnostics()
         scheduledEnd = 0
     }
 
+    /// Ends the current reading with `SpeechFailure.outputChanged`: queued frames are
+    /// dropped and a waiting producer or drain is released at once, so the reading
+    /// never stalls into the speech timeout.
+    func outputConfigurationChanged() {
+        // A change the engine survived (still running) lost nothing; an idle player has nothing to end.
+        guard !engine.isRunning, engineActive || queuedFrames > 0 || waiter != nil else { return }
+        generation &+= 1
+        outputChanged = true
+        isPaused = false
+        player.stop()
+        engine.stop()
+        engine.reset()
+        engineActive = false
+        envelope.reset()
+        queuedFrames = 0
+        draining = false
+        let completion = waiter
+        waiter = nil
+        completion?.resume(throwing: SpeechFailure.outputChanged)
+    }
+
     func enqueue(_ data: Data, onPlayback: @escaping @MainActor () -> Void) async throws {
         guard !data.isEmpty, data.count <= 96_000, data.count % 4 == 0 else { throw SpeechFailure.failed }
+        if outputChanged { throw SpeechFailure.outputChanged }
         let current = generation
         let frameCount = data.count / 4
         while queuedFrames + frameCount > capacityFrames {
             try await waitForProgress()
-            guard generation == current else { throw CancellationError() }
+            guard generation == current else { throw outputChanged ? SpeechFailure.outputChanged : CancellationError() }
         }
         try Task.checkCancellation()
         guard let format = AVAudioFormat(standardFormatWithSampleRate: Double(sampleRate), channels: 1),
@@ -603,9 +653,16 @@ final class SpeechAudioPlayer {
             }
         }
         if !engine.isRunning {
+            // Stopped by itself mid-reading: the output changed before its notice arrived.
+            // Restarting here would continue after a silent gap with stale frame counts.
+            if engineActive {
+                outputConfigurationChanged()
+                throw SpeechFailure.outputChanged
+            }
             engine.connect(player, to: timePitch, format: format)
             engine.connect(timePitch, to: engine.mainMixerNode, format: format)
             try engine.start()
+            engineActive = true
         }
         let rendered = player.lastRenderTime.flatMap { player.playerTime(forNodeTime: $0) }?.sampleTime ?? 0
         if scheduledEnd > 0, rendered > scheduledEnd + AVAudioFramePosition(sampleRate / 50) {
@@ -636,6 +693,7 @@ final class SpeechAudioPlayer {
 
     func finish(onPlayback: @escaping @MainActor () -> Void) async throws {
         try Task.checkCancellation()
+        if outputChanged { throw SpeechFailure.outputChanged }
         let current = generation
         if !isPaused, queuedFrames > 0, !player.isPlaying {
             player.play()
@@ -645,7 +703,7 @@ final class SpeechAudioPlayer {
         draining = true
         defer { if generation == current { draining = false } }
         while queuedFrames > 0 || isPaused { try await waitForProgress() }
-        guard generation == current else { throw CancellationError() }
+        guard generation == current else { throw outputChanged ? SpeechFailure.outputChanged : CancellationError() }
     }
 
     private func waitForProgress() async throws {
@@ -658,6 +716,7 @@ final class SpeechAudioPlayer {
         player.stop()
         engine.stop()
         engine.reset()
+        engineActive = false
         envelope.reset()
         queuedFrames = 0
         draining = false

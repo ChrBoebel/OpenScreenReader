@@ -1811,6 +1811,16 @@
         }
       }
     },
+    "Nothing is coming from your microphone. Check that it is not muted, that the right input is selected, and that Saywing may use the microphone.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vom Mikrofon kommt nichts an. Prüfe, ob es stummgeschaltet ist, ob der richtige Eingang gewählt ist und ob Saywing das Mikrofon verwenden darf."
+          }
+        }
+      }
+    },
     "Nothing was pasted.": {
       "localizations": {
         "de": {
@@ -2561,6 +2571,16 @@
         }
       }
     },
+    "Recording stopped": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufnahme beendet"
+          }
+        }
+      }
+    },
     "Recording · %lld / 60 s": {
       "localizations": {
         "de": {
@@ -2857,6 +2877,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Saywing wohnt in der Menüleiste. Drück überall %@, um einen Bereich vorlesen zu lassen."
+          }
+        }
+      }
+    },
+    "Saywing may not use the microphone. Allow it in System Settings › Privacy & Security › Microphone, then start the transcript again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saywing darf das Mikrofon nicht verwenden. Erlaube es in den Systemeinstellungen › Datenschutz & Sicherheit › Mikrofon und starte das Transkript dann erneut."
           }
         }
       }
@@ -3601,6 +3631,26 @@
         }
       }
     },
+    "The additional region was too small to read. Press the shortcut to select it again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der zusätzliche Bereich war zu klein zum Lesen. Drücke den Kurzbefehl, um ihn erneut auszuwählen."
+          }
+        }
+      }
+    },
+    "The audio output changed, so reading stopped. Start it again to hear it on the new output.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Audioausgabe hat sich geändert, daher wurde das Vorlesen beendet. Starte es erneut, um es über die neue Ausgabe zu hören."
+          }
+        }
+      }
+    },
     "The clipboard changed while pasting was prepared.": {
       "localizations": {
         "de": {
@@ -3711,6 +3761,16 @@
         }
       }
     },
+    "The displays changed. Press the shortcut to select the additional region again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Bildschirme haben sich geändert. Drücke den Kurzbefehl, um den zusätzlichen Bereich erneut auszuwählen."
+          }
+        }
+      }
+    },
     "The download was interrupted. Choose Download to try again.": {
       "localizations": {
         "de": {
@@ -3727,6 +3787,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Der globale Kurzbefehl konnte nicht registriert werden (Fehler %d)."
+          }
+        }
+      }
+    },
+    "The input device changed while recording. Nothing was pasted; please record again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Eingabegerät hat sich während der Aufnahme geändert. Es wurde nichts eingefügt; bitte nimm erneut auf."
           }
         }
       }
@@ -4431,6 +4501,26 @@
         }
       }
     },
+    "Your microphone stopped: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dein Mikrofon wurde beendet: %@"
+          }
+        }
+      }
+    },
+    "Your microphone stopped: %@ Only other apps are transcribed now.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dein Mikrofon wurde beendet: %@ Jetzt werden nur noch andere Apps transkribiert."
+          }
+        }
+      }
+    },
     "Your progress is saved, including when Saywing restarts.": {
       "localizations": {
         "de": {
@@ -4617,6 +4707,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Die Zwischenablage enthielt ein Passwort oder einen anderen privaten Eintrag. Sie wurde geleert statt wiederhergestellt."
+          }
+        }
+      }
+    },
+    "Model Terms…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modellbedingungen …"
+          }
+        }
+      }
+    },
+    "Supertonic 3 Model Terms": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modellbedingungen für Supertonic 3"
+          }
+        }
+      }
+    },
+    "The binding terms and the complete, unchanged license text. They apply to the model and its voices, not to the Saywing source code.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die verbindlichen Bedingungen und der vollständige, unveränderte Lizenztext. Sie gelten für das Modell und seine Stimmen, nicht für den Saywing-Quellcode."
           }
         }
       }

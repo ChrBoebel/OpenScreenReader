@@ -73,7 +73,14 @@
       "blobId": "4783fe10ac3adce15ac8f358ef5462739852c569",
       "size": 2776833,
       "verified_sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910"
+    },
+    {
+      "rfilename": "LICENSE-Apache-2.0",
+      "size": 11358,
+      "verified_sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "source": "https://www.apache.org/licenses/LICENSE-2.0.txt"
     }
   ],
+  "license_note": "Neither this revision nor upstream Qwen/Qwen3-ASR-0.6B at upstream_revision contains a LICENSE file; both model cards declare license: apache-2.0 (checked 2026-10-23). Installs therefore copy the unchanged Apache-2.0 text bundled in Dictation/Licenses.",
   "upstream_revision": "5eb144179a02acc5e5ba31e748d22b0cf3e303b0"
 }
