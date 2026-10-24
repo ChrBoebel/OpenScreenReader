@@ -830,13 +830,16 @@ final class DictationController: NSObject, ObservableObject {
       // clipboard back; that paste had at least a whole recording's time to land.
       _ = deferredLease?.restore()
       deferredLease = nil
-      let transaction = try ClipboardLease.begin(text, on: .general)
+      let transaction = try ClipboardLease.begin(text, on: NSPasteboard.general)
       lease = transaction
       // Recheck after taking the clipboard snapshot, before the single paste action.
       try target.paste()
       phase = "pasting"
       setStatus(
-        String(localized: "Paste sent"), String(localized: "The clipboard will be restored in a moment."), floating: true)
+        String(localized: "Paste sent"),
+        transaction.clearsInsteadOfRestoring
+          ? String(localized: "Your clipboard held a password or other private item. It will be cleared, not restored.")
+          : String(localized: "The clipboard will be restored in a moment."), floating: true)
       // Most fields show the text within a few frames. Reading it back early lets the
       // tick and the completion cue land with the text, not a second later; the
       // clipboard is still restored only after the full wait for slow apps.
@@ -866,7 +869,9 @@ final class DictationController: NSObject, ObservableObject {
         self.setResultVisible(!confirmed)
         self.setStatus(
           confirmed ? String(localized: "Pasted") : String(localized: "Paste sent"),
-          confirmed
+          confirmed && transaction.clearsInsteadOfRestoring
+            ? String(localized: "Your clipboard held a password or other private item. It was cleared, not restored.")
+            : confirmed
             ? String(localized: "Ready for the next recording.")
             : String(localized: "Please check the target field. Nothing is retried; the result stays in the dictation window."),
           floating: !announced, capsuleState: confirmed ? .inserted : .unconfirmed)
@@ -972,14 +977,17 @@ final class DictationController: NSObject, ObservableObject {
       if smoke { finishSmoke(error: "demo failed") }
     }
   }
+  #if DEBUG
+  /// Development-only sample-paste check (`--dictation-smoke`); Release builds cannot enter it.
   func startSmoke() {
     smoke = true
     showWindow()
     if worker.ready { runSmoke() }
   }
+  #endif
   func runSmoke() {
     guard smoke else { return }
-    if smokeClipboard == nil { smokeClipboard = try? ClipboardSnapshot.capture(.general) }
+    if smokeClipboard == nil { smokeClipboard = try? ClipboardSnapshot.capture(NSPasteboard.general) }
     if smokeIndex < 2 {
       scratch.string = "Anfang MARKER ENDE"
       scratch.setSelectedRange((scratch.string as NSString).range(of: "MARKER"))
@@ -992,7 +1000,7 @@ final class DictationController: NSObject, ObservableObject {
     guard smoke else { return }
     smoke = false
     if let error { smokeFailures.append(error) }
-    let unchanged = (try? ClipboardSnapshot.capture(.general)) == smokeClipboard
+    let unchanged = (try? ClipboardSnapshot.capture(NSPasteboard.general)) == smokeClipboard
     let report: [String: Any] = [
       "demos_completed": smokeIndex, "clipboard_restored": unchanged, "failures": smokeFailures,
       "accessibility_trusted": AXIsProcessTrusted(), "shortcut_registered": shortcutAvailable,

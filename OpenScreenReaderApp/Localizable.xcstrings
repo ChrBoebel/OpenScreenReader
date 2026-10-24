@@ -4681,6 +4681,26 @@
         }
       }
     },
+    "Your clipboard held a password or other private item. It will be cleared, not restored.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Zwischenablage enthielt ein Passwort oder einen anderen privaten Eintrag. Sie wird geleert statt wiederhergestellt."
+          }
+        }
+      }
+    },
+    "Your clipboard held a password or other private item. It was cleared, not restored.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Zwischenablage enthielt ein Passwort oder einen anderen privaten Eintrag. Sie wurde geleert statt wiederhergestellt."
+          }
+        }
+      }
+    },
     "Model Terms…": {
       "localizations": {
         "de": {

@@ -37,14 +37,22 @@ Manifest gepinnte Hugging-Face-Revision ab; Weiterleitungen sind nur zu
 Cookies und keinen Cache. Jede Datei wird vor der Nutzung gegen Größe und SHA-256
 aus dem Manifest geprüft und erst danach nach
 `~/Library/Application Support/Saywing/DictationModels` verschoben; Abbruch oder
-Prüffehler hinterlassen nichts. Lizenztexte stammen aus dem App-Bundle. Der
-Diktier-Worker selbst bleibt ohne Netzwerk und prüft die Hashes beim Laden erneut.
+Prüffehler hinterlassen nichts. Lizenztexte stammen aus dem App-Bundle. Ein Download, der mehr Bytes als gepinnt
+liefert oder eine abweichende Länge ankündigt, wird sofort abgebrochen. Geprüfte
+Dateien werden schreibgeschützt (0444) abgelegt; beim Start der Modellverwaltung
+werden liegengebliebene `.staging-*`-Ordner eines abgestürzten Laufs gelöscht. Der
+Diktier-Worker selbst bleibt ohne Netzwerk, prüft die Hashes beim Laden erneut,
+verweigert Modellordner mit nicht im Manifest gelisteten Dateien (ausgenommen
+`.DS_Store`, `VERIFIED.json` und die Lizenzkopien `LICENSE-OpenAI`/`LICENSE-Apache-2.0`)
+und prüft nach dem Laden, dass Gerät, Inode, Größe und Änderungszeit aller Dateien
+unverändert sind. Das verkleinert, beseitigt aber nicht das Zeitfenster zwischen
+Prüfung und Laden gegenüber einem Prozess mit denselben Benutzerrechten.
 Kein automatischer Download, kein Download beim Start, kein Fallback.
 
 ## Speicher- und Lebenszyklus
 
 - Die neue explizit geöffnete Wiedergabeansicht darf bis zu 100 Zeichen je wartendem Text anzeigen. Die geschlossene Kapsel bleibt textfrei. Einträge werden über flüchtige UUIDs bearbeitet; Entfernen/Umsortieren ersetzt gegebenenfalls auch das vorbereitete Audio. Stop leert weiterhin alles und schließt die Ansicht. Pause hält nur die vorhandenen begrenzten RAM-Puffer und die aktive Sitzung, ohne Dateien zu schreiben. Einrichtung speichert ausschließlich `setupDismissed.v1`, niemals ein angeblich bestandenes Berechtigungsergebnis oder einen Fortschritt; der Schritt wird bei jedem Öffnen aus den aktuellen Freigaben abgeleitet.
-- Ein privates Packaging-Experiment darf das vorhandene Modell und die gepinnte Runtime als Programmbestandteile in `Contents/Resources/Speech` tragen. Kein Runtime-Download und kein Fallback auf die Entwicklerinstallation, wenn dieser Bundle-Ordner existiert, aber beschädigt ist. Redistribution, vollständige Lizenzkette und eine Prüfung auf einem frischen Mac bleiben Release-Gates.
+- Ein privates Packaging-Experiment darf das vorhandene Modell und die gepinnte Runtime als Programmbestandteile in `Contents/Resources/Speech` tragen. Kein Runtime-Download und kein Fallback auf die Entwicklerinstallation, wenn dieser Bundle-Ordner existiert, aber beschädigt ist. Release-Builds verwenden die Entwicklerinstallation unter `~/Library/Application Support/OpenScreenReader` nie und melden ohne Bundle-Ordner „nicht installiert“; nur Debug-Builds dürfen sie nutzen. Der Prüfmodus `--dictation-smoke` existiert ebenfalls nur in Debug-Builds. Redistribution, vollständige Lizenzkette und eine Prüfung auf einem frischen Mac bleiben Release-Gates.
 
 - Vorlesegeschwindigkeit wird als Zahl unter `speechPlaybackRate.v1` gespeichert; der separate Hinzufügen-Shortcut als Taste/Modifikatoren unter `enqueueShortcut.v1`. Keine Audio-, Text- oder Bildschirmdaten werden dadurch gespeichert. Bis zu fünf wartende OCR-Texte mit je maximal 8.000 Zeichen/48.000 UTF-8-Bytes bleiben nur im RAM. Sie werden nach FIFO-Wiedergabe freigegeben; Gesamtstopp, Fehler oder Beenden leeren die Liste und verwerfen verspätete Aufnahme-/OCR-Ergebnisse. Die Liste enthält Text, Auswahlgeometrie und Zählwerte, niemals Screenshots. Der Sprachservice darf ausschließlich für ihren nächsten Eintrag Audio vorab im RAM erzeugen; keine Vorab-TTS der gesamten Liste. Genau ein Worker bleibt innerhalb der Sitzung geladen und bearbeitet Texte seriell. Aktueller und nächster Transportbuffer sowie Player sind auf je acht Sekunden Quell-Audio begrenzt (zusammen rund 4,04 MiB), unabhängig vom Tempo. Dies begrenzt die Swift-PCM-Warteschlangen, nicht In-flight-Pakete, Transportkodierung oder den Gesamtspeicher von Audio-Engine und Modellworker. Stop/Esc/Beenden löschen beide Transportbuffer und die Audioqueue und beenden den warmen Worker. Ohne aktive/vorbereitete Arbeit endet Warmhalten spätestens nach 30 s. Keine neue Datei-Historie, Telemetrie oder Runtime-Netzwerkverbindung.
 - Für die Panelposition werden nur `readingPanelEdge` (unten/links/rechts) und `readingPanelOffset` (normierter Versatz 0–1) lokal in UserDefaults gespeichert. Keine Display-ID, absoluten Bildschirmkoordinaten oder Bewegungsaufzeichnungen. Ziehen nutzt nur normale Mausereignisse der eigenen Statusfläche und benötigt keine zusätzliche Berechtigung; die Positionsvorschau startet weder Aufnahme noch OCR oder Sprache.
@@ -73,7 +81,7 @@ Kein automatischer Download, kein Download beim Start, kein Fallback.
 
 ## Überprüfbarkeit
 
-Der aktuelle Entwicklungspfad überträgt OCR-Text über eine anonyme Pipe an den lokalen Supertonic-Worker, nicht als Kommandozeilenargument oder Datei. PCM wird im Speicher abgespielt. Ein zusätzliches Entwicklungsprofil verweigert dem Worker Netzwerkzugriffe und Dateischreibzugriffe außer auf `/dev/null`; Python läuft ohne Bytecode-Schreibzugriffe und ohne benutzerspezifische Importpfade. Die installierten Modelle und Abhängigkeiten werden ausschließlich im expliziten Entwicklungsschritt bereitgestellt, niemals durch die App nachgeladen. Wiedergabe- und Abbruchtests prüfen außerdem, dass die Zwischenablage unverändert bleibt. Dies ersetzt nicht die noch offene Prüfung des vollständig gebündelten Release-Artefakts. Tatsächliche Prüfergebnisse und Grenzen: [Supertonic-Integration](research/supertonic-integration.md); vorherige Qwen-Messungen bleiben in der [Runtime-Evaluation](research/swift-runtime-evaluation.md) dokumentiert.
+Der aktuelle Entwicklungspfad überträgt OCR-Text über eine anonyme Pipe an den lokalen Supertonic-Worker, nicht als Kommandozeilenargument oder Datei. PCM wird im Speicher abgespielt. Der Worker läuft im gemeinsamen Worker-Profil (siehe „Worker-Sandbox“); Python läuft ohne Bytecode-Schreibzugriffe und ohne benutzerspezifische Importpfade. Die installierten Modelle und Abhängigkeiten werden ausschließlich im expliziten Entwicklungsschritt bereitgestellt, niemals durch die App nachgeladen. Wiedergabe- und Abbruchtests prüfen außerdem, dass die Zwischenablage unverändert bleibt. Dies ersetzt nicht die noch offene Prüfung des vollständig gebündelten Release-Artefakts. Tatsächliche Prüfergebnisse und Grenzen: [Supertonic-Integration](research/supertonic-integration.md); vorherige Qwen-Messungen bleiben in der [Runtime-Evaluation](research/swift-runtime-evaluation.md) dokumentiert.
 
 Das Repository soll dokumentieren, wie Nutzer die Datenschutzversprechen selbst prüfen können:
 
@@ -83,6 +91,40 @@ Das Repository soll dokumentieren, wie Nutzer die Datenschutzversprechen selbst 
 4. Kontrolle der Zwischenablage;
 5. reproduzierbare beziehungsweise nachvollziehbare Release-Builds;
 6. vollständige Third-Party- und Modell-Lizenzübersicht.
+
+## Worker-Sandbox — 2026-10-23
+
+Diktier- und Sprach-Worker starten über `sandbox-exec` mit demselben Profil
+(`WorkerSandbox.profile` in der App, byte-gleich als `Runtime/Dictation/worker.sb`
+für Skripte und Integrationsprüfungen). Es ist ein Allow-List-Profil
+(`deny default`) auf Basis von Apples `bsd.sb`:
+
+- Lesen nur im Runtime-Ordner, im Modellordner, im Präfix des Interpreters, in den
+  Systembibliotheken aus `bsd.sb`/`system.sb` und in den Metal-Shader-Caches;
+  Metadaten (`stat`) bleiben überall lesbar, Inhalte des Benutzerordners nicht.
+- Kein Netzwerk, keine Dateischreibzugriffe außer `/dev/null`, kein `fork`, kein
+  `exec` außer dem Interpreter selbst, keine Apple Events.
+- Mach-Dienste nur aus der Grundliste von `system.sb` (unter anderem Logging,
+  `cfprefsd` lesend, `trustd`) plus `com.apple.MTLCompilerService` und die
+  GPU-Clients `AGXDeviceUserClient`/`IOSurfaceRootUserClient` für MLX. Launch
+  Services, Zwischenablage (`com.apple.pasteboard.1`), TCC (`tccd`,
+  `tccd.system`), WindowServer und `nsurlsessiond` sind ausdrücklich gesperrt.
+
+Geprüft am 2026-10-23 mit der installierten App auf Apple Silicon (macOS 26):
+Whisper Turbo, Whisper Large v3 und Qwen3-ASR (installierter Modellordner)
+transkribieren die Demos, Supertonic liest und bricht ab; Netzwerk, Schreiben,
+Kindprozesse und Lesen außerhalb von Runtime/Modell schlagen fehl.
+
+Verbleibende Grenzen: Das ist kein „Verbot jeder Ausleitung“. Der Worker kann
+weiterhin über seine stdout-Pipe an Saywing antworten und die erlaubten
+Systemdienste ansprechen. `sandbox-exec` ist von Apple als veraltet markiert und
+`bsd.sb` ist private Systemschnittstelle; ändert macOS sie, startet der Worker
+nicht mehr (er fällt geschlossen aus, nicht offen). Der Intel-Pfad (whisper.cpp auf
+der CPU, Supertonic auf der CPU) wurde unter diesem Profil noch nicht auf echter
+Intel-Hardware geprüft. Die Worker erben Saywings TCC-Zuständigkeit (Mikrofon,
+Bedienungshilfen, Bildschirmaufnahme); sie selbst greifen auf keine dieser Quellen
+zu, und `tccd` ist gesperrt. Eine Abkopplung der Zuständigkeit ginge nur über
+private API und wird nicht verwendet.
 
 ## Produktkommunikation
 
@@ -97,9 +139,11 @@ Nicht verwendet werden sollen absolute, nicht beweisbare Aussagen wie „100 % s
 
 ## Diktieren — Freigabe 2026-10-13
 
-Mikrofonfreigabe und Aufnahme sind getrennte Aktionen. Kein Mikrofonstart beim App-Start, Laden oder Freigeben. Maximal 60 s PCM bleiben im RAM und laufen über anonyme Pipes an das ausgewählte lokale Diktiermodell. Der Worker hat ein OS-Verbot für Netzwerk und Dateischreiben (außer `/dev/null`). Er lädt ausschließlich mitgelieferte oder ausdrücklich installierte, hashgeprüfte Modelle; kein Cloud- oder Entwicklerpfad-Fallback. Modellauswahl, Sprache und Restore-Verzögerung sind die gespeicherten Diktiereinstellungen. Das sichtbare letzte Ergebnis/Testfeld bleibt bis Verwerfen/Leeren/Beenden im RAM, ohne Verlauf.
+Mikrofonfreigabe und Aufnahme sind getrennte Aktionen. Kein Mikrofonstart beim App-Start, Laden oder Freigeben. Maximal 60 s PCM bleiben im RAM und laufen über anonyme Pipes an das ausgewählte lokale Diktiermodell. Der Worker läuft im gemeinsamen Worker-Profil (siehe „Worker-Sandbox“): ohne Netzwerk, Dateischreiben (außer `/dev/null`), Kindprozesse und Zugriff auf Dateien außerhalb von Runtime und Modell. Er lädt ausschließlich mitgelieferte oder ausdrücklich installierte, hashgeprüfte Modelle; kein Cloud- oder Entwicklerpfad-Fallback. Modellauswahl, Sprache und Restore-Verzögerung sind die gespeicherten Diktiereinstellungen. Das sichtbare letzte Ergebnis/Testfeld bleibt bis Verwerfen/Leeren/Beenden im RAM, ohne Verlauf.
 
-Beim Diktat werden Feldinhalt und Cursorposition, sofern verfügbar, nur zur Zielvalidierung im RAM gehalten. Passwortfelder und nicht erkannte Felder werden abgewiesen. Alle lesbaren Clipboard-Formate werden vor dem Einfügen bis 16 MiB gesichert; nicht vollständig sicherbare Daten verhindern automatisches Einfügen. Eine neue Kopie hat Vorrang. Abbruch/normaler App-Exit stellt eine noch eigene Zwischenablage sofort wieder her; ein harter Absturz im kurzen Einfügefenster kann dies verhindern. Clipboard-Manager können den Text trotz Concealed-Kennzeichnung sehen. Die manuelle Aktion „Ergebnis kopieren“ behält die ausdrücklich angeforderte Kopie.
+Beim Diktat werden Feldinhalt und Cursorposition, sofern verfügbar, nur zur Zielvalidierung im RAM gehalten. Passwortfelder und nicht erkannte Felder werden abgewiesen. Alle lesbaren Clipboard-Formate werden vor dem Einfügen bis 16 MiB gesichert; nicht vollständig sicherbare Daten verhindern automatisches Einfügen. Eine neue Kopie hat Vorrang. Zugesagte Dateien (File Promises) werden schon anhand der Typliste abgewiesen, bevor eine App Daten erzeugen muss. Abbruch/normaler App-Exit stellt eine noch eigene Zwischenablage sofort wieder her; ein harter Absturz im kurzen Einfügefenster kann dies verhindern. Der eingefügte Text trägt die nspasteboard.org-Kennzeichen `ConcealedType`, `TransientType` und `AutoGeneratedType`; Text und Wiederherstellung werden mit `currentHostOnly` geschrieben und gelangen nicht in die universelle Zwischenablage anderer Geräte. Clipboard-Manager, die diese Kennzeichen ignorieren, können den Text dennoch sehen.
+
+**Passwortmanager (Entscheidung 2026-10-23):** Trägt die gesicherte Zwischenablage eines dieser drei Kennzeichen, etwa ein von einem Passwortmanager kopiertes Passwort, wird sie nach dem Einfügen geleert statt wiederhergestellt – ebenfalls nur, solange der eingefügte Text noch Saywing gehört; eine neuere Kopie hat weiter Vorrang. Ein Zurückschreiben sähe für den Passwortmanager wie eine neue Kopie aus und verhinderte sein zeitgesteuertes Leeren; das Passwort bliebe unbegrenzt liegen. Die Statuszeile sagt dem Nutzer, dass geleert statt wiederhergestellt wurde. Die manuelle Aktion „Ergebnis kopieren“ behält die ausdrücklich angeforderte Kopie.
 
 Mikrofon und Bedienungshilfen werden ausschließlich per Einrichtungsbutton angefragt; keine Liveaufnahme durch Demos oder Selbsttests. Vorlesen stoppt vor einer Aufnahme, ein Vorlesestart verwirft aktives Diktieren. Esc, Verwerfen, Systemruhe/Sitzungswechsel und App-Ende räumen aktive Aufträge auf und invalidieren verspätete Ergebnisse. [Details und Nachweise](research/qwen-dictation-runtime.md).
 

@@ -3199,11 +3199,19 @@ struct DictationIntegrationTests {
         defer { try? FileManager.default.removeItem(at: resources) }
         let bin = resources.appendingPathComponent("Python/bin")
         try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
-        try "(version 1)(allow default)".write(to: resources.appendingPathComponent("worker.sb"), atomically: true, encoding: .utf8)
+        // The worker sandbox lets only the interpreter itself run, so a `#!/bin/sh` stand-in
+        // would be refused. A signed zsh copy runs worker.py as a script without any exec.
         let python = bin.appendingPathComponent("python3")
-        try "#!/bin/sh\nprintf '{\"type\":\"fatal\",\"code\":\"load_failed\"}\\n'\nexit 1\n"
-            .write(to: python, atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: python.path)
+        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/bin/zsh"), to: python)
+        let sign = Process()
+        sign.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        sign.arguments = ["--force", "--sign", "-", python.path]
+        sign.standardError = FileHandle.nullDevice
+        try sign.run()
+        sign.waitUntilExit()
+        try #require(sign.terminationStatus == 0)
+        try "print -r -- '{\"type\":\"fatal\",\"code\":\"load_failed\"}'\nexit 1\n"
+            .write(to: resources.appendingPathComponent("worker.py"), atomically: true, encoding: .utf8)
         let worker = DictationWorker()
         defer { worker.stop() }
         for _ in 0..<12 {
@@ -3317,15 +3325,18 @@ final class DictationFetcherFake: DictationModelFetching, @unchecked Sendable {
     private let files: [String: Data]
     private let waitsForCancellation: Bool
     private var recorded: [URL] = []
+    private var sizes: [Int64] = []
     var requests: [URL] { lock.withLock { recorded } }
+    var expectedSizes: [Int64] { lock.withLock { sizes } }
 
     init(files: [String: Data] = [:], waitsForCancellation: Bool = false) {
         self.files = files
         self.waitsForCancellation = waitsForCancellation
     }
 
-    func fetch(_ url: URL, to destination: URL, progress: @escaping @Sendable (Int64) -> Void) async throws {
-        lock.withLock { recorded.append(url) }
+    func fetch(_ url: URL, expectedSize: Int64, to destination: URL,
+               progress: @escaping @Sendable (Int64) -> Void) async throws {
+        lock.withLock { recorded.append(url); sizes.append(expectedSize) }
         if waitsForCancellation { try await Task.sleep(for: .seconds(30)) }
         guard let data = files[url.lastPathComponent] else { throw URLError(.fileDoesNotExist) }
         try data.write(to: destination)
@@ -3381,6 +3392,45 @@ struct DictationModelInstallationTests {
         #expect(FileManager.default.fileExists(atPath: directory.appendingPathComponent("LICENSE-OpenAI").path))
         #expect(try FileManager.default.contentsOfDirectory(atPath: installRoot.path) == ["WhisperLargeV3"],
                 "No staging data remains after a successful install.")
+    }
+
+    @Test func downloadsAreBoundToTheirPinnedSizeAndInstalledFilesAreReadOnly() async throws {
+        let resources = try DictationModelFixture.resources(bundling: [.whisperTurbo])
+        let installRoot = resources.appendingPathComponent("Installed")
+        let fetcher = DictationFetcherFake(files: DictationModelFixture.largeFiles)
+        let store = DictationModelStore(resources: resources, installRoot: installRoot, fetcher: fetcher)
+        await store.install(.whisperLargeV3).value
+        #expect(store.availability[.whisperLargeV3] == .installed)
+        #expect(fetcher.expectedSizes == [DictationModelFixture.largeFiles["config.json"]!.count,
+                                          DictationModelFixture.largeFiles["model.safetensors"]!.count].map(Int64.init),
+                "Every request carries the manifest size the response must not exceed.")
+        let weights = installRoot.appendingPathComponent("WhisperLargeV3/weights.safetensors")
+        let mode = try FileManager.default.attributesOfItem(atPath: weights.path)[.posixPermissions] as? NSNumber
+        #expect(mode?.intValue == 0o444)
+        #expect(!FileManager.default.isWritableFile(atPath: weights.path))
+    }
+
+    @Test func pinnedSizeRuleStopsOversizedOrMisannouncedDownloads() {
+        #expect(!DictationDownloadSize.violatesPin(written: 10, announced: 100, expected: 100))
+        #expect(!DictationDownloadSize.violatesPin(written: 100, announced: -1, expected: 100),
+                "Unknown Content-Length is allowed up to the pinned size.")
+        #expect(DictationDownloadSize.violatesPin(written: 101, announced: -1, expected: 100))
+        #expect(DictationDownloadSize.violatesPin(written: 1, announced: 99, expected: 100))
+        #expect(DictationDownloadSize.violatesPin(written: 1, announced: 5_000_000_000, expected: 100))
+    }
+
+    @Test func staleStagingFoldersFromACrashAreRemovedWhenTheStoreStarts() throws {
+        let resources = try DictationModelFixture.resources(bundling: [.whisperTurbo])
+        let installRoot = resources.appendingPathComponent("Installed")
+        let manager = FileManager.default
+        for name in [".staging-WhisperLargeV3-crashed", ".staging-Model-crashed"] {
+            let folder = installRoot.appendingPathComponent(name)
+            try manager.createDirectory(at: folder, withIntermediateDirectories: true)
+            try Data(repeating: 1, count: 64).write(to: folder.appendingPathComponent("weights.safetensors"))
+        }
+        try manager.createDirectory(at: installRoot.appendingPathComponent("Unrelated"), withIntermediateDirectories: true)
+        _ = DictationModelStore(resources: resources, installRoot: installRoot, fetcher: DictationFetcherFake())
+        #expect(try manager.contentsOfDirectory(atPath: installRoot.path) == ["Unrelated"])
     }
 
     @Test func hashMismatchInstallsNothing() async throws {
@@ -3940,5 +3990,162 @@ struct SetupConfigurationTests {
         await task.value
         #expect(controller.selectedModel == .whisperTurbo)
         #expect(controller.pendingInstallModel == nil)
+    }
+}
+
+/// Records what dictation asks of the pasteboard, including options that NSPasteboard cannot report back.
+final class RecordingPasteboard: DictationPasteboard {
+    private(set) var changeCount = 0
+    private(set) var pasteboardItems: [NSPasteboardItem]? = []
+    private(set) var preparedOptions: [NSPasteboard.ContentsOptions] = []
+
+    func prepareForNewContents(with options: NSPasteboard.ContentsOptions) -> Int {
+        preparedOptions.append(options)
+        changeCount += 1
+        pasteboardItems = []
+        return changeCount
+    }
+    func writeObjects(_ objects: [any NSPasteboardWriting]) -> Bool {
+        pasteboardItems = (pasteboardItems ?? []) + objects.compactMap { $0 as? NSPasteboardItem }
+        return true
+    }
+    func string(forType dataType: NSPasteboard.PasteboardType) -> String? {
+        pasteboardItems?.first?.string(forType: dataType)
+    }
+    /// Another app's copy: a new change count and new contents.
+    func copy(_ types: [String: Data]) {
+        changeCount += 1
+        let item = NSPasteboardItem()
+        for (type, data) in types { item.setData(data, forType: .init(type)) }
+        pasteboardItems = [item]
+    }
+    var types: Set<String> { Set(pasteboardItems?.flatMap { $0.types.map(\.rawValue) } ?? []) }
+}
+
+@Suite("Dictation clipboard privacy", .serialized)
+@MainActor
+struct DictationClipboardPrivacyTests {
+    @Test func transcriptIsMarkedForClipboardManagersAndStaysOnThisMac() throws {
+        let board = RecordingPasteboard()
+        board.copy([NSPasteboard.PasteboardType.string.rawValue: Data("Original".utf8)])
+        let lease = try ClipboardLease.begin("Diktat", on: board)
+        #expect(board.string(forType: .string) == "Diktat")
+        #expect(board.types.isSuperset(of: ["org.nspasteboard.ConcealedType", "org.nspasteboard.TransientType",
+                                            "org.nspasteboard.AutoGeneratedType"]))
+        #expect(!lease.clearsInsteadOfRestoring)
+        #expect(lease.restore())
+        #expect(board.string(forType: .string) == "Original")
+        #expect(!board.types.contains("org.nspasteboard.TransientType"), "Restored data carries no added markers.")
+        #expect(board.preparedOptions == [.currentHostOnly, .currentHostOnly],
+                "Neither the transcript nor the restored clipboard reaches Universal Clipboard.")
+    }
+
+    @Test(arguments: ["org.nspasteboard.ConcealedType", "org.nspasteboard.TransientType",
+                      "org.nspasteboard.AutoGeneratedType"])
+    func passwordManagerItemsAreClearedInsteadOfRestored(marker: String) throws {
+        let board = RecordingPasteboard()
+        board.copy([NSPasteboard.PasteboardType.string.rawValue: Data("hunter2".utf8), marker: Data()])
+        let lease = try ClipboardLease.begin("Diktat", on: board)
+        #expect(lease.clearsInsteadOfRestoring)
+        #expect(lease.restore())
+        #expect(board.pasteboardItems?.isEmpty == true, "Putting the password back would stop its timed clearing.")
+        #expect(board.string(forType: .string) == nil)
+        #expect(board.preparedOptions == [.currentHostOnly, .currentHostOnly])
+    }
+
+    @Test func newerCopiesWinOverClearingAndRestoring() throws {
+        for original in [[NSPasteboard.PasteboardType.string.rawValue: Data("Original".utf8)],
+                         [NSPasteboard.PasteboardType.string.rawValue: Data("hunter2".utf8),
+                          "org.nspasteboard.ConcealedType": Data()]] {
+            let board = RecordingPasteboard()
+            board.copy(original)
+            let lease = try ClipboardLease.begin("Diktat", on: board)
+            board.copy([NSPasteboard.PasteboardType.string.rawValue: Data("New copy".utf8)])
+            #expect(!lease.restore())
+            #expect(board.string(forType: .string) == "New copy")
+        }
+    }
+
+    @Test func promisedFilesAreRefusedFromTheTypeListAlone() {
+        let board = RecordingPasteboard()
+        board.copy(["com.apple.NSFilePromiseItemMetaData": Data([1]), "public.file-url": Data("file:///x".utf8)])
+        let before = board.changeCount
+        #expect(throws: DictationError.self) { _ = try ClipboardLease.begin("Diktat", on: board) }
+        #expect(board.changeCount == before, "A refused clipboard stays untouched.")
+    }
+}
+
+@Suite("Local worker sandbox", .serialized)
+struct WorkerSandboxTests {
+    private static let repository = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        .deletingLastPathComponent().deletingLastPathComponent()
+
+    /// An ad-hoc signed copy of `/bin/cat` stands in for the bundled interpreter at `bin/python3`.
+    private static func interpreter(in root: URL) throws -> URL {
+        let bin = root.appendingPathComponent("bin")
+        try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+        let python = bin.appendingPathComponent("python3")
+        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/bin/cat"), to: python)
+        // A copied platform binary is killed at launch until it carries its own signature.
+        let sign = Process()
+        sign.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        sign.arguments = ["--force", "--sign", "-", python.path]
+        sign.standardError = FileHandle.nullDevice
+        try sign.run()
+        sign.waitUntilExit()
+        try #require(sign.terminationStatus == 0)
+        return python
+    }
+
+    @Test func bundledProfileFileIsTheAppProfile() throws {
+        let file = try String(contentsOf: Self.repository.appendingPathComponent("Runtime/Dictation/worker.sb"), encoding: .utf8)
+        #expect(file == WorkerSandbox.profile, "Scripts and integration checks must test the profile the app uses.")
+    }
+
+    @Test func argumentsUseCanonicalPathsAndFailClosedWhenMissing() throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("sandbox-args-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let python = try Self.interpreter(in: root)
+        let arguments = try #require(WorkerSandbox.arguments(resources: root, modelRoot: nil, python: python))
+        let canonical = try #require(WorkerSandbox.canonicalPath(root))
+        #expect(canonical.hasPrefix("/private/"), "Seatbelt needs the real path, not Foundation's /var alias.")
+        #expect(arguments.contains("RESOURCES=\(canonical)") && arguments.contains("MODEL_ROOT=\(canonical)"))
+        #expect(arguments.contains("PYTHON=\(canonical)/bin/python3") && arguments.contains("PYTHON_HOME=\(canonical)"))
+        #expect(arguments.last == python.path)
+        #expect(WorkerSandbox.arguments(resources: root.appendingPathComponent("missing"), modelRoot: nil,
+                                        python: python) == nil)
+        #expect(WorkerSandbox.arguments(resources: root, modelRoot: nil, python: URL(fileURLWithPath: "/bin/cat")) == nil,
+                "An interpreter directly below / would make the whole disk readable.")
+    }
+
+    /// Runs the real profile with a copy of `/bin/cat` standing in for the interpreter.
+    @Test func profileAllowsOnlyTheRuntimeAndDeniesWritesProcessesAndOtherFiles() throws {
+        let manager = FileManager.default
+        let base = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("sandbox-run-\(UUID().uuidString)")
+        defer { try? manager.removeItem(at: base) }
+        let runtime = base.appendingPathComponent("Runtime"), outside = base.appendingPathComponent("Outside")
+        try manager.createDirectory(at: runtime, withIntermediateDirectories: true)
+        try manager.createDirectory(at: outside, withIntermediateDirectories: true)
+        try Data("runtime".utf8).write(to: runtime.appendingPathComponent("allowed.txt"))
+        try Data("private".utf8).write(to: outside.appendingPathComponent("secret.txt"))
+        let cat = try Self.interpreter(in: runtime)
+        func run(_ executable: URL, _ arguments: [String]) throws -> (Int32, String) {
+            let process = Process(), output = Pipe()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/sandbox-exec")
+            let sandbox = try #require(WorkerSandbox.arguments(resources: runtime, modelRoot: nil, python: cat))
+            process.arguments = Array(sandbox.dropLast()) + [executable.path] + arguments
+            process.standardOutput = output
+            process.standardError = FileHandle.nullDevice
+            try process.run()
+            process.waitUntilExit()
+            let text = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+            return (process.terminationStatus, text)
+        }
+        let allowed = try run(cat, [runtime.appendingPathComponent("allowed.txt").path])
+        #expect(allowed == (0, "runtime"))
+        let secret = try run(cat, [outside.appendingPathComponent("secret.txt").path])
+        #expect(secret.0 != 0 && !secret.1.contains("private"), "Files outside the runtime and model stay unreadable.")
+        let other = try run(URL(fileURLWithPath: "/bin/echo"), ["escaped"])
+        #expect(other.0 != 0 && !other.1.contains("escaped"), "Only the interpreter may be executed.")
     }
 }

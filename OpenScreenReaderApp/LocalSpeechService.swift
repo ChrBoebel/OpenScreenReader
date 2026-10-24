@@ -164,12 +164,18 @@ final class LocalSpeechService: SpeechReading {
         return config.isInstalled ? (config.bundled ? String(localized: "Bundled · offline development preview") : String(localized: "Installed for local development")) : String(localized: "Not installed")
     }
     static var installedConfiguration: SpeechRuntimeConfiguration {
-        if let root = Bundle.main.resourceURL?.appendingPathComponent("Speech"),
-           FileManager.default.fileExists(atPath: root.path) {
+        let bundledRoot = Bundle.main.resourceURL?.appendingPathComponent("Speech")
+        if let root = bundledRoot, FileManager.default.fileExists(atPath: root.path) {
             // A damaged bundle must fail visibly, never fall back to this Mac's development runtime.
             return .init(root: root, bundled: true)
         }
+        #if DEBUG
+        // Only development builds may run the explicit local installation in Application Support.
         return .init(root: developmentRoot)
+        #else
+        // Release builds never run code from a user-writable folder; without the bundle they fail closed.
+        return .init(root: bundledRoot ?? URL(fileURLWithPath: "/nonexistent/Speech"), bundled: true)
+        #endif
     }
     init(configuration: SpeechRuntimeConfiguration = LocalSpeechService.installedConfiguration) {
         self.configuration = configuration
@@ -352,9 +358,10 @@ private final class SpeechWorkerSession {
         input = requests.fileHandleForWriting
         output = audio.fileHandleForReading
         reader = SpeechPacketReader(handle: output)
+        guard let sandbox = WorkerSandbox.arguments(resources: configuration.root, modelRoot: nil,
+                                                    python: configuration.executable) else { throw SpeechFailure.notInstalled }
         worker.executableURL = URL(fileURLWithPath: "/usr/bin/sandbox-exec")
-        worker.arguments = ["-p", "(version 1)(allow default)(deny network*)(deny file-write*)(allow file-write* (literal \"/dev/null\"))",
-            configuration.executable.path, "-I", "-B", configuration.script.path, "--model", configuration.model.path, "--session"]
+        worker.arguments = sandbox + ["-I", "-B", configuration.script.path, "--model", configuration.model.path, "--session"]
         worker.environment = ["PATH": "/usr/bin:/bin", "HF_HUB_OFFLINE": "1", "HF_HUB_DISABLE_TELEMETRY": "1"]
         worker.currentDirectoryURL = configuration.executable.deletingLastPathComponent()
         worker.standardInput = requests
