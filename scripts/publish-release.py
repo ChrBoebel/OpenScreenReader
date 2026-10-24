@@ -15,7 +15,7 @@ from release import REPO, digest, https_url, public_download_prefix, require_rel
 
 # Override with SAYWING_PUBLIC_DOWNLOAD_PREFIX and SAYWING_RELEASE_REPOSITORY.
 PUBLIC_PREFIX = public_download_prefix()
-DEFAULT_REPOSITORY = 'ChrBoebel/OpenScreenReader'
+DEFAULT_REPOSITORY = 'ChrBoebel/saywing'
 MAX_SINGLE_UPLOAD = 5 * 1024**3
 
 

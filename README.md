@@ -10,7 +10,7 @@
 
 Saywing is an open-source macOS menu bar app for local screen reading and dictation. Press a shortcut, drag over any text on screen, and hear it read aloud by a local neural voice. Or hold a key, speak German or English, and have the text pasted into the field you are typing in. Recognition and speech run on your Mac; nothing you read or say is uploaded.
 
-The project was previously called OpenScreenReader. The repository, Xcode project and scheme, Swift modules, bundle identifier and `Application Support` directory keep that technical name so existing settings and installations stay compatible.
+The project was previously called OpenScreenReader, and the repository was renamed from `ChrBoebel/OpenScreenReader` (old links redirect). The Xcode project and scheme, Swift modules, bundle identifier and `Application Support` directory keep that technical name so existing settings and installations stay compatible.
 
 > **Saywing is not a screen reader in the VoiceOver sense** and is not a replacement for VoiceOver. It reads selected regions of the screen aloud; it does not navigate interfaces, announce controls or provide full non-visual operation of macOS.
 
@@ -83,8 +83,8 @@ Saywing handles potentially sensitive screen content and speech, so privacy is t
 ### Build and test the app
 
 ```sh
-git clone https://github.com/ChrBoebel/OpenScreenReader.git
-cd OpenScreenReader
+git clone https://github.com/ChrBoebel/saywing.git
+cd saywing
 
 # Core package tests
 swift test
