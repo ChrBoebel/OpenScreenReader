@@ -269,6 +269,15 @@ class ReleaseTests(unittest.TestCase):
                                                 'Supertonic-3-Open-RAIL-M.txt', 'THIRD-PARTY-NOTICES.html'])
             self.assertFalse((output / 'image').exists())
 
+    def test_committed_approvals_explain_an_open_license_review(self):
+        for architecture in ['arm64', 'x86_64']:
+            path = release.release_target(architecture)['approval']
+            record = json.loads(path.read_text())
+            if record['license_review'] is not True:
+                self.assertTrue(record.get('license_review_note', '').strip(), path.name)
+                with self.assertRaisesRegex(ValueError, 'license_review'):
+                    release.require_release_approval(path, architecture)
+
     def test_version_numbers_are_monotonic_and_path_safe(self):
         release.validate_version('0.1.0', '42')
         for version, build in [('0.1.0', '0'), ('../oops', '3'), ('1.0', 'abc'), ('1.2.3', '1/2')]:
