@@ -3147,6 +3147,26 @@ struct DictationModelInstallationTests {
         #expect(!URLSessionModelFetcher.allows(URL(string: "https://evilhf.co/x")!))
         #expect(!URLSessionModelFetcher.allows(URL(string: "https://huggingface.co.example.com/x")!))
     }
+
+    /// Installs made before a manifest listed its license text (Qwen3-ASR) must keep
+    /// loading: the bundled text is added locally, never downloaded, never overwritten.
+    @Test func olderInstallsReceiveBundledLicenseTextsWithoutDownloading() throws {
+        let resources = try DictationModelFixture.resources(bundling: [.whisperTurbo])
+        let installRoot = resources.appendingPathComponent("Installed")
+        let model = installRoot.appendingPathComponent(DictationModel.whisperLargeV3.directoryName)
+        try FileManager.default.createDirectory(at: model, withIntermediateDirectories: true)
+        let fetcher = DictationFetcherFake()
+        let store = DictationModelStore(resources: resources, installRoot: installRoot, fetcher: fetcher)
+        #expect(store.isInstalled(.whisperLargeV3))
+        #expect(try Data(contentsOf: model.appendingPathComponent("LICENSE-OpenAI")) == Data("MIT License".utf8))
+        #expect(fetcher.requests.isEmpty)
+        #expect(!FileManager.default.fileExists(
+            atPath: resources.appendingPathComponent("WhisperTurbo/LICENSE-OpenAI").path), "Signed bundle stays unchanged.")
+
+        try Data("kept".utf8).write(to: model.appendingPathComponent("LICENSE-OpenAI"))
+        _ = DictationModelStore(resources: resources, installRoot: installRoot, fetcher: fetcher)
+        #expect(try Data(contentsOf: model.appendingPathComponent("LICENSE-OpenAI")) == Data("kept".utf8))
+    }
 }
 
 @Suite("Fn dictation gestures")

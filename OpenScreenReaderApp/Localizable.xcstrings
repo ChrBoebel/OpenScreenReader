@@ -4590,6 +4590,36 @@
           }
         }
       }
+    },
+    "Model Terms…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modellbedingungen …"
+          }
+        }
+      }
+    },
+    "Supertonic 3 Model Terms": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modellbedingungen für Supertonic 3"
+          }
+        }
+      }
+    },
+    "The binding terms and the complete, unchanged license text. They apply to the model and its voices, not to the Saywing source code.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die verbindlichen Bedingungen und der vollständige, unveränderte Lizenztext. Sie gelten für das Modell und seine Stimmen, nicht für den Saywing-Quellcode."
+          }
+        }
+      }
     }
   },
   "version": "1.0"
