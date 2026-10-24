@@ -1,209 +1,208 @@
 # Privacy principles and requirements
 
-## Grundsatz
+## Principle
 
-Saywing (bisher OpenScreenReader) verarbeitet möglicherweise hochsensible Bildschirmdaten. Datenschutz ist deshalb keine Marketingoption, sondern eine technische Invariante. Die Umbenennung ändert diese Vorgaben nicht. Seit der Eigentümerentscheidung vom 2026-10-13 ist lokales Diktieren als eigener Ablauf integriert; nur für dessen ausdrücklich gestartetes Einfügen gilt die unten beschriebene Zwischenablage-Ausnahme.
+Saywing (formerly OpenScreenReader) may process highly sensitive screen data. Privacy is therefore not a marketing option but a technical invariant. The rename does not change these requirements. Since the project decision of 2026-10-13, local dictation is integrated as a separate flow; the clipboard exception described below applies only to its explicitly started pasting.
 
-## Verbindliche Standardwerte
+## Mandatory defaults
 
-- Der offizielle MVP enthält sein Standardmodell; OCR und TTS laufen nach der Installation vollständig lokal.
-- Kein Konto und keine Anmeldung.
-- Keine Telemetrie im offiziellen Build.
-- Keine Cloud-Synchronisation.
-- Kein automatisches Schreiben in die Zwischenablage beim Vorlesen. Diktieren darf für eine ausdrücklich gestartete Aufnahme über Cmd+V einfügen und die vollständig gesicherte Zwischenablage nach 1–2 s wiederherstellen, solange kein neuer Inhalt kopiert wurde. Keine Wiederholung bei unklarem Ergebnis.
-- Keine dauerhafte Speicherung von Screenshots, OCR-Text oder Audio.
-- Keine stillen Netzwerk-Fallbacks, wenn ein lokales Modell fehlschlägt.
-- Berechtigungen werden erst angefragt, wenn die dazugehörige Funktion verwendet wird.
+- The official MVP includes its default model; after installation, OCR and TTS run entirely locally.
+- No account and no sign-in.
+- No telemetry in the official build.
+- No cloud sync.
+- No automatic clipboard writes while reading aloud. For an explicitly started recording, dictation may paste via Cmd+V and restore the fully backed-up clipboard after 1–2 s, as long as no new content has been copied. No retry when the outcome is unclear.
+- No persistent storage of screenshots, OCR text or audio.
+- No silent network fallbacks when a local model fails.
+- Permissions are requested only when the corresponding feature is used.
 
-## Netzwerkzugriffe
+## Network access
 
-Der MVP-Runtimepfad darf keine Netzwerkverbindung benötigen oder selbstständig aufbauen. Das Standardmodell wird mit dem signierten Release-Artefakt von der Projektwebsite ausgeliefert. Vor dem Website-Download werden mindestens angezeigt:
+The MVP runtime path must not require or establish a network connection on its own. The default model ships with the signed release artifact from the project website. Before the website download, at least the following is shown:
 
-- Modellname und Version;
-- Quelle;
-- erwartete Größe;
-- Lizenz;
-- installierte Größe und Systemanforderungen;
-- Integritätsprüfung beziehungsweise SHA-256-Hash.
+- model name and version;
+- source;
+- expected size;
+- license;
+- installed size and system requirements;
+- integrity check or SHA-256 hash.
 
-**Ausnahme App-Updates (Eigentümerentscheidung 2026-10-14):** Konfigurierte Release-Builds prüfen bei jedem App-Start unmittelbar nach dem Start des Updaters und danach nach Sparkles Vier-Stunden-Zeitplan per HTTPS auf neue Versionen (Eigentümerwunsch 2026-10-15). Die Startprüfung respektiert eine deaktivierte automatische Update-Suche. Nur verfügbare, nicht übersprungene Updates werden angeboten; ohne Update oder bei fehlender Verbindung erscheint kein Startdialog. Aktive Lese-, Diktier- und Modellinstallationsvorgänge behalten ihren bestehenden Schutz. Einstellungen → Allgemein erlaubt Abschalten und manuelles Prüfen. Der Server sieht IP-Adresse und übliche HTTP-Metadaten; keine Bildschirm-, Text- oder Audiodaten werden übertragen, optionale Systemprofile sind abgeschaltet. Signierte Update-Dateien werden erst auf Nutzeraktion geladen/installiert; ist beim Neustart noch Arbeit aktiv, wird er zurückgestellt und erst fortgesetzt, wenn der Nutzer nach dem Ende der Arbeit erneut „Update installieren und neu starten …“ wählt. Beim Beenden der App verfällt ein zurückgestellter Neustart. Release-Notizen werden nicht separat nachgeladen. Entwicklerbuilds ohne gültige Feed-Konfiguration starten keinen Updater. Eine fehlende Verbindung blockiert weder Vorlesen noch Diktieren. [Release- und Updateverfahren](release-and-updates.md).
+**Exception for app updates (project decision 2026-10-14):** Configured release builds check for new versions over HTTPS on every app launch, immediately after the updater starts, and afterwards on Sparkle's four-hour schedule (project owner's request 2026-10-15). The launch check respects disabled automatic update checks. Only available updates that have not been skipped are offered; if there is no update or no connection, no launch dialog appears. Active reading, dictation and model installation operations keep their existing protection. Settings → General allows turning this off and checking manually. The server sees the IP address and the usual HTTP metadata; no screen, text or audio data is transmitted, and optional system profiles are turned off. Signed update files are downloaded/installed only on user action; if work is still active at relaunch, the relaunch is postponed and only resumes when the user chooses “Install Update and Restart…” again after the work has finished. Quitting the app drops a postponed relaunch. Release notes are not fetched separately. Developer builds without a valid feed configuration do not start an updater. A missing connection blocks neither reading aloud nor dictation. [Release and update procedure](release-and-updates.md).
 
-**Ausnahme Diktiermodelle (Eigentümerentscheidung 2026-10-14):** Builds bringen nur
-Whisper Turbo mit. Qwen3-ASR und Whisper Large v3 lädt die App ausschließlich, wenn
-der Nutzer in Einstellungen → Diktieren „… installieren“ wählt und den Dialog mit
-Größe und Quelle bestätigt. Dann ruft die App per HTTPS nur die im mitgelieferten
-Manifest gepinnte Hugging-Face-Revision ab; Weiterleitungen sind nur zu
-`huggingface.co`/`*.hf.co` erlaubt. Die Anfrage enthält keine Nutzerdaten, keine
-Cookies und keinen Cache. Jede Datei wird vor der Nutzung gegen Größe und SHA-256
-aus dem Manifest geprüft und erst danach nach
-`~/Library/Application Support/Saywing/DictationModels` verschoben; Abbruch oder
-Prüffehler hinterlassen nichts. Lizenztexte stammen aus dem App-Bundle. Ein Download, der mehr Bytes als gepinnt
-liefert oder eine abweichende Länge ankündigt, wird sofort abgebrochen. Geprüfte
-Dateien werden schreibgeschützt (0444) abgelegt; beim Start der Modellverwaltung
-werden liegengebliebene `.staging-*`-Ordner eines abgestürzten Laufs gelöscht. Der
-Diktier-Worker selbst bleibt ohne Netzwerk, prüft die Hashes beim Laden erneut,
-verweigert Modellordner mit nicht im Manifest gelisteten Dateien (ausgenommen
-`.DS_Store`, `VERIFIED.json` und die Lizenzkopien `LICENSE-OpenAI`/`LICENSE-Apache-2.0`)
-und prüft nach dem Laden, dass Gerät, Inode, Größe und Änderungszeit aller Dateien
-unverändert sind. Das verkleinert, beseitigt aber nicht das Zeitfenster zwischen
-Prüfung und Laden gegenüber einem Prozess mit denselben Benutzerrechten.
-Kein automatischer Download, kein Download beim Start, kein Fallback.
+**Exception for dictation models (project decision 2026-10-14):** Builds bundle only
+Whisper Turbo. The app downloads Qwen3-ASR and Whisper Large v3 only when the user
+chooses “Install …” in Settings → Dictation and confirms the dialog showing size and
+source. The app then fetches over HTTPS only the Hugging Face revision pinned in the
+bundled manifest; redirects are allowed only to
+`huggingface.co`/`*.hf.co`. The request contains no user data, no cookies and uses
+no cache. Before use, every file is checked against the size and SHA-256 from the
+manifest, and only then moved to
+`~/Library/Application Support/Saywing/DictationModels`; cancellation or a failed
+check leaves nothing behind. License texts come from the app bundle. A download that delivers more bytes than
+pinned or announces a different length is cancelled immediately. Verified files are
+stored read-only (0444); when model management starts, leftover `.staging-*` folders
+from a crashed run are deleted. The dictation worker itself stays without network
+access, re-checks the hashes on load, refuses model folders containing files not
+listed in the manifest (except `.DS_Store`, `VERIFIED.json` and the license copies
+`LICENSE-OpenAI`/`LICENSE-Apache-2.0`), and checks after loading that device, inode,
+size and modification time of all files are unchanged. This narrows, but does not
+eliminate, the window between check and load against a process running with the
+same user rights.
+No automatic download, no download at launch, no fallback.
 
-## Speicher- und Lebenszyklus
+## Storage and lifecycle
 
-- Die neue explizit geöffnete Wiedergabeansicht darf bis zu 100 Zeichen je wartendem Text anzeigen. Die geschlossene Kapsel bleibt textfrei. Einträge werden über flüchtige UUIDs bearbeitet; Entfernen/Umsortieren ersetzt gegebenenfalls auch das vorbereitete Audio. Stop leert weiterhin alles und schließt die Ansicht. Pause hält nur die vorhandenen begrenzten RAM-Puffer und die aktive Sitzung, ohne Dateien zu schreiben. Einrichtung speichert ausschließlich `setupDismissed.v1`, niemals ein angeblich bestandenes Berechtigungsergebnis oder einen Fortschritt; der Schritt wird bei jedem Öffnen aus den aktuellen Freigaben abgeleitet.
-- Ein privates Packaging-Experiment darf das vorhandene Modell und die gepinnte Runtime als Programmbestandteile in `Contents/Resources/Speech` tragen. Kein Runtime-Download und kein Fallback auf die Entwicklerinstallation, wenn dieser Bundle-Ordner existiert, aber beschädigt ist. Release-Builds verwenden die Entwicklerinstallation unter `~/Library/Application Support/OpenScreenReader` nie und melden ohne Bundle-Ordner „nicht installiert“; nur Debug-Builds dürfen sie nutzen. Der Prüfmodus `--dictation-smoke` existiert ebenfalls nur in Debug-Builds. Redistribution, vollständige Lizenzkette und eine Prüfung auf einem frischen Mac bleiben Release-Gates.
+- The new, explicitly opened playback view may show up to 100 characters per waiting text. The closed capsule stays free of text. Entries are addressed by ephemeral UUIDs; removing/reordering also replaces the prepared audio where applicable. Stop still clears everything and closes the view. Pause only holds the existing bounded RAM buffers and the active session, without writing files. Setup stores only `setupDismissed.v1`, never a supposedly passed permission result or progress; the step is derived from the current grants every time setup opens.
+- A private packaging experiment may carry the existing model and the pinned runtime as program components in `Contents/Resources/Speech`. No runtime download and no fallback to the developer installation if this bundle folder exists but is damaged. Release builds never use the developer installation under `~/Library/Application Support/OpenScreenReader` and report “not installed” without the bundle folder; only Debug builds may use it. The `--dictation-smoke` check mode likewise exists only in Debug builds. Redistribution, the complete license chain and a test on a fresh Mac remain release gates.
 
-- Vorlesegeschwindigkeit wird als Zahl unter `speechPlaybackRate.v1` gespeichert; der separate Hinzufügen-Shortcut als Taste/Modifikatoren unter `enqueueShortcut.v1`. Keine Audio-, Text- oder Bildschirmdaten werden dadurch gespeichert. Bis zu fünf wartende OCR-Texte mit je maximal 8.000 Zeichen/48.000 UTF-8-Bytes bleiben nur im RAM. Sie werden nach FIFO-Wiedergabe freigegeben; Gesamtstopp, Fehler oder Beenden leeren die Liste und verwerfen verspätete Aufnahme-/OCR-Ergebnisse. Die Liste enthält Text, Auswahlgeometrie und Zählwerte, niemals Screenshots. Der Sprachservice darf ausschließlich für ihren nächsten Eintrag Audio vorab im RAM erzeugen; keine Vorab-TTS der gesamten Liste. Genau ein Worker bleibt innerhalb der Sitzung geladen und bearbeitet Texte seriell. Aktueller und nächster Transportbuffer sowie Player sind auf je acht Sekunden Quell-Audio begrenzt (zusammen rund 4,04 MiB), unabhängig vom Tempo. Dies begrenzt die Swift-PCM-Warteschlangen, nicht In-flight-Pakete, Transportkodierung oder den Gesamtspeicher von Audio-Engine und Modellworker. Stop/Esc/Beenden löschen beide Transportbuffer und die Audioqueue und beenden den warmen Worker. Ohne aktive/vorbereitete Arbeit endet Warmhalten spätestens nach 30 s. Keine neue Datei-Historie, Telemetrie oder Runtime-Netzwerkverbindung.
-- Für die Panelposition werden nur `readingPanelEdge` (unten/links/rechts) und `readingPanelOffset` (normierter Versatz 0–1) lokal in UserDefaults gespeichert. Keine Display-ID, absoluten Bildschirmkoordinaten oder Bewegungsaufzeichnungen. Ziehen nutzt nur normale Mausereignisse der eigenen Statusfläche und benötigt keine zusätzliche Berechtigung; die Positionsvorschau startet weder Aufnahme noch OCR oder Sprache.
-- Die gewählte Tastenkombination (Taste und Modifikatoren) wird lokal unter `readingShortcut.v1` in UserDefaults gespeichert. Das Kurzbefehlsfeld der Einstellungen wertet nur den einen Tastendruck aus, während es ausdrücklich angeklickt aufnimmt; es speichert keine Tastatureingaben und enthält keine Bildschirm-, OCR- oder Audioinhalte. Währenddessen sind die globalen Kurzbefehle kurz abgemeldet.
-- Klick statt Ziehen (Eigentümerfreigabe 2026-10-14, „alles umsetzen“ aus dem Apple-Design-Review): Ein einzelner Klick im Auswahl-Overlay erfasst einen begrenzten Bereich von höchstens 1200 × 800 Punkten um den Zeiger, innerhalb des angeklickten Displays. Nur der Absatz unter dem Zeiger wird vorgelesen; der übrige erkannte Text wird unmittelbar nach der lokalen Texterkennung verworfen, nie angezeigt, gesprochen, eingereiht oder gespeichert. Ein Klick fern von Text liest nichts. Dies ist die einzige Ausnahme von „nur der markierte Bereich“: Der Klick ist die ausdrückliche Markierung.
-- Der Auswahlhinweis zählt nur seine Anzeigen unter `selectionHintCount.v1` (höchstens 5).
-- Für Interface-Klänge werden nur Ein/Aus unter `interfaceSoundsEnabled.v1` und die Lautstärke unter `interfaceSoundsVolume.v1` lokal gespeichert. Die sechs festen Stereo-Hinweisklänge (Öffnen, Abschluss, Hinweis, teils in zwei Voicings, sowie seit 2026-10-14 Mikrofon an, freihändig eingerastet und Mikrofon aus) werden beim Start mathematisch im Speicher erzeugt; sie verwenden keine Aufnahme, keinen OCR-Text, kein Sprachmodell und keine Netzwerkverbindung. Ihre wiederverwendbaren Puffer enthalten nur diese festen Töne, keine Nutzerinhalte; es werden keine Audiodateien geschrieben. Die Stop-Taste ist seit 2026-10-14 stumm; ihre haptische Rückmeldung nutzt nur die System-API ohne Daten.
-- Das Flug-Fenster nach der Aufnahme zeichnet nur die Geometrie des Auswahlrechtecks als Mint-Kontur, nie den Bildinhalt; es ist klick-durchlässig und wird nach der Landung geschlossen.
-- Die Stimmbalken erhalten nur einen flüchtigen Pegelwert, keinen Audiopuffer. Dieser wird aus 20-ms-Fenstern des ohnehin abgespielten lokalen PCM berechnet und folgt der Wiedergabeposition, nicht dem Eingang neuer Synthesepakete. Vergangene Pegelfenster werden verworfen; die maximal achtsekündige Quell-Audio-Warteschlange begrenzt den Vorlauf. Abbruch setzt Warteschlange und Anzeige zurück. Keine Pegel-Historie, kein Audio-Tap und keine zusätzliche Berechtigung.
-- Screenshots bleiben im Prozessspeicher und werden nach OCR freigegeben.
-- OCR-Text bleibt nur so lange erhalten, wie Auftrag und Wiedergabe laufen.
-- Audiopuffer werden nach Wiedergabe oder Abbruch verworfen.
-- Gebündelte Modell- und Runtime-Dateien sind dauerhafte Programmbestandteile, enthalten aber keine nutzerspezifischen Bildschirm- oder Sprachinhalte.
-- Absturzberichte dürfen keine Screenshots, OCR-Texte oder Audioinhalte enthalten.
-- Diagnoseexporte sind opt-in und zeigen vor dem Schreiben eine Vorschau.
+- Reading speed is stored as a number under `speechPlaybackRate.v1`; the separate add shortcut is stored as key/modifiers under `enqueueShortcut.v1`. No audio, text or screen data is stored this way. Up to five waiting OCR texts of at most 8,000 characters/48,000 UTF-8 bytes each stay in RAM only. They are released after FIFO playback; a full stop, an error or quitting clears the list and discards late capture/OCR results. The list contains text, selection geometry and counters, never screenshots. The speech service may pre-generate audio in RAM only for the list's next entry; no pre-synthesis of the whole list. Exactly one worker stays loaded within the session and processes texts serially. The current and next transport buffers and the player are each limited to eight seconds of source audio (about 4.04 MiB combined), regardless of speed. This bounds the Swift PCM queues, not in-flight packets, transport encoding or the total memory of the audio engine and model worker. Stop/Esc/quit clear both transport buffers and the audio queue and terminate the warm worker. Without active/prepared work, keeping the worker warm ends after at most 30 s. No new file history, telemetry or runtime network connection.
+- For the panel position, only `readingPanelEdge` (bottom/left/right) and `readingPanelOffset` (normalized offset 0–1) are stored locally in UserDefaults. No display ID, absolute screen coordinates or movement recordings. Dragging uses only normal mouse events of the app's own status surface and needs no additional permission; the position preview starts neither capture nor OCR nor speech.
+- The chosen key combination (key and modifiers) is stored locally under `readingShortcut.v1` in UserDefaults. The shortcut field in Settings evaluates only the single key press while it is explicitly clicked and recording; it does not store keystrokes and contains no screen, OCR or audio content. While it records, the global shortcuts are briefly unregistered.
+- Click instead of drag (project owner approval 2026-10-14, “implement everything” from the Apple design review): A single click in the selection overlay captures a bounded area of at most 1200 × 800 points around the pointer, within the clicked display. Only the paragraph under the pointer is read aloud; the rest of the recognized text is discarded immediately after local text recognition and is never shown, spoken, queued or stored. A click far from text reads nothing. This is the only exception to “only the marked region”: the click is the explicit marking.
+- The selection hint only counts how often it has been shown, under `selectionHintCount.v1` (at most 5).
+- For interface sounds, only on/off under `interfaceSoundsEnabled.v1` and the volume under `interfaceSoundsVolume.v1` are stored locally. The six fixed stereo cue sounds (open, completion, notice, some in two voicings, and since 2026-10-14 microphone on, hands-free locked and microphone off) are generated mathematically in memory at launch; they use no recording, no OCR text, no speech model and no network connection. Their reusable buffers contain only these fixed tones, no user content; no audio files are written. Since 2026-10-14 the Stop button is silent; its haptic feedback uses only the system API, without data.
+- The flight window after capture draws only the geometry of the selection rectangle as a mint outline, never the image content; it is click-through and is closed after landing.
+- The voice bars receive only an ephemeral level value, not an audio buffer. It is computed from 20 ms windows of the local PCM that is being played anyway and follows the playback position, not the arrival of new synthesis packets. Past level windows are discarded; the source audio queue of at most eight seconds bounds the look-ahead. Cancellation resets the queue and the display. No level history, no audio tap and no additional permission.
+- Screenshots stay in process memory and are released after OCR.
+- OCR text is kept only while the job and playback are running.
+- Audio buffers are discarded after playback or cancellation.
+- Bundled model and runtime files are permanent program components but contain no user-specific screen or speech content.
+- Crash reports must not contain screenshots, OCR text or audio content.
+- Diagnostic exports are opt-in and show a preview before writing.
 
-## macOS-Berechtigungen
+## macOS permissions
 
-- Bildschirmaufnahme ist für die Bereichserfassung erforderlich und muss verständlich begründet werden.
-- Accessibility beziehungsweise Input Monitoring wird nur angefragt, wenn der gewählte globale Hotkey oder die Abbruchsteuerung es technisch benötigt.
-- Die App darf keine weitergehenden Berechtigungen aus Bequemlichkeit anfordern.
-- Geführte Einrichtung (2026-10-14): Jede Freigabe wird nur durch einen Klick auf ihrer eigenen Seite angefragt. Während Saywing auf eine Freigabe wartet, prüft es deren Status (Preflight, ohne Dialog) und liest aus der Fensterliste des Systems ausschließlich Prozess-ID, Ebene und Rahmen der Fenster der Systemeinstellungen, um den Hinweis daneben zu platzieren. Fenstertitel oder Inhalte anderer Apps werden nicht gelesen, nichts wird gespeichert, und das Abfragen endet mit der Freigabe, beim Wechsel der Seite oder beim Schließen.
-- Die Bildschirmerfassung schließt alle eigenen Fenster aus, mit einer Ausnahme: ein sichtbares Fenster mit der Kennung `readableBySaywing`. Das ist derzeit nur das Einrichtungsfenster mit seinem eigenen Beispielsatz, damit der Lesetest ohne privaten Bildschirminhalt auskommt. Statusfläche, Auswahl-Overlay und Hinweise bleiben ausgeschlossen.
-- Diktat am Cursor (2026-10-14): Zu Beginn eines Diktats liest Saywing über die Bedienungshilfen nur die Bildschirmposition der Einfügestelle (`AXBoundsForRange` mit Länge 0) oder, ersatzweise, Position und Größe eines kleinen Textfelds. Inhalte werden dafür nicht gelesen, und die Position wird nur bis zum nächsten Diktat im RAM gehalten.
-- „Beenden & neu öffnen“ startet `/bin/sh` mit der eigenen Prozess-ID und dem App-Pfad; die Shell wartet auf das Ende von Saywing und öffnet es mit `--resume-setup` erneut. Keine Netzwerk- oder Dateizugriffe.
+- Screen Recording is required for region capture and must be justified in understandable terms.
+- Accessibility or Input Monitoring is requested only if the chosen global hotkey or the cancellation control technically requires it.
+- The app must not request broader permissions for convenience.
+- Guided setup (2026-10-14): Each permission is requested only through a click on its own page. While Saywing waits for a permission, it checks its status (preflight, without a dialog) and reads from the system window list only the process ID, layer and frame of the System Settings windows, in order to place the hint next to them. Window titles or contents of other apps are not read, nothing is stored, and polling ends when the permission is granted, when the page changes or when setup closes.
+- Screen capture excludes all of the app's own windows, with one exception: a visible window with the identifier `readableBySaywing`. Currently this is only the setup window with its own sample sentence, so the reading test works without private screen content. The status surface, selection overlay and hints remain excluded.
+- Dictation at the cursor (2026-10-14): When a dictation starts, Saywing uses Accessibility to read only the screen position of the insertion point (`AXBoundsForRange` with length 0) or, as a fallback, the position and size of a small text field. No content is read for this, and the position is kept in RAM only until the next dictation.
+- “Quit & Reopen” starts `/bin/sh` with the app's own process ID and app path; the shell waits for Saywing to exit and reopens it with `--resume-setup`. No network or file access.
 
-## Überprüfbarkeit
+## Verifiability
 
-Der aktuelle Entwicklungspfad überträgt OCR-Text über eine anonyme Pipe an den lokalen Supertonic-Worker, nicht als Kommandozeilenargument oder Datei. PCM wird im Speicher abgespielt. Der Worker läuft im gemeinsamen Worker-Profil (siehe „Worker-Sandbox“); Python läuft ohne Bytecode-Schreibzugriffe und ohne benutzerspezifische Importpfade. Die installierten Modelle und Abhängigkeiten werden ausschließlich im expliziten Entwicklungsschritt bereitgestellt, niemals durch die App nachgeladen. Wiedergabe- und Abbruchtests prüfen außerdem, dass die Zwischenablage unverändert bleibt. Dies ersetzt nicht die noch offene Prüfung des vollständig gebündelten Release-Artefakts. Tatsächliche Prüfergebnisse und Grenzen: [Supertonic-Integration](research/supertonic-integration.md); vorherige Qwen-Messungen bleiben in der [Runtime-Evaluation](research/swift-runtime-evaluation.md) dokumentiert.
+The current development path passes OCR text to the local Supertonic worker through an anonymous pipe, not as a command-line argument or file. PCM is played in memory. The worker runs under the shared worker profile (see “Worker sandbox”); Python runs without bytecode writes and without user-specific import paths. The installed models and dependencies are provided only in the explicit development step, never downloaded by the app. Playback and cancellation tests also check that the clipboard stays unchanged. This does not replace the still-pending verification of the fully bundled release artifact. Actual test results and limitations: [Supertonic integration](research/supertonic-integration.md); earlier Qwen measurements remain documented in the [runtime evaluation](research/swift-runtime-evaluation.md).
 
-Das Repository soll dokumentieren, wie Nutzer die Datenschutzversprechen selbst prüfen können:
+The repository should document how users can verify the privacy promises themselves:
 
-1. Offline-Funktionstest unmittelbar nach Installation des vollständigen Release-Artefakts;
-2. Netzwerkbeobachtung während OCR und TTS;
-3. Kontrolle temporärer Dateien;
-4. Kontrolle der Zwischenablage;
-5. reproduzierbare beziehungsweise nachvollziehbare Release-Builds;
-6. vollständige Third-Party- und Modell-Lizenzübersicht.
+1. offline functional test immediately after installing the complete release artifact;
+2. network monitoring during OCR and TTS;
+3. inspection of temporary files;
+4. inspection of the clipboard;
+5. reproducible or traceable release builds;
+6. complete overview of third-party and model licenses.
 
-## Worker-Sandbox — 2026-10-23
+## Worker sandbox — 2026-10-23
 
-Diktier- und Sprach-Worker starten über `sandbox-exec` mit demselben Profil
-(`WorkerSandbox.profile` in der App, byte-gleich als `Runtime/Dictation/worker.sb`
-für Skripte und Integrationsprüfungen). Es ist ein Allow-List-Profil
-(`deny default`) auf Basis von Apples `bsd.sb`:
+The dictation and speech workers start through `sandbox-exec` with the same profile
+(`WorkerSandbox.profile` in the app, byte-identical as `Runtime/Dictation/worker.sb`
+for scripts and integration checks). It is an allow-list profile (`deny default`)
+based on Apple's `bsd.sb`:
 
-- Lesen nur im Runtime-Ordner, im Modellordner, im Präfix des Interpreters, in den
-  Systembibliotheken aus `bsd.sb`/`system.sb` und in den Metal-Shader-Caches;
-  Metadaten (`stat`) bleiben überall lesbar, Inhalte des Benutzerordners nicht.
-- Kein Netzwerk, keine Dateischreibzugriffe außer `/dev/null`, kein `fork`, kein
-  `exec` außer dem Interpreter selbst, keine Apple Events.
-- Mach-Dienste nur aus der Grundliste von `system.sb` (unter anderem Logging,
-  `cfprefsd` lesend, `trustd`) plus `com.apple.MTLCompilerService` und die
-  GPU-Clients `AGXDeviceUserClient`/`IOSurfaceRootUserClient` für MLX. Launch
-  Services, Zwischenablage (`com.apple.pasteboard.1`), TCC (`tccd`,
-  `tccd.system`), WindowServer und `nsurlsessiond` sind ausdrücklich gesperrt.
+- Reads only in the runtime folder, the model folder, the interpreter's prefix, the
+  system libraries from `bsd.sb`/`system.sb` and the Metal shader caches; metadata
+  (`stat`) stays readable everywhere, contents of the home folder do not.
+- No network, no file writes except `/dev/null`, no `fork`, no `exec` other than the
+  interpreter itself, no Apple Events.
+- Mach services only from the base list of `system.sb` (including logging,
+  read-only `cfprefsd`, `trustd`) plus `com.apple.MTLCompilerService` and the GPU
+  clients `AGXDeviceUserClient`/`IOSurfaceRootUserClient` for MLX. Launch Services,
+  the pasteboard (`com.apple.pasteboard.1`), TCC (`tccd`, `tccd.system`),
+  WindowServer and `nsurlsessiond` are explicitly blocked.
 
-Geprüft am 2026-10-23 mit der installierten App auf Apple Silicon (macOS 26):
-Whisper Turbo, Whisper Large v3 und Qwen3-ASR (installierter Modellordner)
-transkribieren die Demos, Supertonic liest und bricht ab; Netzwerk, Schreiben,
-Kindprozesse und Lesen außerhalb von Runtime/Modell schlagen fehl.
+Checked on 2026-10-23 with the installed app on Apple Silicon (macOS 26): Whisper
+Turbo, Whisper Large v3 and Qwen3-ASR (installed model folder) transcribe the demos,
+Supertonic reads aloud and cancels; network, writes, child processes and reads
+outside the runtime/model fail.
 
-Verbleibende Grenzen: Das ist kein „Verbot jeder Ausleitung“. Der Worker kann
-weiterhin über seine stdout-Pipe an Saywing antworten und die erlaubten
-Systemdienste ansprechen. `sandbox-exec` ist von Apple als veraltet markiert und
-`bsd.sb` ist private Systemschnittstelle; ändert macOS sie, startet der Worker
-nicht mehr (er fällt geschlossen aus, nicht offen). Der Intel-Pfad (whisper.cpp auf
-der CPU, Supertonic auf der CPU) wurde unter diesem Profil noch nicht auf echter
-Intel-Hardware geprüft. Die Worker erben Saywings TCC-Zuständigkeit (Mikrofon,
-Bedienungshilfen, Bildschirmaufnahme); sie selbst greifen auf keine dieser Quellen
-zu, und `tccd` ist gesperrt. Eine Abkopplung der Zuständigkeit ginge nur über
-private API und wird nicht verwendet.
+Remaining limits: this is not a “ban on every form of exfiltration”. The worker can
+still answer Saywing through its stdout pipe and talk to the permitted system
+services. Apple marks `sandbox-exec` as deprecated and `bsd.sb` is a private system
+interface; if macOS changes it, the worker no longer starts (it fails closed, not
+open). The Intel path (whisper.cpp on the CPU, Supertonic on the CPU) has not yet
+been tested under this profile on real Intel hardware. The workers inherit Saywing's
+TCC responsibility (microphone, Accessibility, screen recording); they access none of
+these sources themselves, and `tccd` is blocked. Detaching that responsibility would
+only be possible through private API and is not used.
 
-## Produktkommunikation
+## Product communication
 
-Zulässige Aussagen sind beispielsweise:
+Acceptable statements include, for example:
 
-- „No text or screenshots are uploaded.“
-- „Works offline after installation.“
-- „No account required.“
-- „No telemetry in the official build.“
+- “No text or screenshots are uploaded.”
+- “Works offline after installation.”
+- “No account required.”
+- “No telemetry in the official build.”
 
-Nicht verwendet werden sollen absolute, nicht beweisbare Aussagen wie „100 % sicher“.
+Absolute, unprovable statements such as “100 % secure” should not be used.
 
-## Diktieren — Freigabe 2026-10-13
+## Dictation — approved 2026-10-13
 
-Mikrofonfreigabe und Aufnahme sind getrennte Aktionen. Kein Mikrofonstart beim App-Start, Laden oder Freigeben. Maximal 60 s PCM bleiben im RAM und laufen über anonyme Pipes an das ausgewählte lokale Diktiermodell. Der Worker läuft im gemeinsamen Worker-Profil (siehe „Worker-Sandbox“): ohne Netzwerk, Dateischreiben (außer `/dev/null`), Kindprozesse und Zugriff auf Dateien außerhalb von Runtime und Modell. Er lädt ausschließlich mitgelieferte oder ausdrücklich installierte, hashgeprüfte Modelle; kein Cloud- oder Entwicklerpfad-Fallback. Modellauswahl, Sprache und Restore-Verzögerung sind die gespeicherten Diktiereinstellungen. Das sichtbare letzte Ergebnis/Testfeld bleibt bis Verwerfen/Leeren/Beenden im RAM, ohne Verlauf.
+Microphone permission and recording are separate actions. The microphone does not start at app launch, while loading or when permission is granted. At most 60 s of PCM stay in RAM and are passed through anonymous pipes to the selected local dictation model. The worker runs under the shared worker profile (see “Worker sandbox”): no network, no file writes (except `/dev/null`), no child processes and no access to files outside the runtime and model. It loads only bundled or explicitly installed, hash-verified models; no cloud or developer-path fallback. Model choice, language and restore delay are the stored dictation settings. The visible last result/test field stays in RAM until discarded/cleared/quit, without history.
 
-Beim Diktat werden Feldinhalt und Cursorposition, sofern verfügbar, nur zur Zielvalidierung im RAM gehalten. Passwortfelder und nicht erkannte Felder werden abgewiesen. Alle lesbaren Clipboard-Formate werden vor dem Einfügen bis 16 MiB gesichert; nicht vollständig sicherbare Daten verhindern automatisches Einfügen. Eine neue Kopie hat Vorrang. Zugesagte Dateien (File Promises) werden schon anhand der Typliste abgewiesen, bevor eine App Daten erzeugen muss. Abbruch/normaler App-Exit stellt eine noch eigene Zwischenablage sofort wieder her; ein harter Absturz im kurzen Einfügefenster kann dies verhindern. Der eingefügte Text trägt die nspasteboard.org-Kennzeichen `ConcealedType`, `TransientType` und `AutoGeneratedType`; Text und Wiederherstellung werden mit `currentHostOnly` geschrieben und gelangen nicht in die universelle Zwischenablage anderer Geräte. Clipboard-Manager, die diese Kennzeichen ignorieren, können den Text dennoch sehen.
+During dictation, the field content and cursor position, where available, are kept in RAM only for target validation. Password fields and unrecognized fields are rejected. All readable clipboard formats up to 16 MiB are backed up before pasting; data that cannot be fully backed up prevents automatic pasting. A new copy takes precedence. Promised files (file promises) are rejected from the type list alone, before any app has to produce data. Cancellation/normal app exit immediately restores a clipboard that is still owned by the app; a hard crash during the short paste window can prevent this. The pasted text carries the nspasteboard.org markers `ConcealedType`, `TransientType` and `AutoGeneratedType`; the text and the restore are written with `currentHostOnly` and do not reach the Universal Clipboard of other devices. Clipboard managers that ignore these markers can still see the text.
 
-**Passwortmanager (Entscheidung 2026-10-23):** Trägt die gesicherte Zwischenablage eines dieser drei Kennzeichen, etwa ein von einem Passwortmanager kopiertes Passwort, wird sie nach dem Einfügen geleert statt wiederhergestellt – ebenfalls nur, solange der eingefügte Text noch Saywing gehört; eine neuere Kopie hat weiter Vorrang. Ein Zurückschreiben sähe für den Passwortmanager wie eine neue Kopie aus und verhinderte sein zeitgesteuertes Leeren; das Passwort bliebe unbegrenzt liegen. Die Statuszeile sagt dem Nutzer, dass geleert statt wiederhergestellt wurde. Die manuelle Aktion „Ergebnis kopieren“ behält die ausdrücklich angeforderte Kopie.
+**Password managers (decision 2026-10-23):** If the backed-up clipboard carries one of these three markers, for example a password copied from a password manager, it is cleared after pasting instead of restored — again only while the pasted text still belongs to Saywing; a newer copy still takes precedence. Writing it back would look like a new copy to the password manager and prevent its timed clearing; the password would stay on the clipboard indefinitely. The status line tells the user that the clipboard was cleared instead of restored. The manual “Copy Result” action keeps the explicitly requested copy.
 
-Mikrofon und Bedienungshilfen werden ausschließlich per Einrichtungsbutton angefragt; keine Liveaufnahme durch Demos oder Selbsttests. Vorlesen stoppt vor einer Aufnahme, ein Vorlesestart verwirft aktives Diktieren. Esc, Verwerfen, Systemruhe/Sitzungswechsel und App-Ende räumen aktive Aufträge auf und invalidieren verspätete Ergebnisse. [Details und Nachweise](research/qwen-dictation-runtime.md).
+Microphone and Accessibility are requested only through a setup button; no live recording through demos or self-tests. Reading aloud stops before a recording; starting reading aloud discards active dictation. Esc, discard, system sleep/session switch and app exit clean up active jobs and invalidate late results. [Details and evidence](research/qwen-dictation-runtime.md).
 
-## Fn-Diktiersteuerung — 2026-10-13
+## Fn dictation control — 2026-10-13
 
-Auf Wunsch des Eigentümers unterstützt Diktieren Fn-Halten, Fn-Doppeldruck und Fn+Leertaste. Mit Bedienungshilfenfreigabe beobachtet ein Event-Tap Fn-/Modifier-Übergänge und Tastendruck-/Loslass-Ereignisse, damit er Fn+Leertaste übernehmen und andere Fn-Kombinationen durchlassen kann. Er liest keine Zeichen, speichert keine Tastaturtexte und überträgt keine Tastendaten; sein Zustand umfasst ausschließlich Fn-Gesten, Zeitpunkte und die zugehörige Leertaste. Andere Tasteneingaben werden unverändert durchgereicht. Der Tap läuft während der verfügbaren Fn-Steuerung, wird bei Ruhezustand/Sitzungswechsel/Beenden entfernt und bricht eine aktive Fn-Aufnahme bei Verlust der Beobachtung ab. Anders als die bisherige Escape-Beobachtung besteht er deshalb auch zwischen Aufnahmen. Freigaben werden nicht automatisch angefragt. ⌥⇧Leertaste bleibt ohne Fn-Beobachtung nutzbar.
+At the project owner's request, dictation supports holding Fn, double-pressing Fn and Fn+Space. With Accessibility permission, an event tap observes Fn/modifier transitions and key-down/key-up events so that it can take over Fn+Space and pass other Fn combinations through. It reads no characters, stores no typed text and transmits no key data; its state consists only of Fn gestures, timestamps and the associated Space key. Other key input is passed through unchanged. The tap runs while Fn control is available, is removed on sleep/session switch/quit and cancels an active Fn recording if observation is lost. Unlike the earlier Escape observation, it therefore also persists between recordings. Permissions are not requested automatically. ⌥⇧Space remains usable without Fn observation.
 
-## Auswahl des Diktiermodells — 2026-10-13
+## Dictation model selection — 2026-10-13
 
-Qwen3-ASR, Whisper Turbo und Whisper Large v3 verwenden dieselbe Offline-Sandbox und die bestehende
-flüchtige Audio-/Clipboard-Pipeline. `dictationModel.v1` speichert nur die Wahl des
-Modells. Laden und Wechsel starten kein Mikrofon. Fehlende oder beschädigte
-Modelldateien erzeugen einen sichtbaren Fehler; die App lädt nichts automatisch aus
-dem Netz und wechselt nicht automatisch auf einen anderen Provider. Nicht
-mitgelieferte Modelle werden nur nach ausdrücklicher Bestätigung installiert (siehe
-„Netzwerkzugriffe“). Wechsel invalidieren
-Callbacks des alten Workers. Quelle, Revision, Prüfsummen und Lizenz von [Whisper
-Turbo](research/whisper-turbo-dictation.md) und [Whisper Large
+Qwen3-ASR, Whisper Turbo and Whisper Large v3 use the same offline sandbox and the existing
+ephemeral audio/clipboard pipeline. `dictationModel.v1` stores only the choice of
+model. Loading and switching do not start the microphone. Missing or damaged
+model files produce a visible error; the app does not download anything automatically from
+the network and does not switch automatically to another provider. Models that are not
+bundled are installed only after explicit confirmation (see
+“Network access”). Switching invalidates
+callbacks of the old worker. Source, revision, checksums and license of [Whisper
+Turbo](research/whisper-turbo-dictation.md) and [Whisper Large
 v3](research/whisper-large-v3-dictation.md).
 
-## Standardmodell und eigenes Vokabular — 2026-10-14
+## Default model and custom vocabulary — 2026-10-14
 
-Whisper Turbo ist das Standardmodell für neue Installationen; eine gespeicherte
-Wahl bleibt erhalten. Unter Einstellungen → Diktieren kann ein eigenes Vokabular
-(höchstens 50 Begriffe zu je 60 Zeichen) eingetragen werden. Es wird nur lokal unter
-`dictationVocabulary.v1` gespeichert, enthält ausschließlich die selbst
-eingetragenen Begriffe und wird bei jedem Diktat über die anonyme Pipe an den
-Offline-Worker übergeben. Weder Worker noch App protokollieren oder übertragen es.
-Ein geleertes Feld entfernt den Eintrag. Diktierte Texte werden dadurch nicht
-gespeichert und nicht automatisch ins Vokabular übernommen.
+Whisper Turbo is the default model for new installations; a stored
+choice is kept. Under Settings → Dictation, a custom vocabulary
+(at most 50 terms of up to 60 characters each) can be entered. It is stored only locally under
+`dictationVocabulary.v1`, contains only the terms the user entered
+and is passed to the offline worker through the anonymous pipe with every dictation.
+Neither the worker nor the app logs or transmits it.
+Clearing the field removes the entry. Dictated texts are not
+stored as a result and are not added to the vocabulary automatically.
 
 ### Setup preferences (2026-10-14)
 
 Setup additionally saves the dictation shortcut, optional Fn setting and the model identifier of an explicitly requested installation. It never saves microphone audio, screen content or recognized text. Restoring an interrupted installation does not resume network requests automatically: another explicit download confirmation is required. Capturing a shortcut suspends activation keys, including Fn, so entering a combination cannot start recording. Downloads continue to use only the approved pinned manifests and verify every installed file before activation.
 
-## Meeting-Mitschrift — Eigentümerentscheidung 2026-10-15
+## Meeting transcript — project decision 2026-10-15
 
-[ADR 0006](decisions/0006-local-meeting-transcript.md). Eine enge Ausnahme von „keine Aufnahme anderer Inhalte“, nur für eine ausdrücklich gestartete Mitschrift.
+[ADR 0006](decisions/0006-local-meeting-transcript.md). A narrow exception to “no recording of other content”, only for an explicitly started transcript.
 
-- **Start nur nach Einwilligungs-Schritt:**
-  - Vor jedem Start erklärt ein Fenster, was aufgenommen wird, und bietet einen kopierbaren Hinweis für den Meeting-Chat.
-  - Der Hinweis wird nur auf Klick kopiert.
-  - Kein automatischer Start, keine Meeting-Erkennung, kein Posten in andere Apps.
-- **Zwei Quellen:**
-  - das Mikrofon („Ich“);
-  - das Systemaudio aller anderen Apps („Andere“) über einen privaten Core-Audio-Prozess-Tap, der Saywing selbst ausschließt. Saywings eigenes Vorlesen gelangt so nicht in die Spur „Andere“.
-  - Die Systemaudio-Freigabe fragt macOS beim ersten Start (`NSAudioCaptureUsageDescription`); Saywing nutzt keine private TCC-Schnittstelle.
-- **Erkennung:**
-  - Apples `SpeechTranscriber` auf dem Gerät (macOS 26 oder neuer), nur für bereits installierte Sprachen.
-  - Saywing fordert keine Sprachmodelle aus dem Netz an und hat in diesem Pfad keinen eigenen Netzwerkzugriff.
-  - Der Diktier-Worker wird nicht benutzt.
-- **Keine Dateien, kein Verlauf:**
-  - Audio liegt nur in kurzen Puffern im RAM, für die Erkennung und das Echo-Gate (je Spur höchstens etwa 2 s bei 8 kHz), und wird laufend verworfen.
-  - Kein Audio auf der Festplatte.
-  - Das Transkript bleibt nur im RAM, bis es verworfen, durch eine neue Mitschrift ersetzt oder die App beendet wird.
-  - Schreiben nur über „Kopieren“ (ausdrücklicher Klick) oder „Sichern …“ (Speicherdialog, Markdown).
-  - Keine neuen Einstellungs-Schlüssel.
-- **Ende:**
-  - Stopp, 2-h-Grenze (Hinweis 5 min vorher), 10 min Stille auf beiden Spuren, Systemruhe, Sitzungswechsel und App-Ende beenden die Aufnahme. Das Transkript bleibt bis zum Verwerfen erhalten.
-  - Esc, Vorlesen und Diktieren beenden sie nicht.
-  - Verspätete Erkennungsergebnisse nach dem Ende werden verworfen.
-- **Anzeige:** Während der Aufnahme trägt das Menüleistensymbol einen Ring, und das Menü zeigt „Mitschrift läuft“.
-- **Recht:** Die Aufnahme anderer Personen braucht deren Einwilligung (z. B. § 201 StGB, DSGVO). Saywing erinnert daran, prüft es aber nicht. Eine rechtliche Prüfung bleibt Release-Gate.
+- **Start only after a consent step:**
+  - Before every start, a window explains what will be recorded and offers a copyable notice for the meeting chat.
+  - The notice is copied only on click.
+  - No automatic start, no meeting detection, no posting into other apps.
+- **Two sources:**
+  - the microphone (“Me”);
+  - the system audio of all other apps (“Others”) through a private Core Audio process tap that excludes Saywing itself. Saywing's own reading aloud therefore does not end up in the “Others” track.
+  - macOS asks for the system audio permission on first start (`NSAudioCaptureUsageDescription`); Saywing uses no private TCC interface.
+- **Recognition:**
+  - Apple's on-device `SpeechTranscriber` (macOS 26 or later), only for already installed languages.
+  - Saywing does not request speech models from the network and has no network access of its own in this path.
+  - The dictation worker is not used.
+- **No files, no history:**
+  - Audio exists only in short RAM buffers, for recognition and the echo gate (at most about 2 s per track at 8 kHz), and is continuously discarded.
+  - No audio on disk.
+  - The transcript stays only in RAM until it is discarded, replaced by a new transcript or the app quits.
+  - Writing only through “Copy” (explicit click) or “Save…” (save dialog, Markdown).
+  - No new settings keys.
+- **End:**
+  - Stop, the 2-hour limit (notice 5 min before), 10 min of silence on both tracks, system sleep, session switch and app exit end the recording. The transcript is kept until discarded.
+  - Esc, reading aloud and dictation do not end it.
+  - Late recognition results after the end are discarded.
+- **Indicator:** During recording, the menu bar icon carries a ring, and the menu shows “Meeting Transcript · Running”.
+- **Legal:** Recording other people requires their consent (e.g. Section 201 of the German Criminal Code (StGB), GDPR/DSGVO). Saywing reminds users of this but does not verify it. A legal review remains a release gate.
