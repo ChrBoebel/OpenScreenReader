@@ -113,6 +113,64 @@ struct SpeechBufferingTests {
     }
 
     @Test
+    func outputChangeEndsTheReadingAtOnceAndDropsQueuedAudio() async throws {
+        let player = SpeechAudioPlayer(sampleRate: 44_100)
+        defer { player.stop() }
+        player.setPaused(true)
+        for _ in 0..<3 { try await player.enqueue(Data(repeating: 0, count: 96_000)) {} }
+        #expect(player.queuedFrames == 72_000)
+        let drain = Task { try await player.finish {} }
+        try await Task.sleep(for: .milliseconds(40))
+        // A change the engine survived loses nothing and ends nothing.
+        NotificationCenter.default.post(name: .AVAudioEngineConfigurationChange, object: player.engine)
+        try await Task.sleep(for: .milliseconds(40))
+        #expect(player.queuedFrames == 72_000)
+        #expect(!player.outputChanged)
+        // A real output change stops the engine first.
+        player.engine.stop()
+        NotificationCenter.default.post(name: .AVAudioEngineConfigurationChange, object: player.engine)
+        do { try await drain.value; Issue.record("The drain outlived the output change") }
+        catch { #expect(error as? SpeechFailure == .outputChanged) }
+        #expect(player.queuedFrames == 0)
+        do { try await player.enqueue(Data(repeating: 0, count: 9_600)) {}; Issue.record("Audio was queued for the old output") }
+        catch { #expect(error as? SpeechFailure == .outputChanged) }
+        player.reset()
+        #expect(!player.outputChanged)
+        try await player.enqueue(Data(repeating: 0, count: 9_600)) {}
+        try await player.finish {}
+        #expect(player.queuedFrames == 0)
+    }
+
+    @Test
+    func engineStoppedBeforeTheNoticeIsNotSilentlyRestarted() async throws {
+        let player = SpeechAudioPlayer(sampleRate: 44_100)
+        defer { player.stop() }
+        player.setPaused(true)
+        try await player.enqueue(Data(repeating: 0, count: 96_000)) {}
+        player.engine.stop()
+        do { try await player.enqueue(Data(repeating: 0, count: 96_000)) {}; Issue.record("Engine restarted after a gap") }
+        catch { #expect(error as? SpeechFailure == .outputChanged) }
+        #expect(player.queuedFrames == 0)
+        #expect(!player.engine.isRunning)
+    }
+
+    @Test
+    func blockedPacketReadsLeaveTheCooperativePoolFree() async throws {
+        let count = ProcessInfo.processInfo.activeProcessorCount * 2
+        let pipes = (0..<count).map { _ in Pipe() }
+        defer { pipes.forEach { try? $0.fileHandleForWriting.close(); try? $0.fileHandleForReading.close() } }
+        let readers = pipes.map { SpeechPacketReader(handle: $0.fileHandleForReading) }
+        let pending = readers.map { reader in Task.detached { try await reader.nextLine() } }
+        try await Task.sleep(for: .milliseconds(100))
+        let probe = PoolProbe()
+        Task.detached { await MainActor.run { probe.ran = true } }
+        for _ in 0..<200 where !probe.ran { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(probe.ran, "Blocking pipe reads starved Swift's cooperative thread pool.")
+        pipes.forEach { try? $0.fileHandleForWriting.close() }
+        for task in pending { #expect(try await task.value == nil) }
+    }
+
+    @Test
     func shortPacketReturnsBeforeWriterCloses() async throws {
         let pipe = Pipe()
         defer { try? pipe.fileHandleForReading.close(); try? pipe.fileHandleForWriting.close() }
@@ -213,7 +271,7 @@ struct InteractionTests {
     func regionSelectionUsesNonactivatingPanelsAndRemovesThemOnCancel() throws {
         let controller = RegionSelectionOverlayController()
         let existing = Set(NSApp.windows.map(\.windowNumber))
-        controller.start(onSelection: { _ in }, onCancel: {})
+        controller.start(onSelection: { _ in }, onCancel: { _ in })
         defer { controller.cancel() }
         let panels = NSApp.windows.filter { !existing.contains($0.windowNumber) }
         #expect(panels.count == NSScreen.screens.count)
@@ -322,6 +380,84 @@ struct InteractionTests {
         await f.model.waitForInteractionToSettle()
         #expect(f.model.status == .stopped)
         #expect(f.model.queuedTextCount == 0)
+    }
+
+    @Test
+    func onlyEscapeEndingTheAddedSelectionStopsReading() async throws {
+        let f = QueueFixture()
+        await f.model.handleReadRequest()
+        f.selection.complete(Self.ocrRegion)
+        await f.model.waitForCaptureToSettle()
+        try await f.speech.waitForReads(1)
+        for reason in [SelectionCancelReason.invalidSelection, .displaysChanged] {
+            f.model.enqueueAddRequest()
+            await f.model.waitForInteractionToSettle()
+            #expect(f.model.isAddingToQueue)
+            f.selection.end(reason)
+            await f.model.waitForInteractionToSettle()
+            #expect(f.model.status == .speaking, "\(reason) must not interrupt playback.")
+            #expect(f.model.isReadingActive)
+            #expect(!f.model.isAddingToQueue)
+            #expect(f.model.queueNotice != nil)
+            #expect(f.speech.texts.count == 1)
+        }
+        f.model.enqueueAddRequest()
+        await f.model.waitForInteractionToSettle()
+        f.selection.end(.escape)
+        await f.model.waitForInteractionToSettle()
+        #expect(f.model.status == .stopped)
+        #expect(!f.model.isReadingActive)
+    }
+
+    @Test
+    func endingTheFirstSelectionByItselfStillCancelsIt() async {
+        let f = QueueFixture()
+        await f.model.handleReadRequest()
+        #expect(f.model.status == .selecting)
+        f.selection.end(.invalidSelection)
+        await f.model.waitForInteractionToSettle()
+        #expect(f.model.status == .stopped)
+        #expect(!f.model.isReadingActive)
+    }
+
+    @Test
+    func queueEmptiedWhileAdvancingEndsTheReadingCleanly() async throws {
+        let f = QueueFixture()
+        await f.model.handleReadRequest()
+        f.selection.complete(Self.ocrRegion)
+        await f.model.waitForCaptureToSettle()
+        try await f.speech.waitForReads(1)
+        f.ocr.result = OCRResult(lines: ["Gleich entfernt"])
+        f.model.enqueueAddRequest()
+        await f.model.waitForInteractionToSettle()
+        f.selection.complete(Self.ocrRegion)
+        await f.model.waitForQueueInputToSettle()
+        let id = try #require(f.model.queueEntries.first?.id)
+        // Settings removes the entry after the coordinator released the finished
+        // text, before the queue advances.
+        let model = f.model
+        f.speech.onStopCurrent = { model.removeQueueEntry(id) }
+        f.speech.finishFirst()
+        await f.model.waitForSpeechToSettle()
+        await f.model.waitForInteractionToSettle()
+        #expect(f.model.queuedTextCount == 0)
+        #expect(f.model.status == .ready)
+        #expect(!f.model.isReadingActive)
+        #expect(f.speech.texts == ["Hello world"])
+    }
+
+    @Test
+    func quittingStopsTheSpeechWorker() async {
+        let center = NotificationCenter()
+        let speech = SpeechFake()
+        let model = AppModel(shortcutStore: MemoryShortcutStore(),
+            hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+            speechService: speech, appNotifications: center)
+        #expect(!speech.stopped)
+        center.post(name: NSApplication.willTerminateNotification, object: nil)
+        for _ in 0..<100 where !speech.stopped { await Task.yield() }
+        #expect(speech.stopped)
+        _ = model
     }
 
     @Test
@@ -1521,6 +1657,109 @@ struct FeedbackAtSourceTests {
         #expect(controller.resultSection.isHidden)
     }
 
+    /// Escape after Cmd+V was sent, before the field showed the text: a slow app may
+    /// still read the clipboard, so the earlier clipboard returns only after the wait.
+    @Test func discardingASentPasteKeepsTheClipboardUntilTheScheduledRestore() throws {
+        var scheduled: [(Double, DispatchWorkItem)] = []
+        let (controller, _, _, worker) = soundingDictation(schedulePasteCallback: { scheduled.append(($0, $1)) })
+        defer { scheduled.forEach { $0.1.cancel() } }
+        defer { controller.shutdown(); controller.panel.orderOut(nil) }
+        let board = NSPasteboard.general
+        let previous = try? ClipboardSnapshot.capture(board)
+        defer { if let previous { _ = previous.write(to: board) } }
+        board.clearContents()
+        board.setString("Vorherige Zwischenablage", forType: .string)
+        controller.scratch.string = "Anfang MARKER Ende"
+        controller.scratch.setSelectedRange((controller.scratch.string as NSString).range(of: "MARKER"))
+        controller.window.makeFirstResponder(controller.scratch)
+        worker.ready = true
+        controller.receive(.init(type: "ready", version: 1))
+        try controller.begin(target: InsertionTarget(local: controller.scratch))
+        let id = try #require(controller.request)
+        controller.send(AudioPacket(samples: [0.1], rate: 16000))
+        controller.receive(.init(type: "result", id: id.uuidString, text: "Diktat"))
+        #expect(controller.phase == "pasting")
+        controller.cancel()
+        #expect(!controller.isActive)
+        #expect(board.string(forType: .string) == "Diktat", "Restoring now could paste the previous clipboard.")
+        let restoreClipboard = try #require(scheduled.last?.1)
+        restoreClipboard.perform()
+        #expect(board.string(forType: .string) == "Vorherige Zwischenablage")
+        #expect(controller.deferredLease == nil)
+    }
+
+    /// Once the field showed the text, nothing is pending: discarding restores at once.
+    @Test func discardingAConfirmedPasteRestoresTheClipboardAtOnce() throws {
+        var scheduled: [(Double, DispatchWorkItem)] = []
+        let (controller, _, _, worker) = soundingDictation(schedulePasteCallback: { scheduled.append(($0, $1)) })
+        defer { scheduled.forEach { $0.1.cancel() } }
+        defer { controller.shutdown(); controller.panel.orderOut(nil) }
+        let board = NSPasteboard.general
+        let previous = try? ClipboardSnapshot.capture(board)
+        defer { if let previous { _ = previous.write(to: board) } }
+        board.clearContents()
+        board.setString("Vorherige Zwischenablage", forType: .string)
+        controller.scratch.string = "Anfang MARKER Ende"
+        controller.scratch.setSelectedRange((controller.scratch.string as NSString).range(of: "MARKER"))
+        controller.window.makeFirstResponder(controller.scratch)
+        worker.ready = true
+        controller.receive(.init(type: "ready", version: 1))
+        try controller.begin(target: InsertionTarget(local: controller.scratch))
+        let id = try #require(controller.request)
+        controller.send(AudioPacket(samples: [0.1], rate: 16000))
+        controller.receive(.init(type: "result", id: id.uuidString, text: "Diktat"))
+        let earlyConfirmation = try #require(scheduled.first?.1)
+        earlyConfirmation.perform()
+        controller.cancel()
+        #expect(board.string(forType: .string) == "Vorherige Zwischenablage")
+        #expect(controller.deferredLease == nil)
+    }
+
+    @Test func inputDeviceChangeWhileRecordingDiscardsInsteadOfPasting() throws {
+        let (controller, _, recorder, worker) = soundingDictation()
+        defer { controller.shutdown(); controller.panel.orderOut(nil) }
+        worker.ready = true
+        controller.startRecording(target: InsertionTarget(local: controller.scratch))
+        #expect(controller.phase == "recording")
+        let interruption = try #require(recorder.onInterruption)
+        interruption()
+        #expect(!controller.isActive)
+        #expect(recorder.events == ["start", "cancel"])
+        #expect(worker.requests.isEmpty)
+        #expect(controller.statusText == String(localized: "Recording stopped"))
+        #expect(controller.detailLabel.stringValue == DictationError.inputDeviceChanged.localizedDescription)
+        interruption()
+        #expect(recorder.events == ["start", "cancel"], "A late notice for an ended recording does nothing.")
+    }
+
+    @Test func interruptedRecordingIsNeverSentWhenFinishRacesTheNotice() throws {
+        let (controller, _, recorder, worker) = soundingDictation()
+        defer { controller.shutdown(); controller.panel.orderOut(nil) }
+        worker.ready = true
+        controller.startRecording(target: InsertionTarget(local: controller.scratch))
+        recorder.finishFailure = DictationError.inputDeviceChanged
+        controller.finishRecording()
+        #expect(!controller.isActive)
+        #expect(worker.requests.isEmpty)
+        #expect(controller.statusText == String(localized: "Recording stopped"))
+    }
+
+    @Test func microphoneRecorderMarksAnEngineChangeAndRefusesTheTruncatedAudio() async throws {
+        let recorder = MicrophoneRecorder()
+        let engine = ConfigurationSource()
+        var notified = false
+        recorder.onInterruption = { notified = true }
+        recorder.audio.start(sampleRate: 48000)
+        recorder.observeConfigurationChanges(of: engine)
+        #expect(!recorder.wasInterrupted)
+        let posted = Task.detached { NotificationCenter.default.post(name: .AVAudioEngineConfigurationChange, object: engine) }
+        await posted.value
+        #expect(recorder.wasInterrupted, "Marked on the posting thread, before the main actor hears of it.")
+        for _ in 0..<100 where !notified { await Task.yield() }
+        #expect(notified)
+        #expect(throws: DictationError.self) { _ = try recorder.finish() }
+    }
+
     @Test func handsFreeShowsOnlyOnTheFinishControlWhileRecording() {
         let capsule = DictationCapsuleView(frame: CGRect(origin: .zero, size: DictationCapsuleView.surface))
         capsule.setHandsFree(true)
@@ -2272,6 +2511,12 @@ struct ReadingPanelTests {
 }
 
 @MainActor
+private final class PoolProbe { var ran = false }
+
+/// Stands in for the engine that posts a configuration change.
+private final class ConfigurationSource: Sendable {}
+
+@MainActor
 private final class ReadingPanelFake: ReadingStatusPresenting {
     var level: Double = 0
     func updateLevel(_ level: Double) { self.level = level }
@@ -2293,11 +2538,14 @@ private final class RecorderFake: DictationRecording {
     var level = 0.0
     var events: [String] = []
     var onFinish: (() -> Void)?
+    var onInterruption: (() -> Void)?
     var cuesAtFinish: [InterfaceCue]?
+    var finishFailure: Error?
     func start() throws { events.append("start") }
-    func finish() -> AudioPacket {
+    func finish() throws -> AudioPacket {
         events.append("finish")
         onFinish?()
+        if let finishFailure { throw finishFailure }
         return AudioPacket(samples: [0.1, 0.2], rate: 16000)
     }
     func cancel() { events.append("cancel") }
@@ -2419,7 +2667,12 @@ private final class QueueSpeechFake: SpeechReading {
         preparedText = nil
         stopCurrent()
     }
+    /// Runs once inside the next stopCurrent, like a Settings edit landing in that moment.
+    var onStopCurrent: (() -> Void)?
     func stopCurrent() {
+        let hook = onStopCurrent
+        onStopCurrent = nil
+        hook?()
         let pending = completions
         completions.removeAll()
         for completion in pending { completion.resume(throwing: CancellationError()) }
@@ -2482,18 +2735,29 @@ private final class RegionSelectionControllerFake: RegionSelectionControlling {
     private(set) var startCount = 0
     private(set) var cancelCount = 0
     private var completion: ((ScreenRegionSelection) -> Void)?
+    private var cancellation: ((SelectionCancelReason) -> Void)?
 
     func start(
         onSelection: @escaping (ScreenRegionSelection) -> Void,
-        onCancel: @escaping () -> Void
+        onCancel: @escaping (SelectionCancelReason) -> Void
     ) {
         startCount += 1
         completion = onSelection
+        cancellation = onCancel
     }
 
     func cancel() {
         cancelCount += 1
         completion = nil
+        cancellation = nil
+    }
+
+    /// The overlay ending by itself: Escape, a too-small drag, or a display change.
+    func end(_ reason: SelectionCancelReason) {
+        let cancellation = cancellation
+        completion = nil
+        self.cancellation = nil
+        cancellation?(reason)
     }
 
     func complete(_ selection: ScreenRegionSelection) {
@@ -2926,6 +3190,33 @@ struct DictationIntegrationTests {
         }
         await model.waitForInteractionToSettle()
         #expect(callback)
+    }
+
+    /// A worker that reports why it cannot load and exits at once: the specific
+    /// reason must reach the user, not the generic "process ended".
+    @Test func workerFatalMessageWinsOverItsOwnExit() async throws {
+        let resources = FileManager.default.temporaryDirectory.appendingPathComponent("dictation-fatal-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: resources) }
+        let bin = resources.appendingPathComponent("Python/bin")
+        try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+        try "(version 1)(allow default)".write(to: resources.appendingPathComponent("worker.sb"), atomically: true, encoding: .utf8)
+        let python = bin.appendingPathComponent("python3")
+        try "#!/bin/sh\nprintf '{\"type\":\"fatal\",\"code\":\"load_failed\"}\\n'\nexit 1\n"
+            .write(to: python, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: python.path)
+        let worker = DictationWorker()
+        defer { worker.stop() }
+        for _ in 0..<12 {
+            var messages: [DictationWorkerMessage] = []
+            worker.onMessage = { messages.append($0) }
+            worker.start(resources: resources, model: .whisperTurbo, modelRoot: nil)
+            for _ in 0..<500 where messages.isEmpty { try await Task.sleep(for: .milliseconds(10)) }
+            // Give a late generic report the chance to arrive, too.
+            try await Task.sleep(for: .milliseconds(700))
+            #expect(messages.map(\.type) == ["fatal"])
+            #expect(messages.first?.code == "load_failed")
+            #expect(!worker.running)
+        }
     }
 
     @Test func dictationShortcutCannotBeReassignedToReading() async {
@@ -3521,7 +3812,7 @@ struct WindowPreviewTests {
         // Popovers bring their own material; offscreen they need a background to be legible.
         try render(ReadingErrorView(model: failing).background(Color(nsColor: .windowBackgroundColor)), "reading-error-help")
         let overlay = RegionSelectionOverlayController(defaults: preferences)
-        overlay.start(onSelection: { _ in }, onCancel: {})
+        overlay.start(onSelection: { _ in }, onCancel: { _ in })
         if let view = NSApp.windows.first(where: { $0.title == "Select Screen Region" && $0.isVisible })?.contentView,
            let pill = view.subviews.first {
             let area = pill.frame.insetBy(dx: -60, dy: -30)
