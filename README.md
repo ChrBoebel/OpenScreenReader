@@ -1,126 +1,143 @@
 # Saywing
 
-Release checkpoint: [Apple Silicon beta publication and documented device-test scope](docs/beta-publication-2026-10-15.md).
-
 <p align="center">
-  <img src="docs/brand-identity/assets/saywing-app-icon.png" alt="Saywing Text to Voice app icon" width="160">
+  <img src="docs/brand-identity/assets/saywing-app-icon.png" alt="Saywing app icon" width="160">
 </p>
 
-**Vorlesen & Diktieren für macOS.**
+**Read aloud & dictate on your Mac. Hear text. Write with your voice.**
 
-**Text hören. Mit der Stimme schreiben.**
+*Vorlesen & Diktieren für macOS. Text hören. Mit der Stimme schreiben.*
 
-*Read aloud & dictate on your Mac. Hear text. Write with your voice.*
+Saywing is an open-source macOS menu bar app for local screen reading and dictation. Press a shortcut, drag over any text on screen, and hear it read aloud by a local neural voice. Or hold a key, speak German or English, and have the text pasted into the field you are typing in. Recognition and speech run on your Mac; nothing you read or say is uploaded.
 
-Saywing is an open-source macOS menu bar app for local screen reading and dictation. Select a screen region to hear its text, or dictate German and English into a text field with local Whisper Turbo (bundled default), or Qwen3-ASR and Whisper Large v3 installed on request, optionally guided by your own vocabulary. Both flows are integrated in the private development build; public release gates remain open.
+The project was previously called OpenScreenReader. The repository, Xcode project and scheme, Swift modules, bundle identifier and `Application Support` directory keep that technical name so existing settings and installations stay compatible.
 
-Previously OpenScreenReader. The Xcode project/scheme, Swift modules, bundle identifier and existing development-runtime directory retain their technical names so existing settings and installations remain compatible.
+> **Saywing is not a screen reader in the VoiceOver sense** and is not a replacement for VoiceOver. It reads selected regions of the screen aloud; it does not navigate interfaces, announce controls or provide full non-visual operation of macOS.
 
-See the [approved Saywing identity](docs/brand-identity/BRAND_SYSTEM.md), [visual brand preview](docs/brand-identity/saywing.html), and [branch reconciliation with current verification](docs/branch-integration-verification.md).
+## Status
 
-> Status: experimental native macOS menu bar app with a configurable global hotkey, region selection, in-memory ScreenCaptureKit capture, local German/English Apple Vision OCR, and automatic local Supertonic 3 speech. The owner selected Supertonic after the German listening comparison; M1 is the initial default voice. The pinned development worker and model are installed separately, not bundled for distribution. Verification and remaining limitations are recorded in the [Supertonic integration notes](docs/research/supertonic-integration.md). Finder-hotkey start tests have been intermittent, and the broader permission/display/layout matrix remains open. No application has been released yet.
+**Beta.** Saywing is usable day to day by its developers, but it is young software:
 
-## Product promise
+- The development target is Apple Silicon. Intel (x86_64) builds exist, but they have only been tested under Rosetta, not on physical Intel hardware.
+- macOS 14 is the minimum deployment target. Physical testing on macOS 14 and 15 is still incomplete; most testing happened on macOS 26.
+- A fresh-Mac permission walkthrough, a full matrix of target apps for dictation, and a live VoiceOver/keyboard review are still open.
+- Building the speech and dictation runtimes from public sources is not yet a single reproducible step (see [Building from source](#building-from-source)).
 
-**Resumable setup (2026-10-14):** setup saves its current step before opening a permission prompt or System Settings. After an app restart it opens automatically at the next applicable step, checking actual grants again. **Finish Later** keeps progress without reopening automatically; **Done** clears it. Restart help offers **Quit & Reopen** when new access is not yet working. Restoring setup never starts a capture or recording. See [verification and limitations](docs/resumable-setup-verification.md).
+See the [roadmap](docs/roadmap.md) for open gates and [CHANGELOG.md](CHANGELOG.md) for notable changes.
 
-**Setup models and shortcuts (2026-10-14):** the guided flow adds Model → Shortcuts before each activity’s test, retaining the welcome, permission guidance and optional dictation offer. Choose an installed dictation model or explicitly confirm a pinned, verified download directly in setup. Interrupted installs retain the choice and offer a retry without restarting network activity automatically. Configure separate reading and dictation shortcuts and optionally disable Fn gestures; the same preferences appear in Settings. Model/shortcut pages remain available before permission grants. See [verification](docs/setup-models-shortcuts-verification.md).
+## Features
 
+**Read aloud**
 
-**Local dictation (2026-10-13):** menu bar → **Set Up & Test…** grants microphone and Accessibility access; **Try Dictation…** opens a test field. Click in the target field, hold **Fn** to dictate and release to insert. **Double-tap Fn** or use **Fn + Space** for hands-free recording; tap Fn again to finish and **Esc** to discard. A short single tap is discarded; a third quick tap cancels. Short wood-and-water cues mark the microphone opening, latching hands-free (the finish control fills in) and closing; discarding is silent. **⌥⇧Space** remains a toggle alternative for keyboards without Fn. Fn control requires Accessibility access; quit other dictation apps that use Fn. Model (Qwen3-ASR / Whisper Turbo), language and clipboard delay live in **Settings → Dictate**; the test window offers a local field, and Debug builds add German/English public demos. Model changes are saved and load automatically, without recording. Finish or discard an active dictation before switching; only one selected model remains loaded and unavailable models fail visibly without fallback. Recording starts only on an explicit action, never on app launch. The selected model prepares automatically on launch and after wake/session reactivation, then stays ready while Saywing is open. No manual model loading is required; cold-start audio stays in RAM. Starting dictation stops reading; starting reading discards dictation. Paste temporarily uses the clipboard and restores all readable formats after 1 s (2 s optional), preserving any newer copy. Changed targets are not pasted into. See [setup, verification and remaining limits](docs/dictation-integration-verification.md) and [pinned runtime/privacy contract](docs/research/qwen-dictation-runtime.md). Quit the independent prototype before starting Saywing, since both use the same shortcut.
+- Default shortcut **⌥R** (configurable) starts a region selection on any display. Drag as with ⌘⇧4: hold Space to move, Shift to lock an edge, Option to grow it around the starting point. A single click reads only the paragraph under the pointer.
+- Text is recognized locally with Apple Vision (German and English) and spoken automatically with the local [Supertonic 3](https://huggingface.co/Supertone/supertonic-3) voice M1. There is no cloud or system-voice fallback.
+- Press the shortcut again while speaking to queue another region (up to five texts). A small floating capsule offers Stop, Pause/Resume, speed (0.75× to 2×, pitch-preserving), Next and a queue view. You can dock it at the bottom, left or right edge.
+- **Escape** or any Stop control cancels the whole pipeline immediately, including queued and prepared audio.
 
-**Meeting transcript (2026-10-15):** menu bar → **Transcribe a Meeting…** opens a consent step. Confirm that everyone is informed, optionally copying a notice for the meeting chat. Then Saywing transcribes **Me** (your microphone) and **Others** (every other app's sound, through a private Core Audio tap that leaves Saywing's own voice out) live with Apple's on-device speech recognition. It needs macOS 26 and an installed language and never downloads one. Echo from your speakers is removed from your side, word by word. No audio is saved; the text stays in memory until you **Copy**, **Save…** or **Discard** it. A ring on the menu bar glyph shows while it runs. It stops after 2 hours, after 10 silent minutes, on sleep or on **Stop**; reading, Escape and dictation leave it running. macOS asks for system audio recording the first time. See the [decision](docs/decisions/0006-local-meeting-transcript.md) and [verification](docs/meeting-transcript-verification.md).
+**Dictate**
 
-**Shared capsule update (2026-10-14):** the reading surface is 136 × 28 pt inside its existing 136 × 44 pt interaction area; dictation remains 120 × 28 pt with separate discard and finish targets. At rest it shows only the waveform and Stop; hovering crossfades the waveform to Pause/Resume and **··· / +N**, without changing size or moving Stop. Controls remain visible while their popover is open. Menu bar **Playback Controls…** and VoiceOver custom actions provide access without hovering. Side-docked glyphs stay upright and their popover opens toward the desktop. This replaces the rejected wider, permanently visible options design. See [verification](docs/integrated-capsule-verification.md).
+- Hold **Fn** to dictate and release to insert. Double-tap Fn or press **Fn + Space** for hands-free recording; **⌥⇧Space** is a toggle for keyboards without Fn. **Escape** discards.
+- Speech is recognized locally with **Whisper large-v3-turbo**, which ships with the app. On Apple Silicon you can install **Qwen3-ASR 0.6B** or **Whisper Large v3** later, but only after you explicitly confirm a download. An optional local vocabulary helps with names and terms.
+- Text is inserted with a short clipboard paste. Saywing restores your previous clipboard after 1 s (2 s optional), but only if nothing else has been copied in the meantime. Saywing never pastes into a target that changed during recognition.
 
-**Everyday controls (development):** hover over the capsule and click **··· / +N** for Pause/Resume, speed, Next and the queue. Queue rows can be moved up/down, removed, or played immediately. Text beginnings appear only in this explicitly opened view and remain session-local. Escape/Stop still clears everything, including paused or prepared audio. **Set Up & Test…** explains permissions, checks macOS preflight and starts a real screen-region test; an error capsule's **?** button opens this help directly. See [current verification and remaining gates](docs/everyday-reading-verification.md).
+**Meeting transcript (macOS 26 or later)**
 
-Default shortcut: **⌥R (Option + R)** starts region selection. Press it again during speech or voice preparation to select another region and queue its text without interrupting playback. While a selection/capture/OCR is already in progress, repeats do not duplicate or cancel it. **Escape**, the capsule's stop button, or **Stop Reading** in the menu stops everything. To change the shortcut, open **Settings… → Shortcuts**, click the shortcut field and press the new combination; **Escape** cancels recording. The choice takes effect immediately and is saved locally across restarts. Global shortcuts pause while the field records. **Restore Default** returns to ⌥R. Changes are blocked during an active operation.
+- An explicitly started, consented live transcript of **Me** (microphone) and **Others** (other apps' audio, captured through a private Core Audio tap that excludes Saywing). It uses Apple's on-device speech recognition with already-installed languages only. No audio is saved, and the transcript leaves memory only through Copy or Save. See [ADR 0006](docs/decisions/0006-local-meeting-transcript.md).
 
-Supported keys are A–Z, 0–9, and Space, combined with Command, Option, or Control; Shift is optional. Failed registration leaves the previous shortcut active and does not save the rejected choice. System-wide registrations are checked through Carbon, but ordinary app commands and services cannot all be detected: Command-only choices require confirmation, and the previous default ⌘⇧Y overlapped macOS’s “Make Sticky” service. All saved choices, including ⌘⇧Y, are preserved on restart. Keys are resolved from the current keyboard layout when registered; restart the app or record the shortcut again after changing layouts.
+**General**
 
-**Reading speed:** choose 0.75×, 1×, 1.25×, 1.5×, 1.75× or 2× in **Settings → Read Aloud → Speed** or the menu bar's **Speed** submenu. Changes apply during playback and are remembered locally. A native time/pitch unit changes rate with pitch fixed at zero; Supertonic still generates its normal-speed voice. Faster starting rates increase the pre-roll: Apple Silicon preserves about one second of playback headroom; Intel builds use up to three seconds at 2× to cover sentence synthesis, so fast playback can start later. The fixed PCM limit is eight seconds of source audio (about 1.35 MiB), retaining up to four seconds of look-ahead at 2×.
+- Guided setup that explains each macOS permission before requesting it, plus a real reading test.
+- English and German interface, following the macOS language.
+- VoiceOver labels and actions; respects Reduce Motion, Reduce Transparency and Increase Contrast.
+- Signed in-app updates via [Sparkle](https://sparkle-project.org). Automatic update checks can be disabled.
 
-**Queue another text:** press **the same reading shortcut again** while preparing or speaking, or use **Add Screen Region to Queue…** in the menu. Drag another region; the existing speech continues while OCR prepares it. Up to five waiting texts (8,000 characters each) are read in order. On hover, the capsule's **+N** control shows the number waiting; **Next Text** in the menu skips the current text. If speech ends while a new region is being selected/recognized, the app waits. Escape or an explicit Stop control stops everything and clears all pending text. There is no history, automatic clipboard write, or queue persistence across app restarts. The previous **⌘⌥⇧Y** shortcut remains an optional additional alias, configurable under **Settings → Shortcuts → Advanced**; it is no longer needed for this workflow. See [speed and queue verification](docs/speed-and-queue-verification.md).
+## Privacy
 
-**Selecting text (2026-10-14):** drag over text as with ⌘⇧4. Hold **Space** to move the selection, **Shift** to lock the edge that did not move first, **Option** to grow it from the starting point. A **click** without dragging reads only the paragraph under the pointer; Saywing recognizes a bounded area around it and discards the rest immediately. A short hint explains this for the first five selections.
+Saywing handles potentially sensitive screen content and speech, so privacy is treated as a testable requirement. The details are in [docs/privacy.md](docs/privacy.md). In short:
 
-**Language:** Saywing follows the macOS language. Source strings are English with a complete German catalog; `scripts/check-localization.py` verifies coverage.
+- **Local processing.** OCR, speech synthesis, dictation and meeting transcription run on your Mac. There is no cloud OCR, TTS or ASR, no account, and no telemetry.
+- **No history.** Screenshots, recognized text, dictated text and audio stay in memory for the active operation only. Nothing is written to disk unless you explicitly save a meeting transcript.
+- **Clipboard.** Reading never writes to the clipboard. Dictation uses it briefly to paste, as described above.
+- **Network.** The app makes exactly two kinds of network requests:
+  1. **Sparkle update checks.** These are transparent and can be disabled, and an update is installed only after you confirm it. Updates are signed and no content is uploaded.
+  2. **Model downloads you confirm.** Optional dictation models are fetched from pinned Hugging Face revisions, and every file is SHA-256-verified against a manifest bundled with the app before use.
 
-Implementation checks and remaining limitations are recorded in [Shortcut verification](docs/shortcut-verification.md) and the [Apple design refinements](docs/apple-design-refinements-verification.md).
+  There is no other runtime network access. The speech and dictation workers run under a macOS sandbox profile that denies network access and file writes.
+- **Permissions.** Each permission is requested only when you start the feature that needs it:
+  - Screen Recording (reading)
+  - Input Monitoring (Escape while another app is active)
+  - Microphone and Accessibility (dictation and paste)
+  - System audio recording (meeting transcript)
 
-**Switching from OpenScreenReader:** quit the old app before launching Saywing. Both versions use the same exclusive global shortcut; running both can show **Error** at startup. After quitting the other copy, relaunch Saywing or record the same combination again under **Settings → Shortcuts**. Existing preferences and the local speech runtime are retained. See [integration and test results](docs/saywing-integration-verification.md).
+## Requirements
 
-**Prepared transitions:** the model stays loaded for the reading session. Once the current text's synthesis is complete, the same worker prepares up to eight source seconds of the next queued text while current audio is still playing. Only one successor is prepared; it is never played early or saved to disk. A prepared handoff includes a short 120 ms separation. Late additions may still need synthesis time. Escape/Stop discards all prepared audio and releases the worker. See [warm queue verification](docs/warm-queue-verification.md).
+- macOS 14 Sonoma or later. The meeting transcript requires macOS 26.
+- Apple Silicon is recommended. Intel builds use whisper.cpp for dictation and offer only the bundled Whisper Turbo model.
+- For development:
+  - Xcode 26 with the macOS 26 SDK. CI runs on GitHub's `macos-26` image. The Swift package uses swift-tools-version 6.2.
+  - Python 3.11 or later to run the Python tests and scripts. The bundled runtimes themselves use CPython 3.12.
+  - Ruby, which ships with macOS, for some development scripts.
 
-With the development runtime installed, selecting text starts speech automatically. The menu shows **Preparing voice**, then **Speaking**; Escape or **Stop Reading** cancels. Settings shows Supertonic 3, its machine-generated M1 voice, model license, and local runtime availability. Selections are limited to 8,000 characters; no Qwen, cloud, or system voice is substituted on failure. See [runtime installation and verification](docs/research/supertonic-integration.md). Screenshots are released after OCR; text and audio are retained only for the active reading, without history or automatic clipboard writes.
+## Building from source
 
-A small floating reading panel appears after capture on the selected display. Choose **Bottom, Left or Right** in Settings → **Control position**, or drag its waveform to dock at the nearest edge. Side positions use an upright vertical layout. The edge and relative offset are remembered locally; **Preview & move control** lets you position it without OCR or speech. Dragging never activates the separate stop/close button or takes keyboard focus. Its stop button cancels the whole operation. Completed/stopped feedback disappears automatically; empty-text and error notices remain until dismissed or a new selection starts. The panel contains status only, never the selected text. See [panel behavior and verification](docs/reading-panel-verification.md).
+### Build and test the app
 
-The reading and dictation controls share a compact deep navy capsule, rounded pale petrol bars, a subtle light edge and a circular primary stop control. Nine bars follow the actual playback or microphone level, with the same time-based attack/decay and a quiet brightness cycle while preparing or recognizing. Both appear with a short fade and critically damped scale transition; no text or timer appears in the dictation bar. After screen capture, the selection frame still travels to the reading control to explain the spatial connection. Hover reveals reading pause/options without resizing. VoiceOver describes every state; Reduce Motion, Reduce Transparency and Increase Contrast follow macOS. The original local interface sounds remain configurable. See the [design review and native verification](docs/brand-identity/APPLE_DESIGN_REVIEW.md).
+```sh
+git clone https://github.com/ChrBoebel/OpenScreenReader.git
+cd OpenScreenReader
 
-- Press a global keyboard shortcut.
-- Drag a rectangle over any visible text.
-- Recognize it locally with Apple Vision.
-- Start natural speech automatically with a local TTS model.
-- Repeat the same shortcut to queue more text; stop immediately with `Esc` or the stop button.
+# Core package tests
+swift test
 
-The official macOS release is intended to include its default local speech model. After installation, OCR and speech synthesis should work without an internet connection or a separate model setup step. Screenshots, recognized text, and generated audio should remain in memory by default.
+# App unit and UI tests (keep DerivedData outside ~/Documents; see CONTRIBUTING.md)
+xcodebuild test -project OpenScreenReader.xcodeproj -scheme OpenScreenReader \
+  -destination 'platform=macOS' -derivedDataPath /tmp/saywing-dd
 
-## Why this project?
+# Release build without signing
+xcodebuild build -project OpenScreenReader.xcodeproj -scheme OpenScreenReader \
+  -configuration Release -destination 'platform=macOS' \
+  -derivedDataPath /tmp/saywing-dd CODE_SIGNING_ALLOWED=NO
+```
 
-Existing tools generally offer either fast local screen OCR with macOS system voices or natural cloud speech. Saywing explores the missing combination:
+This produces a working `Saywing.app` with the menu bar, setup, region selection and OCR. **Model weights and the Python runtimes are not part of the Git repository.** Without them, the app reports that the speech or dictation runtime is unavailable instead of falling back to another voice.
 
-- TextSniper-like one-gesture UX;
-- modern on-device neural speech;
-- transparent, auditable privacy through open source.
+### Speech and dictation runtimes
 
-## Planned technology
+The runtimes are assembled from pinned, hash-verified inputs:
 
-- SwiftUI and AppKit
-- ScreenCaptureKit/CoreGraphics
-- Apple Vision (`VNRecognizeTextRequest`)
-- Supertonic 3 local ONNX worker as the selected default
-- Native 44.1 kHz playback; M1, normal speed, eight denoising steps
-- Qwen3-TTS Swift/MLX retained as a comparison experiment, not a fallback
+- The **Supertonic 3 model** and its inference helper are pinned with per-file hashes and licenses in [`docs/research/supertonic-comparison-manifest.json`](docs/research/supertonic-comparison-manifest.json).
+- The **dictation models** are pinned in [`Runtime/Dictation/`](Runtime/Dictation) (`*-manifest.json`).
+- **Python environments** (CPython 3.12.15 from python-build-standalone, plus exact wheels) are locked in [`Runtime/Portable/`](Runtime/Portable/README.md).
 
-The bundled model and runtime will be pinned, hashed, license-audited, and injected into release builds without committing model weights to Git.
+The available developer scripts are described in [docs/development-packaging.md](docs/development-packaging.md) and [Runtime/Portable/README.md](Runtime/Portable/README.md):
 
-The implementation architecture is provisional and must be validated with focused technical spikes before the full MVP is built.
+- `scripts/portable_runtime.py` builds the locked Python environments.
+- `scripts/assemble-portable-resources.py` places the runtimes and verified models into an app bundle.
+- `scripts/install-supertonic-runtime.rb` installs a local development speech runtime under `~/Library/Application Support/OpenScreenReader`.
 
-Supertonic weights/stock voices use BigScience Open RAIL-M, not the project's Apache-2.0 license. Upstream has announced the end of development/support. License obligations, maintainability, and packaging remain explicit release gates; see [source and license record](docs/research/supertonic-listening-comparison.md).
-
-**Release/update preparation (2026-10-14):** Sparkle 2.10.0, disableable update checks, native update UI, busy-operation relaunch protection, Developer ID packaging/notarization scripts and a main/PR verification workflow are prepared. A previous private test was already accepted by Apple. Railway download routes and German/English website pages are prepared, and the signed dictation runtime passed real checks after a targeted packaging fix. Apple accepted the corrected DMG; tickets are stapled and Gatekeeper accepts the app and DMG. The private Railway bucket and main-only GitHub release environment are configured. All seven CI secrets and the fully hash-verified private runtime archive are configured. Merge, a real GitHub package run, public website deployment, license/fresh-Mac gates and a real two-version update test remain open; no update service is live. See [release setup](docs/release-and-updates.md).
+**Not yet reproducible from public sources in one step:** obtaining and staging the Supertonic and Whisper model files, and the full assembly of the dictation runtime, still require manual preparation. A reproducible runtime build is in progress; check [docs/development-packaging.md](docs/development-packaging.md) for its current state. None of these scripts runs inside the app, and none is invoked automatically.
 
 ## Documentation
 
 - [Product vision](docs/product-vision.md)
 - [UX requirements](docs/ux-requirements.md)
-- [Proposed architecture](docs/architecture.md)
-- [Privacy principles](docs/privacy.md)
-- [Research summary](docs/research/market-and-tts-findings.md)
+- [Architecture](docs/architecture.md)
+- [Privacy requirements](docs/privacy.md)
+- [Research summary: market and local TTS](docs/research/market-and-tts-findings.md)
 - [Roadmap](docs/roadmap.md)
-- [Architecture decisions](docs/decisions/)
-- [Capture implementation and verification](docs/capture-verification.md)
-- [Local OCR implementation and verification](docs/ocr-verification.md)
-- [Approved brand system](docs/brand-identity/BRAND_SYSTEM.md)
-- [Contributing](CONTRIBUTING.md)
+- [Architecture decision records](docs/decisions/README.md)
+- [Development packaging](docs/development-packaging.md) and [release and updates](docs/release-and-updates.md)
+- [Model and runtime provenance](docs/research/)
+- [Brand system](docs/brand-identity/BRAND_SYSTEM.md)
+- [Contributing](CONTRIBUTING.md), [Security policy](SECURITY.md), [Code of conduct](CODE_OF_CONDUCT.md)
 
-## Privacy principles
-
-The official build should have:
-
-- no account requirement;
-- no cloud OCR or cloud TTS;
-- no telemetry by default;
-- no automatic clipboard writes during reading; explicitly started dictation temporarily pastes and restores the clipboard while preserving newer copies;
-- no persistent screenshot, OCR-text, or audio history;
-- clear disclosure of every required macOS permission and network request.
-
-The MVP runtime should make no network request. Downloading the signed application from the project website is outside the application runtime.
-
-See [docs/privacy.md](docs/privacy.md) for the enforceable requirements.
+Some design documents are still written in German; English translations are planned.
 
 ## License
 
-The project code and documentation are licensed under the [Apache License 2.0](LICENSE). Model weights, voices, runtimes, and third-party assets retain their own licenses and must be documented separately before distribution.
+- **Source code:** Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+- **Bundled models have their own licenses:**
+  - **Supertonic 3** (speech model and voices) is licensed under the **BigScience OpenRAIL-M** license, which includes use restrictions. See [docs/licenses/SUPERTONIC-MODEL-TERMS.md](docs/licenses/SUPERTONIC-MODEL-TERMS.md).
+  - **Whisper** (OpenAI Whisper large-v3-turbo and large-v3) is licensed under MIT.
+  - **Qwen3-ASR** is licensed under Apache-2.0.
+- Third-party code, runtimes and libraries keep their own licenses. Their notices are collected in [docs/licenses/](docs/licenses).

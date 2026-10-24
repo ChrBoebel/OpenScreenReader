@@ -18,23 +18,23 @@ Supertonic's official interface uses denoising steps and speed, not Qwen's sampl
 
 ## Actual execution and verification
 
-The planned experiment completed locally on this Mac. Model assets and the unchanged helper plus its license are staged only in `/private/tmp/osr-supertonic.KFUDLX`; all ten allowlisted model files passed their size and upstream hash checks before inference. `receipt.json` there records SHA-256 for every downloaded file, including small files. The helper's measured SHA-256 is now also pinned in the committed manifest. Model weights, Python packages, upstream code, and generated audio are not committed or installed into the application.
+The planned experiment completed locally on this Mac. Model assets and the unchanged helper plus its license are staged only in a temporary working directory outside Git (`$WORK` below); all ten allowlisted model files passed their size and upstream hash checks before inference. `receipt.json` there records SHA-256 for every downloaded file, including small files. The helper's measured SHA-256 is now also pinned in the committed manifest. Model weights, Python packages, upstream code, and generated audio are not committed or installed into the application.
 
 The isolated Python 3.12.14 environment resolved: ONNX Runtime 1.23.2, NumPy 2.2.6, coloredlogs 15.0.1, flatbuffers 25.12.19, humanfriendly 10.0, mpmath 1.3.0, packaging 26.3, protobuf 7.36.1, sympy 1.14.0. Upstream package notices remain in that environment. This is a development dependency record, not a complete redistribution/license-chain audit.
 
-Run the fixed-fixture generator only with the model prepared separately and an existing empty output directory. The actual command was:
+Run the fixed-fixture generator only with the model prepared separately and an existing empty output directory. The actual command was (with `WORK` set to the absolute path of the temporary working directory):
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 /usr/bin/sandbox-exec \
-  -p '(version 1)(allow default)(deny network*)(deny file-write*)(allow file-write* (literal "/dev/null") (subpath "/private/tmp/osr-supertonic.KFUDLX/samples"))' \
-  /private/tmp/osr-supertonic.KFUDLX/venv/bin/python \
+  -p "(version 1)(allow default)(deny network*)(deny file-write*)(allow file-write* (literal \"/dev/null\") (subpath \"$WORK/samples\"))" \
+  "$WORK/venv/bin/python" \
   scripts/compare-supertonic.py \
-  /private/tmp/osr-supertonic.KFUDLX \
-  /private/tmp/osr-supertonic.KFUDLX/samples
+  "$WORK" \
+  "$WORK/samples"
 ```
 
 This script has no downloader or arbitrary-text input. It validates assets before importing the pinned helper, sets a 180-second deadline, bounds audio to 120 seconds, rejects non-finite/silent PCM, and exclusively creates WAV files without overwriting existing ones. It is a synchronous offline experiment, not an implementation of app cancellation/streaming. `Ctrl-C` terminates the test; already exported public-fixture files are retained for listening. No app provider was added.
 
 Actual CPU model load: 0.307 seconds (one run). F1: 11.059 seconds of audio, synthesized in 2.677 seconds. M1: 11.071 seconds of audio, synthesized in 2.477 seconds. Both are 44.1 kHz mono PCM16, with no voice-specific gain or resampling, explicit German, seed 42, eight steps, speed 1.0. Both WAV files passed `afinfo` and independent SHA-256 comparison against the generated manifest. Qwen uses a different model, sample rate, segmentation, and inference runtime, so this is a listening comparison, not a controlled temperature-only comparison across providers.
 
-Export safety tests were written first, failed before implementation, then passed (three tests: malformed/non-finite/silent PCM rejection, clamping without gain, exclusive no-overwrite creation). Actual model synthesis passed separately under the deny-network profile. No Swift source/target changed, so no new app build or Computer Use regression is claimed. All 44 installed Qwen runtime receipt hashes remain unchanged. Audible accent, unwanted sounds, and word fidelity still require listening; timings and valid PCM do not establish quality.
+Export safety tests were written first, failed before implementation, then passed (three tests: malformed/non-finite/silent PCM rejection, clamping without gain, exclusive no-overwrite creation). Actual model synthesis passed separately under the deny-network profile. No Swift source/target changed, so no new app build or UI regression is claimed. All 44 installed Qwen runtime receipt hashes remain unchanged. Audible accent, unwanted sounds, and word fidelity still require listening; timings and valid PCM do not establish quality.

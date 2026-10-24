@@ -49,6 +49,8 @@
 		BB2000000000000000000002 /* ShortcutRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB1000000000000000000002 /* ShortcutRecorder.swift */; };
 		BB2000000000000000000003 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = BB1000000000000000000003 /* Localizable.xcstrings */; };
 		BB2000000000000000000004 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = BB1000000000000000000004 /* InfoPlist.xcstrings */; };
+		EE2000000000000000000001 /* SUPERTONIC-MODEL-TERMS.md in Resources */ = {isa = PBXBuildFile; fileRef = EE1000000000000000000001 /* SUPERTONIC-MODEL-TERMS.md */; };
+		EE2000000000000000000002 /* Supertonic-3-Open-RAIL-M.txt in Resources */ = {isa = PBXBuildFile; fileRef = EE1000000000000000000002 /* Supertonic-3-Open-RAIL-M.txt */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -113,6 +115,8 @@
 		BB1000000000000000000002 /* ShortcutRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutRecorder.swift; sourceTree = "<group>"; };
 		BB1000000000000000000003 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		BB1000000000000000000004 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
+		EE1000000000000000000001 /* SUPERTONIC-MODEL-TERMS.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; name = "SUPERTONIC-MODEL-TERMS.md"; path = "docs/licenses/SUPERTONIC-MODEL-TERMS.md"; sourceTree = SOURCE_ROOT; };
+		EE1000000000000000000002 /* Supertonic-3-Open-RAIL-M.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = "Supertonic-3-Open-RAIL-M.txt"; path = "docs/licenses/Supertonic-3-Open-RAIL-M.txt"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -148,8 +152,18 @@
 				A00000000000000000000004 /* OpenScreenReaderApp */,
 				A00000000000000000000005 /* OpenScreenReaderAppTests */,
 				A00000000000000000000009 /* OpenScreenReaderUITests */,
+				EE3000000000000000000001 /* Model Terms */,
 				A00000000000000000000003 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		EE3000000000000000000001 /* Model Terms */ = {
+			isa = PBXGroup;
+			children = (
+				EE1000000000000000000001 /* SUPERTONIC-MODEL-TERMS.md */,
+				EE1000000000000000000002 /* Supertonic-3-Open-RAIL-M.txt */,
+			);
+			name = "Model Terms";
 			sourceTree = "<group>";
 		};
 		A00000000000000000000003 /* Products */ = {
@@ -343,6 +357,8 @@
 				BB2000000000000000000004 /* InfoPlist.xcstrings in Resources */,
 				BB2000000000000000000003 /* Localizable.xcstrings in Resources */,
 				C00000000000000000000001 /* Assets.xcassets in Resources */,
+				EE2000000000000000000001 /* SUPERTONIC-MODEL-TERMS.md in Resources */,
+				EE2000000000000000000002 /* Supertonic-3-Open-RAIL-M.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -2,6 +2,7 @@ import AVFoundation
 import AppKit
 import ApplicationServices
 import Carbon.HIToolbox
+import os
 
 func axValue(_ element: AXUIElement, _ key: String) -> CFTypeRef? {
   var value: CFTypeRef?
@@ -191,9 +192,18 @@ final class InsertionTarget {
 protocol DictationRecording: AnyObject {
   /// The latest input level for the capsule bars, never the audio itself.
   var level: Double { get }
+  /// Called on the main actor when the recording ended by itself, e.g. because the
+  /// input device changed. The audio up to then must not be pasted as if complete.
+  var onInterruption: (() -> Void)? { get set }
   func start() throws
-  func finish() -> AudioPacket
+  /// Throws when the recording was interrupted; a truncated recording is never returned.
+  func finish() throws -> AudioPacket
   func cancel()
+}
+extension DictationError {
+  static var inputDeviceChanged: DictationError {
+    DictationError(String(localized: "The input device changed while recording. Nothing was pasted; please record again."))
+  }
 }
 @MainActor
 final class MicrophoneRecorder: DictationRecording {
@@ -201,6 +211,11 @@ final class MicrophoneRecorder: DictationRecording {
   let audio = AudioAccumulator()
   private var installed = false
   var level: Double { audio.rms }
+  var onInterruption: (() -> Void)?
+  /// Set on the notifying thread, before the main actor hears of it, so a finish that
+  /// races the notice still sees the interruption.
+  private let interrupted = OSAllocatedUnfairLock(initialState: false)
+  private var configurationObserver: NSObjectProtocol?
   func start() throws {
     let node = engine.inputNode
     let format = node.outputFormat(forBus: 0)
@@ -217,6 +232,24 @@ final class MicrophoneRecorder: DictationRecording {
       cancel()
       throw error
     }
+    observeConfigurationChanges(of: engine)
+  }
+  /// AVAudioEngine stops itself when the input hardware changes (another microphone,
+  /// a headset, a format change). The tap then delivers nothing more.
+  func observeConfigurationChanges(of object: AnyObject) {
+    interrupted.withLock { $0 = false }
+    let flag = interrupted
+    configurationObserver = NotificationCenter.default.addObserver(
+      forName: .AVAudioEngineConfigurationChange, object: object, queue: nil
+    ) { [weak self] _ in
+      flag.withLock { $0 = true }
+      DispatchQueue.main.async { MainActor.assumeIsolated { self?.onInterruption?() } }
+    }
+  }
+  var wasInterrupted: Bool { interrupted.withLock { $0 } }
+  private func stopObserving() {
+    if let configurationObserver { NotificationCenter.default.removeObserver(configurationObserver) }
+    configurationObserver = nil
   }
   func makeInputTap() -> AVAudioNodeTapBlock {
     Self.makeInputTap(audio: audio)
@@ -238,15 +271,21 @@ final class MicrophoneRecorder: DictationRecording {
       audio.append(mono)
     }
   }
-  func finish() -> AudioPacket {
+  func finish() throws -> AudioPacket {
+    stopObserving()
     if installed {
       engine.inputNode.removeTap(onBus: 0)
       installed = false
     }
     engine.stop()
+    guard !wasInterrupted else {
+      audio.cancel()
+      throw DictationError.inputDeviceChanged
+    }
     return audio.finish()
   }
   func cancel() {
+    stopObserving()
     if installed {
       engine.inputNode.removeTap(onBus: 0)
       installed = false

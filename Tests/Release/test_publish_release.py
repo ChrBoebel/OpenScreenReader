@@ -141,3 +141,29 @@ class PublishTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'downgrade'):
                 publisher.publish(root, store, 'bucket', lambda: 'commit', lambda _: None)
             self.assertEqual(store.writes, writes)
+
+    def test_release_repository_is_pinned_but_overridable(self):
+        import os
+        from unittest.mock import patch
+        class Response(io.BytesIO):
+            def __enter__(self): return self
+            def __exit__(self, *_): return False
+        requested = []
+        def urlopen(request, timeout):
+            requested.append(request.full_url)
+            return Response(json.dumps({'object': {'sha': 'abc'}}).encode())
+        cases = [({'GITHUB_REPOSITORY': publisher.DEFAULT_REPOSITORY}, True),
+                 ({'GITHUB_REPOSITORY': 'someone/fork'}, False),
+                 ({'GITHUB_REPOSITORY': 'someone/fork', 'SAYWING_RELEASE_REPOSITORY': 'someone/fork'}, True)]
+        for env, allowed in cases:
+            with self.subTest(env=env), patch.dict(os.environ, {**env, 'GH_TOKEN': 'test-token'}), \
+                 patch.object(publisher.urllib.request, 'urlopen', side_effect=urlopen):
+                if 'SAYWING_RELEASE_REPOSITORY' not in env:
+                    os.environ.pop('SAYWING_RELEASE_REPOSITORY', None)
+                if allowed:
+                    self.assertEqual(publisher.current_main(), 'abc')
+                    self.assertEqual(requested[-1], f"https://api.github.com/repos/{env['GITHUB_REPOSITORY']}/git/ref/heads/main")
+                else:
+                    count = len(requested)
+                    with self.assertRaisesRegex(ValueError, 'repository'): publisher.current_main()
+                    self.assertEqual(len(requested), count)

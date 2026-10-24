@@ -77,6 +77,10 @@ final class DictationController: NSObject, ObservableObject {
   var timeout: DispatchWorkItem?, panelHide: DispatchWorkItem?,
     restore: DispatchWorkItem?
   var lease: ClipboardLease?
+  /// A paste that was sent but not read back when it was discarded. Its clipboard
+  /// is restored by the scheduled restore, after the full wait, never earlier: a
+  /// slow target app may still be reading the dictated text.
+  private(set) var deferredLease: ClipboardLease?
   var shortcutAvailable = true
   var localEscape: Any?
   var smoke = false, smokeIndex = 0, smokeFailures = [String]()
@@ -673,6 +677,11 @@ final class DictationController: NSObject, ObservableObject {
       guard request != nil else { return }
       let recorder = makeRecorder()
       record = recorder
+      let recording = request
+      recorder.onInterruption = { [weak self] in
+        guard let self, self.request == recording, self.phase == "recording" else { return }
+        self.failRecording(DictationError.inputDeviceChanged)
+      }
       try recorder.start()
       phase = "recording"
       recordingStart = Date()
@@ -715,11 +724,22 @@ final class DictationController: NSObject, ObservableObject {
     fnShortcuts.resetGesture()
     recordingTimer?.invalidate()
     recordingTimer = nil
-    let audio = record.finish()
+    let audio: AudioPacket
+    do { audio = try record.finish() } catch {
+      self.record = nil
+      failRecording(error)
+      return
+    }
     self.record = nil
     // After the microphone is closed, so the cue is never part of the recording.
     interfaceSounds?.play(.captured)
     send(audio)
+  }
+  /// The recording cannot be trusted any more: discard it and say why, visibly.
+  private func failRecording(_ error: Error) {
+    cancel(restart: false)
+    setStatus(String(localized: "Recording stopped"), error.localizedDescription, floating: true)
+    hidePanelLater()
   }
   func send(_ audio: AudioPacket) {
     guard let id = request else { return }
@@ -806,6 +826,10 @@ final class DictationController: NSObject, ObservableObject {
       return
     }
     do {
+      // A new paste takes its snapshot only after an earlier discarded paste gave the
+      // clipboard back; that paste had at least a whole recording's time to land.
+      _ = deferredLease?.restore()
+      deferredLease = nil
       let transaction = try ClipboardLease.begin(text, on: .general)
       lease = transaction
       // Recheck after taking the clipboard snapshot, before the single paste action.
@@ -825,7 +849,14 @@ final class DictationController: NSObject, ObservableObject {
       confirmation = early
       schedulePasteCallback(0.15, early)
       let work = DispatchWorkItem { [weak self] in
-        guard let self, self.gate.accepts(id) else { return }
+        guard let self else { _ = transaction.restore(); return }
+        if self.deferredLease === transaction {
+          // Discarded after the paste was sent: only give the clipboard back.
+          _ = transaction.restore()
+          self.deferredLease = nil
+          return
+        }
+        guard self.gate.accepts(id) else { return }
         let announced = self.insertionConfirmed
         let confirmed = announced || target.confirms(text)
         _ = transaction.restore()
@@ -872,6 +903,10 @@ final class DictationController: NSObject, ObservableObject {
   func cancel(restart: Bool = true) {
     fnShortcuts.resetGesture()
     let wasProcessing = phase == "processing"
+    // Once Cmd+V is sent, the target may read the clipboard at any moment. Unless the
+    // text was already read back in the field, restoring now could paste the previous
+    // clipboard (possibly something private) instead; the scheduled restore keeps its wait.
+    let pasteInFlight = phase == "pasting" && lease != nil && restore != nil && !insertionConfirmed
     // Discarding is silent, like stopping a reading: a cue still sounding ends now.
     if isActive { interfaceSounds?.stop() }
     activationID = nil
@@ -889,9 +924,13 @@ final class DictationController: NSObject, ObservableObject {
     recordingTimer = nil
     record?.cancel()
     record = nil
-    restore?.cancel()
+    if pasteInFlight {
+      deferredLease = lease
+    } else {
+      restore?.cancel()
+      _ = lease?.restore()
+    }
     restore = nil
-    _ = lease?.restore()
     lease = nil
     disarmEscape()
     latestText = ""
