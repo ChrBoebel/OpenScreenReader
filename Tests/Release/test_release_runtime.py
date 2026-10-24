@@ -74,6 +74,19 @@ class InputPinTests(unittest.TestCase):
             with patch.object(assembler, 'RELEASE_INPUTS', changed), self.assertRaisesRegex(ValueError, 'helper'):
                 assembler.speech_pins()
 
+    def test_corresponding_sources_follow_their_architectures(self):
+        records = [{'file': 'both.tar.gz', 'url': 'https://example.invalid/both', 'bytes': 1, 'sha256': '1' * 64},
+                   {'file': 'arm.tar.gz', 'url': 'https://example.invalid/arm', 'bytes': 1, 'sha256': '2' * 64, 'architectures': ['arm64']}]
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / 'sources.json'
+            path.write_text(json.dumps(records))
+            with patch.object(assembler, 'CORRESPONDING_SOURCES', path):
+                self.assertEqual(sorted(assembler.corresponding_source_pins('arm64')), ['source/arm.tar.gz', 'source/both.tar.gz'])
+                self.assertEqual(sorted(assembler.corresponding_source_pins('x86_64')), ['source/both.tar.gz'])
+                path.write_text(json.dumps([{**records[0], 'file': '../escape'}]))
+                with self.assertRaises(ValueError):
+                    assembler.corresponding_source_pins('arm64')
+
     def test_revisions_must_be_full_commits(self):
         with self.assertRaises(ValueError):
             assembler.hf_url('Supertone/supertonic-3', 'main', 'LICENSE')

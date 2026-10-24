@@ -132,9 +132,12 @@ def demo_pins():
             for locale, item in demo['archives'].items()}
 
 
-def corresponding_source_pins():
+def corresponding_source_pins(architecture):
     pins = {}
     for record in read_json(CORRESPONDING_SOURCES):
+        # Same selection as scripts/bundle_notices.py: records without the field apply to both.
+        if architecture not in record.get('architectures', builder.ARCHITECTURES):
+            continue
         if Path(record['file']).name != record['file']:
             raise ValueError('Invalid corresponding-source filename')
         pins['source/' + record['file']] = pin(record['file'], record['url'], record['bytes'], record['sha256'])
@@ -144,7 +147,7 @@ def corresponding_source_pins():
 def input_pins(architecture):
     if architecture not in builder.ARCHITECTURES:
         raise ValueError('Unsupported architecture')
-    return {**speech_pins(), **whisper_pins(architecture), **demo_pins(), **corresponding_source_pins()}
+    return {**speech_pins(), **whisper_pins(architecture), **demo_pins(), **corresponding_source_pins(architecture)}
 
 
 def fetch(pins, cache):
