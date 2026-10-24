@@ -67,9 +67,13 @@ struct MeetingTranscript: Equatable {
   private var names: [Int: String] = [:]
   private var mergedInto: [Int: Int] = [:]
   private static let longestVoiceSpan: TimeInterval = 30
+  /// Visible turns in time order, derived once per change. SwiftUI reads this on
+  /// every render (five times a second while live); the echo filter is quadratic.
+  private(set) var entries: [MeetingTranscriptEntry] = []
 
   /// Volatile results replace each other; a final result replaces them all.
   mutating func apply(_ recognition: MeetingRecognition) {
+    defer { entries = derivedEntries() }
     let text = recognition.text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard recognition.isFinal else {
       volatile[recognition.speaker] = text.isEmpty ? nil : recognition
@@ -86,6 +90,7 @@ struct MeetingTranscript: Equatable {
 
   /// Marks a stretch where the microphone only heard the others through the speakers.
   mutating func addEcho(_ span: ClosedRange<TimeInterval>) {
+    defer { entries = derivedEntries() }
     var merged = span
     var kept: [ClosedRange<TimeInterval>] = []
     for existing in echoSpans {
@@ -102,6 +107,7 @@ struct MeetingTranscript: Equatable {
   /// Adds a stretch of one voice from the diarizer; it may arrive after the text.
   mutating func addVoice(_ span: MeetingVoiceSpan) {
     guard span.end > span.start else { return }
+    defer { entries = derivedEntries() }
     var start = span.start
     while start < span.end {
       let end = min(span.end, start + Self.longestVoiceSpan)
@@ -114,6 +120,7 @@ struct MeetingTranscript: Equatable {
 
   /// Names a voice in every turn and the export; an empty name brings the number back.
   mutating func rename(voice: Int, to name: String) {
+    defer { entries = derivedEntries() }
     let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
     names[resolved(voice)] = name.isEmpty ? nil : name
   }
@@ -123,6 +130,7 @@ struct MeetingTranscript: Equatable {
   mutating func merge(voice: Int, into target: Int) {
     let (from, to) = (resolved(voice), resolved(target))
     guard from != to else { return }
+    defer { entries = derivedEntries() }
     mergedInto[from] = to
     names[from] = nil
   }
@@ -142,7 +150,7 @@ struct MeetingTranscript: Equatable {
   /// speakers: whole segments inside an echo, words timed inside one, and runs of
   /// three or more words the others said at the same moment. The others split by
   /// voice where the diarizer heard one.
-  var entries: [MeetingTranscriptEntry] {
+  private func derivedEntries() -> [MeetingTranscriptEntry] {
     let items = (finals + volatile.values.sorted { $0.speaker.rawValue < $1.speaker.rawValue })
       .compactMap { item in visibleText(of: item).map { (item: item, text: $0) } }
       .flatMap { item, text in
@@ -273,7 +281,7 @@ struct MeetingTranscript: Equatable {
   }
 
   /// Equal, one a prefix of the other ("gibt", "gibts"), or a few letters apart
-  /// in a longer word ("sender", "ständer").
+  /// in a longer word ("sender", "staender").
   private static func similar(_ a: String, _ b: String) -> Bool {
     if a == b { return true }
     let shorter = min(a.count, b.count)

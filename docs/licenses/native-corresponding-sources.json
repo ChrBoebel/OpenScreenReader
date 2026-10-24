@@ -1,149 +1,123 @@
 [
   {
-    "file": "libogg-1.3.5.tar.gz",
-    "url": "https://downloads.xiph.org/releases/ogg/libogg-1.3.5.tar.gz",
-    "bytes": 593071,
-    "sha256": "0eb4b4b9420a0f51db142ba3f9c64b333f826532dc0f48c6410ae51f4799b664",
-    "notice_files": 2,
-    "status": "downloaded; upstream version matched; not a reproducible-build proof"
+    "file": "gcc-13.4.0.tar.xz",
+    "url": "https://ftp.gnu.org/gnu/gcc/gcc-13.4.0/gcc-13.4.0.tar.xz",
+    "bytes": 88530720,
+    "sha256": "9c4ce6dbb040568fdc545588ac03c5cbc95a8dbf0c7aa490170843afb59ca8f5",
+    "component": "GCC 13.4.0 runtime libraries (libquadmath, libgfortran, libgcc_s)",
+    "license": "LGPL-2.1-or-later (libquadmath); GPL-3.0-or-later WITH GCC-exception-3.1 (libgfortran, libgcc_s)",
+    "dynamic_libraries": [
+      "libquadmath.0.dylib",
+      "libgfortran.5.dylib",
+      "libgcc_s.1.1.dylib"
+    ],
+    "architectures": [
+      "arm64",
+      "x86_64"
+    ],
+    "binary_origin": "Shipped unmodified inside the hash-pinned SciPy wheels (arm64 1.18.1, x86_64 1.17.1). SciPy built them with Homebrew gcc@13 13.4.0 (scipy/__config__.py: fortran gcc 13.4.0; SciPy .github/workflows/wheels.yml at v1.17.1 and v1.18.1: preinstalled gfortran-13 for the Accelerate macOS 14 wheels). The Homebrew bottle revision used on the GitHub runner is not recorded in the wheels.",
+    "status": "exact upstream GCC release archive; SHA-256 equals the Homebrew gcc@13 13.4.0 formula pin",
+    "license_texts": [
+      "Licenses/GCC-13.4.0/COPYING3",
+      "Licenses/GCC-13.4.0/COPYING.RUNTIME",
+      "Licenses/GCC-13.4.0/libquadmath/COPYING.LIB"
+    ]
   },
   {
-    "file": "libvorbis-1.3.7.tar.gz",
-    "url": "https://downloads.xiph.org/releases/vorbis/libvorbis-1.3.7.tar.gz",
-    "bytes": 1658963,
-    "sha256": "0e982409a9c3fc82ee06e08205b1355e5c6aa4c36bca58146ef399621b0ce5ab",
-    "notice_files": 2,
-    "status": "downloaded; upstream version matched; not a reproducible-build proof"
+    "file": "homebrew-gcc-13.4.0.diff",
+    "url": "https://raw.githubusercontent.com/Homebrew/homebrew-core/1cf441a09f572566b1b7c4695a4d169d1177248a/Patches/gcc/gcc-13.4.0.diff",
+    "bytes": 590233,
+    "sha256": "60b22ae7f5f78b41e12c51d8c6e99ba933a7e124454fe8cdbff7200505167949",
+    "component": "GCC 13.4.0 runtime libraries (libquadmath, libgfortran, libgcc_s)",
+    "license": "GPL-3.0-or-later (GCC source patch)",
+    "status": "Darwin/Apple Silicon patch (https://github.com/iains/gcc-13-branch) applied by the Homebrew gcc@13 13.4.0 formula from 2025-06-10 until after both SciPy builds; same SHA-256 as the formula pin",
+    "license_texts": [
+      "Licenses/GCC-13.4.0/COPYING3"
+    ]
   },
   {
-    "file": "flac-1.4.3.tar.xz",
-    "url": "https://downloads.xiph.org/releases/flac/flac-1.4.3.tar.xz",
-    "bytes": 1006728,
-    "sha256": "6c58e69cd22348f441b861092b825e591d0b822e106de6eb0ee4d05d27205b70",
-    "notice_files": 5,
-    "status": "downloaded; upstream version matched; not a reproducible-build proof"
+    "file": "homebrew-gcc@13-97eefa4d.rb",
+    "url": "https://raw.githubusercontent.com/Homebrew/homebrew-core/97eefa4d24602abaca62e3b6dd11c1d46dfb4be2/Formula/g/gcc@13.rb",
+    "bytes": 9826,
+    "sha256": "125f8b253d9582949359a6b30eb366fbd1f34599545731c972a29904391400f5",
+    "component": "GCC 13.4.0 runtime libraries (libquadmath, libgfortran, libgcc_s)",
+    "license": "BSD-2-Clause (Homebrew formula)",
+    "status": "build-control file: Homebrew gcc@13 formula at the last bottle update (2026-02-18) before the SciPy 1.17.1 wheels (2026-02-23)"
   },
   {
-    "file": "opus-1.4.tar.gz",
-    "url": "https://downloads.xiph.org/releases/opus/opus-1.4.tar.gz",
-    "bytes": 1063408,
-    "sha256": "c9b32b4253be5ae63d1ff16eea06b94b5f0f2951b7a02aceef58e3a3ce49c51f",
-    "notice_files": 2,
-    "status": "downloaded; upstream version matched; not a reproducible-build proof"
+    "file": "homebrew-gcc@13-cd5d1cfa.rb",
+    "url": "https://raw.githubusercontent.com/Homebrew/homebrew-core/cd5d1cfa7c8f16545c3c14e3d7607c960c890be1/Formula/g/gcc@13.rb",
+    "bytes": 9572,
+    "sha256": "1c3595ba11bd6b8080e43a8f0d5099c520eb71034ca8f8d0cf987034b1fb7b6b",
+    "component": "GCC 13.4.0 runtime libraries (libquadmath, libgfortran, libgcc_s)",
+    "license": "BSD-2-Clause (Homebrew formula)",
+    "status": "build-control file: Homebrew gcc@13 formula at the last bottle update (2026-06-27) before the SciPy 1.18.1 wheels (2026-08-21)"
   },
   {
-    "file": "mpg123-1.32.3.tar.bz2",
-    "url": "https://sourceforge.net/projects/mpg123/files/mpg123/1.32.3/mpg123-1.32.3.tar.bz2",
-    "bytes": 1111054,
-    "sha256": "2d9913a57d4ee8f497a182c6e82582602409782a4fb481e989feebf4435867b4",
-    "notice_files": 3,
-    "status": "downloaded; upstream version matched; not a reproducible-build proof"
-  },
-  {
-    "file": "lame-3.100.tar.gz",
-    "url": "https://sourceforge.net/projects/lame/files/lame/3.100/lame-3.100.tar.gz",
-    "bytes": 1524133,
-    "sha256": "ddfe36cab873794038ae2c1210557ad34857a4b6bdc515785d1da9e175b1da1e",
-    "notice_files": 3,
-    "status": "downloaded; upstream version matched; not a reproducible-build proof"
-  },
-  {
-    "file": "libsndfile-1.2.2.tar.xz",
-    "url": "https://github.com/libsndfile/libsndfile/releases/download/1.2.2/libsndfile-1.2.2.tar.xz",
-    "bytes": 730760,
-    "sha256": "3799ca9924d3125038880367bf1468e53a1b7e3686a934f098b7e1d286cdb80e",
-    "notice_files": 2,
-    "status": "downloaded; upstream version matched; not a reproducible-build proof"
-  },
-  {
-    "file": "libsndfile-mac_build.sh",
-    "url": "https://raw.githubusercontent.com/bastibe/libsndfile-binaries/a3e6f9769d0c7e91d2d036cf0fdbe5b4bbf18b87/mac_build.sh",
-    "bytes": 4415,
-    "sha256": "8074171e8dc00433e69d78f2191f28ae4f1815a2e7f1a5cff4d71ce4f09b4172",
-    "status": "exact upstream build-control file"
-  },
-  {
-    "file": "libsndfile-darwin.cmake",
-    "url": "https://raw.githubusercontent.com/bastibe/libsndfile-binaries/a3e6f9769d0c7e91d2d036cf0fdbe5b4bbf18b87/darwin.cmake",
-    "bytes": 627,
-    "sha256": "cfd44bf9311ec70076638eb08c4ca95fcfa11e1821ec1ed2db91707cc6270c89",
-    "status": "exact upstream build-control file"
-  },
-  {
-    "file": "libsndfile-README.md",
-    "url": "https://raw.githubusercontent.com/bastibe/libsndfile-binaries/a3e6f9769d0c7e91d2d036cf0fdbe5b4bbf18b87/README.md",
-    "bytes": 1004,
-    "sha256": "d96dff5f03de7e5370d9541d4d26dce2759787ddaa076df3b6eb9d7b7a8f3f96",
-    "status": "exact upstream build-control file"
-  },
-  {
-    "file": "autocommand-2.2.2.tar.gz",
-    "url": "https://files.pythonhosted.org/packages/5b/18/774bddb96bc0dc0a2b8ac2d2a0e686639744378883da0fc3b96a54192d7a/autocommand-2.2.2.tar.gz",
-    "bytes": 22894,
-    "sha256": "878de9423c5596491167225c2a455043c3130fb5b7286ac83443d45e74955f34",
-    "status": "exact PyPI source for setuptools-vendored autocommand 2.2.2; all six bundled Python files match byte-for-byte (autocommand-source-verification.json)"
-  },
-  {
-    "file": "colored-3.1.1.crate",
-    "url": "https://static.crates.io/crates/colored/colored-3.1.1.crate",
-    "bytes": 36216,
-    "sha256": "faf9468729b8cbcea668e36183cb69d317348c2e08e994829fb56ebfdfbaac34",
-    "status": "exact checksum-verified source; conservative complete lock coverage"
-  },
-  {
-    "file": "inferno-0.11.21.crate",
-    "url": "https://static.crates.io/crates/inferno/inferno-0.11.21.crate",
-    "bytes": 102615,
-    "sha256": "232929e1d75fe899576a3d5c7416ad0d88dbfbb3c3d6aa00873a7408a50ddb88",
-    "status": "exact checksum-verified source; conservative complete lock coverage"
-  },
-  {
-    "file": "option-ext-0.2.0.crate",
-    "url": "https://static.crates.io/crates/option-ext/option-ext-0.2.0.crate",
-    "bytes": 7345,
-    "sha256": "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d",
-    "status": "exact checksum-verified source; conservative complete lock coverage"
-  },
-  {
-    "file": "certifi-2026.7.22.tar.gz",
-    "url": "https://files.pythonhosted.org/packages/a3/c2/24167ea9858356b47a87a50d39908bfdb72ceeefe0041586e704e5376b3a/certifi-2026.7.22.tar.gz",
-    "bytes": 138112,
-    "sha256": "741e2c3b351ddf169a738da9f2c048608ff7f2c5cc02f1ebc6b118bb090d5d55",
-    "status": "exact source for bundled file-level copyleft component"
+    "file": "eigen-1d8b82b0740839c0de7f1242a3585e3390ff5f33.zip",
+    "url": "https://github.com/eigen-mirror/eigen/archive/1d8b82b0740839c0de7f1242a3585e3390ff5f33/eigen-1d8b82b0740839c0de7f1242a3585e3390ff5f33.zip",
+    "bytes": 4075744,
+    "sha256": "6a60d76351f97132669daeeb721d6bf14b008101883ad2d687a3201c5c461eb0",
+    "component": "Eigen (header-only, compiled into libonnxruntime.1.23.2.dylib)",
+    "license": "MPL-2.0",
+    "architectures": [
+      "arm64",
+      "x86_64"
+    ],
+    "status": "exact archive pinned by onnxruntime v1.23.2 cmake/deps.txt (SHA-1 05b19b49e6fbb91246be711d801160528c135e34 verified)",
+    "license_texts": [
+      "Speech/SupertonicRuntime/python/lib/python3.12/site-packages/onnxruntime/ThirdPartyNotices.txt"
+    ]
   },
   {
     "file": "tqdm-4.70.1.tar.gz",
     "url": "https://files.pythonhosted.org/packages/0d/ea/b2a5bd54b28a324dae8211928b2d730b6547500342c7e6c6dea08bd0a485/tqdm-4.70.1.tar.gz",
     "bytes": 171846,
     "sha256": "cefd0eca11b2a37a3aee776544d4f4ae913f02688135b5556b8788dfa474afc4",
-    "status": "exact source for bundled file-level copyleft component"
+    "component": "tqdm 4.70.1 (Python package in the dictation runtime)",
+    "license": "MPL-2.0 AND MIT",
+    "status": "exact source for bundled file-level copyleft component",
+    "architectures": [
+      "arm64"
+    ],
+    "license_texts": [
+      "Dictation/Python/lib/python3.12/site-packages/tqdm-4.70.1.dist-info/licenses/LICENCE"
+    ]
   },
   {
     "file": "tokenizers-0.23.3.tar.gz",
     "url": "https://files.pythonhosted.org/packages/e0/7c/2cabb2174e772636683008f2c5621949b645da7d303c596589e84516a184/tokenizers-0.23.3.tar.gz",
     "bytes": 385286,
     "sha256": "cded33237c77caeef62944d32aa9a7ef42bdce2b3497e18d137e072a8c4be438",
-    "status": "exact original source for bundled Rust extension; dependency locks in Licenses/RustBuild"
+    "component": "tokenizers 0.23.3 (Rust extension in the dictation runtime)",
+    "license": "Apache-2.0",
+    "status": "exact original source for bundled Rust extension; dependency locks in Licenses/RustBuild",
+    "architectures": [
+      "arm64"
+    ]
   },
   {
     "file": "safetensors-0.8.0.tar.gz",
     "url": "https://files.pythonhosted.org/packages/45/06/f955dbbb1859e3bd23c8ac6141af5106e7ad5fedec4a3a6e3d60f94b7001/safetensors-0.8.0.tar.gz",
     "bytes": 325846,
     "sha256": "fabaf3e0f18a6618d9b36560682562157f77c2b71fcffc7b432be2baed9d753d",
-    "status": "exact original source for bundled Rust extension; dependency locks in Licenses/RustBuild"
-  },
-  {
-    "file": "hf_xet-1.7.0.tar.gz",
-    "url": "https://files.pythonhosted.org/packages/9e/27/06d899ea7bd721d272f84aac98bdb238de98af4cc767a69056d967d68c71/hf_xet-1.7.0.tar.gz",
-    "bytes": 985689,
-    "sha256": "d406ec79053c0871817f700c2ac8c36ba0d87f9c34b7458b0f0063bb218b0466",
-    "status": "exact original source for bundled Rust extension; dependency locks in Licenses/RustBuild"
+    "component": "safetensors 0.8.0 (Rust extension in the dictation runtime)",
+    "license": "Apache-2.0",
+    "status": "exact original source for bundled Rust extension; dependency locks in Licenses/RustBuild",
+    "architectures": [
+      "arm64"
+    ]
   },
   {
     "file": "tiktoken-0.14.0.tar.gz",
     "url": "https://files.pythonhosted.org/packages/66/62/167a842aa0429d45f5e797354fd4343a96f6043d67d0513c675c7b8d36e6/tiktoken-0.14.0.tar.gz",
     "bytes": 38898,
     "sha256": "231dec90efcdccf1b565a1416107736f1e09b1a08fe736ef9d6363e626d03874",
-    "status": "exact original source for bundled Rust extension; dependency locks in Licenses/RustBuild"
+    "component": "tiktoken 0.14.0 (Rust extension in the dictation runtime)",
+    "license": "MIT",
+    "status": "exact original source of the bundled Rust extension (upstream wheel); reference lock and replacement recipe in Licenses/RustBuild",
+    "architectures": [
+      "arm64"
+    ]
   }
 ]

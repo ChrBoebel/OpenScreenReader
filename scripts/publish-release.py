@@ -1,19 +1,24 @@
 #!/usr/bin/env python3
-"""Publish approved releases to the existing Railway website's private bucket.
+"""Publish approved releases to a private S3-compatible download bucket.
 
-Immutable files first, full public download verification second, one conditional
-current.json pointer last. Does not create resources or export credentials.
+Corresponding-source archives first (written offer, ADR 0007), immutable release files
+second, full public download verification third, one conditional current.json pointer
+last. Does not create resources or export credentials.
 """
 import argparse
 import hashlib
 import json
 import os
 from pathlib import Path
+import tempfile
 import urllib.request
 
-from release import REPO, digest, https_url, require_release_approval, validate_version, release_target
+from bundle_notices import corresponding_sources, fetch_source as fetch_upstream_source
+from release import REPO, digest, https_url, public_download_prefix, require_release_approval, validate_version, release_target
 
-PUBLIC_PREFIX = 'https://www.christopherboebel.com/downloads/saywing'
+# Override with SAYWING_PUBLIC_DOWNLOAD_PREFIX and SAYWING_RELEASE_REPOSITORY.
+PUBLIC_PREFIX = public_download_prefix()
+DEFAULT_REPOSITORY = 'ChrBoebel/saywing'
 MAX_SINGLE_UPLOAD = 5 * 1024**3
 
 
@@ -35,16 +40,22 @@ def read_current(client, bucket, prefix="saywing"):
     return json.loads(data), result['ETag']
 
 
-def immutable_upload(client, bucket, key, path, content_type):
-    expected = digest(path)
+def stored(client, bucket, key, size, sha256):
+    """True if the object already holds exactly these bytes, False if absent; raises otherwise."""
     try:
         existing = client.head_object(Bucket=bucket, Key=key)
     except Exception as error:
         if not missing(error):
             raise
-    else:
-        if existing['ContentLength'] != path.stat().st_size or existing.get('Metadata', {}).get('sha256') != expected:
-            raise ValueError('Refusing to overwrite immutable release object: ' + key)
+        return False
+    if existing['ContentLength'] != size or existing.get('Metadata', {}).get('sha256') != sha256:
+        raise ValueError('Refusing to overwrite immutable release object: ' + key)
+    return True
+
+
+def immutable_upload(client, bucket, key, path, content_type):
+    expected = digest(path)
+    if stored(client, bucket, key, path.stat().st_size, expected):
         return
     # Single conditional PUT avoids a last-writer-wins race. Current DMGs are
     # below S3's 5 GiB limit. Fail explicitly if future packages exceed it.
@@ -55,7 +66,31 @@ def immutable_upload(client, bucket, key, path, content_type):
                           ContentType=content_type, Metadata={'sha256': expected}, IfNoneMatch='*')
 
 
-def publish(root, client, bucket, main_commit, verify_public):
+def archive_corresponding_sources(client, bucket, prefix, release, records, fetch_source):
+    """Keep the exact source archives the app points to, so the written offer can be fulfilled.
+
+    Archives are stored once by SHA-256 under a prefix that no public route serves; a
+    per-build manifest records which of them belong to the build. Already archived files
+    are reused without downloading them again.
+    """
+    archived = []
+    with tempfile.TemporaryDirectory() as work:
+        for item in records:
+            key = f"{prefix}/corresponding-source/sha256/{item['sha256']}/{item['file']}"
+            if not stored(client, bucket, key, item['bytes'], item['sha256']):
+                path = fetch_source(item, Path(work))
+                if path.stat().st_size != item['bytes'] or digest(path) != item['sha256']:
+                    raise ValueError('Corresponding source hash/size mismatch: ' + item['file'])
+                immutable_upload(client, bucket, key, path, 'application/octet-stream')
+                path.unlink()
+            archived.append({**item, 'key': key})
+        manifest = Path(work) / 'manifest.json'
+        manifest.write_text(json.dumps({**release, 'sources': archived}, indent=2) + '\n')
+        immutable_upload(client, bucket, f"{prefix}/corresponding-source/builds/{release['build']}.json",
+                         manifest, 'application/json')
+
+
+def publish(root, client, bucket, main_commit, verify_public, *, fetch_source):
     result = json.loads((root / 'release-result.json').read_text())
     if result.get('notarized') is not True or result.get('public_release_approved') is not True:
         raise ValueError('Only approved, notarized release outputs may be published')
@@ -86,6 +121,13 @@ def publish(root, client, bucket, main_commit, verify_public):
         raise ValueError('Refusing downgrade or replacement of a published build')
     if main_commit() != result['source_commit']:
         raise ValueError('This release is no longer the current main commit')
+    sources = result.get('corresponding_sources')
+    if sources is None or sources != corresponding_sources(architecture):
+        raise ValueError('Corresponding-source records of the app differ from the repository')
+    # Archive the sources before anything becomes downloadable, so no published build lacks them.
+    archive_corresponding_sources(client, bucket, prefix, {
+        'version': version, 'build': build, 'architecture': architecture, 'source_commit': result['source_commit'],
+    }, sources, fetch_source)
     files = [(filename, 'application/x-apple-diskimage'), ('appcast.xml', 'application/xml'),
              ('latest.json', 'application/json'), ('SHA256SUMS', 'text/plain')]
     for name, content_type in files:
@@ -129,7 +171,7 @@ def verify_public_download(metadata):
 
 def current_main():
     repository = os.environ['GITHUB_REPOSITORY']
-    if repository != 'ChrBoebel/OpenScreenReader':
+    if repository != (os.environ.get('SAYWING_RELEASE_REPOSITORY') or DEFAULT_REPOSITORY):
         raise ValueError('Unexpected release repository')
     request = urllib.request.Request(f'https://api.github.com/repos/{repository}/git/ref/heads/main',
         headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
@@ -155,7 +197,7 @@ def main():
         config=Config(signature_version='s3v4', s3={'addressing_style': 'virtual'}, connect_timeout=30, read_timeout=900,
                       request_checksum_calculation='when_required', response_checksum_validation='when_required'))
     publish(args.release.resolve(strict=True), client, os.environ['SAYWING_S3_BUCKET'],
-            current_main, verify_public_download)
+            current_main, verify_public_download, fetch_source=fetch_upstream_source)
 
 
 if __name__ == '__main__':

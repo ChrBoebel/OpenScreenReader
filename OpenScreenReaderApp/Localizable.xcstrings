@@ -341,6 +341,16 @@
         }
       }
     },
+    "Automatically check for updates": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatisch nach Updates suchen"
+          }
+        }
+      }
+    },
     "Back": {
       "localizations": {
         "de": {
@@ -417,6 +427,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Erfassen"
+          }
+        }
+      }
+    },
+    "Check for Updates…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nach Updates suchen …"
           }
         }
       }
@@ -631,22 +651,22 @@
         }
       }
     },
-    "Copy for Chat": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Für den Chat kopieren"
-          }
-        }
-      }
-    },
     "Copy Result": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Ergebnis kopieren"
+          }
+        }
+      }
+    },
+    "Copy for Chat": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Für den Chat kopieren"
           }
         }
       }
@@ -901,6 +921,16 @@
         }
       }
     },
+    "Duration %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dauer %@"
+          }
+        }
+      }
+    },
     "Elapsed %@": {
       "localizations": {
         "de": {
@@ -1041,6 +1071,16 @@
         }
       }
     },
+    "Finish reading or dictation before updating.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beende das Vorlesen oder Diktieren vor dem Aktualisieren."
+          }
+        }
+      }
+    },
     "Finish recording and paste": {
       "localizations": {
         "de": {
@@ -1117,6 +1157,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Fn startet die nächste Aufnahme und beendet vorher das Vorlesen."
+          }
+        }
+      }
+    },
+    "Format": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Format"
+          }
+        }
+      }
+    },
+    "Format:": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Format:"
           }
         }
       }
@@ -1291,6 +1351,16 @@
         }
       }
     },
+    "Install Update and Restart…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update installieren und neu starten …"
+          }
+        }
+      }
+    },
     "Installed": {
       "localizations": {
         "de": {
@@ -1441,6 +1511,16 @@
         }
       }
     },
+    "Licenses & Model Terms…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lizenzen & Modellbedingungen …"
+          }
+        }
+      }
+    },
     "Loading the dictation model timed out. Please try again.": {
       "localizations": {
         "de": {
@@ -1491,6 +1571,16 @@
         }
       }
     },
+    "Markdown": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Markdown"
+          }
+        }
+      }
+    },
     "Me": {
       "localizations": {
         "de": {
@@ -1527,6 +1617,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Meeting-Mitschrift · läuft"
+          }
+        }
+      }
+    },
+    "Meeting transcript %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meeting-Mitschrift %@"
           }
         }
       }
@@ -1601,6 +1701,16 @@
         }
       }
     },
+    "Model Terms…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modellbedingungen …"
+          }
+        }
+      }
+    },
     "Model not available": {
       "localizations": {
         "de": {
@@ -1637,6 +1747,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nach oben"
+          }
+        }
+      }
+    },
+    "Name": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name"
+          }
+        }
+      }
+    },
+    "Name This Voice": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stimme benennen"
+          }
+        }
+      }
+    },
+    "Name this voice or join it with another": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Stimme benennen oder mit einer anderen zusammenführen"
           }
         }
       }
@@ -1801,6 +1941,16 @@
         }
       }
     },
+    "Nothing is coming from your microphone. Check that it is not muted, that the right input is selected, and that Saywing may use the microphone.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vom Mikrofon kommt nichts an. Prüfe, ob es stummgeschaltet ist, ob der richtige Eingang gewählt ist und ob Saywing das Mikrofon verwenden darf."
+          }
+        }
+      }
+    },
     "Nothing was pasted.": {
       "localizations": {
         "de": {
@@ -1891,6 +2041,16 @@
         }
       }
     },
+    "Other Models": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weitere Modelle"
+          }
+        }
+      }
+    },
     "Other apps can't be heard on this macOS version. Only your microphone is transcribed.": {
       "localizations": {
         "de": {
@@ -1907,16 +2067,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Andere Apps sind nicht zu hören: %@ Nur dein Mikrofon wird mitgeschrieben."
-          }
-        }
-      }
-    },
-    "Other Models": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Weitere Modelle"
           }
         }
       }
@@ -1947,6 +2097,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "App-Befehle überschreiben?"
+          }
+        }
+      }
+    },
+    "PDF": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PDF"
           }
         }
       }
@@ -2047,6 +2207,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Freigaben"
+          }
+        }
+      }
+    },
+    "Plain Text": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reiner Text"
           }
         }
       }
@@ -2551,6 +2721,16 @@
         }
       }
     },
+    "Recording stopped": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufnahme beendet"
+          }
+        }
+      }
+    },
     "Recording · %lld / 60 s": {
       "localizations": {
         "de": {
@@ -2607,6 +2787,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Aus der Warteschlange entfernen"
+          }
+        }
+      }
+    },
+    "Rename": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Umbenennen"
+          }
+        }
+      }
+    },
+    "Rename…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Umbenennen …"
           }
         }
       }
@@ -2697,6 +2897,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Laufzeit"
+          }
+        }
+      }
+    },
+    "Same Person As": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gleiche Person wie"
           }
         }
       }
@@ -2847,6 +3057,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Saywing wohnt in der Menüleiste. Drück überall %@, um einen Bereich vorlesen zu lassen."
+          }
+        }
+      }
+    },
+    "Saywing may not use the microphone. Allow it in System Settings › Privacy & Security › Microphone, then start the transcript again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saywing darf das Mikrofon nicht verwenden. Erlaube es in den Systemeinstellungen › Datenschutz & Sicherheit › Mikrofon und starte das Transkript dann erneut."
           }
         }
       }
@@ -3171,22 +3391,22 @@
         }
       }
     },
-    "Show reason and help": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Grund und Hilfe anzeigen"
-          }
-        }
-      }
-    },
     "Show Transcript": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Mitschrift anzeigen"
+          }
+        }
+      }
+    },
+    "Show reason and help": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grund und Hilfe anzeigen"
           }
         }
       }
@@ -3227,6 +3447,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ton"
+          }
+        }
+      }
+    },
+    "Speaker %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Person %lld"
+          }
+        }
+      }
+    },
+    "Speakers: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beteiligte: %@"
           }
         }
       }
@@ -3371,6 +3611,16 @@
         }
       }
     },
+    "Stop Transcript": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mitschrift beenden"
+          }
+        }
+      }
+    },
     "Stop anytime with Escape": {
       "localizations": {
         "de": {
@@ -3441,22 +3691,32 @@
         }
       }
     },
-    "Stop Transcript": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mitschrift beenden"
-          }
-        }
-      }
-    },
     "Stopped": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Gestoppt"
+          }
+        }
+      }
+    },
+    "Supertonic 3 Model Terms": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modellbedingungen für Supertonic 3"
+          }
+        }
+      }
+    },
+    "Supertonic 3 is subject to the Open RAIL-M model terms and use restrictions.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Für Supertonic 3 gelten die Modellbedingungen und Nutzungsbeschränkungen der Open RAIL-M-Lizenz."
           }
         }
       }
@@ -3561,6 +3821,16 @@
         }
       }
     },
+    "The PDF could not be created.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das PDF konnte nicht erstellt werden."
+          }
+        }
+      }
+    },
     "The additional capture or text recognition timed out.": {
       "localizations": {
         "de": {
@@ -3587,6 +3857,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Der zusätzliche Bereich konnte nicht erkannt werden. Wähle ihn erneut aus."
+          }
+        }
+      }
+    },
+    "The additional region was too small to read. Press the shortcut to select it again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der zusätzliche Bereich war zu klein zum Lesen. Drücke den Kurzbefehl, um ihn erneut auszuwählen."
+          }
+        }
+      }
+    },
+    "The audio output changed, so reading stopped. Start it again to hear it on the new output.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Audioausgabe hat sich geändert, daher wurde das Vorlesen beendet. Starte es erneut, um es über die neue Ausgabe zu hören."
+          }
+        }
+      }
+    },
+    "The binding terms and the complete, unchanged license text. They apply to the model and its voices, not to the Saywing source code.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die verbindlichen Bedingungen und der vollständige, unveränderte Lizenztext. Sie gelten für das Modell und seine Stimmen, nicht für den Saywing-Quellcode."
           }
         }
       }
@@ -3701,6 +4001,16 @@
         }
       }
     },
+    "The displays changed. Press the shortcut to select the additional region again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Bildschirme haben sich geändert. Drücke den Kurzbefehl, um den zusätzlichen Bereich erneut auszuwählen."
+          }
+        }
+      }
+    },
     "The download was interrupted. Choose Download to try again.": {
       "localizations": {
         "de": {
@@ -3717,6 +4027,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Der globale Kurzbefehl konnte nicht registriert werden (Fehler %d)."
+          }
+        }
+      }
+    },
+    "The input device changed while recording. Nothing was pasted; please record again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Eingabegerät hat sich während der Aufnahme geändert. Es wurde nichts eingefügt; bitte nimm erneut auf."
+          }
+        }
+      }
+    },
+    "The license document could not be opened.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Lizenzdokument konnte nicht geöffnet werden."
           }
         }
       }
@@ -3757,6 +4087,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Die lokale Diktierlaufzeit fehlt oder konnte nicht gestartet werden."
+          }
+        }
+      }
+    },
+    "The local speech runtime is missing from this copy of Saywing. Reinstall Saywing to restore it. No text was sent to a server.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In dieser Saywing-Installation fehlt die lokale Sprachausgabe. Installiere Saywing erneut, um sie wiederherzustellen. Es wurde kein Text an einen Server gesendet."
           }
         }
       }
@@ -3827,6 +4167,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Das Modell wandelt deine Sprache auf diesem Mac in Text um."
+          }
+        }
+      }
+    },
+    "The name is used in every turn of this voice and in the export. It is kept only with this transcript.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Name gilt für alle Beiträge dieser Stimme und für den Export. Er bleibt nur bei dieser Mitschrift."
           }
         }
       }
@@ -3991,16 +4341,6 @@
         }
       }
     },
-    "This model is not available in this version for your Mac.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dieses Modell ist in dieser Version für deinen Mac nicht verfügbar."
-          }
-        }
-      }
-    },
     "This build is missing model resources. Reinstall Saywing to restore them.": {
       "localizations": {
         "de": {
@@ -4037,6 +4377,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dieses Mikrofonformat wird noch nicht unterstützt."
+          }
+        }
+      }
+    },
+    "This model is not available in this version for your Mac.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Modell ist in dieser Version für deinen Mac nicht verfügbar."
           }
         }
       }
@@ -4107,6 +4457,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Meeting mitschreiben …"
+          }
+        }
+      }
+    },
+    "Transcribed on this Mac with Saywing. No audio was saved.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf diesem Mac mit Saywing transkribiert. Es wurde kein Audio gespeichert."
           }
         }
       }
@@ -4241,6 +4601,46 @@
         }
       }
     },
+    "Update Available…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update verfügbar …"
+          }
+        }
+      }
+    },
+    "Update checks contact the download server. Screenshots, text and recordings stay on your Mac. Updates install only when you choose.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updateprüfungen verbinden sich mit dem Downloadserver. Bildschirmbilder, Texte und Aufnahmen bleiben auf deinem Mac. Updates werden nur auf deinen Wunsch installiert."
+          }
+        }
+      }
+    },
+    "Updates": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates"
+          }
+        }
+      }
+    },
+    "Updates are not configured in this build.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates sind in dieser Version noch nicht eingerichtet."
+          }
+        }
+      }
+    },
     "Use Model": {
       "localizations": {
         "de": {
@@ -4297,6 +4697,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Stimme"
+          }
+        }
+      }
+    },
+    "Voices are no longer told apart: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stimmen werden nicht mehr unterschieden: %@"
           }
         }
       }
@@ -4411,6 +4821,46 @@
         }
       }
     },
+    "Your clipboard held a password or other private item. It was cleared, not restored.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Zwischenablage enthielt ein Passwort oder einen anderen privaten Eintrag. Sie wurde geleert statt wiederhergestellt."
+          }
+        }
+      }
+    },
+    "Your clipboard held a password or other private item. It will be cleared, not restored.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Zwischenablage enthielt ein Passwort oder einen anderen privaten Eintrag. Sie wird geleert statt wiederhergestellt."
+          }
+        }
+      }
+    },
+    "Your microphone stopped: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dein Mikrofon wurde beendet: %@"
+          }
+        }
+      }
+    },
+    "Your microphone stopped: %@ Only other apps are transcribed now.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dein Mikrofon wurde beendet: %@ Jetzt werden nur noch andere Apps transkribiert."
+          }
+        }
+      }
+    },
     "Your progress is saved, including when Saywing restarts.": {
       "localizations": {
         "de": {
@@ -4467,306 +4917,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "⌥⇧Leertaste ist für das Diktieren reserviert. Wähle einen anderen Vorlese-Kurzbefehl."
-          }
-        }
-      }
-    },
-    "Finish reading or dictation before updating.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Beende das Vorlesen oder Diktieren vor dem Aktualisieren."
-          }
-        }
-      }
-    },
-    "Install Update and Restart…": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Update installieren und neu starten …"
-          }
-        }
-      }
-    },
-    "Update Available…": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Update verfügbar …"
-          }
-        }
-      }
-    },
-    "Check for Updates…": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nach Updates suchen …"
-          }
-        }
-      }
-    },
-    "Updates": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Updates"
-          }
-        }
-      }
-    },
-    "Automatically check for updates": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Automatisch nach Updates suchen"
-          }
-        }
-      }
-    },
-    "Updates are not configured in this build.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Updates sind in dieser Version noch nicht eingerichtet."
-          }
-        }
-      }
-    },
-    "Update checks contact the download server. Screenshots, text and recordings stay on your Mac. Updates install only when you choose.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Updateprüfungen verbinden sich mit dem Downloadserver. Bildschirmbilder, Texte und Aufnahmen bleiben auf deinem Mac. Updates werden nur auf deinen Wunsch installiert."
-          }
-        }
-      }
-    },
-    "Supertonic 3 is subject to the Open RAIL-M model terms and use restrictions.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Für Supertonic 3 gelten die Modellbedingungen und Nutzungsbeschränkungen der Open RAIL-M-Lizenz."
-          }
-        }
-      }
-    },
-    "Licenses & Model Terms…": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lizenzen & Modellbedingungen …"
-          }
-        }
-      }
-    },
-    "The license document could not be opened.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Das Lizenzdokument konnte nicht geöffnet werden."
-          }
-        }
-      }
-    },
-    "Meeting transcript %@": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Meeting-Mitschrift %@"
-          }
-        }
-      }
-    },
-    "PDF": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "PDF"
-          }
-        }
-      }
-    },
-    "Markdown": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Markdown"
-          }
-        }
-      }
-    },
-    "Plain Text": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reiner Text"
-          }
-        }
-      }
-    },
-    "Format:": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Format:"
-          }
-        }
-      }
-    },
-    "Format": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Format"
-          }
-        }
-      }
-    },
-    "The PDF could not be created.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Das PDF konnte nicht erstellt werden."
-          }
-        }
-      }
-    },
-    "Duration %@": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dauer %@"
-          }
-        }
-      }
-    },
-    "Speakers: %@": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Beteiligte: %@"
-          }
-        }
-      }
-    },
-    "Transcribed on this Mac with Saywing. No audio was saved.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Auf diesem Mac mit Saywing transkribiert. Es wurde kein Audio gespeichert."
-          }
-        }
-      }
-    },
-    "Speaker %lld": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Person %lld"
-          }
-        }
-      }
-    },
-    "Voices are no longer told apart: %@": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Stimmen werden nicht mehr unterschieden: %@"
-          }
-        }
-      }
-    },
-    "Name This Voice": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Stimme benennen"
-          }
-        }
-      }
-    },
-    "Name": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Name"
-          }
-        }
-      }
-    },
-    "Rename": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Umbenennen"
-          }
-        }
-      }
-    },
-    "Rename…": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Umbenennen …"
-          }
-        }
-      }
-    },
-    "Same Person As": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gleiche Person wie"
-          }
-        }
-      }
-    },
-    "The name is used in every turn of this voice and in the export. It is kept only with this transcript.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Der Name gilt für alle Beiträge dieser Stimme und für den Export. Er bleibt nur bei dieser Mitschrift."
-          }
-        }
-      }
-    },
-    "Name this voice or join it with another": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Diese Stimme benennen oder mit einer anderen zusammenführen"
           }
         }
       }

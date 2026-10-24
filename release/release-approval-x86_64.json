@@ -1,0 +1,26 @@
+{
+  "license_review": false,
+  "license_review_note": "2026-10-24 owner decisions: the license review stays open. Done: SciPy's GCC runtime libraries are accepted as separate, replaceable dylibs (docs/decisions/0007-gcc-runtime-libraries.md); the app ships a written source offer, exact source pointers and the license texts instead of the source archives, and the publish job archives the exact sources for every published build; notices for the rebuilt minimal runtimes are generated and checked; every DMG carries the Supertonic model terms and the complete Open RAIL-M text. Open: the owner's legal review of the model-terms wording (docs/licenses/SUPERTONIC-MODEL-TERMS.md); interpreter provenance is only partly documented (pinned, hash-verified python-build-standalone 20261013 archives and their license texts per architecture, but no recorded build recipe or CPython patch set; see docs/decisions/0003-bundled-default-model.md). The earlier 2026-10-15 review covered the previous runtime and no longer applies.",
+  "clean_mac": false,
+  "offline_privacy": true,
+  "update_roundtrip": true,
+  "scope": {
+    "architecture": "x86_64",
+    "verified_build": "9",
+    "update_verified_build": "9",
+    "update_transport": "Actual official x86_64 Sparkle 2.10.0 CLI installed final notarized Intel build9 from production website HTTPS feed and HTTPS storage redirect over isolated build8, under Rosetta. Full DMG hash, app seal, Gatekeeper, both runtime receipts and 88 notices verified. No physical Intel/macOS14 or GUI/relaunch claim."
+  },
+  "evidence": "docs/intel-https-update-2026-10-15.json and docs/intel-beta-publication-2026-10-15.md. License/privacy and real production HTTPS update passed under Rosetta. Physical Intel and fresh-device evidence remains incomplete; clean_mac stays false. Owner explicitly accepted that gap for an Intel beta only.",
+  "owner_beta_exception": {
+    "approved": true,
+    "architecture": "x86_64",
+    "channel": "beta",
+    "gate": "clean_mac",
+    "owner_decision": "2026-10-15: after the successful private Intel HTTPS update and disclosure that physical Intel testing is unavailable, the owner explicitly requested publishing the Intel version on the website anyway. Publish as Intel beta with the remaining device gaps disclosed.",
+    "remaining_tests": [
+      "Physical Intel Mac with macOS 14 or newer: installation, OCR/speech and dictation",
+      "Fresh-account permission denial/grant and clipboard restoration",
+      "Physical Intel update and GUI relaunch"
+    ]
+  }
+}

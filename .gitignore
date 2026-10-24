@@ -6,11 +6,13 @@ build/
 xcuserdata/
 *.xccheckout
 *.moved-aside
+*.xcarchive
+*.xcresult
 
 # Swift Package Manager
 .build/
 Runtime/.generated/
-.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
+.swiftpm/
 
 # Python / local TTS worker
 __pycache__/
@@ -30,13 +32,25 @@ models/
 *.wav
 *.m4a
 
+# Distribution artifacts
+*.dmg
+*.zip
+
 # Secrets and local configuration
 .env
 .env.*
 !.env.example
 *.pem
 *.key
+*.p12
+*.p8
+*.cer
+*.mobileprovision
+*.provisionprofile
 
-# Local tools
+# Local tools and scratch directories
+tmp/
+.claude/
+.worktrees/
 .idea/
 .vscode/

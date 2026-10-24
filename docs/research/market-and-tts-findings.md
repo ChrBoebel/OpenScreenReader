@@ -29,9 +29,7 @@ No mature open-source macOS app was identified that combines all of the followin
 - **VoxScreen:** close Windows concept including repeated-region capture, but no reusable license was identified.
 - **TRex, macOCR, and Raycast ScreenOCR:** demand and maturity signals for local screen OCR, but without natural TTS.
 
-Primary research report before repository creation:
-
-`market-research-ocr-tts-macos.md` in the originating BB workspace. Important external facts must be rechecked against upstream sources before release documentation is published.
+The primary market research report predates this repository and is not published here. Important external facts must be rechecked against upstream sources before release documentation is published.
 
 ## Local TTS benchmark on Apple M4, 16 GB
 
@@ -47,7 +45,7 @@ MLX and RSS are two views of unified memory and must not be added naively.
 
 ## Model decision
 
-**Superseded on 2026-09-05:** after listening to the actual German samples, the owner selected **Supertonic 3 as the default** and rejected Qwen's perceived variability. M1 is the initial app voice. The measurements below remain historical evidence, not the current selection rule. The new default remains subject to OpenRAIL-M distribution obligations and the newly verified upstream end-of-support risk. See [integration and verification](supertonic-integration.md).
+**Superseded on 2026-09-05:** after listening to the actual German samples, the project selected **Supertonic 3 as the default** and rejected Qwen's perceived variability. M1 is the initial app voice. The measurements below remain historical evidence, not the current selection rule. The new default remains subject to OpenRAIL-M distribution obligations and the newly verified upstream end-of-support risk. See [integration and verification](supertonic-integration.md).
 
 1. **Qwen3-TTS 0.6B 4-bit:** original primary candidate because the tested MLX path streams and reached the first audio block in 0.226 seconds when warm.
 2. **Supertonic 3:** optional lower-memory provider. Code is MIT; model distribution requires compliance with its OpenRAIL-M license.

@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import Combine
 import Foundation
 import SwiftUI
@@ -22,6 +23,7 @@ final class MeetingController: ObservableObject {
     var warningLead: TimeInterval = 5 * 60
     var silence: TimeInterval = 10 * 60
     var systemAudioGrace: TimeInterval = 20
+    var microphoneGrace: TimeInterval = 20
   }
 
   @Published private(set) var phase: Phase = .idle
@@ -31,6 +33,8 @@ final class MeetingController: ObservableObject {
   @Published private(set) var notice: String?
   /// No non-zero sample from other apps yet: the system audio permission is the likely cause.
   @Published private(set) var systemAudioMissing = false
+  /// No non-zero sample from the microphone yet: a muted, wrong or blocked input.
+  @Published private(set) var microphoneMissing = false
   @Published private(set) var hasUnsavedText = false
   /// The others' voices are being told apart in this transcript.
   @Published private(set) var tellsVoicesApart = false
@@ -54,6 +58,7 @@ final class MeetingController: ObservableObject {
   private let pasteboard: NSPasteboard
   private let saveExport: @MainActor (MeetingExport, String) -> Bool
   private let confirmLosingUnsaved: @MainActor (LossReason) -> Bool
+  private let microphoneAccess: @MainActor () async -> Bool
 
   /// Why unsaved text would be lost; the alert names the action.
   enum LossReason: Equatable { case newTranscript, discard }
@@ -90,8 +95,10 @@ final class MeetingController: ObservableObject {
     appNotifications: NotificationCenter = .default,
     save: @escaping @MainActor (MeetingExport, String) -> Bool = MeetingController.saveWithPanel,
     confirmLosingUnsaved: @escaping @MainActor (LossReason) -> Bool = MeetingController.confirmWithAlert,
+    microphoneAccess: @escaping @MainActor () async -> Bool = MeetingController.requestMicrophoneAccess,
     presentsWindow: Bool = true
   ) {
+    self.microphoneAccess = microphoneAccess
     self.provider = provider
     self.makeMicrophone = makeMicrophone
     self.makeSystemAudio = makeSystemAudio
@@ -160,6 +167,11 @@ final class MeetingController: ObservableObject {
   }
 
   private func begin(_ id: UUID) async {
+    // A denied microphone would otherwise record silence and look like a working "Me" track.
+    guard await microphoneAccess() else {
+      return fail(id, String(localized: "Saywing may not use the microphone. Allow it in System Settings › Privacy & Security › Microphone, then start the transcript again."))
+    }
+    guard gate.accepts(id), phase == .starting else { return }
     guard case let .available(locale) = await provider.availability(for: language()),
       let recognizer = provider.makeRecognizer()
     else { return fail(id, String(localized: "Speech recognition is not available on this Mac.")) }
@@ -197,6 +209,7 @@ final class MeetingController: ObservableObject {
     self.router = router
     let microphone = makeMicrophone()
     self.microphone = microphone
+    microphone.onInterruption = { [weak self] reason in self?.microphoneInterrupted(reason, id) }
     do {
       try microphone.start { [router] in router.handle($0, from: .me) }
     } catch {
@@ -233,6 +246,7 @@ final class MeetingController: ObservableObject {
     let wasLive = phase == .live
     phase = .stopping
     systemAudioMissing = false
+    microphoneMissing = false
     stopSources()
     if wasLive { interfaceSounds?.play(.captured) }
     let recognizer = recognizer
@@ -335,6 +349,7 @@ final class MeetingController: ObservableObject {
     let state = router.state
     levels = state.level
     systemAudioMissing = system != nil && elapsed >= limits.systemAudioGrace && state.lastSignal[.others] == nil
+    microphoneMissing = microphone != nil && elapsed >= limits.microphoneGrace && state.lastSignal[.me] == nil
     if elapsed >= limits.maximumDuration {
       return stop(String(localized: "The transcript stopped after 2 hours."))
     }
@@ -371,6 +386,19 @@ final class MeetingController: ObservableObject {
     notice = String(localized: "Voices are no longer told apart: \(message)")
   }
 
+  /// The microphone stopped by itself (an input change it could not follow).
+  private func microphoneInterrupted(_ reason: String, _ id: UUID) {
+    guard gate.accepts(id), phase == .live || phase == .starting else { return }
+    microphone?.stop()
+    microphone = nil
+    microphoneMissing = false
+    if system != nil {
+      notice = String(localized: "Your microphone stopped: \(reason) Only other apps are transcribed now.")
+    } else {
+      stop(String(localized: "Your microphone stopped: \(reason)"))
+    }
+  }
+
   private func recognitionFailed(_ message: String, _ id: UUID) {
     guard gate.accepts(id) else { return }
     stop(String(localized: "Speech recognition stopped: \(message)"))
@@ -404,6 +432,7 @@ final class MeetingController: ObservableObject {
     levels = [:]
     warned = false
     systemAudioMissing = false
+    microphoneMissing = false
     startedAt = nil
     router = nil
     voices = nil
@@ -429,6 +458,15 @@ final class MeetingController: ObservableObject {
   private var fileName: String {
     let date = (startedAt ?? Date()).formatted(.iso8601.year().month().day())
     return String(localized: "Meeting transcript \(date)")
+  }
+
+  /// Asks only when macOS has not decided yet; the user just started a transcript.
+  static func requestMicrophoneAccess() async -> Bool {
+    switch AVCaptureDevice.authorizationStatus(for: .audio) {
+    case .authorized: true
+    case .notDetermined: await AVCaptureDevice.requestAccess(for: .audio)
+    default: false
+    }
   }
 
   /// The system save panel with a format menu, PDF first. Nothing is remembered

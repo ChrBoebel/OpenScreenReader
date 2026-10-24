@@ -1,10 +1,10 @@
 # Proposed architecture
 
-> Diese Architektur ist eine begründete Ausgangshypothese. Die Prozessgrenzen und Packaging-Strategie werden durch technische Spikes validiert, bevor der vollständige MVP entsteht.
+> This architecture is a reasoned starting hypothesis. The process boundaries and packaging strategy will be validated through technical spikes before the complete MVP is built.
 
-Aktueller Entwicklungsstand: Nach der Hörentscheidung des Eigentümers vom 2026-09-05 ist Supertonic 3 das Standardmodell, zunächst mit M1. Ein lokaler Python-/ONNX-Prozess ist über dieselbe `SpeechReading`-Schnittstelle an OCR und AVAudioEngine angeschlossen; siehe [Supertonic-Integration](research/supertonic-integration.md). Der bisherige Swift-/MLX-Qwen-Spike bleibt als Vergleich erhalten, wird von der App aber weder gestartet noch als Fallback verwendet. Dies legt die portable Produktions-Runtime und Release-Verpackung noch nicht fest.
+Current development status: Following the project's listening decision of 2026-09-05, Supertonic 3 is the default model, initially with M1. A local Python/ONNX process is connected to OCR and AVAudioEngine through the same `SpeechReading` interface; see [Supertonic integration](research/supertonic-integration.md). The earlier Swift/MLX Qwen spike is kept as a comparison, but the app neither starts it nor uses it as a fallback. This does not yet determine the portable production runtime or the release packaging.
 
-## Systemübersicht
+## System overview
 
 ### Everyday controls update — 2026-09-09
 
@@ -38,183 +38,183 @@ SelectionOverlay ──► ScreenCaptureService
                  AudioPlayback
 ```
 
-## Native macOS-App
+## Native macOS app
 
-Geplanter Stack:
+Planned stack:
 
-- SwiftUI für Einstellungen und Menüleistenoberfläche;
-- AppKit für globale Fenster, Auswahl-Overlay und Ereignisbehandlung;
-- ScreenCaptureKit oder CoreGraphics für die Bereichserfassung;
-- Vision mit `VNRecognizeTextRequest` für lokale OCR;
-- AVFoundation für Audiopuffer und Wiedergabe.
+- SwiftUI for settings and the menu bar interface;
+- AppKit for global windows, the selection overlay and event handling;
+- ScreenCaptureKit or CoreGraphics for region capture;
+- Vision with `VNRecognizeTextRequest` for local OCR;
+- AVFoundation for audio buffers and playback.
 
-### Vorgeschlagene Module
+### Proposed modules
 
-- `AppShell`: Lebenszyklus, Menüleiste und Einstellungen;
-- `GlobalHotkeyManager`: registriert Lesen/Hinzufügen und verhindert Konflikte; vollständiger Stop bleibt bei Esc und expliziten Stop-Controls;
-- `SelectionOverlay`: Multi-Monitor-Auswahl und Abbruch;
-- `ScreenCaptureService`: erfasst ausschließlich das gewählte Rechteck;
-- `VisionOCRService`: OCR, Sprache und Lesereihenfolge;
-- `TextPipeline`: Normalisierung, Segmentierung und Treuemodus;
-- `TTSService`: modellunabhängige Auftrags- und Abbruchsteuerung;
-- `AudioPlaybackController`: gepufferte Wiedergabe mit sofortigem Stop;
-- `ModelManager`: Manifest- und Hashprüfung des gebündelten Modells, Version und Speicherpolitik;
-- `PrivacyAudit`: zentraler Ort für optionale Netzwerk- und Dateisystemereignisse.
+- `AppShell`: lifecycle, menu bar and settings;
+- `GlobalHotkeyManager`: registers read/add and prevents conflicts; full stop stays with Esc and explicit Stop controls;
+- `SelectionOverlay`: multi-monitor selection and cancellation;
+- `ScreenCaptureService`: captures only the selected rectangle;
+- `VisionOCRService`: OCR, language and reading order;
+- `TextPipeline`: normalization, segmentation and fidelity mode;
+- `TTSService`: model-independent job and cancellation control;
+- `AudioPlaybackController`: buffered playback with immediate stop;
+- `ModelManager`: manifest and hash verification of the bundled model, version and storage policy;
+- `PrivacyAudit`: central place for optional network and file system events.
 
-### Implementiertes Status-Panel
+### Implemented status panel
 
-Update 2026-09-22: Zwei native `ReadingInlineButton`-Ziele ersetzen bei Hover die Welle innerhalb der 136-pt-Kapsel: Pause/Fortsetzen und Optionen. `controlsBlend` überblendet ohne Layoutänderung. Eigene Responder-Mausereignisse unterscheiden Klick von Drag ab 5 pt, ohne blockierende Tracking-Schleife. Ein schwach referenziertes Popover hält die Tasten sichtbar; Menü/Accessibility-Öffnung zeigt den Anker synchron. `present`, Retract und Hide schützen vor veralteten Klicks; beim Hide wird der Popover-Delegate vor dem Schließen gelöst, damit er den Zeichen-Takt nicht neu startet. Menüeintrag und Accessibility-Aktionen bleiben ohne Hover erreichbar. `dockEdge` bestimmt die nach innen gerichtete Popover-Seite; seitliche Glyphen bleiben aufrecht. Pipeline, Provider, Audio und Speicherung ändern sich nicht. Die folgenden früheren Esc-Layer-Angaben sind dadurch überholt.
+Update 2026-09-22: On hover, two native `ReadingInlineButton` targets replace the wave inside the 136 pt capsule: Pause/Resume and Options. `controlsBlend` cross-fades without a layout change. Custom responder mouse events distinguish a click from a drag starting at 5 pt, without a blocking tracking loop. A weakly referenced popover keeps the buttons visible; opening from the menu/Accessibility shows the anchor synchronously. `present`, retract and hide protect against stale clicks; on hide, the popover delegate is detached before closing so that it does not restart the drawing tick. The menu item and Accessibility actions remain reachable without hover. `dockEdge` determines the inward-facing popover side; side glyphs stay upright. The pipeline, providers, audio and storage do not change. This supersedes the earlier Esc-layer details below.
 
-`ReadingPanelPlacement` berechnet die Position relativ zum `visibleFrame` des gewählten Displays. Unten bleibt die Zeichenfläche 300 × 92 pt, seitlich ist sie 92 × 300 pt: Layoutkoordinaten werden abgebildet, Text/Symbole/Taste nicht gedreht. Der Controller verarbeitet Drag-Callbacks von der dekorativen Statusfläche, getrennt vom Stop-Button; ab 5 pt folgt das Fenster direkt, auf Loslassen wird der nächste erlaubte Rand samt normiertem Versatz gespeichert. Die 220-ms-Einrast-Task ist abbrechbar und generationsgeschützt; Reduce Motion positioniert unmittelbar. Anzeigeänderungen begrenzen die Geometrie erneut. Die Settings-Vorschau ist ein expliziter reiner Präsentationszustand `positioning`, keine simulierte Pipeline. Ein neuer Auftrag räumt sie über denselben `hide()`-Pfad auf.
+`ReadingPanelPlacement` computes the position relative to the `visibleFrame` of the selected display. At the bottom, the drawing surface stays 300 × 92 pt; at the sides it is 92 × 300 pt: layout coordinates are mapped, while text/symbols/button are not rotated. The controller handles drag callbacks from the decorative status surface, separately from the Stop button; from 5 pt on, the window follows directly, and on release the nearest allowed edge is stored together with the normalized offset. The 220 ms snap task is cancellable and generation-protected; Reduce Motion positions immediately. Display changes re-clamp the geometry. The Settings preview is an explicit, purely presentational `positioning` state, not a simulated pipeline. A new job clears it through the same `hide()` path.
 
-Die App-Shell injiziert `ReadingPanelController` über `ReadingStatusPresenting` in `AppModel`. Der Controller erhält einen geschlossenen Statuswert, die ausgewählte Display-ID, einen auf die aktuelle Pipeline-Generation begrenzten Stop-Callback und während der Wiedergabe einen flüchtigen skalaren Pegel. Screenshot, OCR-Text, Audio und technische Fehlerpayloads verlassen diese Grenze nicht.
+The app shell injects `ReadingPanelController` into `AppModel` through `ReadingStatusPresenting`. The controller receives a closed status value, the selected display ID, a Stop callback limited to the current pipeline generation and, during playback, an ephemeral scalar level. Screenshot, OCR text, audio and technical error payloads do not cross this boundary.
 
-Das Vorlese-Control (`ReadingControlView`) ist ein layer-basierter nativer `NSView` auf einer festen 300 × 92 pt großen Zeichenfläche; die sichtbare Kapsel ist 44 pt hoch und zwischen 44 pt (Punkt) und rund 250 pt (Hinweistext) breit, der Rest ist Platz für den gezeichneten Schatten. Die Kapsel ist ein Container mit `NSVisualEffectView` (Material `hudWindow`, hinter dem Fenster), einer sehr dunklen Tönung, Tiefen- und Glanzverlauf, Randlicht, einem radialen Leuchten, neun `CAShapeLayer`-Balken mit eigenem Leuchten, einem Wander-Licht für die Erkennung, einem Symbol-Layer, einem Bloom-Ring und zwei bei Hover eingeblendeten sekundären Tasten. Ein `NSTextField` zeigt nur bei Hinweisen kurz Text; die Stop-Taste ist ein echter 44-pt-`NSButton`. `ReadingStatusPresenting.show` erhält für den ersten sichtbaren Zustand zusätzlich das Auswahlrechteck in Bildschirmpunkten; `SelectionFlightWindow` (klick-durchlässig, nur auf dem gewählten Display) lässt einen Mint-Geist des Rahmens per Core-Animation-Pfadmorph in den Landepunkt fallen. Erst danach erscheint das Panel, gleichzeitig spielt der Controller den Öffnungsklang; `hide()` bricht den Flug sofort ab. Zustandswechsel werden zusätzlich als VoiceOver-Ansage gepostet. Es gibt kein Auto Layout und keinen SwiftUI-Host; alle Frames werden pro Bild von Hand gesetzt, sodass keine Constraint-Schleife entstehen kann. Ein `CADisplayLink` aus `NSView.displayLink(target:selector:)` treibt eine von Hand integrierte Feder (Öffnen mit Überschwingen, Schließen kritisch gedämpft) sowie die Zustandsüberblendungen; sein Ziel ist ein schwach referenzierender Proxy, damit der View freigegeben werden kann. Bei ruhenden Endzuständen pausiert der Link. Die Stop-Taste spielt beim Drücken über den Controller einen Tap-Klang und löst `NSHapticFeedbackManager` aus; dieser Pfad ist von der Pipeline entkoppelt und wird durch die Abbruchbereinigung nicht abgeschnitten. `PlaybackEnvelope` berechnet außerhalb des Audiothreads 20-ms-Pegelfenster aus dem vorhandenen PCM. `AppModel` fragt den zur gerenderten Sampleposition gehörenden Pegel alle 33 ms ab; Auftragsschutz und Ressourcenabbau beenden diesen Takt. Provider ohne Pegelunterstützung liefern über `SpeechReading` den Standardwert null.
+The reading control (`ReadingControlView`) is a layer-based native `NSView` on a fixed 300 × 92 pt drawing surface; the visible capsule is 44 pt high and between 44 pt (dot) and about 250 pt (hint text) wide, and the rest is room for the drawn shadow. The capsule is a container with an `NSVisualEffectView` (material `hudWindow`, behind the window), a very dark tint, depth and sheen gradients, rim light, a radial glow, nine `CAShapeLayer` bars with their own glow, a travelling light for recognition, a symbol layer, a bloom ring and two secondary buttons that fade in on hover. An `NSTextField` shows text only briefly for hints; the Stop button is a real 44 pt `NSButton`. For the first visible state, `ReadingStatusPresenting.show` additionally receives the selection rectangle in screen points; `SelectionFlightWindow` (click-through, only on the selected display) lets a mint ghost of the frame fall into the landing point via a Core Animation path morph. Only then does the panel appear, and at the same time the controller plays the open sound; `hide()` cancels the flight immediately. State changes are also posted as VoiceOver announcements. There is no Auto Layout and no SwiftUI host; all frames are set by hand per frame, so no constraint loop can arise. A `CADisplayLink` from `NSView.displayLink(target:selector:)` drives a hand-integrated spring (opening with overshoot, closing critically damped) and the state cross-fades; its target is a weakly referencing proxy so the view can be released. In resting end states the link pauses. When pressed, the Stop button plays a tap sound through the controller and triggers `NSHapticFeedbackManager`; this path is decoupled from the pipeline and is not cut off by the cancellation cleanup. `PlaybackEnvelope` computes 20 ms level windows from the existing PCM outside the audio thread. `AppModel` queries the level for the rendered sample position every 33 ms; job protection and resource teardown end this tick. Providers without level support return the default value zero through `SpeechReading`.
 
-`AppModel` blendet das Panel vor Auswahl/Aufnahme aus und veröffentlicht sichtbare Arbeitszustände erst nach der Aufnahme. Der vorhandene ScreenCaptureKit-Filter schließt zusätzlich die eigene App aus. Das `NSPanel` ist nicht aktivierend, wird nie Key/Main Window und bleibt beim Wechsel in andere Apps sichtbar. Eigene Generationen und abgebrochene Timer verhindern, dass ein veralteter Button oder eine alte Ausblendung einen neuen Auftrag beeinflusst. Bildschirmänderungen positionieren es neu oder blenden es aus, wenn sein Display fehlt. [Verifikation und Grenzen](reading-panel-verification.md).
+`AppModel` hides the panel before selection/capture and publishes visible work states only after capture. The existing ScreenCaptureKit filter additionally excludes the app itself. The `NSPanel` is non-activating, never becomes key/main window and stays visible when switching to other apps. Its own generations and cancelled timers prevent a stale button or an old hide from affecting a new job. Display changes reposition it, or hide it if its display is missing.
 
-## TTS-Prozess
+## TTS process
 
-### Geschwindigkeit und Textwarteschlange
+### Speed and text queue
 
-`SpeechReading.playbackRate` ist eine providerunabhängige, live änderbare Eigenschaft. `SpeechAudioPlayer` verbindet Player → `AVAudioUnitTimePitch` → Mixer; Rate wird auf 0,75–2 begrenzt, Pitch bleibt 0 Cent. Modellparameter und Gewichte bleiben unverändert. Der Vorpuffer entspricht mindestens einer Sekunde bei der aktuellen Startgeschwindigkeit. Intel-Builds erhöhen den Startvorlauf bei schneller Wiedergabe bis auf drei Wiedergabesekunden bei 2× (sechs Quellsekunden), damit die nächste Satzsynthese den Puffer nicht vorzeitig leert; ARM behält sein bisheriges Startverhalten. Kurze Texte unterhalb dieser Schwelle werden beim Syntheseabschluss sofort ausgespielt. Die feste Kapazität beträgt acht Sekunden Quell-PCM (44.100 Hz Mono-Float32: rund 1,35 MiB), damit bei 2× bis zu vier Sekunden Vorlauf für die nächste Satzsynthese bleiben. Die Grenze schrumpft beim Live-Verlangsamen nicht unter bereits geplante Puffer. [Apple API](https://developer.apple.com/documentation/avfaudio/avaudiounittimepitch).
+`SpeechReading.playbackRate` is a provider-independent property that can be changed live. `SpeechAudioPlayer` connects player → `AVAudioUnitTimePitch` → mixer; the rate is clamped to 0.75–2, pitch stays at 0 cents. Model parameters and weights remain unchanged. The prebuffer corresponds to at least one second at the current start speed. Intel builds increase the start lead during fast playback up to three playback seconds at 2× (six source seconds) so that the next sentence synthesis does not drain the buffer prematurely; ARM keeps its previous start behavior. Short texts below this threshold are played immediately when synthesis completes. The fixed capacity is eight seconds of source PCM (44,100 Hz mono Float32: about 1.35 MiB), so that at 2× up to four seconds of lead remain for the next sentence synthesis. When slowing down live, the limit does not shrink below already scheduled buffers. [Apple API](https://developer.apple.com/documentation/avfaudio/avaudiounittimepitch).
 
-`AppModel` verwaltet höchstens fünf zusätzliche OCR-Ergebnisse im RAM. Seit der Eigentümerentscheidung vom 2026-09-09 führt der primäre Carbon-Hotkey über `enqueuePrimaryShortcut` zum vorhandenen `addToQueue`-Pfad: im Leerlauf neue Auswahl, während Sprache/Vorbereitung zusätzliche Auswahl/Aufnahme/OCR. Bei bereits laufender Auswahl/Aufnahme/OCR oder voller Warteschlange bleibt die Sitzung bestehen und eine Meldung erklärt den Zustand. Eine zweite Carbon-Tastenkombination bleibt lediglich als optionaler kompatibler Alias erhalten. Der explizite Menü-Stop nutzt weiterhin `enqueueReadRequest` und ist vom Hotkey getrennt. Die bestehende Auswahloberfläche wird wiederverwendet; das Statuspanel bleibt während Auswahl/Aufnahme verborgen und kehrt danach ohne Öffnungsklang zurück. Eine UUID verwirft veraltete Zusatz-Ergebnisse; ein separater Timeout begrenzt Aufnahme/OCR. Ein leerer, zu langer oder fehlgeschlagener Zusatz wird mit Statusmeldung abgelehnt, ohne laufende Sprache oder bereits wartende Texte zu stoppen.
+`AppModel` manages at most five additional OCR results in RAM. Since the project decision of 2026-09-09, the primary Carbon hotkey leads through `enqueuePrimaryShortcut` to the existing `addToQueue` path: when idle, a new selection; during speech/preparation, an additional selection/capture/OCR. If a selection/capture/OCR is already running or the queue is full, the session continues and a message explains the state. A second Carbon key combination is kept only as an optional compatible alias. The explicit menu Stop still uses `enqueueReadRequest` and is separate from the hotkey. The existing selection interface is reused; the status panel stays hidden during selection/capture and returns afterwards without the open sound. A UUID discards stale additional results; a separate timeout bounds capture/OCR. An empty, too long or failed addition is rejected with a status message, without stopping current speech or already waiting texts.
 
-Der Core-Coordinator besitzt weiterhin nur den aktuellen Sprachauftrag. Beim FIFO-Wechsel wird dieser abgeschlossen, eine neue Generation erzeugt und das schon erkannte Ergebnis über dieselbe Synthese-/Wiedergabelogik gestartet. Die Sitzungsgeneration des Escape-Monitors bleibt über diesen Wechsel stabil, wird aber bei Gesamtstopp/neuem manuellen Start invalidiert. Wenn nur eine noch laufende Zusatz-Auswahl/OCR übrig ist, bleibt der alte Kontext als abbrechbarer Eigentümer bestehen; `waiting` ist ein Präsentationszustand, keine neue Core-Phase. „Next Text“ beendet nur den aktuellen Sprachauftrag und startet den nächsten fertigen Eintrag; Gesamtstopp und Fehler räumen beide Task-Pfade und die gesamte Textliste auf. Es wird kein zusätzlicher Sprachworker vorab gestartet.
+The core coordinator still owns only the current speech job. On the FIFO switch, this job is completed, a new generation is created and the already recognized result is started through the same synthesis/playback logic. The Escape monitor's session generation stays stable across this switch but is invalidated on a full stop/new manual start. If only a still-running additional selection/OCR remains, the old context remains as a cancellable owner; `waiting` is a presentation state, not a new core phase. “Next Text” ends only the current speech job and starts the next ready entry; a full stop and errors clean up both task paths and the entire text list. No additional speech worker is started in advance.
 
-Seit 2026-09-09 verwendet die Warteschlange einen einzelnen Python-/ONNX-Prozess pro Sitzung. `SpeechReading.prepareNext` bereitet höchstens einen Nachfolger vor, `stopCurrent` bewahrt ihn beim normalen Übergang/Überspringen, `stop` verwirft sämtliche Jobs und beendet den Prozess. Andere Provider dürfen über die Default-Implementierungen weiterhin ohne Vorbereitung arbeiten. `AppModel` aktualisiert die Vorbereitung erst nach Beginn der aktuellen Wiedergabe bzw. beim Hinzufügen während Sprache; beim Dequeue wird der vorhandene Nachfolger nicht vor seiner Übernahme ersetzt.
+Since 2026-09-09 the queue uses a single Python/ONNX process per session. `SpeechReading.prepareNext` prepares at most one successor, `stopCurrent` keeps it during a normal transition/skip, and `stop` discards all jobs and terminates the process. Other providers may continue to work without preparation through the default implementations. `AppModel` updates the preparation only after the current playback has started, or when adding during speech; on dequeue, the existing successor is not replaced before it is taken over.
 
-`SpeechWorkerSession` führt ausschließlich einen Syntheseauftrag gleichzeitig aus. Das neue explizite `--session`-Protokoll versieht ready/audio/end mit Version 2 und der UUID des Textauftrags; abweichende IDs/Versionen werden abgelehnt. Modell und Stimme werden einmal geladen/verifiziert, der Zufallsseed wird pro Text zurückgesetzt. Der Legacy-Einzelauftrag ohne Flag bleibt für frühere Entwicklungs-Apps kompatibel. Nach dem end-Paket des aktuellen Texts darf derselbe Worker den Nachfolger synthetisieren, während der Player die restlichen Puffer abspielt. Es gibt kein paralleles zweites Modell und keine Vorabsynthese der gesamten Liste.
+`SpeechWorkerSession` runs exactly one synthesis job at a time. The new explicit `--session` protocol tags ready/audio/end with version 2 and the UUID of the text job; mismatching IDs/versions are rejected. The model and voice are loaded/verified once, and the random seed is reset per text. The legacy single job without the flag stays compatible with earlier development apps. After the current text's end packet, the same worker may synthesize the successor while the player plays the remaining buffers. There is no parallel second model and no pre-synthesis of the whole list.
 
-Pro Job begrenzt `SpeechPreparationBuffer` die RAM-Pakete auf acht Quell-Sekunden und blockiert den Produzenten bei voller Kapazität. Aktueller Transportbuffer, nächster Transportbuffer und Player ergeben zusammen höchstens 24 Quell-Sekunden geplantes/gepuffertes PCM (rund 4,04 MiB), zuzüglich begrenzter In-flight-Pakete, Transportkodierung und Engine-/Modellspeicher. Beide wartenden Seiten werden bei Abbruch geweckt. Eine vorbereitete Übernahme pausiert abbrechbar 120 ms. Stop räumt beide Jobs, Reader, Timer, Audio und Prozess auf. Wird eine noch nicht fertig synthetisierte aktuelle Passage übersprungen, wird deren Worker hart beendet und der wartende Nachfolger mit einem neuen Worker gestartet. Bereits laufende Vorbereitung nach abgeschlossener aktueller Synthese bleibt beim Überspringen erhalten.
+Per job, `SpeechPreparationBuffer` limits the RAM packets to eight source seconds and blocks the producer at full capacity. The current transport buffer, the next transport buffer and the player together amount to at most 24 source seconds of scheduled/buffered PCM (about 4.04 MiB), plus bounded in-flight packets, transport encoding and engine/model memory. Both waiting sides are woken on cancellation. A prepared handoff pauses for a cancellable 120 ms. Stop cleans up both jobs, readers, timers, audio and the process. If a current passage that has not finished synthesizing is skipped, its worker is terminated hard and the waiting successor is started with a new worker. Preparation that is already running after the current synthesis has completed is kept when skipping.
 
-Die App beendet die Sitzung bei Gesamtstopp, Fehler oder leerer Warteschlange. Ein separater generationsgeschützter 30-s-Leerlauftimer begrenzt Warmhalten ohne aktiven/vorbereiteten Auftrag, etwa beim Warten auf eine zusätzliche Auswahl. Packet-Watchdogs (90 s bis Audio, danach 30 s ohne Workerpaket) laufen nicht während regulärer Buffer-Backpressure. Vor jedem Prozessstart sowie nach jedem asynchronen Übergang werden Cancellation und Jobidentität geprüft.
+The app ends the session on a full stop, an error or an empty queue. A separate generation-protected 30 s idle timer bounds keeping the worker warm without an active/prepared job, for example while waiting for an additional selection. Packet watchdogs (90 s until audio, then 30 s without a worker packet) do not run during regular buffer backpressure. Before every process start and after every asynchronous transition, cancellation and job identity are checked.
 
-Text und PCM laufen über anonyme Pipes, die Wiedergabe erfolgt im App-Prozess. Der Worker darf weder Netzwerkverbindungen aufbauen noch Dateien schreiben (ausgenommen `/dev/null`). Python läuft isoliert und ohne Bytecode-Schreibzugriffe. `scripts/update-supertonic-worker.rb` aktualisiert explizit nur den projekt-eigenen Worker samt Receipt-Hash, verweigert lokale Abweichungen und lädt weder Modelle noch Pakete nach. [Messungen und Grenzen](warm-queue-verification.md).
+Text and PCM travel over anonymous pipes; playback happens in the app process. The worker may neither open network connections nor write files (except `/dev/null`). Python runs isolated and without bytecode writes. `scripts/update-supertonic-worker.rb` explicitly updates only the project's own worker together with its receipt hash, refuses local deviations and downloads neither models nor packages.
 
-Weitergehendes Warmhalten über abgeschlossene Sitzungen hinweg bleibt eine noch nicht implementierte Vergleichsoption. Eine mögliche Variante hätte folgende Eigenschaften:
+Keeping the worker warm beyond completed sessions remains a comparison option that is not yet implemented. A possible variant would have the following properties:
 
-- App startet den Worker kontrolliert;
-- Modell wird einmal geladen und zeitlich begrenzt warm gehalten;
-- Kommunikation über eine lokale, nicht nach außen gebundene Schnittstelle;
-- Audio wird blockweise übertragen;
-- jeder Auftrag erhält eine ID und ein Cancellation-Signal;
-- Prozessende löscht temporäre Zustände.
+- the app starts the worker in a controlled way;
+- the model is loaded once and kept warm for a limited time;
+- communication through a local interface that is not bound externally;
+- audio is transferred in blocks;
+- every job gets an ID and a cancellation signal;
+- process exit deletes temporary state.
 
-Vor dem MVP müssen zwei Varianten verglichen werden:
+Before the MVP, two variants must be compared:
 
-1. portabel gebündelter Python-/ONNX-Worker;
-2. native ONNX-Integration; der vorherige MLX-Pfad bleibt ein Vergleich.
+1. a portable bundled Python/ONNX worker;
+2. native ONNX integration; the earlier MLX path remains a comparison.
 
-Bewertungskriterien: Startzeit, Signierung/Notarisierung, Paketgröße, Fehlertoleranz, Energieverbrauch, Lizenzkette und Wartbarkeit.
+Evaluation criteria: startup time, signing/notarization, package size, fault tolerance, energy use, license chain and maintainability.
 
-## Modellbereitstellung im offiziellen MVP
+## Model delivery in the official MVP
 
-Das Standardmodell soll Bestandteil des signierten Release-Artefakts sein, damit nach der App-Installation keine separate Modellauswahl oder Laufzeit-Downloadstrecke nötig ist. Bevor diese Strategie verbindlich wird, muss ein Packaging-Spike nachweisen, dass App, Worker, Runtime und Modell gemeinsam signiert, notarisiert und auf einem sauberen Mac offline gestartet werden können.
+The default model should be part of the signed release artifact, so that no separate model selection or runtime download step is needed after installing the app. Before this strategy becomes binding, a packaging spike must show that the app, worker, runtime and model can be signed and notarized together and started offline on a clean Mac.
 
-- Modellgewichte werden nicht in Git eingecheckt.
-- Release-Builds verwenden ein allowlist-basiertes Manifest mit unveränderlichen Revisionen und SHA-256-Hashes.
-- Modell, Tokenizer, Konvertierung, Runtime, Stimmen und transitive Abhängigkeiten benötigen eine dokumentierte Lizenzfreigabe.
-- Lokale Inferenz benötigt kein Netzwerk. Eigentümerfreigaben erlauben die ausdrücklich bestätigten optionalen Diktiermodelle und seit 2026-10-14 abschaltbare Sparkle-Updateprüfungen mit Installation auf Nutzeraktion; siehe Datenschutz und [Release-Verfahren](release-and-updates.md).
-- Die Provider-Abstraktion bleibt erhalten, damit spätere Plattformen und lokale Modelle nicht an ein MLX-Artefakt gekoppelt sind.
+- Model weights are not checked into Git.
+- Release builds use an allowlist-based manifest with immutable revisions and SHA-256 hashes.
+- Model, tokenizer, conversion, runtime, voices and transitive dependencies require a documented license approval.
+- Local inference needs no network. Project decisions allow the explicitly confirmed optional dictation models and, since 2026-10-14, disableable Sparkle update checks with installation on user action; see Privacy and the [release procedure](release-and-updates.md).
+- The provider abstraction is kept so that later platforms and local models are not coupled to an MLX artifact.
 
-## Provider-Abstraktion
+## Provider abstraction
 
-`TTSProvider` soll mindestens unterstützen:
+`TTSProvider` should support at least:
 
-- `load()` und `unload()`;
-- Fähigkeiten und Sprachen abfragen;
-- Streaming-Synthese starten;
-- Auftrag abbrechen;
-- Modell- und Lizenzmetadaten melden;
-- Gesundheitsstatus prüfen.
+- `load()` and `unload()`;
+- querying capabilities and languages;
+- starting streaming synthesis;
+- cancelling a job;
+- reporting model and license metadata;
+- checking health status.
 
-Primär:
+Primary:
 
-- Supertonic 3, vom Eigentümer nach direktem Hörvergleich ausgewählt; M1, acht Schritte, normale Synthesegeschwindigkeit. Satzweise Synthese, begrenzte Audio-Pakete und acht Sekunden Quell-PCM im Wiedergabepuffer; Live-Tempo 0,75–2×.
+- Supertonic 3, selected after a direct listening comparison (project decision 2026-09-05); M1, eight steps, normal synthesis speed. Sentence-by-sentence synthesis, bounded audio packets and eight seconds of source PCM in the playback buffer; live speed 0.75–2×.
 
-Vergleich, nicht automatisch verwendet:
+Comparison, not used automatically:
 
-- Qwen3-TTS 0.6B 4-bit Swift/MLX. Der Eigentümer empfand die untersuchten Stimmen als zu wechselhaft.
+- Qwen3-TTS 0.6B 4-bit Swift/MLX. The evaluated voices were judged too inconsistent.
 
-Die Supertonic-OpenRAIL-M-Bedingungen, das angekündigte Ende des offiziellen Supports sowie die vollständige Python-/ONNX-Lizenz- und Packaging-Kette müssen vor Distribution geprüft werden.
+The Supertonic OpenRAIL-M terms, the announced end of official support and the complete Python/ONNX license and packaging chain must be reviewed before distribution.
 
-Nicht für den ersten Pfad:
+Not for the first path:
 
-- Chatterbox wegen Startlatenz und Speicherbedarf;
-- Thorsten/Piper bis Runtime und Phonemizer-Lizenzkette praktisch festgelegt sind.
+- Chatterbox because of startup latency and memory requirements;
+- Thorsten/Piper until the runtime and phonemizer license chain are settled in practice.
 
-## Nebenläufigkeit und Abbruch
+## Concurrency and cancellation
 
-- Ein neuer Sprachauftrag erhält eine Generation-ID; ein wiederholter Hotkey zum Hinzufügen widerruft nicht die noch sprechende Generation.
-- Ergebnisse älterer Generationen werden verworfen.
-- `Esc` beendet Overlay, OCR-Task, TTS-Task, Audioqueue und aktiven Workerauftrag.
-- Nur der aktuelle Auftrag darf Audiopuffer an die Wiedergabe senden.
-- Fehler eines TTS-Providers dürfen die Menüleisten-App nicht beenden.
+- A new speech job gets a generation ID; a repeated hotkey press to add text does not revoke the generation that is still speaking.
+- Results of older generations are discarded.
+- `Esc` ends the overlay, OCR task, TTS task, audio queue and active worker job.
+- Only the current job may send audio buffers to playback.
+- Errors of a TTS provider must not terminate the menu bar app.
 
-## Datenschutzgrenze
+## Privacy boundary
 
-Der Standardpfad darf Screenshot, OCR-Text und generiertes Audio nicht dauerhaft speichern. Diagnoseexporte sind opt-in, zeigen vor dem Schreiben exakt ihren Inhalt und entfernen Bildschirmdaten standardmäßig.
+The default path must not persistently store screenshots, OCR text or generated audio. Diagnostic exports are opt-in, show their exact content before writing and remove screen data by default.
 
-## Offene technische Spikes
+## Open technical spikes
 
-1. Minimaler Multi-Monitor-Auswahlrahmen mit ScreenCaptureKit.
-2. OCR-Lesereihenfolge für Fließtext und zwei Spalten.
-3. Native Swift/MLX-Integration: erste Audioblöcke und Abbruch lokal bestanden; Warmstart, Speicherbedarf und Langläufe noch offen.
-4. Code Signing und Notarisierung eines Worker-Bundles.
-5. Netzwerkfreiheit der vollständig installierten Release-App nachweisen.
-6. Energie- und RAM-Warmhaltepolitik bestimmen.
+1. Minimal multi-monitor selection frame with ScreenCaptureKit.
+2. OCR reading order for running text and two columns.
+3. Native Swift/MLX integration: first audio blocks and cancellation passed locally; warm start, memory requirements and long runs still open.
+4. Code signing and notarization of a worker bundle.
+5. Demonstrate that the fully installed release app makes no network access.
+6. Determine the energy and RAM policy for keeping the model warm.
 
-## Lokales Diktieren — 2026-10-13
+## Local dictation — 2026-10-13
 
-`DictationController` ist neben dem Vorlese-Coordinator eingebunden, mit eigener Swift-6-MainActor-Zustandssteuerung, Mikrofon-RAM-Buffer, Zielvalidierung, kurzlebiger Clipboard-Transaktion und einem `DictationTranscribing`-Provider. `DictationWorker` betreibt das explizit ausgewählte ASR-Modell über isolierte anonyme Pipes; Supertonic bleibt TTS. `AppModel` serialisiert den Vorlesen→Diktieren-Wechsel, beendet vor Mikrofonstart die Sprachwiedergabe und verwirft Diktieren synchron vor einem Vorlesestart. Prozesssession und Aufnahme-ID verhindern verspätete Ergebnisse. Kaltstart speichert Audio maximal 60 s im RAM; Inferenz und Modellstart haben Zeitlimits. Der Worker wird beim App-Start automatisch vorbereitet und bleibt im Leerlauf sowie beim Vorlesen verfügbar. Nur aktive Diktierinferenz wird beim Wechsel zum Vorlesen beendet; der nächste Diktierstart lädt bei Bedarf automatisch nach. Ruhezustand, inaktive Benutzersitzung und Beenden entladen den Worker. Nach Aufwachen und aktiver Sitzung wird er automatisch wieder vorbereitet. Wiederholte Ladeanforderungen sind idempotent; Beenden sperrt verspätete Warmstarts. Kein Mikrofonstart durch diese Vorbereitung. Das Bundle enthält die gepinnte ASR-Laufzeit unter `Contents/Resources/Dictation`; fehlende Ressourcen führen zu einer sichtbaren Fehlermeldung. [Manifest, Protokoll, Packaging und Grenzen](research/qwen-dictation-runtime.md).
+`DictationController` is integrated alongside the reading coordinator, with its own Swift 6 MainActor state machine, microphone RAM buffer, target validation, short-lived clipboard transaction and a `DictationTranscribing` provider. `DictationWorker` runs the explicitly selected ASR model over isolated anonymous pipes; Supertonic stays TTS. `AppModel` serializes the reading→dictation switch, stops speech playback before the microphone starts and synchronously discards dictation before reading starts. The process session and recording ID prevent late results. During a cold start, audio is kept in RAM for at most 60 s; inference and model start have time limits. The worker is prepared automatically at app launch and stays available while idle and while reading aloud. Only active dictation inference is ended when switching to reading aloud; the next dictation start reloads automatically if needed. Sleep, an inactive user session and quitting unload the worker. After wake and with an active session, it is prepared again automatically. Repeated load requests are idempotent; quitting blocks late warm starts. This preparation does not start the microphone. The bundle contains the pinned ASR runtime under `Contents/Resources/Dictation`; missing resources lead to a visible error message. [Manifest, protocol, packaging and limitations](research/qwen-dictation-runtime.md).
 
-## Auswahl des Diktiermodells — 2026-10-13
+## Dictation model selection — 2026-10-13
 
-Auf Wunsch des Eigentümers stehen Qwen3-ASR und Whisper Turbo als explizite lokale
-Modelle zur Auswahl. Die Auswahl wird unter `dictationModel.v1` gespeichert und
-beim Start sowie nach Ruhezustand wiederhergestellt. Wechsel sind während eines
-Diktats gesperrt; im Leerlauf wird der vorherige Worker beendet und seine verspäteten
-Callbacks werden verworfen. Das gewählte Modell lädt automatisch ohne Mikrofonstart.
-Fehlende oder beschädigte Modelle erzeugen einen Fehler, keinen automatischen
-Fallback oder Download. Beide verwenden die bestehende Offline-Sandbox und dieselbe
-flüchtige Audio-/Clipboard-Pipeline. Quelle, Revision, Größe, Prüfsumme und Lizenz:
+By project decision, Qwen3-ASR and Whisper Turbo are available as explicit local
+models to choose from. The choice is stored under `dictationModel.v1` and
+restored at launch and after sleep. Switching is blocked during a
+dictation; when idle, the previous worker is terminated and its late
+callbacks are discarded. The selected model loads automatically without starting the microphone.
+Missing or damaged models produce an error, not an automatic
+fallback or download. Both use the existing offline sandbox and the same
+ephemeral audio/clipboard pipeline. Source, revision, size, checksum and license:
 [Whisper Turbo](research/whisper-turbo-dictation.md).
 
-Seit 2026-10-14 steht zusätzlich Whisper Large v3 (8-bit, `whisper-large-v3`) zur
-Auswahl. Es nutzt dieselbe mlx-whisper-Laufzeit wie Whisper Turbo, ist genauer
-angelegt, aber langsamer; nur das gewählte Modell wird geladen. [Quelle, Revision,
-Prüfsumme und Lizenz](research/whisper-large-v3-dictation.md).
+Since 2026-10-14, Whisper Large v3 (8-bit, `whisper-large-v3`) is additionally available
+for selection. It uses the same mlx-whisper runtime as Whisper Turbo, is designed to be more
+accurate but slower; only the selected model is loaded. [Source, revision,
+checksum and license](research/whisper-large-v3-dictation.md).
 
-### Modelle bei Bedarf installieren — 2026-10-14
+### Installing models on demand — 2026-10-14
 
-Builds bündeln standardmäßig nur Whisper Turbo; es ist das Standardmodell. Qwen3-ASR
-und Whisper Large v3 erscheinen in der Modellauswahl als „… installieren (Größe)“.
-`DictationModelStore` kennt mitgelieferte (`Contents/Resources/Dictation/<Ordner>`)
-und installierte Modelle (`~/Library/Application Support/Saywing/DictationModels/<Ordner>`).
-Nach Bestätigung lädt `URLSessionModelFetcher` die im gebündelten Manifest gepinnten
-Dateien (ephemere Session, nur HTTPS zu Hugging Face, auch bei Weiterleitungen) in
-einen Staging-Ordner. Größe und SHA-256 jeder Datei werden geprüft, erst dann wird
-der Ordner atomar an seinen Platz verschoben. Abbruch und Fehler entfernen das
-Staging; ein neuer Installationsversuch verwirft Ergebnisse eines abgebrochenen.
-Nach erfolgreicher Installation wird das Modell ausgewählt und geladen.
-`DictationWorker` übergibt dann `--model-root`; `worker.py` liest das Manifest weiter
-aus dem Bundle und prüft die Hashes beim Laden erneut. Eine gespeicherte Auswahl
-eines nicht installierten Modells bleibt erhalten, gestartet wird aber Whisper Turbo.
-`bundle-dictation-runtime.py` bündelt Qwen nur mit `--with-qwen` und Large v3 nur mit
+By default, builds bundle only Whisper Turbo; it is the default model. Qwen3-ASR
+and Whisper Large v3 appear in the model selection as “Install … (size)”.
+`DictationModelStore` knows bundled (`Contents/Resources/Dictation/<folder>`)
+and installed models (`~/Library/Application Support/Saywing/DictationModels/<folder>`).
+After confirmation, `URLSessionModelFetcher` downloads the files pinned in the bundled manifest
+(ephemeral session, HTTPS to Hugging Face only, including redirects) into
+a staging folder. The size and SHA-256 of every file are checked, and only then is
+the folder moved atomically into place. Cancellation and errors remove the
+staging folder; a new installation attempt discards results of a cancelled one.
+After a successful installation, the model is selected and loaded.
+`DictationWorker` then passes `--model-root`; `worker.py` still reads the manifest
+from the bundle and re-checks the hashes on load. A stored selection
+of a model that is not installed is kept, but Whisper Turbo is started.
+`bundle-dictation-runtime.py` bundles Qwen only with `--with-qwen` and Large v3 only with
 `--whisper-large-model`.
 
-## Standardmodell und Vokabular — 2026-10-14
+## Default model and vocabulary — 2026-10-14
 
-Nach Entscheidung des Eigentümers ist Whisper Turbo das Standardmodell, wenn noch
-keine Wahl gespeichert ist; Qwen3-ASR bleibt auswählbar. Jede Anfrage an den Worker
-trägt optional `vocabulary` (≤ 50 Begriffe, je ≤ 60 Zeichen, ohne Steuerzeichen;
-sonst Fehler `processing_failed`). Whisper erhält die Begriffe als `initial_prompt`
-(„A, B, C.“), gekürzt auf das Token-Budget des Prompts, Qwen3-ASR als `hotwords`.
-Ergibt die Erkennung eine Wiederholungsschleife oder nur die Begriffsliste, dekodiert
-derselbe Worker dieselbe Aufnahme einmal ohne Vokabular. Das ist kein Wechsel des
-Modells oder Providers. [Messung und Grenzen](dictation-vocabulary-verification.md).
+By project decision, Whisper Turbo is the default model when
+no choice has been stored yet; Qwen3-ASR remains selectable. Every request to the worker
+optionally carries `vocabulary` (≤ 50 terms, each ≤ 60 characters, without control characters;
+otherwise error `processing_failed`). Whisper receives the terms as `initial_prompt`
+(“A, B, C.”), truncated to the prompt's token budget, and Qwen3-ASR as `hotwords`.
+If recognition produces a repetition loop or only the list of terms, the same
+worker decodes the same recording once more without the vocabulary. This is not a switch of
+model or provider.
 
 ### Setup configuration (2026-10-14)
 
@@ -222,38 +222,38 @@ Modells oder Providers. [Messung und Grenzen](dictation-vocabulary-verification.
 
 `dictationInstallIntent.v1` persists only the requested model identifier. Relaunch restores an interrupted choice without network activity. Installation completion is checked against a selection generation so a later user choice wins. Verification has its own observable phase; cancellation propagates to file hashing. Completed atomic installs are recovered on relaunch before clearing the intent. Explicit retry uses the existing pinned manifest and installer. No new model source or runtime network endpoint is introduced.
 
-## Release- und Updatevorbereitung — 2026-10-14
+## Release and update preparation — 2026-10-14
 
-`AppUpdateController` kapselt Sparkle 2.10.0, ist unabhängig von den lokalen Workern und startet nur bei gültiger HTTPS-Feed-/Schlüsselkonfiguration. `UpdateRelaunchGate` hält eine Installationsfortsetzung während aktiver Arbeit und invalidiert sie bei Abbruch/App-Ende. Modellinstallationen blockieren ebenfalls. Signierte Feeds und Archive werden vor Extraktion geprüft; Systemprofile und automatische Installation sind ausgeschaltet. `scripts/release.py` prüft zuerst Ressourcen, signiert Code von innen nach außen, aktualisiert erst danach Binärhashes, notarisiert optional die App und DMG und erzeugt zuletzt den Feed. Der GitHub-Workflow prüft Main/PRs; öffentliche Auslieferung wartet auf Hosting und Release-Gates. Details: [Release und Updates](release-and-updates.md).
+`AppUpdateController` encapsulates Sparkle 2.10.0, is independent of the local workers and starts only with a valid HTTPS feed/key configuration. `UpdateRelaunchGate` holds an installation continuation during active work and invalidates it on cancellation/app exit. Model installations also block. Signed feeds and archives are verified before extraction; system profiles and automatic installation are turned off. `scripts/release.py` first checks resources, signs code from the inside out, only then updates binary hashes, optionally notarizes the app and DMG and finally generates the feed. The GitHub workflow checks main/PRs; public delivery waits for hosting and the release gates. Details: [Release and updates](release-and-updates.md).
 
-## Lokale Meeting-Mitschrift — 2026-10-15
+## Local meeting transcript — 2026-10-15
 
-[ADR 0006](decisions/0006-local-meeting-transcript.md). Eigenes Modul `OpenScreenReaderApp/Meeting`, unabhängig von Vorlese-Pipeline und Diktier-Worker:
+[ADR 0006](decisions/0006-local-meeting-transcript.md). A separate module `OpenScreenReaderApp/Meeting`, independent of the reading pipeline and the dictation worker:
 
-| Baustein | Aufgabe |
+| Component | Responsibility |
 |---|---|
-| `MeetingMicrophoneSource` | Eigene `AVAudioEngine` am Standardmikrofon („Ich“), Mono-Float mit Host-Zeitstempel |
-| `SystemAudioTapSource` | Privater Core-Audio-Prozess-Tap (`CATapDescription(monoGlobalTapButExcludeProcesses:)` ohne Saywing, ab macOS 14.2) in einem privaten Aggregate-Device nur mit dem Tap, wie in Apples Beispiel („Andere“) |
-| `MeetingAudioRouter` | Legt beide Quellen auf eine gemeinsame Zeitachse (`MeetingTimeline`), gibt sie an die Erkennung, hält Pegel/Stille/Signal je Spur und rechnet auf einer eigenen Queue auf 8 kHz für das Echo-Gate um |
-| `AppleMeetingRecognizer` | Je Spur ein `SpeechAnalyzer` mit `SpeechTranscriber` (`.volatileResults`, `.fastResults`, `.audioTimeRange`), nur macOS 26 und nur installierte Sprachen (`AssetInventory.reserve`, kein Download). Eingaben werden in ganzen Samples der Analyzer-Rate gestempelt (`MeetingFrameTimeline`), weil der Analyzer jede Überlappung ablehnt. Stopp finalisiert mit Frist und bricht einen Analyzer ohne Eingang ab (sonst hängt er) |
-| `EchoGate` | Alle 0,5 s FFT-Kreuzkorrelation (Accelerate) der letzten ~2 s beider Spuren; stabile Verzögerung in 5 von 8 Analysen oder bekannte Raumverzögerung → Echo-Spannen nur dort, wo „Andere“ Ton hatten, verschoben um die Verzögerung plus 0,5 s Nachhall |
-| `MeetingTranscript` | Vorläufig/endgültig je Spur, Gesprächsbeiträge in Zeitfolge. „Ich“ verliert Wörter, deren Zeit in einer Echo-Spanne liegt, und Folgen von ≥ 3 Wörtern, die „Andere“ zur selben Zeit sagten. Markdown-Export |
-| `MeetingController` | Einwilligung → Start (erst Erkennung, dann Quellen) → Live → Stopp → Fertig/Verwerfen; `GenerationGate` gegen verspätete Ergebnisse; Grenzen 2 h (Hinweis nach 1 h 55 min), 10 min Stille, Ruhezustand/Sitzungswechsel; Kopieren/Sichern nur auf Klick |
-| `MeetingView` | SwiftUI-Fenster: Einwilligung, Gesprächsverlauf mit Pegeln, Hinweis bei fehlendem Systemaudio, Abschlussaktionen |
+| `MeetingMicrophoneSource` | Its own `AVAudioEngine` on the default microphone (“Me”), mono float with host timestamp |
+| `SystemAudioTapSource` | Private Core Audio process tap (`CATapDescription(monoGlobalTapButExcludeProcesses:)` without Saywing, macOS 14.2 and later) in a private aggregate device containing only the tap, as in Apple's sample (“Others”) |
+| `MeetingAudioRouter` | Places both sources on a shared timeline (`MeetingTimeline`), passes them to recognition, keeps level/silence/signal per track and resamples to 8 kHz for the echo gate on its own queue |
+| `AppleMeetingRecognizer` | One `SpeechAnalyzer` with `SpeechTranscriber` (`.volatileResults`, `.fastResults`, `.audioTimeRange`) per track, macOS 26 only and installed languages only (`AssetInventory.reserve`, no download). Input is stamped in whole samples of the analyzer rate (`MeetingFrameTimeline`) because the analyzer rejects any overlap. Stop finalizes with a deadline and cancels an analyzer without input (otherwise it hangs) |
+| `EchoGate` | Every 0.5 s, FFT cross-correlation (Accelerate) of the last ~2 s of both tracks; a stable delay in 5 of 8 analyses or a known room delay → echo spans only where “Others” had sound, shifted by the delay plus 0.5 s of reverberation |
+| `MeetingTranscript` | Volatile/final per track, conversation turns in chronological order. “Me” loses words whose time falls within an echo span, and sequences of ≥ 3 words that “Others” said at the same time. Markdown export |
+| `MeetingController` | Consent → start (recognition first, then sources) → live → stop → done/discard; `GenerationGate` against late results; limits of 2 h (notice after 1 h 55 min), 10 min of silence, sleep/session switch; copy/save only on click |
+| `MeetingView` | SwiftUI window: consent, conversation view with levels, notice when system audio is missing, completion actions |
 
-`AppModel` hält den Controller nur zur Anzeige: Menüleistenring vor allen anderen Zuständen, Updates warten. Vorlesen, Esc und Diktieren greifen nicht ein. Kein Teil des Moduls schreibt Dateien außer dem ausdrücklichen Sichern-Dialog, und keiner öffnet eine Netzwerkverbindung.
+`AppModel` holds the controller only for display: the menu bar ring takes precedence over all other states, and updates wait. Reading aloud, Esc and dictation do not interfere. No part of the module writes files except through the explicit save dialog, and none opens a network connection.
 
-### Stimmen und PDF-Export — 2026-10-18
+### Voices and PDF export — 2026-10-18
 
-[ADR 0007](decisions/0007-meeting-speakers-and-pdf.md). Ergänzt das Modul um:
+[ADR 0008](decisions/0008-meeting-speakers-and-pdf.md). Adds to the module:
 
-| Baustein | Aufgabe |
+| Component | Responsibility |
 |---|---|
-| `MeetingVoiceDiarizing` | Schnittstelle für einen Diarizer auf der Spur „Andere“. Eine Queue, Zeiten in Sekunden des eingespeisten Audios, jeder Aufruf liefert nur neue Spannen |
-| `MeetingVoiceTracker` | Speist „Andere“ auf eigener Queue in den Diarizer und legt die Spannen über Anker auf die Meeting-Zeitachse, auch über Lücken. Fällt der Diarizer mehr als 5 s zurück, wird Audio verworfen statt gestaut. Stopp leert den Look-ahead, Verwerfen schaltet verspätete Ergebnisse stumm, ein Fehler beendet nur die Stimmentrennung |
-| `MeetingTranscript` (Stimmen) | Jedes Wort von „Andere“ geht an die Stimme, die in seiner Zeit am meisten sprach (sonst an die nächste innerhalb 0,6 s); ein Stimmwechsel teilt das Segment. Nummern in der Reihenfolge der ersten Wörter, stabil über Zusammenführen. Namen und Zusammenführungen nur im RAM |
-| `MeetingVoiceModel` | Findet das gebündelte LS-EEND-Modell in `Contents/Resources/Diarization`; ohne Modell bleibt „Andere“ eine Person |
-| `MeetingExport` | Sichtbare Beiträge mit Etikett; Markdown (auch „Kopieren“), reiner Text und PDF. Das PDF setzt Core Text auf A4-Seiten, nummeriert sie und schreibt eine Strukturbaum-Auszeichnung (Überschrift, Absätze) für Screenreader. Dokumentinfo nur Titel und „Saywing“ |
-| `MeetingView` | Farbmarke plus Name oder Nummer je Stimme; das Etikett öffnet „Umbenennen …“ und „Gleiche Person wie“. Der Sichern-Dialog hat ein Formatmenü, PDF zuerst |
+| `MeetingVoiceDiarizing` | Interface for a diarizer on the "Others" track. One queue, times in seconds of the audio fed in; each call returns only new spans |
+| `MeetingVoiceTracker` | Feeds "Others" into the diarizer on its own queue and places the spans on the meeting timeline through anchors, also across gaps. If the diarizer falls more than 5 s behind, audio is dropped instead of queued. Stop drains the look-ahead, Discard silences late results, and an error ends only the voice separation |
+| `MeetingTranscript` (voices) | Each word of "Others" goes to the voice that spoke most during it (otherwise to the nearest one within 0.6 s); a change of voice splits the segment. Numbers follow the order of first words and stay stable across merges. Names and merges live only in RAM |
+| `MeetingVoiceModel` | Finds the bundled LS-EEND model in `Contents/Resources/Diarization`; without a model, "Others" stays one person |
+| `MeetingExport` | Visible turns with their labels; Markdown (also used by Copy), plain text and PDF. The PDF is set with Core Text on numbered A4 pages and carries a structure tree (heading, paragraphs) for screen readers. Document info holds only the title and "Saywing" |
+| `MeetingView` | A color mark plus name or number per voice; the label opens "Rename…" and "Same Person As". The save panel has a format menu, PDF first |
 
-Offen: Der Adapter auf FluidAudios `LSEENDDiarizer` (Trait `Diarizer`) wartet auf die Build-Freigabe, siehe ADR 0007. Bis dahin liefert `makeVoiceDiarizer` keinen Diarizer.
+Open: the adapter to FluidAudio's `LSEENDDiarizer` (`Diarizer` trait) waits for the build decision in ADR 0008. Until then `makeVoiceDiarizer` returns no diarizer, so the others stay "Others"; the PDF export and the echo handling are active.

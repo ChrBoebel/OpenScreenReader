@@ -713,6 +713,7 @@ private final class SourceFake: MeetingAudioSource {
     var starts = 0
     var stops = 0
     var failure: Error?
+    var onInterruption: ((String) -> Void)?
     func start(deliver: @escaping @Sendable (MeetingAudioChunk) -> Void) throws {
         if let failure { throw failure }
         starts += 1
@@ -755,12 +756,13 @@ private struct MeetingFixture {
     let pasteboard = NSPasteboard.withUniqueName()
     let notifications = NotificationCenter()
     let confirmations = Confirmations()
+    let access = MicrophoneAccessBox()
     var saved: [String] { savedBox.items }
     let savedBox = SavedBox()
 
     init(systemAvailable: Bool = true, diarizer: DiarizerFake? = nil) {
         let provider = provider, microphone = microphone, system = system, clock = clock, savedBox = savedBox
-        let confirmations = confirmations
+        let confirmations = confirmations, access = access
         controller = MeetingController(
             provider: provider,
             makeMicrophone: { microphone },
@@ -773,6 +775,7 @@ private struct MeetingFixture {
             notifications: notifications,
             save: { export, name in savedBox.items.append(export.markdown); savedBox.names.append(name); return true },
             confirmLosingUnsaved: { reason in confirmations.reasons.append(reason); return confirmations.answer },
+            microphoneAccess: { access.requests += 1; return access.granted },
             presentsWindow: false)
     }
 
@@ -792,6 +795,12 @@ private struct MeetingFixture {
 private final class SavedBox {
     var items: [String] = []
     var names: [String] = []
+}
+
+@MainActor
+private final class MicrophoneAccessBox {
+    var granted = true
+    var requests = 0
 }
 
 @MainActor
@@ -1016,6 +1025,70 @@ struct MeetingControllerTests {
         fixture.controller.stop()
         await fixture.controller.waitUntilSettled()
         #expect(!fixture.controller.systemAudioMissing)
+    }
+
+    @Test
+    func aDeniedMicrophoneNeverGoesLive() async {
+        let fixture = MeetingFixture()
+        fixture.access.granted = false
+        await fixture.start()
+        #expect(fixture.access.requests == 1)
+        #expect(fixture.controller.phase == .consent)
+        #expect(!fixture.controller.isRecording)
+        #expect(fixture.microphone.starts == 0)
+        #expect(fixture.system.starts == 0)
+        #expect(fixture.provider.recognizer.startedLocale == nil)
+        #expect(fixture.controller.notice != nil)
+    }
+
+    @Test
+    func aSilentMicrophonePointsToItsInput() async {
+        let fixture = MeetingFixture()
+        await fixture.start()
+        fixture.clock.seconds += 21
+        fixture.system.deliver?(MeetingAudioChunk(samples: [0.2, 0.1], sampleRate: 16_000, hostTime: fixture.clock.ticks))
+        fixture.microphone.deliver?(MeetingAudioChunk(samples: [0, 0], sampleRate: 16_000, hostTime: fixture.clock.ticks))
+        fixture.controller.tick()
+        #expect(fixture.controller.microphoneMissing)
+        #expect(!fixture.controller.systemAudioMissing)
+        fixture.microphone.deliver?(MeetingAudioChunk(samples: [0.2, 0.1], sampleRate: 16_000, hostTime: fixture.clock.ticks))
+        fixture.controller.tick()
+        #expect(!fixture.controller.microphoneMissing)
+    }
+
+    @Test
+    func aMicrophoneThatStopsByItselfLeavesOthersRunningWithANotice() async throws {
+        let fixture = MeetingFixture()
+        await fixture.start()
+        let interruption = try #require(fixture.microphone.onInterruption)
+        interruption("The input device changed.")
+        #expect(fixture.controller.phase == .live)
+        #expect(fixture.controller.notice?.contains("The input device changed.") == true)
+        #expect(fixture.microphone.stops >= 1)
+        fixture.clock.seconds += 21
+        fixture.controller.tick()
+        #expect(!fixture.controller.microphoneMissing, "The notice already says why; no second hint.")
+    }
+
+    @Test
+    func aMicrophoneThatStopsWithoutSystemAudioEndsTheRecording() async throws {
+        let fixture = MeetingFixture(systemAvailable: false)
+        await fixture.start()
+        let interruption = try #require(fixture.microphone.onInterruption)
+        interruption("The input device changed.")
+        await fixture.controller.waitUntilSettled()
+        #expect(fixture.controller.phase == .finished)
+        #expect(fixture.controller.notice?.contains("The input device changed.") == true)
+    }
+
+    @Test
+    func entriesFollowEveryChangeOfTheTranscript() {
+        var transcript = MeetingTranscript()
+        #expect(transcript.isEmpty)
+        transcript.apply(heard(.me, 1, 2, "Eins zwei drei vier"))
+        #expect(transcript.entries.map(\.text) == ["Eins zwei drei vier"])
+        transcript.addEcho(1...2)
+        #expect(transcript.isEmpty, "The cached entries are refreshed by the echo, too.")
     }
 
     @Test

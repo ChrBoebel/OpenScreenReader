@@ -1,6 +1,6 @@
 # Local Whisper Turbo dictation
 
-Owner request, 2026-10-13: selectable local dictation models, including Whisper
+Project decision, 2026-10-13: selectable local dictation models, including Whisper
 Turbo. This is ASR only; Supertonic remains the reading voice.
 
 ## Packaged asset provenance
@@ -19,8 +19,9 @@ Turbo. This is ASR only; Supertonic remains the reading voice.
 - Exact file inventory, source name, sizes and hashes:
   `Runtime/Dictation/whisper-turbo-manifest.json`. Small upstream files are also
   checked against the pinned Git blob IDs. The packager copies only this inventory.
-- Runtime: existing bundled `mlx-whisper==0.4.3` (MIT), MLX 0.32.3 and private
-  CPython 3.12.14. No new runtime network dependency. Package license files and
+- Runtime: bundled `mlx-whisper==0.4.3` (MIT), MLX 0.32.3 and CPython 3.12.15,
+  built by `scripts/build-python-runtime.py` ([runtime build](../runtime-build.md)).
+  No new runtime network dependency. Package license files and
   Whisper tokenizer/audio assets are retained in the existing Python bundle.
   The additional tokenizer in the model repository is not used or packaged.
 
