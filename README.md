@@ -131,8 +131,6 @@ The available developer scripts are described in [docs/development-packaging.md]
 - [Brand system](docs/brand-identity/BRAND_SYSTEM.md)
 - [Contributing](CONTRIBUTING.md), [Security policy](SECURITY.md), [Code of conduct](CODE_OF_CONDUCT.md)
 
-Some design documents are still written in German; English translations are planned.
-
 ## License
 
 - **Source code:** Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
