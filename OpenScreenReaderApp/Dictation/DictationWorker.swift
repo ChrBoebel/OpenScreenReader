@@ -40,6 +40,9 @@ final class DictationWorker: DictationTranscribing {
   private var session = UUID()
   private let writeQueue = DispatchQueue(label: "saywing.dictation.write")
   private var watchdog: Task<Void, Never>?
+  /// How the current process ended so far. The generic "ended" message waits until
+  /// its output was read to the end, so a specific `fatal` it sent first always wins.
+  private var exited = false, drained = false
   private(set) var ready = false
   var running: Bool { process?.isRunning ?? false }
 
@@ -51,10 +54,20 @@ final class DictationWorker: DictationTranscribing {
     let child = Process()
     let stdin = Pipe()
     let stdout = Pipe()
+    guard
+      let sandbox = WorkerSandbox.arguments(
+        resources: resources, modelRoot: modelRoot,
+        python: resources.appendingPathComponent("Python/bin/python3"))
+    else {
+      onMessage?(
+        .init(
+          type: "fatal",
+          message: String(localized: "The local dictation runtime is missing or could not start.")))
+      return
+    }
     child.executableURL = URL(fileURLWithPath: "/usr/bin/sandbox-exec")
-    child.arguments = [
-      "-f", resources.appendingPathComponent("worker.sb").path,
-      resources.appendingPathComponent("Python/bin/python3").path, "-I", "-B", "-u",
+    child.arguments = sandbox + [
+      "-I", "-B", "-u",
       resources.appendingPathComponent("worker.py").path,
       "--model", model.rawValue,
     ] + (modelRoot.map { ["--model-root", $0.path] } ?? [])
@@ -68,12 +81,11 @@ final class DictationWorker: DictationTranscribing {
     child.standardInput = stdin
     child.standardOutput = stdout
     child.standardError = FileHandle.nullDevice
+    exited = false
+    drained = false
     child.terminationHandler = { [weak self] _ in
-      Task { @MainActor in
-        guard let self, self.session == token else { return }
-        self.stop()
-        self.onMessage?(
-          .init(type: "fatal", message: String(localized: "The dictation process ended. Please start again.")))
+      DispatchQueue.main.async {
+        MainActor.assumeIsolated { self?.processEnded(token, exited: true) }
       }
     }
     do { try child.run() } catch {
@@ -95,13 +107,20 @@ final class DictationWorker: DictationTranscribing {
         ))
     }
     let reader = stdout.fileHandleForReading
+    // Packets and the end of output reach the main queue in the order they were read
+    // (FIFO), which unstructured Tasks do not guarantee.
     DispatchQueue.global(qos: .userInitiated).async { [weak self] in
       defer { try? reader.close() }
       var buffer = Data()
       do {
         while true {
           let data = reader.availableData
-          if data.isEmpty { break }
+          if data.isEmpty {
+            DispatchQueue.main.async {
+              MainActor.assumeIsolated { self?.processEnded(token, drained: true) }
+            }
+            break
+          }
           buffer.append(data)
           guard buffer.count < 256 * 1024 else { throw DictationError("protocol_limit") }
           while let end = buffer.firstIndex(of: 10) {
@@ -111,25 +130,54 @@ final class DictationWorker: DictationTranscribing {
             guard ["ready", "result", "error", "fatal"].contains(packet.type),
               packet.type != "ready" || packet.version == 1
             else { throw DictationError("protocol_version") }
-            Task { @MainActor in
-              guard let self, self.session == token else { return }
-              if packet.type == "ready" {
-                self.ready = true
-                self.watchdog?.cancel()
+            DispatchQueue.main.async {
+              MainActor.assumeIsolated {
+                guard let self, self.session == token else { return }
+                if packet.type == "ready" {
+                  self.ready = true
+                  self.watchdog?.cancel()
+                }
+                // The specific reason ends this session; a later exit cannot replace it.
+                if packet.type == "fatal" { self.stop() }
+                self.onMessage?(packet)
               }
-              self.onMessage?(packet)
             }
           }
         }
       } catch {
-        Task { @MainActor in
-          guard let self, self.session == token else { return }
-          self.stop()
-          self.onMessage?(
-            .init(type: "fatal", message: String(localized: "The local dictation model sent an invalid response.")))
+        DispatchQueue.main.async {
+          MainActor.assumeIsolated {
+            guard let self, self.session == token else { return }
+            self.stop()
+            self.onMessage?(
+              .init(type: "fatal", message: String(localized: "The local dictation model sent an invalid response.")))
+          }
         }
       }
     }
+  }
+
+  /// Reports the generic end only after the exit and the end of output were both
+  /// seen, or shortly after the exit if a descendant keeps the pipe open. A `fatal`
+  /// read before that has already stopped this session, so it is never overwritten.
+  private func processEnded(_ token: UUID, exited: Bool = false, drained: Bool = false) {
+    guard session == token else { return }
+    self.exited = self.exited || exited
+    self.drained = self.drained || drained
+    guard self.exited else { return }
+    if self.drained {
+      reportEnded(token)
+    } else if exited {
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+        MainActor.assumeIsolated { self?.reportEnded(token) }
+      }
+    }
+  }
+
+  private func reportEnded(_ token: UUID) {
+    guard session == token else { return }
+    stop()
+    onMessage?(.init(type: "fatal", message: String(localized: "The dictation process ended. Please start again.")))
   }
 
   func transcribe(_ audio: AudioPacket, id: UUID, language: String?, vocabulary: [String]) {

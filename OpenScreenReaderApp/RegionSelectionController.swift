@@ -164,11 +164,22 @@ enum SelectionHint {
     }
 }
 
+/// Why a selection ended without a region. Only `.escape` is the user asking to
+/// stop; the others merely end this one selection attempt.
+enum SelectionCancelReason: Equatable, Sendable {
+    /// The user pressed Escape in the overlay.
+    case escape
+    /// A drag too thin to read, or a mouse-up without its mouse-down.
+    case invalidSelection
+    /// Displays were added, removed or rearranged while selecting.
+    case displaysChanged
+}
+
 @MainActor
 protocol RegionSelectionControlling: AnyObject {
     func start(
         onSelection: @escaping (ScreenRegionSelection) -> Void,
-        onCancel: @escaping () -> Void
+        onCancel: @escaping (SelectionCancelReason) -> Void
     )
 
     func cancel()
@@ -178,7 +189,7 @@ protocol RegionSelectionControlling: AnyObject {
 final class RegionSelectionOverlayController: NSObject, RegionSelectionControlling {
     private var panels: [SelectionOverlayPanel] = []
     private var onSelection: ((ScreenRegionSelection) -> Void)?
-    private var onCancel: (() -> Void)?
+    private var onCancel: ((SelectionCancelReason) -> Void)?
     private var cursorIsPushed = false
     private var topologyRevision: UInt64 = 0
     private let defaults: UserDefaults
@@ -192,7 +203,7 @@ final class RegionSelectionOverlayController: NSObject, RegionSelectionControlli
 
     func start(
         onSelection: @escaping (ScreenRegionSelection) -> Void,
-        onCancel: @escaping () -> Void
+        onCancel: @escaping (SelectionCancelReason) -> Void
     ) {
         cancel()
         self.onSelection = onSelection
@@ -216,8 +227,8 @@ final class RegionSelectionOverlayController: NSObject, RegionSelectionControlli
                 onSelection: { [weak self] selection in
                     self?.finish(with: selection)
                 },
-                onCancel: { [weak self] in
-                    self?.finishAsCancelled()
+                onCancel: { [weak self] reason in
+                    self?.finishAsCancelled(reason)
                 }
             )
         }
@@ -250,7 +261,7 @@ final class RegionSelectionOverlayController: NSObject, RegionSelectionControlli
 
     private func finish(with selection: ScreenRegionSelection) {
         guard topologyRevision == DisplayTopology.shared.revision else {
-            finishAsCancelled()
+            finishAsCancelled(.displaysChanged)
             return
         }
         var selection = selection
@@ -262,17 +273,17 @@ final class RegionSelectionOverlayController: NSObject, RegionSelectionControlli
         completion?(selection)
     }
 
-    private func finishAsCancelled() {
+    private func finishAsCancelled(_ reason: SelectionCancelReason) {
         let cancellation = onCancel
         teardown()
         onSelection = nil
         onCancel = nil
-        cancellation?()
+        cancellation?(reason)
     }
 
     @objc
     private func screenParametersDidChange() {
-        finishAsCancelled()
+        finishAsCancelled(.displaysChanged)
     }
 
     private func teardown() {
@@ -299,7 +310,7 @@ private final class SelectionOverlayPanel: NSPanel {
         screen: NSScreen,
         showsHint: Bool,
         onSelection: @escaping (ScreenRegionSelection) -> Void,
-        onCancel: @escaping () -> Void
+        onCancel: @escaping (SelectionCancelReason) -> Void
     ) {
         super.init(
             contentRect: screen.frame,
@@ -335,7 +346,7 @@ private final class SelectionOverlayPanel: NSPanel {
 private final class SelectionOverlayView: NSView {
     private let geometry: DisplaySelectionGeometry
     private let onSelection: (ScreenRegionSelection) -> Void
-    private let onCancel: () -> Void
+    private let onCancel: (SelectionCancelReason) -> Void
     private var gesture: SelectionGesture?
     private var selectionRect: CGRect { gesture.map { $0.rect.intersection(bounds) } ?? .zero }
     private var hint: NSView?
@@ -348,7 +359,7 @@ private final class SelectionOverlayView: NSView {
         screen: NSScreen,
         showsHint: Bool,
         onSelection: @escaping (ScreenRegionSelection) -> Void,
-        onCancel: @escaping () -> Void
+        onCancel: @escaping (SelectionCancelReason) -> Void
     ) {
         let displayNumber = screen.deviceDescription[
             NSDeviceDescriptionKey("NSScreenNumber")
@@ -436,11 +447,11 @@ private final class SelectionOverlayView: NSView {
     override func mouseUp(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
         gesture?.move(to: point)
-        guard geometry.displayID != 0, let gesture else { onCancel(); return }
+        guard geometry.displayID != 0, let gesture else { onCancel(.invalidSelection); return }
         // A click without a drag reads the paragraph under the pointer.
         let isClick = gesture.rect.width < 3 && gesture.rect.height < 3
         guard let selection = isClick ? geometry.clickSelection(at: point) : geometry.selection(in: gesture.rect) else {
-            onCancel()
+            onCancel(.invalidSelection)
             return
         }
 
@@ -449,7 +460,7 @@ private final class SelectionOverlayView: NSView {
 
     override func keyDown(with event: NSEvent) {
         switch event.keyCode {
-        case 53: onCancel()
+        case 53: onCancel(.escape)
         case 49: if !event.isARepeat { gesture?.setMoving(true) }
         case 36, 76:
             // Without a mouse gesture, Return reads the paragraph under the pointer, like a click.

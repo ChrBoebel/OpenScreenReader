@@ -1,91 +1,106 @@
 # Included source and local modifications
 
 The CorrespondingSource folder contains the original archives listed in sources.json.
-Each record includes its source URL, exact size and SHA-256. availability.json reports
-how many are actually included. The archives are distributed with the application;
-no network connection is needed to inspect them. Extract them into a separate working
-directory, not into the installed app. The original license files remain with each
-source and are also presented in the offline license index.
+Each record gives its source URL, exact size and SHA-256. availability.json reports
+how many are included in this copy; public releases are built only when all are.
+The archives are distributed with the application, so no network connection is
+needed to inspect them. Extract them into a separate working directory, not into
+the installed app. The license texts are in the Licenses folder and in the offline
+license index (THIRD-PARTY-NOTICES.html).
 
-SoundFile loads libsndfile dynamically from
-Dictation/Python/lib/python3.12/site-packages/_soundfile_data/libsndfile_arm64.dylib
-in the ARM bundle. libsndfile itself includes the codec versions recorded in
-sources.json. The three libsndfile-* build-control files are unchanged upstream
-files. To reproduce their layout, rename libsndfile-mac_build.sh to mac_build.sh,
-libsndfile-darwin.cmake to darwin.cmake, and keep all seven source archives beside
-them. Read the script and each project's build instructions before building.
-The original script downloads its inputs; use the included, hash-verified archives
-for an offline adaptation. Its archive extraction commands have not been validated
-on the current toolchain. A separate libsndfile 1.2.2 rebuild with external/MPEG codecs disabled was
-validated in a complete local app copy: SoundFile loaded the changed library,
-a WAV roundtrip and all twelve default-model dictation checks passed. This does
-not certify exact reconstruction of the original all-codec binary.
+## GNU runtime libraries (LGPL-2.1 / GPL-3.0 with the GCC Runtime Library Exception)
 
-The vendored autocommand 2.2.2 Python source is under
-Dictation/Python/lib/python3.12/site-packages/setuptools/_vendor/autocommand.
-Its six Python files match the included original source archive byte for byte.
-The corresponding LGPLv3 and GPLv3 texts are in the license index. The certifi and
-tqdm sources and potentially included MPL/CDDL Rust-crate sources are supplied too.
-Some Cargo lock entries are build-only or target-specific; including their sources
-and notices does not mean that all of them are linked into the macOS executable.
+SciPy ships three GCC 13.4.0 runtime libraries as separate dynamic libraries, unmodified
+from its published wheels:
 
-Saywing imposes no additional prohibition on modifying these libraries for your own
-use or reverse engineering to debug such modifications. Their original licenses
-continue to govern them independently of Saywing's Apache-2.0 source license and
-Supertonic's model terms. A modified copy will no longer carry the original valid
-Developer ID seal. Preserve an original copy and make changes in a development copy.
-Changing a library also changes the runtime receipt; a locally modified build must
-regenerate its receipt and sign its changed nested code and app. This is an integrity
-mechanism, not a restriction on the modification rights granted by the licenses.
-The project's release/signing scripts document these steps; the official signing
-key is not required to build a locally signed development copy.
+- `libquadmath.0.dylib`: GNU LGPL 2.1 or later (Licenses/GCC-13.4.0/libquadmath/COPYING.LIB);
+- `libgfortran.5.dylib` and `libgcc_s.1.1.dylib`: GNU GPL 3 or later with the GCC Runtime
+  Library Exception 3.1 (Licenses/GCC-13.4.0/COPYING3 and COPYING.RUNTIME).
 
-## Tested ARM library replacement procedure
+They are in `Dictation/Python/lib/python3.12/site-packages/scipy/.dylibs/` and are loaded
+at run time through `@loader_path` (libgfortran loads libquadmath and libgcc_s; SciPy's
+ODR module loads libgfortran). No Saywing code and no other library links them statically.
 
-This example deliberately disables optional codecs to make the replacement observable.
-It was exercised on a complete build-8 app copy. It requires Xcode command-line tools,
-CMake and Python 3; no original signing key is needed. The complete release license
-review remains separate from this technical proof.
+SciPy built them with Homebrew's gcc@13 13.4.0 (recorded as the Fortran compiler in
+`scipy/__config__.py`). Their complete corresponding source is:
 
-1. Copy Saywing.app to a new local development directory. Keep the original app intact.
-   On APFS, `/bin/cp -c -R /path/to/Saywing.app /new/path/Saywing-local.app` avoids
-   duplicating model storage. The destination must not already exist.
-2. Verify the included libsndfile-1.2.2.tar.xz against sources.json and extract it
-   outside the app. The tested CMake configuration, from that working directory, is:
+- `gcc-13.4.0.tar.xz`: the GNU release archive (libquadmath/, libgfortran/, libgcc/);
+- `homebrew-gcc-13.4.0.diff`: the Darwin and Apple Silicon patch Homebrew applies before
+  building (from https://github.com/iains/gcc-13-branch). It applies to the archive
+  unchanged with `patch -p1`;
+- `homebrew-gcc@13-97eefa4d.rb` and `homebrew-gcc@13-cd5d1cfa.rb`: the Homebrew build
+  recipes in effect before the two SciPy builds. They differ only in packaging details,
+  not in source or patch. The exact Homebrew bottle that SciPy's build machine used is not
+  recorded in the wheels.
+
+Saywing imposes no additional restriction on modifying these libraries for your own use,
+or on reverse engineering to debug such modifications. Their licenses continue to apply
+independently of Saywing's Apache-2.0 license and of Supertonic's model terms.
+
+### Tested libquadmath replacement (Apple Silicon)
+
+This was tested on 2026-10-24 with Homebrew GCC 16.1.0 as the compiler and the included
+GCC 13.4.0 source plus the Homebrew patch. No Saywing signing key is needed.
+
+1. Verify `gcc-13.4.0.tar.xz` and `homebrew-gcc-13.4.0.diff` against sources.json, extract
+   the archive in a working directory and run `patch -p1 < homebrew-gcc-13.4.0.diff` in
+   `gcc-13.4.0`.
+2. Build only libquadmath with a GCC that supports `__float128` on your Mac (Apple clang
+   does not):
 
 ```sh
-cmake -S libsndfile-1.2.2 -B sndfile-build \
-  -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 \
-  -DBUILD_SHARED_LIBS=ON -DENABLE_EXTERNAL_LIBS=OFF -DENABLE_MPEG=OFF \
-  -DBUILD_PROGRAMS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF
-cmake --build sndfile-build --parallel 4
+mkdir qm-build && cd qm-build
+export MACOSX_DEPLOYMENT_TARGET=14.0
+../gcc-13.4.0/libquadmath/configure --host=aarch64-apple-darwin24 --build=aarch64-apple-darwin24 \
+  --disable-multilib --enable-shared --disable-static CC=gcc-16
+make
+# libtool's piecewise link drops private symbols on macOS; link the built objects directly:
+gcc-16 -dynamiclib -nodefaultrpaths -o libquadmath.0.dylib math/.libs/*.o printf/.libs/*.o strtod/.libs/*.o \
+  -install_name @rpath/libquadmath.0.dylib -compatibility_version 1 -current_version 1.0 -lm
 ```
 
-3. In the development app only, replace
-   Contents/Resources/Dictation/Python/lib/python3.12/site-packages/_soundfile_data/libsndfile_arm64.dylib
-   with sndfile-build/libsndfile.1.0.37.dylib. Re-sign that library and
-   Contents/Resources/Dictation/Python/bin/python3.12 using
-   `codesign --force --sign - --options 0x0 PATH` for each file. Disabling hardened
-   runtime on this local loader permits the modified ad-hoc library to load.
-4. In Contents/Resources/Dictation/installation-receipt.json, replace only the two
-   corresponding entries in `files` with SHA-256 hashes of the newly signed files.
-   Verify every other receipt entry against the unchanged file; never repair an
-   unexplained mismatch. The names are relative to the Dictation directory.
-5. Export the original app entitlements to a local plist using
-   `codesign -d --entitlements :- /path/to/original/Saywing.app > local-entitlements.plist`.
-   Re-seal the development app with
-   `codesign --force --sign - --options 0x0 --entitlements local-entitlements.plist /new/path/Saywing-local.app`.
-   Verify using `codesign --verify --deep --strict /new/path/Saywing-local.app`.
-   This is a locally signed development copy, not an Apple-notarized distribution.
-6. Use its bundled Python with `-I -B` to import soundfile: version must remain
-   1.2.2, while `FLAC` must be absent from `soundfile.available_formats()` for this
-   deliberately changed build. The recorded test also encoded/decoded float WAV
-   in memory, then exercised public German/English fixtures through the app's
-   sandboxed Whisper Turbo worker (all 12 integration checks passed).
+   The result exported the same 107 symbols as the shipped library.
+3. In a copy of the runtime (never in the installed app), replace
+   `lib/python3.12/site-packages/scipy/.dylibs/libquadmath.0.dylib`, restore its install
+   name with `install_name_tool -id /DLC/scipy/.dylibs/libquadmath.0.dylib` and sign it
+   ad hoc with `codesign --force --sign - PATH`.
+4. With `DYLD_PRINT_LIBRARIES=1`, the runtime's `python3 -I -B` imported `scipy.odr`,
+   which loaded the replaced library (a different Mach-O UUID from the original), and an
+   orthogonal-distance regression fit returned the expected coefficients.
 
-Both runtime receipts and the complete app seal passed. A launch with `--uitesting`
-stayed alive for five seconds without microphone capture, hotkeys or update checks.
-That launch does not constitute a GUI dictation or fresh-device permission test.
-The original all-codec binary was not reproduced bit for bit.
+To use a replaced library in a complete app copy:
 
+5. Copy Saywing.app to a new directory; keep the original intact. On APFS,
+   `/bin/cp -c -R Saywing.app /new/path/Saywing-local.app` avoids duplicating model data.
+6. Replace the library as in step 3. Re-sign it and
+   `Contents/Resources/Dictation/Python/bin/python3.12` with
+   `codesign --force --sign - --options 0x0 PATH`. Without hardened runtime, this local
+   interpreter can load the ad hoc signed library.
+7. In `Contents/Resources/Dictation/installation-receipt.json`, replace only the entries of
+   the two changed files with their new SHA-256. Verify every other entry against the
+   unchanged file; never repair an unexplained mismatch.
+8. Export the original entitlements with
+   `codesign -d --entitlements :- /path/to/Saywing.app > local-entitlements.plist`, re-seal
+   with `codesign --force --sign - --options 0x0 --entitlements local-entitlements.plist
+   /new/path/Saywing-local.app` and check `codesign --verify --deep --strict`.
+   This is a locally signed development copy, not a notarized distribution.
+
+Steps 5 to 8 are the receipt and re-seal procedure that was exercised with a complete app
+copy in October 2026 for an earlier replaceable library. The libquadmath test above ran
+against a copy of the runtime, not against a re-sealed app.
+
+## Other included sources
+
+- `eigen-1d8b82b0740839c0de7f1242a3585e3390ff5f33.zip`: Eigen (MPL-2.0), compiled into
+  `libonnxruntime.1.23.2.dylib` of the speech runtime. This is the exact archive that ONNX
+  Runtime 1.23.2 pins in `cmake/deps.txt`.
+- `tqdm-4.70.1.tar.gz`: tqdm, which contains MPL-2.0 files.
+- `tokenizers-0.23.3.tar.gz`, `safetensors-0.8.0.tar.gz`, `tiktoken-0.14.0.tar.gz`: the
+  original sources of the bundled Rust extensions. Their dependency locks, observed crate
+  versions and a rebuild recipe are in Licenses/RustBuild. Some lock entries are build-only
+  or target-specific; their notices are included conservatively.
+
+A modified copy no longer carries the original Developer ID seal. Changing a library also
+changes the runtime receipt; a locally modified build must refresh its receipt and sign
+its changed code and the app. This protects integrity; it does not restrict the
+modification rights the licenses grant.

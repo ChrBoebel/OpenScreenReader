@@ -2,14 +2,14 @@
 
 ## Brand and product direction — 2026-10-14
 
-- [x] Owner selected Saywing and “Vorlesen & Diktieren für macOS” (2026-10-13); replaced Quiet Owl with **Text to Voice / concept B** with the owner-selected Ink Navy, Paper, Petrol and Apricot palette (2026-10-14).
+- [x] Selected Saywing and “Vorlesen & Diktieren für macOS” (2026-10-13); replaced Quiet Owl with **Text to Voice / concept B** with the selected Ink Navy, Paper, Petrol and Apricot palette (2026-10-14).
 - [x] Update native product name, app icon, template menu glyph, UI palette and current brand documentation.
 - [ ] Validate name comprehension with real participants; no results are implied by the naming decision.
 - [ ] Complete trademark similarity review and confirm desired domain with a registrar.
-- [x] Owner approved Qwen3-ASR dictation integration with clipboard restore (2026-10-13); implemented in the private app build.
-- [x] Whisper Turbo becomes the default dictation model with an optional local vocabulary (owner decision 2026-10-14); [measurement and gaps](dictation-vocabulary-verification.md).
+- [x] Approved Qwen3-ASR dictation integration with clipboard restore (2026-10-13); implemented in the app.
+- [x] Whisper Turbo becomes the default dictation model with an optional local vocabulary (project decision 2026-10-14).
 - [ ] Complete dictation target-app matrix, real microphone/Hotkey walkthrough in the integrated bundle, clean-Mac packaging and distribution gates.
-- [x] Local meeting transcript (owner decision 2026-10-15, [ADR 0006](decisions/0006-local-meeting-transcript.md)): system audio tap + microphone, on-device `SpeechTranscriber`, echo gate, consent step, RAM-only transcript with explicit copy/save.
+- [x] Local meeting transcript (project decision 2026-10-15, [ADR 0006](decisions/0006-local-meeting-transcript.md)): system audio tap + microphone, on-device `SpeechTranscriber`, echo gate, consent step, RAM-only transcript with explicit copy/save.
 - [ ] Meeting transcript gates: real call over speakers and headphones on the signed build, permission prompt, echo duplicates, word errors on real speech, 60-minute CPU/memory, no files written.
 - [ ] Meeting transcript candidates, each needing its own decision: Whisper refinement with the vocabulary, summaries, speaker diarisation, meeting detection, mixed-language meetings, macOS 14–15 support.
 
@@ -22,10 +22,8 @@
 - [x] First-use setup view with permission preflight, explicit requests and a real-region test entry point. Preflight is not presented as an end-to-end success.
 - [x] Conservative soft-hyphen/spacing repair and abbreviation/ordinal-aware speech segmentation.
 - [ ] Subjective German/English listening review of numbers, headings and abbreviations; no automatic speculative number expansion.
-- [ ] Complete real UI regression: installed build, queue editing while speaking/paused, all three panel edges, full screen/Spaces and external display. Computer Use currently blocked by the locked Mac.
+- [ ] Complete real UI regression: installed build, queue editing while speaking/paused, all three panel edges, full screen/Spaces and external display.
 - [x] Private self-contained packaging spike: model/runtime bundled, isolated imports, relocated real speech/pause/cancellation and deep signature verification. Public release and clean-Mac validation remain separately gated below.
-
-Details and current evidence: [everyday reading verification](everyday-reading-verification.md).
 
 ## Phase 0 — Foundation
 
@@ -42,9 +40,9 @@ Details and current evidence: [everyday reading verification](everyday-reading-v
 - [x] Configurable global hotkey registration, local preference persistence, and transactional conflict handling. Broader layout/system-shortcut coverage remains experimental.
 - [x] Implement multi-monitor region-selection overlay; broad physical display/Space verification remains open.
 - [x] Implement selected-region capture with ScreenCaptureKit; permission-dependent tests remain separate gates.
-- [x] Basic Apple Vision OCR for German and English ([verification and remaining layout checks](ocr-verification.md)).
+- [x] Basic Apple Vision OCR for German and English; broader layout checks remain open.
 - [x] Development-only native Qwen MLX worker with streamed first chunk ([pinned runtime and real checks](research/swift-runtime-evaluation.md)); warm performance and release packaging remain open.
-- [x] Select Supertonic 3 as default after owner listening comparison and implement a local ONNX development worker; [integration and verification](research/supertonic-integration.md). Qwen remains comparison-only, not a fallback.
+- [x] Select Supertonic 3 as default after a listening comparison and implement a local ONNX development worker; [integration and verification](research/supertonic-integration.md). Qwen remains comparison-only, not a fallback.
 - [x] Cancellation from `Esc` and explicit Stop controls; broader device/layout stress coverage remains open. Historical repeated-shortcut cancellation was superseded by same-shortcut queueing on 2026-09-09.
 - [ ] Packaged worker and bundled-model signing/notarization experiment.
 - [ ] Offline and temporary-file privacy verification.
@@ -56,11 +54,11 @@ Each spike needs a small reproducible test or benchmark and a written decision b
 - [ ] Production-ready hotkey → overlay → screenshot → OCR → TTS → playback (development integration works; distribution, broader reliability, and performance gates remain).
 - [x] Add bounded sentence segmentation and conservative text normalization; text-fidelity listening matrix remains open.
 - [x] Add menu bar settings for the hotkey, including restore-default and conflict feedback.
-- [x] Add a small branded reading-status panel with full-pipeline stop, without taking focus; [verification and remaining display/accessibility checks](reading-panel-verification.md).
+- [x] Add a small branded reading-status panel with full-pipeline stop, without taking focus; broader display/accessibility checks remain open.
 - [x] Add speed settings and session-bounded model lifecycle.
 - [ ] Add voice selection after listening review.
 - [x] Add explicit permissions onboarding; real installed-app walkthrough remains to be verified.
-- [x] Guided one-decision-per-page setup with in-window reading test, System Settings hint and just-in-time setup (2026-10-14); [verification and open manual checks](guided-setup-verification.md).
+- [x] Guided one-decision-per-page setup with in-window reading test, System Settings hint and just-in-time setup (2026-10-14); some manual checks remain open.
 - [ ] Add bundled-model manifest, source/license display, and integrity checks.
 - [x] Add worker packet watchdogs, fail-closed cleanup and direct setup/error help; broader recovery stress tests remain open.
 - [x] Add automated unit and integration tests; do not equate skipped permission/UI paths with success.
@@ -68,12 +66,12 @@ Each spike needs a small reproducible test or benchmark and a written decision b
 
 ## Phase 3 — First public release
 
-- [ ] Accessibility review and VoiceOver labels. Code audit and fixes done on 2026-10-14 ([verification](guided-setup-verification.md#rückmeldung-am-ort-des-geschehens)); a live VoiceOver/keyboard walkthrough remains open.
+- [ ] Accessibility review and VoiceOver labels. Code audit and fixes done on 2026-10-14; a live VoiceOver/keyboard walkthrough remains open.
 - [ ] Privacy verification guide.
 - [ ] Third-party notices and model license review.
 - [ ] Signed and notarized Apple Silicon build.
 - [ ] Demo GIF/video and screenshots.
-- [ ] GitHub issue templates and contribution guide refinement.
+- [x] GitHub issue templates, security policy, code of conduct and contribution guide.
 - [ ] Public release only after a manual data-flow and licensing review.
 
 ## Later candidates

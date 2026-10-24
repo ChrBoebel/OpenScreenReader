@@ -261,6 +261,8 @@ final class AppModel: ObservableObject {
     private var queueOverlayVisible = false
     private var sessionGeneration: UInt64 = 0
     private var dictationObservation: AnyCancellable?
+    private var terminationObserver: NSObjectProtocol?
+    private let appNotifications: NotificationCenter
     private var meetingObservation: AnyCancellable?
     var activityTitle: String {
         if let dictation, dictation.isActive { return dictation.statusText }
@@ -296,6 +298,7 @@ final class AppModel: ObservableObject {
     private var speechTimeoutGeneration: UInt64 = 0
 
     isolated deinit {
+        if let terminationObserver { appNotifications.removeObserver(terminationObserver) }
         dictation?.shutdown()
         readingPanel?.hide()
         stopResources()
@@ -322,8 +325,10 @@ final class AppModel: ObservableObject {
         queueShortcutStore: any ShortcutStoring = UserDefaultsShortcutStore(preferenceKey: "enqueueShortcut.v1"),
         dictation: DictationController? = nil,
         meeting: MeetingController? = nil,
-        missingReadingPermission: @escaping @MainActor () -> SaywingPermission? = { nil }
+        missingReadingPermission: @escaping @MainActor () -> SaywingPermission? = { nil },
+        appNotifications: NotificationCenter = .default
     ) {
+        self.appNotifications = appNotifications
         self.dictation = dictation
         self.meeting = meeting
         self.missingReadingPermission = missingReadingPermission
@@ -367,6 +372,11 @@ final class AppModel: ObservableObject {
         }
         // A meeting transcript runs beside reading and dictation; neither stops it.
         meetingObservation = meeting?.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
+        // Quitting must not leave the speech worker running. The dictation controller
+        // and the meeting transcript stop their own processes and devices on this notification.
+        terminationObserver = appNotifications.addObserver(
+            forName: NSApplication.willTerminateNotification, object: nil, queue: .main
+        ) { [weak self] _ in MainActor.assumeIsolated { self?.speechService.stop() } }
         dictation?.onOpenSetup = { [weak self] in self?.showSetup(entry: .dictation) }
         dictation?.onActivation = { [weak self] start in
             self?.enqueue { model in
@@ -592,7 +602,7 @@ final class AppModel: ObservableObject {
                 onSelection: { [weak self] selection in
                     self?.enqueue { await $0.beginCapture(selection, context: context) }
                 },
-                onCancel: { [weak self] in
+                onCancel: { [weak self] _ in
                     self?.enqueue { await $0.cancel(context: context) }
                 }
             )
@@ -755,6 +765,12 @@ final class AppModel: ObservableObject {
         if !queuedTexts.isEmpty {
             guard await pipelineCoordinator.complete(context) else { return }
             stopSpeechResources()
+            // Settings edits the queue directly, so it may have been emptied while
+            // this was suspended. Re-check instead of assuming the earlier state.
+            guard !queuedTexts.isEmpty else {
+                await finishAfterQueueEmptied(context: context)
+                return
+            }
             let next = queuedTexts.removeFirst()
             updateQueuePresentation()
             guard case let .started(nextContext) = await pipelineCoordinator.start() else {
@@ -775,6 +791,28 @@ final class AppModel: ObservableObject {
             return
         }
         guard context == activeContext, await pipelineCoordinator.complete(context) else { return }
+        stopResources()
+        activeContext = nil
+        status = .ready
+        showReadingPanel(lastOCRSummary?.characterCount == 0 ? .noText : .finished, context: context)
+        interfaceSounds?.play(lastOCRSummary?.characterCount == 0 ? .attention : .completion)
+    }
+
+    /// The coordinator already completed `context`; nothing is left to read.
+    private func finishAfterQueueEmptied(context: PipelineOperationContext) async {
+        guard context == activeContext else { return }
+        updateQueuePresentation()
+        if isAddingToQueue {
+            // An added region is still being recognized: wait for it under a fresh generation.
+            guard case let .started(waiting) = await pipelineCoordinator.start() else {
+                await fail(context: context, message: String(localized: "The next text could not start. Please select it again."))
+                return
+            }
+            activeContext = waiting
+            status = .waiting
+            showReadingPanel(.waiting, context: waiting)
+            return
+        }
         stopResources()
         activeContext = nil
         status = .ready
@@ -871,10 +909,18 @@ final class AppModel: ObservableObject {
         let session = sessionGeneration
         selectionController.start(onSelection: { [weak self] selection in
             self?.enqueue { $0.captureQueueInput(selection, id: id) }
-        }, onCancel: { [weak self] in
+        }, onCancel: { [weak self] reason in
             self?.enqueue {
                 guard $0.queueInputID == id, $0.sessionGeneration == session, let active = $0.activeContext else { return }
-                await $0.cancel(context: active)
+                // Only Escape stops everything. A too-small drag or a display change
+                // ends this added selection alone; playback continues.
+                switch reason {
+                case .escape: await $0.cancel(context: active)
+                case .invalidSelection:
+                    await $0.rejectQueueInput(id: id, message: String(localized: "The additional region was too small to read. Press the shortcut to select it again."))
+                case .displaysChanged:
+                    await $0.rejectQueueInput(id: id, message: String(localized: "The displays changed. Press the shortcut to select the additional region again."))
+                }
             }
         })
     }

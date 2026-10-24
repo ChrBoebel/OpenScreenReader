@@ -22,7 +22,7 @@ The package uses ad-hoc signatures. No certificate purchase, Developer ID signin
 
 ## Evidence and limits
 
-On the development Mac, isolated imports resolved inside the bundle. A relocated bundle's real local speech, three-second pause/resume and playback/loading cancellation passed under the worker's deny-network/deny-write sandbox. Deep strict signature verification passed. See `everyday-reading-verification.md` for measurements and the GUI blocker.
+On the development Mac, isolated imports resolved inside the bundle. A relocated bundle's real local speech, three-second pause/resume and playback/loading cancellation passed under the worker's deny-network/deny-write sandbox. Deep strict signature verification passed.
 
 Before distribution, obtain a reproducible, independently pinned interpreter source/build provenance record, audit every native and transitive license/notice (including any notices not present in wheel metadata), verify load-command resolution and signing on a fresh Mac, audit offline/data flows, and complete the selected distribution signing/notarization workflow. Existing licenses are retained; their presence alone is not a complete legal/redistribution audit. Do not publish this development DMG as an end-user release.
 
@@ -30,7 +30,7 @@ Before distribution, obtain a reproducible, independently pinned interpreter sou
 
 Python worker runtimes are built with `scripts/build-python-runtime.py`; commands, pins and checks are in [runtime build](runtime-build.md).
 
-The 2026-10-13 build also bundles Whisper Turbo (since 2026-10-14 the only model bundled by default; `--with-qwen` and `--whisper-large-model` add Qwen3-ASR and Whisper Large v3, which the app otherwise installs on request) through `scripts/bundle-dictation-runtime.py`. It accepts existing verified resources only, preserves notices, creates a hash inventory and re-signs the app. See [dictation packaging, setup and actual verification](dictation-integration-verification.md). `--speech-from` can reuse a receipt-verified self-contained Speech runtime when an external development interpreter has changed. This is still a private build, not a public-release approval.
+The 2026-10-13 build also bundles Whisper Turbo (since 2026-10-14 the only model bundled by default; `--with-qwen` and `--whisper-large-model` add Qwen3-ASR and Whisper Large v3, which the app otherwise installs on request) through `scripts/bundle-dictation-runtime.py`. It accepts existing verified resources only, preserves notices, creates a hash inventory and re-signs the app. See [the dictation runtime record](research/qwen-dictation-runtime.md). `--speech-from` can reuse a receipt-verified self-contained Speech runtime when an external development interpreter has changed. This is still a private build, not a public-release approval.
 
 ## Release preparation — 2026-10-14
 

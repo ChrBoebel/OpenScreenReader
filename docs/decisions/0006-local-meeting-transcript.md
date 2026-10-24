@@ -2,18 +2,18 @@
 
 - Status: accepted
 - Date: 2026-10-15
-- Decision: project owner ("okey baue es"), on the proposal from the Wispr Flow analysis and the on-device measurements of the same day.
+- Decision: project maintainer, based on a proposal and on-device measurements made the same day.
 
 ## Context
 
-Wispr Flow's Notetaker records meetings without a bot: it captures the microphone and the system audio as two separate tracks. It streams both to its own servers, where Soniox, its own model or OpenAI transcribe them, and summarises the meeting in the cloud.
+Meeting note-takers commonly capture the microphone and the system audio as two separate tracks, without joining the call as a bot. Many of them upload both tracks to cloud services for transcription and summarisation.
 
-Saywing's promise is the opposite: everything stays on the Mac. On macOS 26, Apple's `SpeechAnalyzer`/`SpeechTranscriber` runs on the device. On the owner's Mac, measured with a 53.8 s synthetic German recording:
+Saywing's promise is the opposite: everything stays on the Mac. On macOS 26, Apple's `SpeechAnalyzer`/`SpeechTranscriber` runs on the device. On a development Mac (Apple M4), measured with a 53.8 s synthetic German recording:
 
 - It transcribed German 60–110× faster than real time.
 - With `.volatileResults` and `.fastResults` it delivered live text less than about 1 s behind the audio.
 
-The brand synthesis lists a "transcription archive" and a "summarizer" as non-goals.
+The product direction excludes a "transcription archive" and a "summarizer".
 
 ## Decision
 

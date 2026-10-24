@@ -268,13 +268,44 @@ pinned public inputs described in [docs/runtime-build.md](runtime-build.md). No
 runtime or model binaries belong in Git. Pins prove which bytes were used, not
 legal permission; the license review stays a release gate.
 
+## Licenses in the app and the DMG
+
+`scripts/bundle_notices.py` runs inside `scripts/release.py` before signing. It copies
+the reviewed notices into `Contents/Resources/Licenses`, writes the offline index
+`THIRD-PARTY-NOTICES.html`, and bundles every archive listed in
+`docs/licenses/native-corresponding-sources.json` into `Contents/Resources/CorrespondingSource`.
+Public releases fail unless all archives are present. Fetch them once (build-time network
+only; every size and SHA-256 is checked) with:
+
+```sh
+python3 scripts/bundle_notices.py --fetch-sources
+```
+
+The archives include GCC 13.4.0 with the Homebrew Darwin patch, the corresponding source of
+SciPy's `libquadmath` (LGPL-2.1), `libgfortran` and `libgcc_s` (GPL-3.0 with the GCC Runtime
+Library Exception). The step fails if one of these GNU libraries is not declared there or is
+not a separate dylib, because the LGPL requires that users can replace it. The tested
+replacement procedure is in `docs/licenses/CorrespondingSource-README.md`.
+
+Every DMG has a `Licenses` folder beside `Saywing.app` with `LICENSE`, `NOTICE`,
+`SUPERTONIC-MODEL-TERMS.md`, the complete `Supertonic-3-Open-RAIL-M.txt` and the app's
+`THIRD-PARTY-NOTICES.html`. `release.py` stops before building if one of these documents is
+missing.
+
 ## Remaining public-release gates
 
-`release-approval.json` records the ARM beta license, privacy and production HTTPS
-update evidence, plus the owner-approved exception for incomplete fresh-device
-testing. Intel has its own closed record, `release-approval-x86_64.json`; neither
-the ARM evidence nor its exception opens the Intel gate. Apple notarization alone
-does not satisfy these gates.
+`license_review` is `false` in both approval records (owner decision 2026-10-24; see
+`license_review_note`). The license review stays open while the gates in
+[ADR 0003](decisions/0003-bundled-default-model.md) remain open: the Supertonic model terms
+in the DMG, notices and corresponding sources for the rebuilt minimal runtimes, independent
+interpreter provenance, and legal review of the model-terms wording. The 2026-10-15 review
+covered the earlier runtime. No public release can be built until the owner closes this gate;
+the beta exception covers only `clean_mac`.
+
+`release-approval.json` also records the ARM beta privacy and production HTTPS update
+evidence, plus the owner-approved exception for incomplete fresh-device testing. Intel has
+its own record, `release-approval-x86_64.json`; neither the ARM evidence nor its exception
+opens the Intel gate. Apple notarization alone does not satisfy these gates.
 
 Primary references: [Apple Developer ID](https://developer.apple.com/developer-id/),
 [notarytool](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow),

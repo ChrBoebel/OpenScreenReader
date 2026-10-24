@@ -567,21 +567,76 @@ struct ReadingErrorView: View {
     }
 }
 
-/// Opens only the locally packaged notice index; no runtime request or web fallback.
+/// The Supertonic 3 terms and its unchanged Open RAIL-M license are plain resources of
+/// every build (see docs/licenses/SUPERTONIC-MODEL-TERMS.md); release packaging adds the full notice index.
+enum ModelTerms {
+    /// SHA-256 of LICENSE at Supertone/supertonic-3 revision 3cadd1ee6394adea1bd021217a0e650ede09a323.
+    static let pinnedLicenseSHA256 = "0d944a9110fed9a9602d60e0423a272903e7bd21ab060490774efc77c2275e9f"
+
+    static func licenseURL(in bundle: Bundle) -> URL? {
+        bundle.url(forResource: "Supertonic-3-Open-RAIL-M", withExtension: "txt")
+    }
+
+    /// The binding terms followed by the complete license, or `nil` if either is missing.
+    static func document(in bundle: Bundle) -> String? {
+        guard let termsURL = bundle.url(forResource: "SUPERTONIC-MODEL-TERMS", withExtension: "md"),
+              let licenseURL = licenseURL(in: bundle),
+              let terms = try? String(contentsOf: termsURL, encoding: .utf8),
+              let license = try? String(contentsOf: licenseURL, encoding: .utf8) else { return nil }
+        return terms + "\n\n" + license
+    }
+}
+
+/// Opens only locally packaged documents; no runtime request or web fallback.
 struct ModelTermsNotice: View {
     @State private var openFailed = false
+    @State private var termsDocument: String?
     private var noticeURL: URL? { Bundle.main.url(forResource: "THIRD-PARTY-NOTICES", withExtension: "html") }
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Supertonic 3 is subject to the Open RAIL-M model terms and use restrictions.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            Button("Licenses & Model Terms…") {
-                guard let noticeURL else { return }
-                openFailed = !NSWorkspace.shared.open(noticeURL)
+            HStack {
+                Button("Model Terms…") { termsDocument = ModelTerms.document(in: .main) }
+                    .disabled(ModelTerms.licenseURL(in: .main) == nil)
+                    .accessibilityIdentifier("showSupertonicModelTerms")
+                Button("Licenses & Model Terms…") {
+                    guard let noticeURL else { return }
+                    openFailed = !NSWorkspace.shared.open(noticeURL)
+                }
+                .disabled(noticeURL == nil)
+                .accessibilityIdentifier("openModelTerms")
             }
-            .disabled(noticeURL == nil)
-            .accessibilityIdentifier("openModelTerms")
             if openFailed { Text("The license document could not be opened.").font(.callout) }
         }
+        .sheet(isPresented: Binding(get: { termsDocument != nil }, set: { if !$0 { termsDocument = nil } })) {
+            ModelTermsSheet(text: termsDocument ?? "")
+        }
+    }
+}
+
+private struct ModelTermsSheet: View {
+    let text: String
+    @Environment(\.dismiss) private var dismiss
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Supertonic 3 Model Terms").font(.title2.weight(.semibold)).accessibilityAddTraits(.isHeader)
+            Text("The binding terms and the complete, unchanged license text. They apply to the model and its voices, not to the Saywing source code.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            ScrollView {
+                Text(verbatim: text)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 4)
+            }
+            .accessibilityIdentifier("supertonicModelTermsText")
+            HStack {
+                Spacer()
+                Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(minWidth: 600, idealWidth: 720, minHeight: 420, idealHeight: 600)
+        .tint(Color("AccentColor"))
     }
 }
