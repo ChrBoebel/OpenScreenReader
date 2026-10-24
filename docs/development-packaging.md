@@ -1,4 +1,6 @@
-# Private offline packaging spike
+# Development packaging
+
+This document describes local development packaging; release runtimes are built as described in [runtime build](runtime-build.md).
 
 This is a local development artifact, not a release or a redistribution approval.
 

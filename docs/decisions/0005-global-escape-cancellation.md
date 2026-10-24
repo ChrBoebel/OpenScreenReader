@@ -24,4 +24,4 @@ On the minimum and current supported macOS releases, test selection, OCR, synthe
 - Secure Input active;
 - cleanup after success, error, and cancellation.
 
-If reliable global `Esc` requires a permission whose UX or privacy cost is unacceptable, the owner must explicitly revise the product invariant. Implementation must not silently claim global `Esc` while supporting it only during overlay focus.
+If reliable global `Esc` requires a permission whose UX or privacy cost is unacceptable, the maintainer must explicitly revise the product invariant. Implementation must not silently claim global `Esc` while supporting it only during overlay focus.

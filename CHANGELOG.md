@@ -7,6 +7,19 @@ Notable changes to Saywing (formerly OpenScreenReader). Dates are when the chang
 - **Repository renamed to `ChrBoebel/saywing`.** Old `ChrBoebel/OpenScreenReader` links redirect. Technical identifiers keep the OpenScreenReader name for compatibility.
 - **README overhaul.** Read aloud and dictation lead, followed by privacy, an honest install status, requirements and an FAQ (including how Saywing differs from Speak Selection). Test gaps moved into a collapsible status section, and the runtime build description now points to the one-command assembly from public sources.
 - **Docs wording.** The privacy requirements and roadmap describe decisions in neutral project language with their dates. The issue chooser links to Discussions for questions and ideas.
+- **Contributor and support paths.** `SUPPORT.md`, an accessibility-barrier issue form and a documentation index (`docs/README.md`, `docs/licenses/README.md`). Monthly grouped Dependabot updates for the SHA-pinned GitHub Actions.
+- **Release gate records moved** from `docs/` to [`release/`](release/README.md); `scripts/release.py` reads them from there. The gates themselves are unchanged.
+- **Docs wording across architecture, research and decision records** uses neutral project language; the development packaging guide has an accurate title; the roadmap starts with a Now / Next / Later overview.
+
+## 2026-10-24
+
+Open-source preparation.
+
+- **Release runtimes are built from pinned public sources.** CI downloads every input, checks its size and SHA-256 and builds the speech and dictation runtimes instead of fetching a private archive. See [docs/runtime-build.md](docs/runtime-build.md).
+- **Licenses in every DMG.** The DMG shows the license and the Supertonic model terms; notices and corresponding sources ship for the bundled runtimes. The license review gate is reopened for both architectures until the remaining items in [ADR 0003](docs/decisions/0003-bundled-default-model.md) are closed.
+- **Worker sandbox.** Local model workers and script workers run under a deny-default macOS sandbox profile without network access or file writes.
+- **Dictation hardening.** Pasted text stays off Universal Clipboard, and password-manager items on the clipboard are cleared instead of restored. Model downloads reject unlisted or swapped files and stop when they exceed their pinned size.
+- **Project infrastructure.** CI is split from a dispatch-only release workflow with code owners and hash-locked CI dependencies; contributing guide, code of conduct, security policy and issue forms; documentation translated to English. `filelock` in the dictation runtime is updated to 4.2.4.
 
 ## 2026-10-15
 

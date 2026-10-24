@@ -173,7 +173,9 @@ For a local development speech runtime, `scripts/install-supertonic-runtime.rb` 
 - [Architecture decision records](docs/decisions/README.md)
 - [Release and updates](docs/release-and-updates.md)
 - [Contributing](CONTRIBUTING.md)
+- [Getting help](SUPPORT.md)
 - [Security policy](SECURITY.md)
+- [All documentation](docs/README.md)
 
 ## License
 

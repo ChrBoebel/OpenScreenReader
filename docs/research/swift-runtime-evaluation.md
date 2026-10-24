@@ -1,6 +1,6 @@
 # Native Qwen development runtime — 2026-09-05
 
-This is a local development experiment, not the signed/bundled MVP or a release approval. The owner approved model and runtime installation for evaluation. No Python environment, eSpeak dependency, system-voice fallback, cloud inference, or new macOS permission is introduced.
+This is a local development experiment, not the signed/bundled MVP or a release approval. Model and runtime installation were approved for evaluation. No Python environment, eSpeak dependency, system-voice fallback, cloud inference, or new macOS permission is introduced.
 
 ## Pinned source and dependency boundary
 
@@ -81,7 +81,7 @@ Naturalness, German/English fidelity, speed controls, warm-worker reuse, bounded
 
 ## Choppy playback correction — 2026-09-05
 
-The owner reported audible chopping. The previous completion tests verified playback and cancellation but did **not** check continuity. A new content-free timing probe reproduced the defect: 7.92 seconds of generated speech suffered 24 player-queue underruns, totaling 6.859 seconds of missing scheduled audio. This is a player sample-clock measurement with a 20 ms threshold, not a microphone recording or a measurement of pauses encoded by the model.
+Audible chopping was reported. The previous completion tests verified playback and cancellation but did **not** check continuity. A new content-free timing probe reproduced the defect: 7.92 seconds of generated speech suffered 24 player-queue underruns, totaling 6.859 seconds of missing scheduled audio. This is a player sample-clock measurement with a 20 ms threshold, not a microphone recording or a measurement of pauses encoded by the model.
 
 Cause: the parent awaited `.dataPlayedBack` before acknowledging a packet. Only then could it receive, parse, and schedule the next packet, guaranteeing an empty playback queue at every boundary. Additionally, base64 was consumed one asynchronously awaited byte at a time on the main actor. Apple supports scheduling buffers consecutively before prior buffers finish; see [AVAudioPlayerNode](https://developer.apple.com/documentation/avfaudio/avaudioplayernode).
 

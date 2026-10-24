@@ -1,8 +1,8 @@
 # Supertonic 3 development default — 2026-09-05
 
-## Owner decision and scope
+## Decision and scope
 
-After the [German listening comparison](supertonic-listening-comparison.md), the owner explicitly preferred Supertonic and requested it as the standard model. This supersedes the original Qwen candidate in current product documentation and agent guidance. The first voice is **M1** (announced as the initial choice), with eight denoising steps, speed 1.0, seed 42, and native 44.1 kHz. Qwen remains installed for comparison but the app never selects it, including on failure. This is not a blind claim that every Supertonic utterance is more faithful or natural.
+After the [German listening comparison](supertonic-listening-comparison.md), Supertonic was explicitly preferred and selected as the standard model (project decision 2026-09-05). This supersedes the original Qwen candidate in current product documentation and agent guidance. The first voice is **M1** (announced as the initial choice), with eight denoising steps, speed 1.0, seed 42, and native 44.1 kHz. Qwen remains installed for comparison but the app never selects it, including on failure. This is not a blind claim that every Supertonic utterance is more faithful or natural.
 
 The standard-model decision does **not** approve a portable runtime, model redistribution, notarization, or release. The [existing source/license manifest](supertonic-comparison-manifest.json) pins official model revision `3cadd1ee6394adea1bd021217a0e650ede09a323` and MIT inference helper revision `7e2804f96016a7028cb1ed627353c61c1e9dd281`. The ten model assets total **398,969,192 bytes**; no new model downloads were needed. Model/stock-voice terms are **BigScience Open RAIL-M**. Its restrictions and required downstream notices remain a distribution gate; the application's Apache-2.0 license does not cover the weights. Upstream's discontinuation of development/support remains a maintenance risk accepted for this development choice, not resolved by integration.
 

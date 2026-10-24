@@ -31,11 +31,11 @@ The mlx-audio v0.3.0 TTS extras include `espeakng-loader`; eSpeak NG is GPL-3.0-
 
 - First use is simpler and fully offline.
 - The DMG and installed app are large, and full manual upgrades may transfer model data again.
-- If a self-contained notarized DMG cannot pass the gates, model delivery returns to an explicit owner decision; a PKG or runtime download is not adopted silently.
+- If a self-contained notarized DMG cannot pass the gates, model delivery returns to an explicit project decision; a PKG or runtime download is not adopted silently.
 
 ## Update 2026-10-23: Supertonic 3 is the bundled default
 
-By the owner's 2026-09-05 listening decision the bundled default speech model is
+By the project's 2026-09-05 listening decision the bundled default speech model is
 Supertonic 3 (`Supertone/supertonic-3`, revision
 `3cadd1ee6394adea1bd021217a0e650ede09a323`, voice M1), not the Qwen3-TTS
 candidate above. Gate M0 as written was scoped to Qwen-TTS; the Qwen eSpeak NG
@@ -50,7 +50,7 @@ restrictions for builds that include the model are in
 shows them in Settings > Read Aloud > Model Terms and in setup.
 
 None of the following license gates is claimed as passed by this update; each
-still needs evidence and the owner's decision:
+still needs evidence and a maintainer decision:
 
 - OpenRAIL-M §4(a)/(b) and §5: the use-based restrictions are included as an
   enforceable provision and a copy of the license reaches every recipient, both

@@ -1,0 +1,52 @@
+name: Accessibility barrier
+description: Something in Saywing is hard or impossible to use with VoiceOver, the keyboard, or other assistive settings.
+labels: ["accessibility"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for telling us about a barrier. Saywing reads selected screen regions aloud and offers dictation; it is not a replacement for VoiceOver, but its own interface must be usable with assistive technology.
+
+        **Privacy warning:** do not paste private screen text, dictated text or recordings. Use public or made-up example text instead.
+  - type: input
+    id: app-version
+    attributes:
+      label: Saywing version
+      description: Shown in Settings. For a source build, give the commit hash.
+    validations:
+      required: true
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS version
+    validations:
+      required: true
+  - type: checkboxes
+    id: assistive
+    attributes:
+      label: Assistive technology and settings in use
+      options:
+        - label: VoiceOver
+        - label: Full Keyboard Access / keyboard only
+        - label: Voice Control
+        - label: Switch Control
+        - label: Zoom or a larger text size
+        - label: Reduce Motion
+        - label: Reduce Transparency or Increase Contrast
+  - type: input
+    id: other-assistive
+    attributes:
+      label: Other assistive technology
+      description: Optional, for example a third-party screen magnifier.
+  - type: textarea
+    id: barrier
+    attributes:
+      label: What is the barrier?
+      description: Which part of Saywing (menu, setup, settings, reading capsule, dictation capsule, meeting transcript), what you tried, and what happened.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What would work for you?
+      description: Optional. How you would expect it to behave.

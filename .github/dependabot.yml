@@ -1,0 +1,15 @@
+# Version updates for the SHA-pinned GitHub Actions. Python runtimes are
+# hash-locked and rebuilt with scripts/build-python-runtime.py, so they rely on
+# Dependabot security updates (enabled in the repository settings) instead of
+# routine version bumps.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci

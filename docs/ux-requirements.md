@@ -2,9 +2,9 @@
 
 ## Primary flow
 
-Update 2026-09-09: The project owner approved Pause/Resume, an editable queue and setup. The capsule stays free of text; its small ···/+N button opens a native controls view with Pause/Resume, speed, Next and the waiting texts. Only this explicit click shows at most 100 characters per entry. Remove, Move Up/Down and Read Now use stable entry IDs, not stale indexes. Esc/Stop also ends a pause. Earlier statements “no preview”/“pause outside” apply to the closed capsule, not to this new explicit view.
+Update 2026-09-09: Pause/Resume, an editable queue and setup were approved. The capsule stays free of text; its small ···/+N button opens a native controls view with Pause/Resume, speed, Next and the waiting texts. Only this explicit click shows at most 100 characters per entry. Remove, Move Up/Down and Read Now use stable entry IDs, not stale indexes. Esc/Stop also ends a pause. Earlier statements “no preview”/“pause outside” apply to the closed capsule, not to this new explicit view.
 
-Setup appears the first time the menu bar item is shown and is reachable later through “Set Up & Test…”. Permissions are requested only on click. Since 2026-10-14 (project owner approval “sounds good, implement it”), it is a guided flow with one decision per page; details under “Guided setup”. A granted permission is labelled only “Allowed”; “It works” appears only after the real reading test has played speech. Errors offer direct access to setup and to the specific error message through ?.
+Setup appears the first time the menu bar item is shown and is reachable later through “Set Up & Test…”. Permissions are requested only on click. Since 2026-10-14 (project decision), it is a guided flow with one decision per page; details under “Guided setup”. A granted permission is labelled only “Allowed”; “It works” appears only after the real reading test has played speech. Errors offer direct access to setup and to the specific error message through ?.
 
 1. The user presses a freely configurable global hotkey.
 2. An unobtrusive transparent selection overlay appears over all screens.
@@ -96,13 +96,13 @@ Pleasant prosody must not justify omitted words or paraphrasing.
 - custom pronunciation corrections;
 - additional local TTS providers.
 
-## Dictation — integrated after project owner approval 2026-10-13
+## Dictation — integrated after approval 2026-10-13
 
 Since 2026-10-14: permissions in the shared setup (“Set Up & Test…”); model, language (Automatic/German/English) and 1/2 s clipboard restore under Settings → Dictation; test window via “Try Dictation…” with its own test field; demo audio samples only in debug builds. ⌥⇧Space starts/ends dictation in the previously focused field; Esc discards. The non-activating status surface shows recording/recognition/pasting and offers Discard. Text appears after stopping, not during recording. A cold start may keep PCM in RAM, bounded, until the selected model is ready. Reading aloud ends before recording; starting reading aloud discards dictation. No automatic recording after the permission dialog and no Return key press to submit. If the target changed, the result is kept in the dictation window for manual copying. An exact read-back check distinguishes “Pasted” from “Paste sent”. Universal text field compatibility is not guaranteed.
 
 ## Keyboard decision 2026-10-13
 
-Reading aloud uses **⌥R** by default (explicitly only two keys); repeating it still adds another region to the queue. Stored combinations are kept, including the earlier default ⌘⇧Y. The project owner then explicitly chose ⌘⇧Y for their own installation; this choice must not be overwritten on relaunch. Dictation uses **hold/release Fn**, **double Fn** or **Fn+Space** for hands-free, Fn again to finish and Esc to discard. Single short Fn taps are discarded; a third quick tap also discards. Since 2026-10-14, locking in is audible and visible (the “hands-free locked” sound, a filled finish button), and the test window names both ways: hold or press twice. Other Fn combinations should remain usable unchanged. ⌥⇧Space remains the alternative without Fn. Fn requires available global keyboard control with Accessibility permission.
+Reading aloud uses **⌥R** by default (explicitly only two keys); repeating it still adds another region to the queue. Stored combinations are kept, including the earlier default ⌘⇧Y. An explicitly chosen ⌘⇧Y (as on the maintainer's own installation) must not be overwritten on relaunch. Dictation uses **hold/release Fn**, **double Fn** or **Fn+Space** for hands-free, Fn again to finish and Esc to discard. Single short Fn taps are discarded; a third quick tap also discards. Since 2026-10-14, locking in is audible and visible (the “hands-free locked” sound, a filled finish button), and the test window names both ways: hold or press twice. Other Fn combinations should remain usable unchanged. ⌥⇧Space remains the alternative without Fn. Fn requires available global keyboard control with Accessibility permission.
 
 ## Dictation model selection — 2026-10-13
 
@@ -122,7 +122,7 @@ The integrated dictation capsule shares Saywing’s reading material and motion 
 
 ## Apple design refinement — 2026-10-14
 
-Approved by the project owner: implement all points of the review of 2026-10-14.
+Approved: implement all points of the review of 2026-10-14.
 
 - **One language per surface:** English source strings, a complete German String Catalog; the app follows the system language.
 - **Menu:** status first; hints only when they add information; “Read Screen Region…” shows the global shortcut; Pause, Next Text, Add and Playback Controls appear only while reading aloud; errors offer “Open Setup…”.
@@ -133,7 +133,7 @@ Approved by the project owner: implement all points of the review of 2026-10-14.
 
 ## Guided setup
 
-Approved by the project owner on 2026-10-14 after the proposal based on the Apple design skill (“ask at the right moment, only for what's needed”).
+Approved on 2026-10-14 after the proposal based on the Apple design skill (“ask at the right moment, only for what's needed”).
 
 - **One decision per page**, fixed window (500 × 560 pt). Symbol and title are in the same place on every page. The main action is at the bottom right (Return), “Back” at the bottom left, and “Later”/“Not Now” is always reachable with equal weight.
 - **Order:** Welcome → Screen Recording → Input Monitoring → reading test → “Write with your voice too?” → (if yes) Microphone → Accessibility → dictation test → Done. The order follows only from the current permissions. Granted steps are skipped, and a test that could only fail without its permission is dropped. Anyone who comes back lands on the first missing step and never on Welcome again. Nothing about progress is stored.
