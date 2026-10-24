@@ -82,6 +82,28 @@ Done:
     - the publish job archives the exact source files for every published build.
 
     The first real bucket archive is created by the next publication.
+- **Interpreter provenance (2026-10-24).** The gate asks for "source, build, patches and
+  licenses". All four are recorded for both architectures in
+  `Runtime/Portable/python-provenance.json`; details are in
+  [Interpreter provenance](../research/interpreter-provenance.md).
+  - **Source:** python-build-standalone tag `20261013` resolves to commit
+    `9e40cba825ca0997a01cab9f60a0b15ffb976af2`.
+  - **Build:** the recipe files are recorded as git blob pointers at that commit. arm64 is built
+    natively on an arm64 macOS runner; x86_64 is cross-compiled on the same runner. Both use
+    `pgo+lto`.
+  - **Patches:** 20 of the 69 CPython patch files apply to 3.12.15 on macOS. One of them,
+    `dont-clear-runshared`, applies to x86_64 only. The dependency versions are recorded with
+    their URLs and SHA-256 as declared upstream.
+  - **Same build:** each pinned stripped archive and the full archive whose licenses are
+    shipped come from the same build. Evidence:
+    - both hashes match the release's `SHA256SUMS`;
+    - the full archive's `PYTHON.json` shows the pinned version and target;
+    - the `_sysconfigdata` files are identical and name the same unique build directory;
+    - every stripped file is byte-identical to the full archive's file, or is the same Mach-O
+      or PE binary without debug data (same `LC_UUID` and section contents).
+  - **Licenses:** the shipped license texts are byte-identical to the full archive's.
+  - **Re-check:** `scripts/python_provenance.py` re-runs these checks. A pin change without a new
+    record fails the unit tests and the runtime build.
 
 Open:
 
@@ -89,20 +111,5 @@ Open:
   `docs/licenses/SUPERTONIC-MODEL-TERMS.md` is still open. It covers how the OpenRAIL-M §4/§5
   use restrictions are passed on as an enforceable provision. This review is why
   `license_review` stays `false`.
-- **Interpreter provenance (partly done).**
-  - Already in place for each architecture:
-    - Both architectures use pinned python-build-standalone 20261013 `install_only_stripped`
-      archives (`Runtime/Portable/python.json`).
-    - Each archive is checked against its size and SHA-256 before it is extracted.
-    - The archives are produced by upstream release CI, independent of any developer machine
-      or prototype environment.
-    - The CPython component licenses come from the matching full archive
-      (`docs/licenses/Python-3.12.15*/`).
-  - Still missing, so the gate as written ("source, build, patches and licenses") is not met:
-    - The repository records no python-build-standalone source revision.
-    - It records no build recipe.
-    - It does not record the patch set applied to CPython 3.12.15.
-    - Nothing checks that the stripped archive comes from the same build as the full archive
-      whose license set was captured. Only the release tag and target name link them.
 - **Upstream maintenance.** Upstream Supertonic maintenance has ended. This is an explicit
   release decision, not a license item, and it is unchanged.

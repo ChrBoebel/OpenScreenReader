@@ -34,6 +34,7 @@ Background material that informed the product; it is not user documentation.
   - [Local Qwen dictation runtime](research/qwen-dictation-runtime.md) — Qwen3-ASR dictation integration, pinned assets and clipboard handling.
   - [Local Whisper Turbo dictation](research/whisper-turbo-dictation.md) — Whisper Turbo as a selectable dictation model and its packaged provenance.
   - [Local Whisper Large v3 dictation](research/whisper-large-v3-dictation.md) — Whisper Large v3 (8-bit) as an optional, user-installed dictation model.
+  - [Interpreter provenance](research/interpreter-provenance.md) — source commit, build recipe, CPython patches and archive consistency of the bundled CPython 3.12.15 (2026-10-24).
   - [Whisper Hardened Runtime correction](research/whisper-hardened-runtime-patch.md) — packaging fix for the Whisper worker under a Developer ID-signed Hardened Runtime.
 
 ## Licenses

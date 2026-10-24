@@ -9,7 +9,7 @@ Saywing's dictation worker (`Runtime/Dictation/worker.py`) and Supertonic speech
 
 | Input | Pin |
 | --- | --- |
-| CPython | 3.12.15, python-build-standalone release 20261013, `install_only_stripped`; URL, size and SHA-256 per architecture in `Runtime/Portable/python.json` |
+| CPython | 3.12.15, python-build-standalone release 20261013, `install_only_stripped`; URL, size and SHA-256 per architecture in `Runtime/Portable/python.json`; source commit, recipe, patches and archive checks in `Runtime/Portable/python-provenance.json` ([Interpreter provenance](research/interpreter-provenance.md)) |
 | Dictation, Apple Silicon | `Runtime/Dictation/requirements-lock.txt` (24 packages) |
 | Dictation, Intel | `Runtime/Dictation/requirements-lock-x86_64.txt` (NumPy 2.2.6, SciPy 1.17.1; recognition uses the whisper.cpp bridge, `scripts/build-whisper-cpp.sh`) |
 | Speech, both architectures | `Runtime/Supertonic/requirements-lock.txt` (NumPy 2.2.6, ONNX Runtime 1.23.2) |
@@ -76,7 +76,9 @@ The builder:
    on any absolute path), `THIRD-PARTY-NOTICES.txt` (CPython and its components from
    `docs/licenses/Python-3.12.15*`, every package's license files, upstream texts from
    `docs/licenses` where a wheel ships none, and a copyleft/source-availability section) and
-   `runtime-provenance.json` (lock hash, CPython pin, pip version, native audit);
+   `runtime-provenance.json` (lock hash, CPython pin, the interpreter's python-build-standalone
+   commit and full-archive hash, pip version, native audit). The build stops if
+   `Runtime/Portable/python-provenance.json` does not describe the pinned archive;
 6. audits every Mach-O file for the target architecture, macOS 14 minimum and no
    non-system absolute load paths.
 
