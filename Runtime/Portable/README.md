@@ -9,6 +9,7 @@ in Git. See [docs/runtime-build.md](../../docs/runtime-build.md) for the build.
 | File | Pins |
 | --- | --- |
 | `python.json` | CPython 3.12.15 from python-build-standalone 20261013 per architecture: URL, size, SHA-256 |
+| `python-provenance.json` | The provenance of the interpreter in `python.json`, re-checked by `scripts/python_provenance.py`. It records the python-build-standalone commit, the build recipe and CPython patches (as git blob pointers), the dependency sources, and the per-architecture check against the full archive whose licenses are shipped ([details](../../docs/research/interpreter-provenance.md)). |
 | `whisper-turbo-cpp-manifest.json` | Intel Whisper Turbo model: GGML q5_0 file at an exact Hugging Face revision, 574,041,195 bytes, SHA-256, MIT |
 | `whisper-cpp-source.json`, `LICENSE-whisper.cpp` | whisper.cpp 1.9.5 source archive (exact commit, size, SHA-256) and its license |
 | `release-inputs.json` | Inputs no other manifest records: the Supertonic `helper.py`, `LICENSE` and `README.md` at the upstream commit, and the two Google FLEURS archives holding the demo clips listed in `Runtime/Dictation/demo-manifest.json` |

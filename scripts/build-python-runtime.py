@@ -11,7 +11,8 @@ never downloads or installs Python packages.
 
 The output directory is the interpreter root (bin/, lib/) plus
 installed-packages.json (SBOM without absolute paths), THIRD-PARTY-NOTICES.txt
-and runtime-provenance.json.
+and runtime-provenance.json (including the interpreter's python-build-standalone
+commit from Runtime/Portable/python-provenance.json).
 """
 import argparse
 import email.parser
@@ -26,6 +27,7 @@ import tempfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from portable_runtime import audit, download, extract_python  # noqa: E402
+import python_provenance  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[1]
 MINIMUM_MACOS = '14.0'
@@ -297,6 +299,16 @@ def package_entry(name, metadata, info, python, wheel_digest):
             'wheel_sha256': wheel_digest, 'source': 'https://pypi.org/project/%s/%s/' % (canonical(name), metadata['Version'])}
 
 
+def interpreter_provenance(pin, architecture):
+    """The python-build-standalone build behind the pinned archive (fails if unrecorded)."""
+    record = json.loads((REPO / python_provenance.RECORD).read_text())
+    python_provenance.check_pin(record, architecture, pin)
+    full = record['architectures'][architecture]['full']
+    return {'record': python_provenance.RECORD, 'source_repository': record['source']['repository'],
+            'source_commit': record['source']['commit'], 'full_archive_url': full['url'],
+            'full_archive_sha256': full['sha256']}
+
+
 def copy_cpython_notices(python, architecture):
     files = ['lib/python3.12/LICENSE.txt']
     target = python / 'licenses/cpython'
@@ -359,6 +371,7 @@ def build(runtime, architecture, output, cache):
     if output.exists():
         raise ValueError('Refusing existing output')
     pin = json.loads((REPO / 'Runtime/Portable/python.json').read_text())[architecture]
+    interpreter = interpreter_provenance(pin, architecture)
     archive = download(pin, cache)
     house = fetch_wheels(lock, architecture, cache)
     staging = output.with_name(output.name + '.staging')
@@ -391,7 +404,7 @@ def build(runtime, architecture, output, cache):
     native = audit(python, architecture, MINIMUM_MACOS)
     (python / 'runtime-provenance.json').write_text(json.dumps({
         'runtime': runtime, 'architecture': architecture, 'lock': LOCKS[(runtime, architecture)],
-        'lock_sha256': sha256(lock), 'python': pin,
+        'lock_sha256': sha256(lock), 'python': pin, 'python_provenance': interpreter,
         'pip': subprocess.run([sys.executable, '-m', 'pip', '--version'], capture_output=True, text=True, check=True).stdout.split(' from ')[0],
         'native_audit': native}, indent=2) + '\n')
     python.rename(output)

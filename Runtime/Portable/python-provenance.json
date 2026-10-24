@@ -1,0 +1,1008 @@
+{
+  "format": "saywing-python-provenance/1",
+  "reviewed": "2026-10-24",
+  "provider": "https://github.com/astral-sh/python-build-standalone",
+  "release": "20261013",
+  "version": "3.12.15",
+  "source": {
+    "repository": "https://github.com/astral-sh/python-build-standalone",
+    "tag": "refs/tags/20261013",
+    "tag_kind": "lightweight (git ls-remote lists no peeled ^{} entry)",
+    "commit": "9e40cba825ca0997a01cab9f60a0b15ffb976af2",
+    "tree": "69d7e592ff5918b1c991d5d9d5b6c1e6a2a98527",
+    "commit_date": "2026-10-14T00:50:25Z",
+    "commit_subject": "Add CPython 3.16 (#1336)",
+    "github_signature_verified": true,
+    "github_release_target_commitish": "9e40cba825ca0997a01cab9f60a0b15ffb976af2",
+    "release_published_at": "2026-10-14T02:06:09Z",
+    "build_scripts_license": {
+      "spdx": "MPL-2.0",
+      "path": "LICENSE",
+      "blob": "a612ad9813b006ce81d1ee438dd784da99a54007"
+    },
+    "sha256sums": {
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261013/SHA256SUMS",
+      "bytes": 142015,
+      "sha256": "6f1da4ab940bfca4471b0816828f16942a149de31e7ac4745e90902d5e7d3ebd"
+    }
+  },
+  "recipe": {
+    "build_host": "aarch64 macOS CI runner (namespace-profile-macos-15); x86_64-apple-darwin is cross-compiled on it",
+    "stripping_host": "ubuntu release job, llvm-strip --strip-debug from llvm-x86_64-linux 23.1.3+20261008",
+    "files": [
+      {
+        "path": "build.py",
+        "blob": "12c3fdb1bdfc374990312e3133fb0b1d97aa1ae4",
+        "role": "entry point: prepares the build environment and calls cpython-unix/build-main.py"
+      },
+      {
+        "path": "cpython-unix/build-main.py",
+        "blob": "b025cde987b37b485c2c719f888d29d5f62e777c",
+        "role": "Unix/macOS build driver (targets, Python version, build options)"
+      },
+      {
+        "path": "cpython-unix/build.py",
+        "blob": "fc53aaed9acc6d027a0b8892421b5d46d6c909b5",
+        "role": "per-target environment: CROSS_COMPILING, PYTHON_MEETS_* gates, toolchain, dependency builds"
+      },
+      {
+        "path": "cpython-unix/build-cpython.sh",
+        "blob": "f1e257f4e904a1cbd20a5a36a5a62461070e3b93",
+        "role": "CPython configure/patch/build/install script; selects every patch listed below"
+      },
+      {
+        "path": "cpython-unix/build-cpython-host.sh",
+        "blob": "e81c9242d4b47319a6387d07ce94f1fe241bb465",
+        "role": "host (build) Python used for freezing and cross-compiling"
+      },
+      {
+        "path": "cpython-unix/targets.yml",
+        "blob": "05dd1586c25ee557de2b96245554ed021b76d60e",
+        "role": "aarch64-apple-darwin and x86_64-apple-darwin settings: flags, deployment targets, needed libraries"
+      },
+      {
+        "path": "cpython-unix/extension-modules.yml",
+        "blob": "7947f456f2da0f11c0ab840b1c4cedb001288bd9",
+        "role": "standard-library extension build/link rules (Setup.local)"
+      },
+      {
+        "path": "cpython-unix/Makefile",
+        "blob": "e29d3b1517f94764ad3ea38f6de907f9ead59041",
+        "role": "dependency build graph"
+      },
+      {
+        "path": "pythonbuild/downloads.json",
+        "blob": "a54f83a21160b7edff8f7e5515da140a7a3bccc7",
+        "role": "pinned source URLs, sizes and SHA-256 of CPython and every dependency"
+      },
+      {
+        "path": "pythonbuild/downloads.py",
+        "blob": "3d91bedec2652c9f7c4c93b4da3860bb4f6fe944",
+        "role": "loads downloads.json"
+      },
+      {
+        "path": "pythonbuild/buildenv.py",
+        "blob": "875dd93a38ffa9cf942baca91ed0a0742b069d4b",
+        "role": "build environment and download verification"
+      },
+      {
+        "path": "pythonbuild/cpython.py",
+        "blob": "036349f43d3596e5ba873529b66a39a424ac16ba",
+        "role": "Setup.local generation and PYTHON.json metadata"
+      },
+      {
+        "path": "pythonbuild/utils.py",
+        "blob": "a9ed40340e662299cf5b2431486459c89bd562a8",
+        "role": "host-platform detection (macOS builds require an arm64 host)"
+      },
+      {
+        "path": "ci-targets.yaml",
+        "blob": "83f430416a9946808cf7d0c1e6055e946c4af472",
+        "role": "CI matrix: both macOS targets build pgo+lto and debug for 3.12"
+      },
+      {
+        "path": "ci-runners.yaml",
+        "blob": "2ea3e7bb89b0cb8fc46a9e9d5dbd437bfa2b0da1",
+        "role": "CI runners: the only macOS runners are aarch64"
+      },
+      {
+        "path": "ci-matrix.py",
+        "blob": "b7fd7d0a457f342e8e3e615a0a717cb560a4e4bc",
+        "role": "runner selection: x86_64-apple-darwin falls back to the aarch64 macOS runner"
+      },
+      {
+        "path": ".github/workflows/macos.yml",
+        "blob": "d4b6b330cce50c82dfb583c7451272610ef1bc76",
+        "role": "macOS build workflow (build, validate-distribution)"
+      },
+      {
+        "path": ".github/workflows/release.yml",
+        "blob": "0a68d8339b3828b061ebf990b8edc1140ce17d0b",
+        "role": "release workflow (converts full archives to install_only and install_only_stripped)"
+      },
+      {
+        "path": "src/release.rs",
+        "blob": "e92c73b654c18bba0284e141dbc6b2bccd85da59",
+        "role": "convert_to_install_only (drops tests, static libpython) and convert_to_stripped (llvm-strip --strip-debug)"
+      },
+      {
+        "path": "cpython-unix/build-bzip2.sh",
+        "blob": "075af9f565706e57010577c54f2ece491d73b561",
+        "role": "dependency build script"
+      },
+      {
+        "path": "cpython-unix/build-expat.sh",
+        "blob": "d286091ba32415a66dc297d666d5d7e83a877e8b",
+        "role": "dependency build script"
+      },
+      {
+        "path": "cpython-unix/build-libffi.sh",
+        "blob": "3d0b60ae3025032415bacf7256c972dc857e1459",
+        "role": "dependency build script"
+      },
+      {
+        "path": "cpython-unix/build-mpdecimal.sh",
+        "blob": "d48fb4c5adae4204af16027279698ee28ba0d3ab",
+        "role": "dependency build script"
+      },
+      {
+        "path": "cpython-unix/build-openssl-3.5.sh",
+        "blob": "0c440a894562a693ab81d405c7c9f931add9dfa6",
+        "role": "dependency build script"
+      },
+      {
+        "path": "cpython-unix/build-sqlite.sh",
+        "blob": "a34b36e998d6eb198e1aa4d824229d53220dda92",
+        "role": "dependency build script"
+      },
+      {
+        "path": "cpython-unix/build-tcl.sh",
+        "blob": "3ed1c02f0605b29b683df482e14661bc6330be33",
+        "role": "dependency build script"
+      },
+      {
+        "path": "cpython-unix/build-tk.sh",
+        "blob": "5dae3292220f87781dff61d741a4f0febde63dea",
+        "role": "dependency build script"
+      },
+      {
+        "path": "cpython-unix/build-uuid.sh",
+        "blob": "b3f185fd6914f60a4f585f82afe971dc8f588b7e",
+        "role": "dependency build script"
+      },
+      {
+        "path": "cpython-unix/build-xz.sh",
+        "blob": "f61ecefd124949e81a59ca06d69edad559a1a90d",
+        "role": "dependency build script"
+      },
+      {
+        "path": "cpython-unix/build-autoconf.sh",
+        "blob": "483bdd12acc58c9d1761f46cf2a2befebdd5447c",
+        "role": "dependency build script"
+      },
+      {
+        "path": "cpython-unix/build-m4.sh",
+        "blob": "418acc57f5c9912fd7802158d1d286fa131918a6",
+        "role": "dependency build script"
+      },
+      {
+        "path": "cpython-unix/build-pkgconf.sh",
+        "blob": "c15ae88c733e36b933766ef3929a8bc14dd5900f",
+        "role": "dependency build script"
+      },
+      {
+        "path": "cpython-unix/build-zstd.sh",
+        "blob": "5a8e8137f6c02676036a035b9a70cd77c79cef6e",
+        "role": "dependency build script"
+      }
+    ]
+  },
+  "cpython_patches": {
+    "method": "Selected by reading the patch conditions in cpython-unix/build-cpython.sh at the commit for CPython 3.12.15 on macOS (PYBUILD_PLATFORM macos_arm64, no LINUX_UAPI_INCLUDE_ARCH); x86_64 sets CROSS_COMPILING. Confirmed against the build: CONFIG_ARGS contains --enable-static-libpython-for-interpreter (added by its patch) and, for x86_64 only, cross_compiling=yes.",
+    "applied": [
+      {
+        "path": "cpython-unix/patch-apple-cross-3.12.patch",
+        "blob": "3729fe1c5d9fc2b73d0e9130d3f3ac120b696945",
+        "architectures": [
+          "arm64",
+          "x86_64"
+        ],
+        "condition": "macOS and Python <= 3.13, major.minor 3.12",
+        "build_cpython_sh_lines": [
+          83
+        ]
+      },
+      {
+        "path": "cpython-unix/patch-dont-clear-runshared.patch",
+        "blob": "44b825a22f1cff2be648e127db5f5cc5c4a86d99",
+        "architectures": [
+          "x86_64"
+        ],
+        "condition": "CROSS_COMPILING (x86_64 is built on an arm64 host) and 3.11 <= Python < 3.13",
+        "build_cpython_sh_lines": [
+          125
+        ]
+      },
+      {
+        "path": "cpython-unix/patch-cpython-configure-target-triple-musl-3.12.patch",
+        "blob": "145f536a795e7347e819737ca0ac9c9f074821b9",
+        "architectures": [
+          "arm64",
+          "x86_64"
+        ],
+        "condition": "Python 3.11-3.12 (applied on every platform)",
+        "build_cpython_sh_lines": [
+          136
+        ]
+      },
+      {
+        "path": "cpython-unix/patch-always-build-python-for-freeze.patch",
+        "blob": "55d3cf39be795d0967991f887cfdcf578491fe7d",
+        "architectures": [
+          "arm64",
+          "x86_64"
+        ],
+        "condition": "Python >= 3.11",
+        "build_cpython_sh_lines": [
+          144
+        ]
+      },
+      {
+        "path": "cpython-unix/patch-write-python-for-build-3.12.patch",
+        "blob": "b25927f6684a59426bf195eb6f3d83cdf7ca1b53",
+        "architectures": [
+          "arm64",
+          "x86_64"
+        ],
+        "condition": "Python >= 3.12",
+        "build_cpython_sh_lines": [
+          150
+        ]
+      },
+      {
+        "path": "cpython-unix/patch-macos-link-extension-modules.patch",
+        "blob": "7273c5295636d34169d31028e711334454b47d0d",
+        "architectures": [
+          "arm64",
+          "x86_64"
+        ],
+        "condition": "Python < 3.13",
+        "build_cpython_sh_lines": [
+          166
+        ]
+      },
+      {
+        "path": "cpython-unix/patch-ctypes-callproc.patch",
+        "blob": "7053330d49bfa0b03b320afe734c0f4ecbe24970",
+        "architectures": [
+          "arm64",
+          "x86_64"
+        ],
+        "condition": "Python >= 3.11",
+        "build_cpython_sh_lines": [
+          174
+        ]
+      },
+      {
+        "path": "cpython-unix/patch-tkinter-3.12.patch",
+        "blob": "4b943df67caafe4a5773df569b0a86c59a9f638d",
+        "architectures": [
+          "arm64",
+          "x86_64"
+        ],
+        "condition": "Python 3.12",
+        "build_cpython_sh_lines": [
+          187
+        ]
+      },
+      {
+        "path": "cpython-unix/patch-ctypes-static-binary.patch",
+        "blob": "a44258b2708fcc6978f4961b024eb3fd3fd898ec",
+        "architectures": [
+          "arm64",
+          "x86_64"
+        ],
+        "condition": "Python <= 3.12",
+        "build_cpython_sh_lines": [
+          200
+        ]
+      },
+      {
+        "path": "cpython-unix/patch-pgo-print-statistics.patch",
+        "blob": "610578c8f18213e6ba36febb7e3375c2eec54821",
+        "architectures": [
+          "arm64",
+          "x86_64"
+        ],
+        "condition": "Python >= 3.12",
+        "build_cpython_sh_lines": [
+          255
+        ]
+      },
+      {
+        "path": "cpython-unix/patch-pgo-file-pool.patch",
+        "blob": "8539c51fefe0c282eb5fbcdb7bcc26be55b8f6ed",
+        "architectures": [
+          "arm64",
+          "x86_64"
+        ],
+        "condition": "Python >= 3.12",
+        "build_cpython_sh_lines": [
+          262
+        ]
+      },
+      {
+        "path": "cpython-unix/patch-tkinter-tcl9-thread-detection.patch",
+        "blob": "c198e5875e337ecb49f4864fab58f15ae0ecc780",
+        "architectures": [
+          "arm64",
+          "x86_64"
+        ],
+        "condition": "Python <= 3.12",
+        "build_cpython_sh_lines": [
+          292
+        ]
+      },
+      {
+        "path": "cpython-unix/patch-test-embed-prevent-segfault.patch",
+        "blob": "d05e2b00b7c8e2605d9dbf891cc5e3cec6fb332c",
+        "architectures": [
+          "arm64",
+          "x86_64"
+        ],
+        "condition": "Python 3.12 or 3.13",
+        "build_cpython_sh_lines": [
+          300
+        ]
+      },
+      {
+        "path": "cpython-unix/patch-cpython-redhat-cert-file.patch",
+        "blob": "38e1126e4a679db60d3716644813e8d7fa769f26",
+        "architectures": [
+          "arm64",
+          "x86_64"
+        ],
+        "condition": "always",
+        "build_cpython_sh_lines": [
+          306
+        ]
+      },
+      {
+        "path": "cpython-unix/patch-posixmodule-sys-syscall-header.patch",
+        "blob": "76527060f5e490381336146859e9268656485448",
+        "architectures": [
+          "arm64",
+          "x86_64"
+        ],
+        "condition": "Python <= 3.15",
+        "build_cpython_sh_lines": [
+          337
+        ]
+      },
+      {
+        "path": "cpython-unix/patch-posixmodule-syscall-fallback.patch",
+        "blob": "9174ac6175bdba9393649c685b7287286fea5009",
+        "architectures": [
+          "arm64",
+          "x86_64"
+        ],
+        "condition": "Python <= 3.15",
+        "build_cpython_sh_lines": [
+          361
+        ]
+      },
+      {
+        "path": "cpython-unix/patch-python-configure-add-enable-static-libpython-for-interpreter.patch",
+        "blob": "b8d23b52e0836633c1184531a1d00dc72cc90521",
+        "architectures": [
+          "arm64",
+          "x86_64"
+        ],
+        "condition": "3.12 <= Python <= 3.14",
+        "build_cpython_sh_lines": [
+          475
+        ]
+      },
+      {
+        "path": "cpython-unix/patch-python-getpath-backport-3.12.patch",
+        "blob": "79085f6f15c373b37be22d0176ef187108284d59",
+        "architectures": [
+          "arm64",
+          "x86_64"
+        ],
+        "condition": "Python >= 3.11 and the 3.12 backport file exists",
+        "build_cpython_sh_lines": [
+          779
+        ]
+      },
+      {
+        "path": "cpython-unix/patch-python-getpath-library.patch",
+        "blob": "5c500f3869f3e2c75657f1481ed8ca5500bfb2b1",
+        "architectures": [
+          "arm64",
+          "x86_64"
+        ],
+        "condition": "Python >= 3.11",
+        "build_cpython_sh_lines": [
+          781
+        ]
+      },
+      {
+        "path": "cpython-unix/patch-getpath-use-base_executable-for-executable_dir.patch",
+        "blob": "e6c740afe984947bac4be96dfa7c85a871f2f10d",
+        "architectures": [
+          "arm64",
+          "x86_64"
+        ],
+        "condition": "3.11 <= Python < 3.14",
+        "build_cpython_sh_lines": [
+          792
+        ]
+      }
+    ],
+    "not_applied_count": 49,
+    "inline_dependency_patches": [
+      {
+        "script": "cpython-unix/build-libffi.sh",
+        "blob": "3d0b60ae3025032415bacf7256c972dc857e1459",
+        "applies": "always",
+        "change": "src/tramp.c uses <limits.h> instead of Linux headers"
+      },
+      {
+        "script": "cpython-unix/build-tcl.sh",
+        "blob": "3ed1c02f0605b29b683df482e14661bc6330be33",
+        "applies": "macOS",
+        "change": "tcl.pc drops the zlib pkg-config requirement (Tcl is removed from the Saywing runtime)"
+      },
+      {
+        "script": "cpython-unix/build-openssl-3.5.sh",
+        "blob": "0c440a894562a693ab81d405c7c9f931add9dfa6",
+        "applies": "Linux targets only, not these builds",
+        "change": "rh-allow-sha1-signatures config key"
+      }
+    ],
+    "license_note": "Patch files are part of the MPL-2.0 python-build-standalone repository; they modify PSF-licensed CPython sources."
+  },
+  "third_party_sources": [
+    {
+      "name": "cpython-3.12",
+      "version": "3.12.15",
+      "url": "https://www.python.org/ftp/python/3.12.15/Python-3.12.15.tar.xz",
+      "bytes": 20829824,
+      "sha256": "c2c4321961fab0fb999d66e0cecf521c2ab3994c7992873ea99e306c1094fd5a",
+      "role": "CPython source",
+      "linkage": "the interpreter",
+      "licenses": [
+        "Python-2.0",
+        "CNRI-Python"
+      ],
+      "license_file": "LICENSE.cpython.txt"
+    },
+    {
+      "name": "openssl-3.5",
+      "version": "3.5.9",
+      "url": "https://github.com/openssl/openssl/releases/download/openssl-3.5.9/openssl-3.5.9.tar.gz",
+      "bytes": 53279637,
+      "sha256": "603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a",
+      "role": "_ssl, _hashlib",
+      "linkage": "static, in libpython",
+      "licenses": [
+        "Apache-2.0"
+      ],
+      "license_file": "LICENSE.openssl-3.txt"
+    },
+    {
+      "name": "sqlite",
+      "version": "3.53.1.0",
+      "url": "https://www.sqlite.org/2026/sqlite-autoconf-3530100.tar.gz",
+      "bytes": 3275272,
+      "sha256": "83e6b2020a034e9a7ad4a72feea59e1ad52f162e09cbd26735a3ffb98359fc4f",
+      "role": "_sqlite3",
+      "linkage": "static, in libpython",
+      "licenses": [],
+      "license_file": "LICENSE.sqlite.txt"
+    },
+    {
+      "name": "libffi",
+      "version": "3.8.0",
+      "url": "https://github.com/libffi/libffi/releases/download/v3.8.0/libffi-3.8.0.tar.gz",
+      "bytes": 1581626,
+      "sha256": "7da3e2d9a171eb0a038f592ecad3ff2bb2550f3496d87b3b29ad0cf4430c0db4",
+      "role": "_ctypes",
+      "linkage": "static, in libpython",
+      "licenses": [
+        "MIT"
+      ],
+      "license_file": "LICENSE.libffi.txt"
+    },
+    {
+      "name": "xz",
+      "version": "5.8.4",
+      "url": "https://github.com/tukaani-project/xz/releases/download/v5.8.4/xz-5.8.4.tar.gz",
+      "bytes": 2799797,
+      "sha256": "0014c7886930454fe8bd4228665b51af55eeae560ea135c9c4cd33f55b2591d9",
+      "role": "_lzma (liblzma)",
+      "linkage": "static, in libpython",
+      "licenses": [
+        "0BSD"
+      ],
+      "license_file": "LICENSE.liblzma.txt"
+    },
+    {
+      "name": "bzip2",
+      "version": "1.0.8",
+      "url": "https://astral-sh.github.io/mirror/files/bzip2-1.0.8.tar.gz",
+      "upstream_url": "https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz",
+      "bytes": 810029,
+      "sha256": "ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269",
+      "role": "_bz2",
+      "linkage": "static, in libpython",
+      "licenses": [
+        "bzip2-1.0.6"
+      ],
+      "license_file": "LICENSE.bzip2.txt"
+    },
+    {
+      "name": "mpdecimal",
+      "version": "4.0.0",
+      "url": "https://astral-sh.github.io/mirror/files/mpdecimal-4.0.0.tar.gz",
+      "upstream_url": "https://www.bytereef.org/software/mpdecimal/releases/mpdecimal-4.0.0.tar.gz",
+      "bytes": 315325,
+      "sha256": "942445c3245b22730fd41a67a7c5c231d11cb1b9936b9c0f76334fb7d0b4468c",
+      "role": "_decimal",
+      "linkage": "static, in libpython",
+      "licenses": [
+        "BSD-2-Clause"
+      ],
+      "license_file": "LICENSE.mpdecimal.txt"
+    },
+    {
+      "name": "expat",
+      "version": "2.9.0",
+      "url": "https://github.com/libexpat/libexpat/releases/download/R_2_9_0/expat-2.9.0.tar.xz",
+      "bytes": 534052,
+      "sha256": "1e6371862cc31999b368c3b89b49994f0677e1bab5f1b2b85ae3741f5d803051",
+      "role": "pyexpat",
+      "linkage": "static, in libpython",
+      "licenses": [
+        "MIT"
+      ],
+      "license_file": "LICENSE.expat.txt"
+    },
+    {
+      "name": "uuid",
+      "version": "1.0.3",
+      "url": "https://sourceforge.net/projects/libuuid/files/libuuid-1.0.3.tar.gz",
+      "bytes": 318256,
+      "sha256": "46af3275291091009ad7f1b899de3d0cea0252737550e7919d17237997db5644",
+      "role": "_uuid (libuuid)",
+      "linkage": "static, in libpython",
+      "licenses": [
+        "BSD-3-Clause"
+      ],
+      "license_file": "LICENSE.libuuid.txt"
+    },
+    {
+      "name": "tcl",
+      "version": "9.0.4",
+      "url": "https://prdownloads.sourceforge.net/tcl/tcl9.0.4-src.tar.gz",
+      "bytes": 11866337,
+      "sha256": "d0aed49230bc02a65c1e0229e65f34590a4b037ec40d546f32573b467f7551ea",
+      "role": "_tkinter",
+      "linkage": "shared library in the archive; removed by scripts/build-python-runtime.py",
+      "licenses": [
+        "TCL"
+      ],
+      "license_file": "LICENSE.tcl.txt"
+    },
+    {
+      "name": "tk",
+      "version": "9.0.4",
+      "url": "https://prdownloads.sourceforge.net/tcl/tk9.0.4-src.tar.gz",
+      "bytes": 4613019,
+      "sha256": "d7a146d2917eb8b5cc95276dbf0e3d03c7464d2b19c1675357857c989301dbb4",
+      "role": "_tkinter",
+      "linkage": "shared library in the archive; removed by scripts/build-python-runtime.py",
+      "licenses": [
+        "TCL"
+      ],
+      "license_file": "LICENSE.tcl.txt"
+    },
+    {
+      "name": "pip",
+      "version": "26.2.1",
+      "url": "https://files.pythonhosted.org/packages/f3/6e/1736e5b4ae2b778ef2f81c47d797de9f891d4d8acb047a24ca37a60294dd/pip-26.2.1-py3-none-any.whl",
+      "bytes": 1816632,
+      "sha256": "71138adf1f4ca900cdb7d289c21b7494329f2332b6d85f0e1c42108c0384ed3e",
+      "role": "site-packages/pip in the archive",
+      "linkage": "removed by scripts/build-python-runtime.py"
+    },
+    {
+      "name": "setuptools",
+      "version": "84.0.0",
+      "url": "https://files.pythonhosted.org/packages/95/9c/c510029fc6ef33a6275cd2c5d3cecd6613dfd6aa401d57c54f1c18852ccf/setuptools-84.0.0-py3-none-any.whl",
+      "bytes": 818216,
+      "sha256": "51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670",
+      "role": "build-time only",
+      "linkage": "not shipped"
+    },
+    {
+      "name": "zstd",
+      "version": "1.5.7",
+      "url": "https://github.com/python/cpython-source-deps/archive/refs/tags/zstd-1.5.7.tar.gz",
+      "bytes": 2440298,
+      "sha256": "f24b52470d12f466e9fa4fcc94e6c530625ada51d7b36de7fdc6ed7e6f499c8e",
+      "role": "build-time only (no _zstd module in CPython 3.12)",
+      "linkage": "not linked",
+      "licenses": [
+        "BSD-3-Clause"
+      ],
+      "license_file": "LICENSE.zstd.txt"
+    },
+    {
+      "name": "autoconf",
+      "version": "2.72",
+      "url": "https://astral-sh.github.io/mirror/files/autoconf-2.72.tar.gz",
+      "upstream_url": "https://ftp.gnu.org/gnu/autoconf/autoconf-2.72.tar.gz",
+      "bytes": 2143794,
+      "sha256": "afb181a76e1ee72832f6581c0eddf8df032b83e2e0239ef79ebedc4467d92d6e",
+      "role": "build tool",
+      "linkage": "not shipped"
+    },
+    {
+      "name": "m4",
+      "version": "1.4.19",
+      "url": "https://astral-sh.github.io/mirror/files/m4-1.4.19.tar.xz",
+      "upstream_url": "https://ftp.gnu.org/gnu/m4/m4-1.4.19.tar.xz",
+      "bytes": 1654908,
+      "sha256": "63aede5c6d33b6d9b13511cd0be2cac046f2e70fd0a07aa9573a04a82783af96",
+      "role": "build tool",
+      "linkage": "not shipped"
+    },
+    {
+      "name": "pkgconf",
+      "version": "3.0.3",
+      "url": "https://github.com/pkgconf/pkgconf/releases/download/pkgconf-3.0.3/pkgconf-3.0.3.tar.xz",
+      "bytes": 415512,
+      "sha256": "aa033abb2b777ba4e66635495a931e53c49d86e4e4e38af68c0f76d666cbd8cf",
+      "role": "build tool",
+      "linkage": "not shipped"
+    },
+    {
+      "name": "llvm-aarch64-macos",
+      "version": "23.1.3+20261008",
+      "url": "https://github.com/astral-sh/llvm-build/releases/download/20261008/llvm-23.1.3+20261008-aarch64-apple-darwin.tar.zst",
+      "bytes": 165486444,
+      "sha256": "33c600c213de9a1f4b360fb0737918bda609c6268e0a46b3ec255ff1a5ebb981",
+      "role": "compiler toolchain (clang) on the arm64 macOS build host",
+      "linkage": "not shipped"
+    },
+    {
+      "name": "llvm-x86_64-linux",
+      "version": "23.1.3+20261008",
+      "url": "https://github.com/astral-sh/llvm-build/releases/download/20261008/llvm-23.1.3+20261008-gnu_only-x86_64-unknown-linux-gnu.tar.zst",
+      "bytes": 227968490,
+      "sha256": "32ea722bc3fb74fd37bbace1463f1dd2d86aeeefcfa6ccac4b74fce89387017e",
+      "role": "llvm-strip used by the release job (ubuntu) to produce install_only_stripped",
+      "linkage": "not shipped"
+    }
+  ],
+  "macos_system_libraries": {
+    "note": "Linked from the macOS SDK/system, not bundled: zlib (z), libedit (edit), ncurses/panel, dl, pthread, CoreFoundation and SystemConfiguration frameworks. PYTHON.json still points zlib to LICENSE.zlib.txt and LICENSE.zlib-ng.txt; the full archive contains no LICENSE.zlib-ng.txt.",
+    "links": [
+      "z",
+      "edit",
+      "ncurses",
+      "panel",
+      "dl",
+      "pthread",
+      "CoreFoundation.framework",
+      "SystemConfiguration.framework"
+    ]
+  },
+  "architectures": {
+    "arm64": {
+      "target_triple": "aarch64-apple-darwin",
+      "build_triple": "aarch64-apple-darwin",
+      "cross_compiled": false,
+      "build_options": "pgo+lto",
+      "apple_sdk": "macosx15.0",
+      "deployment_target": "11.0",
+      "stripped": {
+        "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261013/cpython-3.12.15%2B20261013-aarch64-apple-darwin-install_only_stripped.tar.gz",
+        "bytes": 25052618,
+        "sha256": "9866e11cf2ae9caa1e671383786f248859a52dd8bfb702fb4c0dc2c65f1d36de"
+      },
+      "full": {
+        "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261013/cpython-3.12.15%2B20261013-aarch64-apple-darwin-pgo%2Blto-full.tar.zst",
+        "bytes": 57714586,
+        "sha256": "8c7ac5f091c64111247e595c9fc8fecc38453e94a60323a3b66dbfca3c01414a"
+      },
+      "consistency": {
+        "stripped_sha256_in_release_SHA256SUMS": true,
+        "stripped_sha256_equals_github_asset_digest": true,
+        "full_sha256_in_release_SHA256SUMS": true,
+        "full_python_json": {
+          "python_version": "3.12.15",
+          "target_triple": "aarch64-apple-darwin",
+          "build_options": "pgo+lto",
+          "version": "8"
+        },
+        "stripped_patchlevel_PY_VERSION": "3.12.15",
+        "stripped_sysconfigdata_identical_to_full": true,
+        "sysconfig_build_directory": "/tmp/tmpzqwka42i",
+        "stripped_files": 1653,
+        "byte_identical_files": 1636,
+        "identical_symlinks": 10,
+        "mach_o_debug_stripped_same_lc_uuid_and_sections": [
+          {
+            "path": "bin/python3.12",
+            "lc_uuid": "4c4c447355553144a1552126c7b1bbc9"
+          },
+          {
+            "path": "lib/itcl4.3.8/libitcl4.3.8.dylib",
+            "lc_uuid": "4c4c440055553144a154f90e4b3673d1"
+          },
+          {
+            "path": "lib/itcl4.3.8/libtcl9itcl4.3.8.dylib",
+            "lc_uuid": "4c4c448755553144a12a54d583d68bcd"
+          },
+          {
+            "path": "lib/libpython3.12.dylib",
+            "lc_uuid": "4c4c443355553144a1f581bf062f310e"
+          },
+          {
+            "path": "lib/libtcl9.0.dylib",
+            "lc_uuid": "4c4c44e055553144a1ac295c5dd97719"
+          },
+          {
+            "path": "lib/libtcl9tk9.0.dylib",
+            "lc_uuid": "4c4c443955553144a1696a937a5ad798"
+          },
+          {
+            "path": "lib/python3.12/lib-dynload/_crypt.cpython-312-darwin.so",
+            "lc_uuid": "4c4c447a55553144a1d6acf1afe51920"
+          },
+          {
+            "path": "lib/python3.12/lib-dynload/_dbm.cpython-312-darwin.so",
+            "lc_uuid": "4c4c449255553144a162eb881dea8c85"
+          },
+          {
+            "path": "lib/python3.12/lib-dynload/_tkinter.cpython-312-darwin.so",
+            "lc_uuid": "4c4c447b55553144a15904f5f6244240"
+          },
+          {
+            "path": "lib/thread3.0.6/libtcl9thread3.0.6.dylib",
+            "lc_uuid": "4c4c44ab55553144a1313e4ad80a1421"
+          },
+          {
+            "path": "lib/thread3.0.6/libthread3.0.6.dylib",
+            "lc_uuid": "4c4c44ff55553144a13326f8b20a97b7"
+          }
+        ],
+        "pe_debug_stripped_same_sections": [
+          "lib/python3.12/site-packages/pip/_vendor/distlib/t32.exe",
+          "lib/python3.12/site-packages/pip/_vendor/distlib/t64-arm.exe",
+          "lib/python3.12/site-packages/pip/_vendor/distlib/t64.exe",
+          "lib/python3.12/site-packages/pip/_vendor/distlib/w32.exe",
+          "lib/python3.12/site-packages/pip/_vendor/distlib/w64-arm.exe",
+          "lib/python3.12/site-packages/pip/_vendor/distlib/w64.exe"
+        ],
+        "files_only_in_full_explained_by_release_rs": true,
+        "unexplained_differences": []
+      },
+      "licenses": {
+        "notice_directory": "docs/licenses/Python-3.12.15",
+        "shipped_files": [
+          "LICENSE.bzip2.txt",
+          "LICENSE.cpython.txt",
+          "LICENSE.expat.txt",
+          "LICENSE.libedit.txt",
+          "LICENSE.libffi.txt",
+          "LICENSE.liblzma.txt",
+          "LICENSE.libuuid.txt",
+          "LICENSE.mpdecimal.txt",
+          "LICENSE.ncurses.txt",
+          "LICENSE.openssl-1.1.txt",
+          "LICENSE.openssl-3.txt",
+          "LICENSE.sqlite.txt",
+          "LICENSE.tcl.txt",
+          "LICENSE.zlib.txt"
+        ],
+        "shipped_files_identical_to_full_archive": true,
+        "full_archive_files": [
+          "LICENSE.bdb.txt",
+          "LICENSE.bzip2.txt",
+          "LICENSE.cpython.txt",
+          "LICENSE.expat.txt",
+          "LICENSE.libX11.txt",
+          "LICENSE.libXau.txt",
+          "LICENSE.libedit.txt",
+          "LICENSE.libffi.txt",
+          "LICENSE.liblzma.txt",
+          "LICENSE.libuuid.txt",
+          "LICENSE.libxcb.txt",
+          "LICENSE.mpdecimal.txt",
+          "LICENSE.ncurses.txt",
+          "LICENSE.openssl-1.1.txt",
+          "LICENSE.openssl-3.txt",
+          "LICENSE.sqlite.txt",
+          "LICENSE.tcl.txt",
+          "LICENSE.tix.txt",
+          "LICENSE.zlib.txt"
+        ],
+        "referenced_by_python_json": [
+          "LICENSE.bzip2.txt",
+          "LICENSE.expat.txt",
+          "LICENSE.libedit.txt",
+          "LICENSE.libffi.txt",
+          "LICENSE.liblzma.txt",
+          "LICENSE.libuuid.txt",
+          "LICENSE.mpdecimal.txt",
+          "LICENSE.ncurses.txt",
+          "LICENSE.openssl-1.1.txt",
+          "LICENSE.openssl-3.txt",
+          "LICENSE.sqlite.txt",
+          "LICENSE.tcl.txt",
+          "LICENSE.zlib-ng.txt",
+          "LICENSE.zlib.txt"
+        ]
+      }
+    },
+    "x86_64": {
+      "target_triple": "x86_64-apple-darwin",
+      "build_triple": "aarch64-apple-darwin",
+      "cross_compiled": true,
+      "build_options": "pgo+lto",
+      "apple_sdk": "macosx15.0",
+      "deployment_target": "10.15",
+      "stripped": {
+        "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261013/cpython-3.12.15%2B20261013-x86_64-apple-darwin-install_only_stripped.tar.gz",
+        "bytes": 24774808,
+        "sha256": "d09998f85752b646873a8a6bc7eea442a0d251b1c8d2413aa8ea06ef131c3335"
+      },
+      "full": {
+        "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261013/cpython-3.12.15%2B20261013-x86_64-apple-darwin-pgo%2Blto-full.tar.zst",
+        "bytes": 57633538,
+        "sha256": "7b24fd8362742c471989a4491770beb377f0127c8671778a223d6c6b6c10a578"
+      },
+      "consistency": {
+        "stripped_sha256_in_release_SHA256SUMS": true,
+        "stripped_sha256_equals_github_asset_digest": true,
+        "full_sha256_in_release_SHA256SUMS": true,
+        "full_python_json": {
+          "python_version": "3.12.15",
+          "target_triple": "x86_64-apple-darwin",
+          "build_options": "pgo+lto",
+          "version": "8"
+        },
+        "stripped_patchlevel_PY_VERSION": "3.12.15",
+        "stripped_sysconfigdata_identical_to_full": true,
+        "sysconfig_build_directory": "/tmp/tmp3ywem0la",
+        "stripped_files": 1650,
+        "byte_identical_files": 1633,
+        "identical_symlinks": 10,
+        "mach_o_debug_stripped_same_lc_uuid_and_sections": [
+          {
+            "path": "bin/python3.12",
+            "lc_uuid": "4c4c44be55553144a1c9db4133f91494"
+          },
+          {
+            "path": "lib/itcl4.3.8/libitcl4.3.8.dylib",
+            "lc_uuid": "4c4c44b655553144a1ff6dba6fd568d6"
+          },
+          {
+            "path": "lib/itcl4.3.8/libtcl9itcl4.3.8.dylib",
+            "lc_uuid": "4c4c443455553144a1cbb30a08f18dbd"
+          },
+          {
+            "path": "lib/libpython3.12.dylib",
+            "lc_uuid": "4c4c44ad55553144a1e290123d3c739d"
+          },
+          {
+            "path": "lib/libtcl9.0.dylib",
+            "lc_uuid": "4c4c44a855553144a106f3c3a7c90a8e"
+          },
+          {
+            "path": "lib/libtcl9tk9.0.dylib",
+            "lc_uuid": "4c4c44e455553144a12415e309a9177d"
+          },
+          {
+            "path": "lib/python3.12/lib-dynload/_crypt.cpython-312-darwin.so",
+            "lc_uuid": "4c4c449055553144a128c2999e42e70a"
+          },
+          {
+            "path": "lib/python3.12/lib-dynload/_dbm.cpython-312-darwin.so",
+            "lc_uuid": "4c4c443d55553144a12dcb72756e5905"
+          },
+          {
+            "path": "lib/python3.12/lib-dynload/_tkinter.cpython-312-darwin.so",
+            "lc_uuid": "4c4c44a955553144a1cd06e9dc3df620"
+          },
+          {
+            "path": "lib/thread3.0.6/libtcl9thread3.0.6.dylib",
+            "lc_uuid": "4c4c445f55553144a169c34490c04253"
+          },
+          {
+            "path": "lib/thread3.0.6/libthread3.0.6.dylib",
+            "lc_uuid": "4c4c449455553144a1aaf3fa3e120b0e"
+          }
+        ],
+        "pe_debug_stripped_same_sections": [
+          "lib/python3.12/site-packages/pip/_vendor/distlib/t32.exe",
+          "lib/python3.12/site-packages/pip/_vendor/distlib/t64-arm.exe",
+          "lib/python3.12/site-packages/pip/_vendor/distlib/t64.exe",
+          "lib/python3.12/site-packages/pip/_vendor/distlib/w32.exe",
+          "lib/python3.12/site-packages/pip/_vendor/distlib/w64-arm.exe",
+          "lib/python3.12/site-packages/pip/_vendor/distlib/w64.exe"
+        ],
+        "files_only_in_full_explained_by_release_rs": true,
+        "unexplained_differences": []
+      },
+      "licenses": {
+        "notice_directory": "docs/licenses/Python-3.12.15-Intel",
+        "shipped_files": [
+          "LICENSE.bdb.txt",
+          "LICENSE.bzip2.txt",
+          "LICENSE.cpython.txt",
+          "LICENSE.expat.txt",
+          "LICENSE.libX11.txt",
+          "LICENSE.libXau.txt",
+          "LICENSE.libedit.txt",
+          "LICENSE.libffi.txt",
+          "LICENSE.liblzma.txt",
+          "LICENSE.libuuid.txt",
+          "LICENSE.libxcb.txt",
+          "LICENSE.mpdecimal.txt",
+          "LICENSE.ncurses.txt",
+          "LICENSE.openssl-1.1.txt",
+          "LICENSE.openssl-3.txt",
+          "LICENSE.sqlite.txt",
+          "LICENSE.tcl.txt",
+          "LICENSE.tix.txt",
+          "LICENSE.zlib.txt"
+        ],
+        "shipped_files_identical_to_full_archive": true,
+        "full_archive_files": [
+          "LICENSE.bdb.txt",
+          "LICENSE.bzip2.txt",
+          "LICENSE.cpython.txt",
+          "LICENSE.expat.txt",
+          "LICENSE.libX11.txt",
+          "LICENSE.libXau.txt",
+          "LICENSE.libedit.txt",
+          "LICENSE.libffi.txt",
+          "LICENSE.liblzma.txt",
+          "LICENSE.libuuid.txt",
+          "LICENSE.libxcb.txt",
+          "LICENSE.mpdecimal.txt",
+          "LICENSE.ncurses.txt",
+          "LICENSE.openssl-1.1.txt",
+          "LICENSE.openssl-3.txt",
+          "LICENSE.sqlite.txt",
+          "LICENSE.tcl.txt",
+          "LICENSE.tix.txt",
+          "LICENSE.zlib.txt"
+        ],
+        "referenced_by_python_json": [
+          "LICENSE.bzip2.txt",
+          "LICENSE.expat.txt",
+          "LICENSE.libedit.txt",
+          "LICENSE.libffi.txt",
+          "LICENSE.liblzma.txt",
+          "LICENSE.libuuid.txt",
+          "LICENSE.mpdecimal.txt",
+          "LICENSE.ncurses.txt",
+          "LICENSE.openssl-1.1.txt",
+          "LICENSE.openssl-3.txt",
+          "LICENSE.sqlite.txt",
+          "LICENSE.tcl.txt",
+          "LICENSE.zlib-ng.txt",
+          "LICENSE.zlib.txt"
+        ]
+      }
+    }
+  },
+  "consistency_checked": "2026-10-24",
+  "verified_by": "python3 scripts/python_provenance.py --checkout <python-build-standalone at source.commit> --cache <dir> (passed 2026-10-24 for arm64 and x86_64)"
+}
