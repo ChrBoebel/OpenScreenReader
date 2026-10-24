@@ -1,15 +1,32 @@
 #!/usr/bin/env python3
-"""Attach already installed, pinned dictation assets to a private Saywing build. No downloads.
+"""Attach already built, pinned dictation assets to a Saywing build. No downloads.
 
-Only Whisper Turbo is bundled by default; the app installs the other models on request.
-`--with-qwen` and `--whisper-large-model` additionally bundle those models."""
+`resources/Python` must be a runtime from scripts/build-python-runtime.py --runtime dictation
+(installed-packages.json, THIRD-PARTY-NOTICES.txt). Only Whisper Turbo is bundled by default;
+the app installs the other models on request. `--with-qwen` and `--whisper-large-model`
+additionally bundle those models."""
 import argparse
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import shutil
 import subprocess
 import sys
+
+builder_spec = importlib.util.spec_from_file_location('build_python_runtime', Path(__file__).resolve().parent / 'build-python-runtime.py')
+builder = importlib.util.module_from_spec(builder_spec)
+builder_spec.loader.exec_module(builder)
+
+# Google FLEURS demo clips (Demos/manifest.json) are redistributed unchanged.
+FLEURS_ATTRIBUTION = """Demo audio (Dictation/Demos)
+============================
+Deutsch.wav and English.wav are unchanged recordings from Google FLEURS
+(https://huggingface.co/datasets/google/fleurs, revision 70bb2e84b976b7e960aa89f1c648e09c59f894dd),
+(c) Google, licensed under Creative Commons Attribution 4.0 International
+(https://creativecommons.org/licenses/by/4.0/). Original IDs, transcripts, sizes and
+SHA-256 hashes are listed in Demos/manifest.json.
+"""
 
 def sha256(stream):
     digest = hashlib.sha256()
@@ -24,7 +41,9 @@ parser.add_argument('--whisper-model', type=Path, required=True, help='Verified 
 parser.add_argument('--whisper-large-model', type=Path, help='Also bundle this verified pinned Whisper Large v3 model directory')
 parser.add_argument('--with-qwen', action='store_true', help='Also bundle the Qwen3-ASR model from resources/Model')
 parser.add_argument('--speech-from', type=Path, help='Reuse verified self-contained Speech resources from an existing app')
-parser.add_argument('--development-only', required=True, action='store_true')
+mode = parser.add_mutually_exclusive_group(required=True)
+mode.add_argument('--development-only', action='store_true', help='Local development build')
+mode.add_argument('--public-release', action='store_true', help='Input to a signed, notarized public release')
 parser.add_argument('--defer-app-signing', action='store_true',
                     help='Leave the outer bundle unsealed for scripts/release.py to sign all nested frameworks first')
 args = parser.parse_args()
@@ -69,6 +88,10 @@ for item in manifest['files'] if args.with_qwen else []:
         raise SystemExit('Pinned model verification failed')
 if not (source/'Python/lib/python3.12/LICENSE.txt').is_file():
     raise SystemExit('Missing CPython license')
+try:
+    inventory_json = builder.verify_runtime(source/'Python', 'dictation', repo/'Runtime/Dictation/installed-packages.json')
+except ValueError as error:
+    raise SystemExit('Dictation runtime rejected: ' + str(error))
 components = ['Python', 'Demos'] + (['Model'] if args.with_qwen else [])
 for component in components:
     for path in (source/component).rglob('*'):
@@ -96,6 +119,10 @@ if args.speech_from:
                 raise SystemExit('Bundled speech receipt mismatch: '+relative)
     if (speech_source/'SupertonicRuntime/worker.py').read_bytes() != (repo/'Runtime/Supertonic/worker.py').read_bytes():
         raise SystemExit('Bundled speech worker differs from project')
+    try:
+        builder.check_forbidden(speech_source/'SupertonicRuntime/python')
+    except ValueError as error:
+        raise SystemExit('Speech runtime rejected: ' + str(error))
     shutil.copytree(speech_source,speech_target,symlinks=True)
     for name in ['LICENSE-Saywing','DEVELOPMENT-PREVIEW.txt']:
         asset = speech_app/'Contents/Resources'/name
@@ -117,8 +144,11 @@ for _, _, _, notice in whisper_models:
 for name in ['LICENSE-OpenAI', 'LICENSE-Apache-2.0']:
     shutil.copy2(args.whisper_model.resolve(strict=True)/name, target/'Licenses'/name)
 for name in ['worker.py', 'worker.sb', 'model-manifest.json', 'whisper-turbo-manifest.json',
-             'whisper-large-v3-manifest.json', 'requirements-lock.txt', 'installed-packages.json']:
+             'whisper-large-v3-manifest.json', 'requirements-lock.txt']:
     shutil.copy2(repo/'Runtime/Dictation'/name, target/name)
+(target/'installed-packages.json').write_text(inventory_json)
+(target/'THIRD-PARTY-NOTICES.txt').write_text(
+    (source/'Python/THIRD-PARTY-NOTICES.txt').read_text(encoding='utf-8') + '\n' + FLEURS_ATTRIBUTION, encoding='utf-8')
 subprocess.run([sys.executable, repo/'scripts/patch-dictation-runtime.py', target], check=True)
 shutil.copy2(repo/'docs/licenses/mlx-examples-MIT.txt', target/'Licenses/LICENSE-mlx-examples')
 (target/'RuntimeCache/dynamo').mkdir(parents=True)
@@ -141,7 +171,8 @@ for path in sorted(target.rglob('*')):
     with path.open('rb') as f:
         inventory[str(path.relative_to(target))] = sha256(f)
 (target/'installation-receipt.json').write_text(json.dumps({
-    'purpose': 'Private local integration build; not notarized or approved for redistribution',
+    'purpose': ('Saywing release build; components are redistributed under the licenses in THIRD-PARTY-NOTICES.txt'
+                if args.public_release else 'Local development build; not notarized'),
     'bundled_models': {name: data['revision'] for name, (_, data) in whisper_manifests.items()}
         | ({'model-manifest.json': manifest['revision']} if args.with_qwen else {}),
     'files': inventory}, indent=2)+'\n')
@@ -149,4 +180,4 @@ if not args.defer_app_signing:
     subprocess.run(['/usr/bin/codesign','--force','--sign','-','--options','runtime','--entitlements',str(repo/'OpenScreenReaderApp/Saywing.entitlements'),str(app)],check=True)
     subprocess.run(['/usr/bin/codesign','--verify','--deep','--strict',str(app)],check=True)
     subprocess.run([sys.executable, str(repo/'scripts/verify-app-permissions.py'), str(app)], check=True)
-print('PRIVATE SAYWING BUILD WITH DICTATION:',app)
+print('SAYWING BUILD WITH DICTATION:' if args.public_release else 'DEVELOPMENT SAYWING BUILD WITH DICTATION:', app)
