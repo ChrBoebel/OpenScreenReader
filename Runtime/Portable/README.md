@@ -1,6 +1,6 @@
 # Pinned runtime build inputs
 
-Build inputs, not approval to distribute (`docs/release-approval*.json` decide that).
+Build inputs, not approval to distribute (`release/release-approval*.json` decide that).
 They are downloaded only while building, by `scripts/build-python-runtime.py` and
 `scripts/assemble-release-runtime.py`; the installed app never installs Python
 packages or fetches runtime dependencies. No weights or generated runtimes belong
@@ -29,7 +29,7 @@ optimizations disabled, and records source, bridge, build script and output hash
 - Clean macOS 14 tests on Apple Silicon and native Intel; Rosetta is not evidence
   of Intel hardware performance or compatibility with macOS 14.
 - Stable reading under CPU load; one Intel/Rosetta probe underrun was observed.
-- Intel public packaging stays blocked until `docs/release-approval-x86_64.json`
+- Intel public packaging stays blocked until `release/release-approval-x86_64.json`
   is complete.
 
 References: [MLX installation](https://ml-explore.github.io/mlx/build/html/install.html),
