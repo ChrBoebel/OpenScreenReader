@@ -1,5 +1,6 @@
-# Default owner for everything. Branch protection with "Require review from Code
-# Owners" makes the explicit release/CI entries below mandatory review paths.
+# Default owner for everything. Once a second maintainer exists, branch
+# protection with "Require review from Code Owners" makes the explicit
+# release/CI entries below mandatory review paths (docs/release-and-updates.md).
 * @ChrBoebel
 
 # CI, release automation and repository configuration
@@ -13,5 +14,4 @@
 /scripts/publish-release.py @ChrBoebel
 
 # Public-release gates
-/docs/release-approval.json @ChrBoebel
-/docs/release-approval-x86_64.json @ChrBoebel
+/release/ @ChrBoebel

@@ -1,7 +1,7 @@
 # Saywing distribution and updates
 
 This document describes how Saywing is signed, notarized, packaged, published and
-updated. Owner-specific values (signing identity, team ID, download URL, release
+updated. Maintainer-specific values (signing identity, team ID, download URL, release
 repository) are defaults in the scripts and can be overridden through environment
 variables or GitHub repository variables; nothing private is required to read,
 build or test the source.
@@ -9,7 +9,7 @@ build or test the source.
 ## Signing identity
 
 Every distributable is signed with a Developer ID Application certificate and
-notarized by Apple. The owner defaults are:
+notarized by Apple. The project defaults are:
 
 - Team ID: `S28WSHSSJD` (override: `SAYWING_TEAM_ID`).
 - Identity: `Developer ID Application: Christopher Böbel (S28WSHSSJD)`
@@ -27,7 +27,7 @@ Xcode `Package.resolved`. Its MIT and bundled dependency notices are preserved i
 `docs/licenses/Sparkle-2.10.0.txt` and copied into release apps.
 
 - A configured release starts Sparkle at app launch and immediately requests a
-  background check when automatic checks are enabled (owner request 2026-10-15),
+  background check when automatic checks are enabled (project decision 2026-10-15),
   even if the last check was recent. This call runs in the same runloop turn as
   startup, as required by Sparkle. Sparkle then maintains the four-hour schedule.
   A saved opt-out is respected. No-update and network-error cases stay quiet;
@@ -48,7 +48,7 @@ Xcode `Package.resolved`. Its MIT and bundled dependency notices are preserved i
 - Builds without a valid HTTPS feed and 32-byte public key never start Sparkle.
   UI/test processes explicitly disable it. Local developer builds have no feed.
 
-The owner's Sparkle public key is `UkAO/uyBRKSNY0+0gLVrnxa6vaXaVE4cJueFv1JVIT0=`
+The project's Sparkle public key is `UkAO/uyBRKSNY0+0gLVrnxa6vaXaVE4cJueFv1JVIT0=`
 (override in CI: `SAYWING_SPARKLE_PUBLIC_KEY`). The private key lives in the
 maintainer's keychain under Sparkle account `saywing` and in the release
 environment secret; it is never in the repository. Back it up securely before
@@ -108,7 +108,7 @@ The `publish/` directory contains the versioned DMG, signed `appcast.xml`,
 `SHA256SUMS`, and `latest.json` with the download URL, version, size, architecture
 and checksum. Private test packages retain the development notice. Only
 `--public-release`, requiring the architecture-specific approval record, removes it.
-ARM uses `release-approval.json`; Intel uses `release-approval-x86_64.json`.
+ARM uses [`release/release-approval.json`](../release/release-approval.json); Intel uses [`release/release-approval-x86_64.json`](../release/release-approval-x86_64.json).
 The documented ARM beta exception covers only its fresh-device testing gap.
 That flag also requires notarization. **Preparation never publishes anything.**
 
@@ -191,10 +191,10 @@ conditions are evaluated before environment variables become available):
 | `SAYWING_S3_ENDPOINT` | HTTPS endpoint of the S3-compatible bucket (publish job only) |
 | `SAYWING_S3_BUCKET` | Bucket name (publish job only) |
 | `SAYWING_S3_REGION` | Bucket region; defaults to `auto` (publish job only) |
-| `SAYWING_PUBLIC_DOWNLOAD_PREFIX` | Public HTTPS download base (owner default in `scripts/release.py`) |
-| `SAYWING_SPARKLE_PUBLIC_KEY` | Sparkle Ed25519 public key (owner default above) |
-| `SAYWING_SIGNING_IDENTITY` | Developer ID Application identity (owner default above) |
-| `SAYWING_TEAM_ID` | Apple team ID for Apple-ID notarization (owner default above) |
+| `SAYWING_PUBLIC_DOWNLOAD_PREFIX` | Public HTTPS download base (project default in `scripts/release.py`) |
+| `SAYWING_SPARKLE_PUBLIC_KEY` | Sparkle Ed25519 public key (project default above) |
+| `SAYWING_SIGNING_IDENTITY` | Developer ID Application identity (project default above) |
+| `SAYWING_TEAM_ID` | Apple team ID for Apple-ID notarization (project default above) |
 | `SAYWING_RELEASE_REPOSITORY` | `owner/repo` allowed to publish (default `ChrBoebel/saywing`) |
 
 Secrets in the `saywing-release` environment:
@@ -224,24 +224,26 @@ app-specific password with `--password` because notarytool's alternative is an
 interactive prompt. These arguments are visible only to processes in the same
 ephemeral job; prefer the API key.
 
-### GitHub settings the owner must configure
+### GitHub settings the maintainer must configure
 
 These settings cannot be expressed in the repository and must be set manually:
 
 - **Environment `saywing-release`** (Settings → Environments): deployment
-  branches limited to `main` (no tags); required reviewer = the owner; enable
+  branches limited to `main` (no tags); required reviewer = the maintainer; enable
   "Prevent self-review" only if a second maintainer exists; disable "Allow
   administrators to bypass configured protection rules". Store the secrets above
   only in this environment, not as repository secrets.
 - **Branch protection / ruleset for `main`**: require a pull request before
-  merging, require review from Code Owners (`.github/CODEOWNERS`), require the
-  status checks `verify` and `python-workers` to pass, require branches to be up
-  to date, block force pushes and deletions, and include administrators.
+  merging, require the status checks `verify` and `python-workers` to pass, and
+  block force pushes and deletions. This is the current single-maintainer
+  configuration. Once a second maintainer exists, also require review from Code
+  Owners (`.github/CODEOWNERS`), require branches to be up to date and include
+  administrators; with one maintainer these settings would block every merge.
 - **Actions** (Settings → Actions → General): require approval for workflows from
   fork pull requests (at least for first-time contributors; "all outside
   collaborators" is safer); keep the default `GITHUB_TOKEN` permission read-only;
-  do not allow Actions to create or approve pull requests; optionally restrict
-  allowed actions to GitHub-authored actions pinned by SHA.
+  do not allow Actions to create or approve pull requests; allow only
+  GitHub-owned actions and require them to be pinned by full commit SHA.
 
 ## Download hosting
 
@@ -285,7 +287,7 @@ legal permission; the license review stays a release gate.
     the architecture;
   - `README.md` is `docs/licenses/CorrespondingSource-README.md`.
 
-The source archives themselves are not shipped. The owner decided this on 2026-10-24
+The source archives themselves are not shipped. This was decided on 2026-10-24
 ([ADR 0007](decisions/0007-gcc-runtime-libraries.md)).
 
 The step fails in these cases:
@@ -347,7 +349,7 @@ missing.
 
 ## Remaining public-release gates
 
-`license_review` is `false` in both approval records (owner decisions 2026-10-24; see
+`license_review` is `false` in both approval records (project decisions 2026-10-24; see
 `license_review_note` and the 2026-10-24 status in
 [ADR 0003](decisions/0003-bundled-default-model.md)).
 
@@ -360,15 +362,15 @@ Done:
 
 Still open:
 
-- the owner's legal review of the model-terms wording;
+- the maintainer's legal review of the model-terms wording;
 - the interpreter provenance record. The CPython archives are pinned and hash-verified with
   their license texts, but no build recipe or CPython patch set is recorded.
 
 The 2026-10-15 review covered the earlier runtime. No public release can be built until the
-owner closes this gate; the beta exception covers only `clean_mac`.
+maintainer closes this gate; the beta exception covers only `clean_mac`.
 
 `release-approval.json` also records the ARM beta privacy and production HTTPS update
-evidence, plus the owner-approved exception for incomplete fresh-device testing. Intel has
+evidence, plus the approved exception for incomplete fresh-device testing. Intel has
 its own record, `release-approval-x86_64.json`; neither the ARM evidence nor its exception
 opens the Intel gate. Apple notarization alone does not satisfy these gates.
 

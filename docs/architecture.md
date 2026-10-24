@@ -2,7 +2,7 @@
 
 > This architecture is a reasoned starting hypothesis. The process boundaries and packaging strategy will be validated through technical spikes before the complete MVP is built.
 
-Current development status: Following the project owner's listening decision of 2026-09-05, Supertonic 3 is the default model, initially with M1. A local Python/ONNX process is connected to OCR and AVAudioEngine through the same `SpeechReading` interface; see [Supertonic integration](research/supertonic-integration.md). The earlier Swift/MLX Qwen spike is kept as a comparison, but the app neither starts it nor uses it as a fallback. This does not yet determine the portable production runtime or the release packaging.
+Current development status: Following the project's listening decision of 2026-09-05, Supertonic 3 is the default model, initially with M1. A local Python/ONNX process is connected to OCR and AVAudioEngine through the same `SpeechReading` interface; see [Supertonic integration](research/supertonic-integration.md). The earlier Swift/MLX Qwen spike is kept as a comparison, but the app neither starts it nor uses it as a fallback. This does not yet determine the portable production runtime or the release packaging.
 
 ## System overview
 
@@ -116,7 +116,7 @@ The default model should be part of the signed release artifact, so that no sepa
 - Model weights are not checked into Git.
 - Release builds use an allowlist-based manifest with immutable revisions and SHA-256 hashes.
 - Model, tokenizer, conversion, runtime, voices and transitive dependencies require a documented license approval.
-- Local inference needs no network. Project owner approvals allow the explicitly confirmed optional dictation models and, since 2026-10-14, disableable Sparkle update checks with installation on user action; see Privacy and the [release procedure](release-and-updates.md).
+- Local inference needs no network. Project decisions allow the explicitly confirmed optional dictation models and, since 2026-10-14, disableable Sparkle update checks with installation on user action; see Privacy and the [release procedure](release-and-updates.md).
 - The provider abstraction is kept so that later platforms and local models are not coupled to an MLX artifact.
 
 ## Provider abstraction
@@ -132,11 +132,11 @@ The default model should be part of the signed release artifact, so that no sepa
 
 Primary:
 
-- Supertonic 3, selected by the project owner after a direct listening comparison; M1, eight steps, normal synthesis speed. Sentence-by-sentence synthesis, bounded audio packets and eight seconds of source PCM in the playback buffer; live speed 0.75–2×.
+- Supertonic 3, selected after a direct listening comparison (project decision 2026-09-05); M1, eight steps, normal synthesis speed. Sentence-by-sentence synthesis, bounded audio packets and eight seconds of source PCM in the playback buffer; live speed 0.75–2×.
 
 Comparison, not used automatically:
 
-- Qwen3-TTS 0.6B 4-bit Swift/MLX. The project owner found the evaluated voices too inconsistent.
+- Qwen3-TTS 0.6B 4-bit Swift/MLX. The evaluated voices were judged too inconsistent.
 
 The Supertonic OpenRAIL-M terms, the announced end of official support and the complete Python/ONNX license and packaging chain must be reviewed before distribution.
 
@@ -172,7 +172,7 @@ The default path must not persistently store screenshots, OCR text or generated 
 
 ## Dictation model selection — 2026-10-13
 
-At the project owner's request, Qwen3-ASR and Whisper Turbo are available as explicit local
+By project decision, Qwen3-ASR and Whisper Turbo are available as explicit local
 models to choose from. The choice is stored under `dictationModel.v1` and
 restored at launch and after sleep. Switching is blocked during a
 dictation; when idle, the previous worker is terminated and its late
@@ -207,7 +207,7 @@ of a model that is not installed is kept, but Whisper Turbo is started.
 
 ## Default model and vocabulary — 2026-10-14
 
-By the project owner's decision, Whisper Turbo is the default model when
+By project decision, Whisper Turbo is the default model when
 no choice has been stored yet; Qwen3-ASR remains selectable. Every request to the worker
 optionally carries `vocabulary` (≤ 50 terms, each ≤ 60 characters, without control characters;
 otherwise error `processing_failed`). Whisper receives the terms as `initial_prompt`

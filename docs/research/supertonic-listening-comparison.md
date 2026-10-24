@@ -1,6 +1,6 @@
 # Supertonic 3 listening experiment — 2026-09-05
 
-The owner requested a sample from the previously planned alternative model. This is an isolated development comparison, not a switch of the installed app, a silent fallback, or a release decision. The public German fixture is identical to [the Qwen comparison](german-voice-comparison.md). Both F1 (the previous research voice) and M1 (a male comparison to Aiden) are planned. These are **machine-generated voices**, not recordings of a person reading the fixture.
+A sample from the previously planned alternative model was requested. This is an isolated development comparison, not a switch of the installed app, a silent fallback, or a release decision. The public German fixture is identical to [the Qwen comparison](german-voice-comparison.md). Both F1 (the previous research voice) and M1 (a male comparison to Aiden) are planned. These are **machine-generated voices**, not recordings of a person reading the fixture.
 
 ## Before-download record
 

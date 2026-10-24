@@ -63,7 +63,7 @@ def release_target(architecture):
     suffix = '/x86_64' if architecture == 'x86_64' else ''
     return {'url_prefix': public_download_prefix() + suffix,
             'storage_prefix': 'saywing' + suffix,
-            'approval': REPO / ('docs/release-approval-x86_64.json' if suffix else 'docs/release-approval.json')}
+            'approval': REPO / ('release/release-approval-x86_64.json' if suffix else 'release/release-approval.json')}
 
 
 def public_download_prefix():

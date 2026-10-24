@@ -1,6 +1,6 @@
 # Speech integration readiness — 2026-09-05
 
-The owner requested automatic reading after OCR. Qwen3-TTS 0.6B CustomVoice 4-bit remains the intended provider; system speech has not been substituted. This document records the initial investigation and data-only download. **Subsequent progress:** the owner-approved native runtime is now installed and integrated with OCR/playback on the development Mac. Its pins, dependency/license boundary, real inference and UI results are recorded in [Native Qwen development runtime](swift-runtime-evaluation.md). Statements below about missing integration/runtime describe the earlier baseline, not the current state.
+Automatic reading after OCR was requested. Qwen3-TTS 0.6B CustomVoice 4-bit remains the intended provider; system speech has not been substituted. This document records the initial investigation and data-only download. **Subsequent progress:** the approved native runtime is now installed and integrated with OCR/playback on the development Mac. Its pins, dependency/license boundary, real inference and UI results are recorded in [Native Qwen development runtime](swift-runtime-evaluation.md). Statements below about missing integration/runtime describe the earlier baseline, not the current state.
 
 ## Repository findings
 
@@ -15,9 +15,9 @@ The upstream [mlx-audio-swift Qwen3-TTS documentation](https://github.com/Blaizz
 
 Before integration, select an immutable revision, inspect the exact local-directory loading and cancellation paths, and audit the complete dependency/license closure. Do not use the README's repository-loading or WAV-writing convenience examples in the app: runtime network downloads and persistent generated audio conflict with project requirements. Streaming support in upstream documentation is not evidence of latency, correctness, or compatibility with the exact selected 4-bit conversion on this Mac.
 
-## Owner-approved development download and open gates
+## Approved development download and open gates
 
-The owner explicitly approved beginning the local Qwen download on 2026-09-05. This authorizes isolated development staging before the public packaging gates, not a release or a substitution with system speech. The [download manifest](qwen-download-manifest.json) pins the MLX revision, every file size, published LFS SHA-256 hashes, and Git blob hashes for the small files. The payload totals 1,693,604,738 bytes (approximately 1.69 GB).
+Beginning the local Qwen download was explicitly approved on 2026-09-05. This authorizes isolated development staging before the public packaging gates, not a release or a substitution with system speech. The [download manifest](qwen-download-manifest.json) pins the MLX revision, every file size, published LFS SHA-256 hashes, and Git blob hashes for the small files. The payload totals 1,693,604,738 bytes (approximately 1.69 GB).
 
 Both the pinned MLX model card and the official source-model card declare Apache-2.0; the full Alibaba Cloud Apache-2.0 license was read at the official code revision linked in the manifest. Neither Hugging Face snapshot contains a standalone LICENSE file. The MLX card reports conversion with mlx-audio 0.3.0 but does not identify the exact upstream input revision or conversion command. The observed upstream revision is recorded as evidence, not falsely asserted as the conversion input. This is sufficient evidence to stage the explicitly requested public artifact for local evaluation, not to close the project's provenance or voice-rights release gate.
 
@@ -27,7 +27,7 @@ The development-only helper `bash scripts/download-qwen.sh ABSOLUTE_DIRECTORY_OU
 
 ### Download verification
 
-The owner-approved data download completed on 2026-09-05: all **14 files / 1,693,604,738 bytes** passed their expected size and upstream hash checks. The helper then passed a complete `--verify-only` run locally without network access. Both large weight files match the publisher's LFS SHA-256 values; the other files match their published Git blob IDs. The [SHA-256 receipt](qwen-download-sha256.txt) records independently computed SHA-256 values for all downloaded files, including those small files for which the API published only Git blob IDs. No `.part` files remain.
+The approved data download completed on 2026-09-05: all **14 files / 1,693,604,738 bytes** passed their expected size and upstream hash checks. The helper then passed a complete `--verify-only` run locally without network access. Both large weight files match the publisher's LFS SHA-256 values; the other files match their published Git blob IDs. The [SHA-256 receipt](qwen-download-sha256.txt) records independently computed SHA-256 values for all downloaded files, including those small files for which the API published only Git blob IDs. No `.part` files remain.
 
 The archived upstream model card matches Git blob `ed613da23a5e133a506b13b79055854938b9e67c`. The archived official license has SHA-256 `a44a6081c73ad75f0255bb2bb5cab74ef1829565a895a24e53a4f11290ab7655`. The pinned API response matches all 14 manifest paths, sizes, hashes, and the selected revision. Shell syntax, manifest validation, an expected missing-file verification failure, and rejection of a Git-worktree destination were checked. A separate `shasum -a 256 -c` run passed all 14 entries of the receipt. No app sources, runtime packages, signing settings, or permissions changed in the download step; app/UI regression tests are not evidence for this data-only action and were not rerun.
 

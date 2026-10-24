@@ -1,6 +1,6 @@
 # Local Qwen dictation runtime
 
-Owner decision, 2026-10-13: integrate the tested local German/English dictation prototype into Saywing. Clipboard paste followed by restoration is explicitly authorized for dictation. This does not change the Supertonic reading provider or authorize clipboard writes during OCR/reading.
+Project decision, 2026-10-13: integrate the tested local German/English dictation prototype into Saywing. Clipboard paste followed by restoration is explicitly authorized for dictation. This does not change the Supertonic reading provider or authorize clipboard writes during OCR/reading.
 
 ## Pinned assets
 
@@ -15,7 +15,7 @@ Owner decision, 2026-10-13: integrate the tested local German/English dictation 
 
 `DictationController` owns the native setup/test window and nonactivating recording indicator. `AppModel` serializes the transition from reading to dictation and stops speech before the recording callback. Starting reading cancels dictation immediately, before selection begins. Dictation has its own Option–Shift–Space registration. Escape is registered only for an active dictation; inability to acquire it prevents recording. The prototype must be closed to free its identical shortcut.
 
-`DictationTranscribing` separates the controller from the local Qwen process. Swift 6 main-actor isolation guards UI and worker session state. Typed worker packets travel over anonymous pipes with a session UUID, request UUID, bounds and timeouts. Stop invalidates the session before terminating the worker, with a kill deadline. Cold-start microphone PCM remains in bounded RAM until the model is ready. No recording on launch or permission grant. Audio length is capped at 60 seconds. Owner decision 2026-10-13: prepare the worker automatically on app launch and retain it in idle memory, including while reading. Active dictation inference is still cancelled before reading; a later dictation starts a stopped worker automatically. Sleep, inactive user session and quit unload it. Wake/session activation automatically prepare it again only when both are available. Preparation is idempotent and blocked after shutdown, never opens the microphone, and does not retry fatal failures in a loop. Keeping the model warm trades retained RAM for faster repeated dictation.
+`DictationTranscribing` separates the controller from the local Qwen process. Swift 6 main-actor isolation guards UI and worker session state. Typed worker packets travel over anonymous pipes with a session UUID, request UUID, bounds and timeouts. Stop invalidates the session before terminating the worker, with a kill deadline. Cold-start microphone PCM remains in bounded RAM until the model is ready. No recording on launch or permission grant. Audio length is capped at 60 seconds. Project decision 2026-10-13: prepare the worker automatically on app launch and retain it in idle memory, including while reading. Active dictation inference is still cancelled before reading; a later dictation starts a stopped worker automatically. Sleep, inactive user session and quit unload it. Wake/session activation automatically prepare it again only when both are available. Preparation is idempotent and blocked after shutdown, never opens the microphone, and does not retry fatal failures in a loop. Keeping the model warm trades retained RAM for faster repeated dictation.
 
 The Python subprocess uses isolated imports, no bytecode, offline flags and an OS profile denying networking and file writes except `/dev/null`. PCM, transcripts and clipboard snapshots have no file/history path. The last transcript and test field are session-local. Model choice, language selection and restore delay are the dictation preferences. ASR output is direct transcription, without an extra rewrite model.
 
@@ -42,7 +42,7 @@ This local integration is not a public release: full transitive redistribution/l
 
 ## Selectable ASR models — 2026-10-13
 
-The owner added Whisper large-v3-turbo as a second explicit choice. See
+Whisper large-v3-turbo was added as a second explicit choice. See
 [its pinned source, license and checks](whisper-turbo-dictation.md). The shared
 private Python runtime is reused; each worker process loads only the selected
 backend. There is no fallback between models. Model changes are blocked during

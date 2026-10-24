@@ -1,6 +1,6 @@
 # Local Whisper Large v3 dictation
 
-Owner request, 2026-10-14: add Whisper Large v3 (8-bit) as a selectable local
+Project decision, 2026-10-14: add Whisper Large v3 (8-bit) as a selectable local
 dictation model next to Qwen3-ASR and Whisper Turbo. This is ASR only; Supertonic
 remains the reading voice. It is an explicit choice, never a fallback.
 
@@ -37,7 +37,7 @@ and therefore unsuitable for German dictation.
 Source, revision, size, SHA-256 and license were recorded before fetching the
 weights. Do not commit weights to Git.
 
-Since 2026-10-14 (owner decision) default builds do not bundle this model. The app
+Since 2026-10-14 (project decision) default builds do not bundle this model. The app
 downloads exactly these pinned files only after the user confirms "Install
 Whisper Large v3…" in Settings, verifies size and SHA-256 against this bundled
 manifest, copies the two license texts from the app bundle, and only then moves

@@ -1,8 +1,35 @@
 # Saywing roadmap
 
+## At a glance
+
+**Now — integrated in development builds**
+
+- Hotkey → region selection → local Apple Vision OCR → automatic local speech with Supertonic 3; `Esc` and Stop cancel the whole pipeline.
+- Live speed (0.75–2×), a bounded queue fed by repeating the shortcut, pause/resume and on-demand capsule controls.
+- Guided first-use setup with a real reading test.
+- Local dictation: Whisper Turbo by default with an optional vocabulary; Qwen3-ASR selectable.
+- Local meeting transcript with a consent step and a RAM-only transcript.
+
+**Next — open gates before a first public release**
+
+- Third-party notices and model license review.
+- Signed and notarized Apple Silicon build, plus packaged worker and bundled-model signing/notarization.
+- Fresh-Mac (clean-Mac) packaging and distribution testing, including the dictation target-app matrix and meeting transcript gates.
+- Offline and temporary-file privacy verification, and a manual data-flow review.
+- Live VoiceOver/keyboard accessibility walkthrough and full real UI regression.
+- German/English listening review, voice selection, and memory/latency/energy validation on an M4 with 16 GB RAM.
+- Name comprehension and trademark review; demo GIF/video and screenshots.
+
+**Later — candidates, each needing its own decision**
+
+- Repeated capture of the previous region, automatic language switching, sentence or word highlighting and custom pronunciation rules.
+- Additional local providers (if justified by listening tests) and an optional plugin interface for them.
+- Meeting transcript extensions such as Whisper refinement, summaries, speaker diarisation and macOS 14–15 support.
+- Homebrew Cask.
+
 ## Brand and product direction — 2026-10-14
 
-- [x] Selected Saywing and “Vorlesen & Diktieren für macOS” (2026-10-13); replaced Quiet Owl with **Text to Voice / concept B** with the selected Ink Navy, Paper, Petrol and Apricot palette (2026-10-14).
+- [x] Renamed the product to Saywing (formerly OpenScreenReader) with the tagline “Vorlesen & Diktieren für macOS” (2026-10-13); adopted the **Text to Voice / concept B** identity with the selected Ink Navy, Paper, Petrol and Apricot palette (2026-10-14).
 - [x] Update native product name, app icon, template menu glyph, UI palette and current brand documentation.
 - [ ] Validate name comprehension with real participants; no results are implied by the naming decision.
 - [ ] Complete trademark similarity review and confirm desired domain with a registrar.

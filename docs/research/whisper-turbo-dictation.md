@@ -1,6 +1,6 @@
 # Local Whisper Turbo dictation
 
-Owner request, 2026-10-13: selectable local dictation models, including Whisper
+Project decision, 2026-10-13: selectable local dictation models, including Whisper
 Turbo. This is ASR only; Supertonic remains the reading voice.
 
 ## Packaged asset provenance

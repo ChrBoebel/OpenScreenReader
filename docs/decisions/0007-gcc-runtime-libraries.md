@@ -2,7 +2,7 @@
 
 - Status: accepted
 - Date: 2026-10-24
-- Decision: project owner.
+- Decision: project maintainer.
 
 ## Context
 
