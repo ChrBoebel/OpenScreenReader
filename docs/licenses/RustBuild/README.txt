@@ -21,10 +21,11 @@ including non-macOS and build-only entries. No extra licensing restrictions are 
 on those components. No independent reproducible-build attestation is claimed for the
 upstream wheels.
 
-Rebuilding tiktoken from the included source (build-time internet fetches the pinned
+Rebuilding tiktoken from its original source (build-time internet fetches the pinned
 crates; the application worker remains offline):
-1. Verify and extract tiktoken-0.14.0.tar.gz from CorrespondingSource against
-   sources.json. Copy the included tiktoken-Cargo.lock to that source as Cargo.lock.
+1. Obtain tiktoken-0.14.0.tar.gz from the URL in CorrespondingSource/sources.json (or
+   under the written offer in CorrespondingSource/README.md), verify its size and SHA-256
+   and extract it. Copy the included tiktoken-Cargo.lock to that source as Cargo.lock.
 2. Install Rust 1.99.0 from the exact components in toolchain-inputs.json into a
    separate development directory and verify each component's SHA-256.
    rustc -Vv must report commit b940084d7eb6a299eb4bfeb8e34901bc051e7ac4.

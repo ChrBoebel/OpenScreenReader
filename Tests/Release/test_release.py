@@ -199,7 +199,11 @@ class ReleaseTests(unittest.TestCase):
         app = root / 'Saywing.app'
         (app / 'Contents/Resources').mkdir(parents=True)
         (app / 'Contents/Resources/THIRD-PARTY-NOTICES.html').write_text('<html>notices</html>')
+        (app / 'Contents/Resources/CorrespondingSource').mkdir()
+        (app / 'Contents/Resources/CorrespondingSource/sources.json').write_text(json.dumps(self.SOURCES))
         return app
+
+    SOURCES = [{'file': 'gcc.tar.xz', 'url': 'https://example.org/gcc.tar.xz', 'bytes': 1, 'sha256': '0' * 64}]
 
     def test_dmg_license_documents_fail_loudly_when_missing(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -268,6 +272,9 @@ class ReleaseTests(unittest.TestCase):
             self.assertEqual(seen['licenses'], ['LICENSE', 'NOTICE', 'SUPERTONIC-MODEL-TERMS.md',
                                                 'Supertonic-3-Open-RAIL-M.txt', 'THIRD-PARTY-NOTICES.html'])
             self.assertFalse((output / 'image').exists())
+            # The publish job archives exactly the sources this signed app points to.
+            result = json.loads((output / 'release-result.json').read_text())
+            self.assertEqual(result['corresponding_sources'], self.SOURCES)
 
     def test_committed_approvals_explain_an_open_license_review(self):
         for architecture in ['arm64', 'x86_64']:

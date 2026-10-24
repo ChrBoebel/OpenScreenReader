@@ -159,8 +159,9 @@ gnu_notice = ''
 if any(Path(path).name.startswith('libquadmath') for path in vendored):
     # SciPy's license file names the LGPL but does not contain its text.
     gnu_notice = ('\nGNU Lesser General Public License 2.1 (libquadmath, see above)\n' + '=' * 62 + '\n'
-                  'Corresponding source (GCC 13.4.0 with the Homebrew Darwin patch): Contents/Resources/CorrespondingSource\n'
-                  'of the app, see its README.md. The library is a separate dylib and may be replaced.\n\n'
+                  'Corresponding source (GCC 13.4.0 with the Homebrew Darwin patch): written offer and exact source\n'
+                  'pointers in Contents/Resources/CorrespondingSource/README.md and THIRD-PARTY-NOTICES.html of the\n'
+                  'app. The library is a separate dylib and may be replaced.\n\n'
                   + (repo/'docs/licenses/GCC-13.4.0/libquadmath/COPYING.LIB').read_text(encoding='utf-8'))
 (target/'THIRD-PARTY-NOTICES.txt').write_text(
     (source/'Python/THIRD-PARTY-NOTICES.txt').read_text(encoding='utf-8') + '\n' + FLEURS_ATTRIBUTION + gnu_notice,

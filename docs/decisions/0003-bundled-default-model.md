@@ -62,3 +62,47 @@ still needs evidence and the owner's decision:
   licenses) is documented for every architecture;
 - upstream Supertonic maintenance has ended (announced 2026-07-23); the
   maintenance risk remains an explicit release decision.
+
+## Update 2026-10-24: status of the license gates
+
+`license_review` stays `false` in both release approvals.
+
+Done:
+
+- **Model terms in the DMG.** `scripts/release.py` puts `SUPERTONIC-MODEL-TERMS.md` and the
+  complete Open RAIL-M text beside the app in every DMG. The release stops before building if
+  either is missing. The app already showed both.
+- **Notices and sources for the rebuilt minimal runtimes.**
+  - `scripts/bundle_notices.py` builds the offline notice index from the original notices.
+  - It binds the Rust extensions to their reviewed binaries.
+  - The source obligations are met by [ADR 0007](0007-gcc-runtime-libraries.md):
+    - the SciPy GCC runtime libraries are accepted as separate, replaceable dylibs;
+    - the app ships a written offer, exact source pointers and the license texts instead of
+      the archives;
+    - the publish job archives the exact source files for every published build.
+
+    The first real bucket archive is created by the next publication.
+
+Open:
+
+- **Legal review of the model-terms wording.** The owner's legal review of
+  `docs/licenses/SUPERTONIC-MODEL-TERMS.md` is still open. It covers how the OpenRAIL-M §4/§5
+  use restrictions are passed on as an enforceable provision. This review is why
+  `license_review` stays `false`.
+- **Interpreter provenance (partly done).**
+  - Already in place for each architecture:
+    - Both architectures use pinned python-build-standalone 20261013 `install_only_stripped`
+      archives (`Runtime/Portable/python.json`).
+    - Each archive is checked against its size and SHA-256 before it is extracted.
+    - The archives are produced by upstream release CI, independent of any developer machine
+      or prototype environment.
+    - The CPython component licenses come from the matching full archive
+      (`docs/licenses/Python-3.12.15*/`).
+  - Still missing, so the gate as written ("source, build, patches and licenses") is not met:
+    - The repository records no python-build-standalone source revision.
+    - It records no build recipe.
+    - It does not record the patch set applied to CPython 3.12.15.
+    - Nothing checks that the stripped archive comes from the same build as the full archive
+      whose license set was captured. Only the release tag and target name link them.
+- **Upstream maintenance.** Upstream Supertonic maintenance has ended. This is an explicit
+  release decision, not a license item, and it is unchanged.

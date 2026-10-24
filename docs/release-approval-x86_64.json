@@ -1,6 +1,6 @@
 {
   "license_review": false,
-  "license_review_note": "2026-10-24 owner decision: the license review is not complete while the gates in docs/decisions/0003-bundled-default-model.md remain open: Supertonic model terms in the DMG, notices and corresponding sources for the rebuilt minimal runtimes, independent interpreter provenance, and legal review of the model-terms wording. The earlier 2026-10-15 review covered the previous runtime and no longer applies.",
+  "license_review_note": "2026-10-24 owner decisions: the license review stays open. Done: SciPy's GCC runtime libraries are accepted as separate, replaceable dylibs (docs/decisions/0007-gcc-runtime-libraries.md); the app ships a written source offer, exact source pointers and the license texts instead of the source archives, and the publish job archives the exact sources for every published build; notices for the rebuilt minimal runtimes are generated and checked; every DMG carries the Supertonic model terms and the complete Open RAIL-M text. Open: the owner's legal review of the model-terms wording (docs/licenses/SUPERTONIC-MODEL-TERMS.md); interpreter provenance is only partly documented (pinned, hash-verified python-build-standalone 20261013 archives and their license texts per architecture, but no recorded build recipe or CPython patch set; see docs/decisions/0003-bundled-default-model.md). The earlier 2026-10-15 review covered the previous runtime and no longer applies.",
   "clean_mac": false,
   "offline_privacy": true,
   "update_roundtrip": true,

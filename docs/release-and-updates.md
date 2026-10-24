@@ -263,6 +263,11 @@ with cached feeds. Archives up to 5 GiB are supported; larger packages fail
 explicitly instead of silently losing the conditional-write guard. Intel releases
 use their own `/x86_64` URL and storage namespace and never touch the ARM pointer.
 
+Before any release file is uploaded, the same script archives the corresponding
+sources the signed app points to (see below) under `corresponding-source/` in the
+release's storage namespace. No public route serves that prefix. Keep it out of any
+lifecycle or expiry rule.
+
 Release runtimes are not stored anywhere: every release builds them from the
 pinned public inputs described in [docs/runtime-build.md](runtime-build.md). No
 runtime or model binaries belong in Git. Pins prove which bytes were used, not
@@ -270,22 +275,70 @@ legal permission; the license review stays a release gate.
 
 ## Licenses in the app and the DMG
 
-`scripts/bundle_notices.py` runs inside `scripts/release.py` before signing. It copies
-the reviewed notices into `Contents/Resources/Licenses`, writes the offline index
-`THIRD-PARTY-NOTICES.html`, and bundles every archive listed in
-`docs/licenses/native-corresponding-sources.json` into `Contents/Resources/CorrespondingSource`.
-Public releases fail unless all archives are present. Fetch them once (build-time network
-only; every size and SHA-256 is checked) with:
+`scripts/bundle_notices.py` runs inside `scripts/release.py` before signing:
+
+- It copies the reviewed notices into `Contents/Resources/Licenses`.
+- It writes the offline index `THIRD-PARTY-NOTICES.html`.
+- It writes a written source offer and exact source pointers into
+  `Contents/Resources/CorrespondingSource`:
+  - `sources.json` holds the records of `docs/licenses/native-corresponding-sources.json` for
+    the architecture;
+  - `README.md` is `docs/licenses/CorrespondingSource-README.md`.
+
+The source archives themselves are not shipped. The owner decided this on 2026-10-24
+([ADR 0007](decisions/0007-gcc-runtime-libraries.md)).
+
+The step fails in these cases:
+
+- one of SciPy's GNU runtime libraries is not declared, is missing, is a static archive or is
+  not a separate dylib. These are `libquadmath` (LGPL-2.1), and `libgfortran` and `libgcc_s`
+  (GPL-3.0 with the GCC Runtime Library Exception). The LGPL requires that users can replace
+  them.
+- a source record lacks an HTTPS URL, size, SHA-256 or license;
+- a copyleft record's license text is not shipped as a notice;
+- any listed source archive, or any other file besides `README.md` and `sources.json`, is in
+  `CorrespondingSource/`.
+
+The tested replacement procedure is in `docs/licenses/CorrespondingSource-README.md`.
+
+**Written offer.** The offer is in `CorrespondingSource/README.md` and in the notice index:
+
+- It is valid for at least three years from the date the maintainers distributed the
+  respective build, or longer while they support that build.
+- It is made to any third party.
+- It is free as a download, or on a physical medium for no more than the cost of distribution.
+- Requests go through the repository issue tracker or the contact on the maintainer's GitHub
+  profile.
+
+Forks that distribute their own builds must replace this offer and its contact with their
+own.
+
+**Fulfilling the offer.** `scripts/release.py` copies the app's `sources.json` into
+`release-result.json`. The `publish` job then archives the sources before it uploads the DMG,
+appcast or metadata:
+
+1. It checks that list against the repository.
+2. For each file, it either reuses an archived copy or downloads the file over HTTPS only and
+   verifies its size and SHA-256.
+3. It stores the files with conditional, immutable writes:
+   - files: `<storage prefix>/corresponding-source/sha256/<sha256>/<file>`;
+   - per-build manifest: `<storage prefix>/corresponding-source/builds/<build>.json`.
+
+The storage prefix is `saywing` or `saywing/x86_64`. If a source cannot be verified, nothing
+is published.
+
+To answer a request:
+
+1. Read the build's manifest.
+2. Download the listed objects with the storage credentials.
+3. Check each SHA-256.
+4. Send the files, or a time-limited link to them.
+
+The exact files can also be fetched and verified locally (build-time network only) with:
 
 ```sh
 python3 scripts/bundle_notices.py --fetch-sources
 ```
-
-The archives include GCC 13.4.0 with the Homebrew Darwin patch, the corresponding source of
-SciPy's `libquadmath` (LGPL-2.1), `libgfortran` and `libgcc_s` (GPL-3.0 with the GCC Runtime
-Library Exception). The step fails if one of these GNU libraries is not declared there or is
-not a separate dylib, because the LGPL requires that users can replace it. The tested
-replacement procedure is in `docs/licenses/CorrespondingSource-README.md`.
 
 Every DMG has a `Licenses` folder beside `Saywing.app` with `LICENSE`, `NOTICE`,
 `SUPERTONIC-MODEL-TERMS.md`, the complete `Supertonic-3-Open-RAIL-M.txt` and the app's
@@ -294,13 +347,25 @@ missing.
 
 ## Remaining public-release gates
 
-`license_review` is `false` in both approval records (owner decision 2026-10-24; see
-`license_review_note`). The license review stays open while the gates in
-[ADR 0003](decisions/0003-bundled-default-model.md) remain open: the Supertonic model terms
-in the DMG, notices and corresponding sources for the rebuilt minimal runtimes, independent
-interpreter provenance, and legal review of the model-terms wording. The 2026-10-15 review
-covered the earlier runtime. No public release can be built until the owner closes this gate;
-the beta exception covers only `clean_mac`.
+`license_review` is `false` in both approval records (owner decisions 2026-10-24; see
+`license_review_note` and the 2026-10-24 status in
+[ADR 0003](decisions/0003-bundled-default-model.md)).
+
+Done:
+
+- the Supertonic model terms in the DMG;
+- notices for the rebuilt minimal runtimes;
+- the GCC runtime library decision with the written source offer and per-build source
+  archive ([ADR 0007](decisions/0007-gcc-runtime-libraries.md)).
+
+Still open:
+
+- the owner's legal review of the model-terms wording;
+- the interpreter provenance record. The CPython archives are pinned and hash-verified with
+  their license texts, but no build recipe or CPython patch set is recorded.
+
+The 2026-10-15 review covered the earlier runtime. No public release can be built until the
+owner closes this gate; the beta exception covers only `clean_mac`.
 
 `release-approval.json` also records the ARM beta privacy and production HTTPS update
 evidence, plus the owner-approved exception for incomplete fresh-device testing. Intel has

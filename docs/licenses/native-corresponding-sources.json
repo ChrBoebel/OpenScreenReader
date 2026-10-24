@@ -16,7 +16,12 @@
       "x86_64"
     ],
     "binary_origin": "Shipped unmodified inside the hash-pinned SciPy wheels (arm64 1.18.1, x86_64 1.17.1). SciPy built them with Homebrew gcc@13 13.4.0 (scipy/__config__.py: fortran gcc 13.4.0; SciPy .github/workflows/wheels.yml at v1.17.1 and v1.18.1: preinstalled gfortran-13 for the Accelerate macOS 14 wheels). The Homebrew bottle revision used on the GitHub runner is not recorded in the wheels.",
-    "status": "exact upstream GCC release archive; SHA-256 equals the Homebrew gcc@13 13.4.0 formula pin"
+    "status": "exact upstream GCC release archive; SHA-256 equals the Homebrew gcc@13 13.4.0 formula pin",
+    "license_texts": [
+      "Licenses/GCC-13.4.0/COPYING3",
+      "Licenses/GCC-13.4.0/COPYING.RUNTIME",
+      "Licenses/GCC-13.4.0/libquadmath/COPYING.LIB"
+    ]
   },
   {
     "file": "homebrew-gcc-13.4.0.diff",
@@ -25,7 +30,10 @@
     "sha256": "60b22ae7f5f78b41e12c51d8c6e99ba933a7e124454fe8cdbff7200505167949",
     "component": "GCC 13.4.0 runtime libraries (libquadmath, libgfortran, libgcc_s)",
     "license": "GPL-3.0-or-later (GCC source patch)",
-    "status": "Darwin/Apple Silicon patch (https://github.com/iains/gcc-13-branch) applied by the Homebrew gcc@13 13.4.0 formula from 2025-06-10 until after both SciPy builds; same SHA-256 as the formula pin"
+    "status": "Darwin/Apple Silicon patch (https://github.com/iains/gcc-13-branch) applied by the Homebrew gcc@13 13.4.0 formula from 2025-06-10 until after both SciPy builds; same SHA-256 as the formula pin",
+    "license_texts": [
+      "Licenses/GCC-13.4.0/COPYING3"
+    ]
   },
   {
     "file": "homebrew-gcc@13-97eefa4d.rb",
@@ -56,16 +64,24 @@
       "arm64",
       "x86_64"
     ],
-    "status": "exact archive pinned by onnxruntime v1.23.2 cmake/deps.txt (SHA-1 05b19b49e6fbb91246be711d801160528c135e34 verified)"
+    "status": "exact archive pinned by onnxruntime v1.23.2 cmake/deps.txt (SHA-1 05b19b49e6fbb91246be711d801160528c135e34 verified)",
+    "license_texts": [
+      "Speech/SupertonicRuntime/python/lib/python3.12/site-packages/onnxruntime/ThirdPartyNotices.txt"
+    ]
   },
   {
     "file": "tqdm-4.70.1.tar.gz",
     "url": "https://files.pythonhosted.org/packages/0d/ea/b2a5bd54b28a324dae8211928b2d730b6547500342c7e6c6dea08bd0a485/tqdm-4.70.1.tar.gz",
     "bytes": 171846,
     "sha256": "cefd0eca11b2a37a3aee776544d4f4ae913f02688135b5556b8788dfa474afc4",
+    "component": "tqdm 4.70.1 (Python package in the dictation runtime)",
+    "license": "MPL-2.0 AND MIT",
     "status": "exact source for bundled file-level copyleft component",
     "architectures": [
       "arm64"
+    ],
+    "license_texts": [
+      "Dictation/Python/lib/python3.12/site-packages/tqdm-4.70.1.dist-info/licenses/LICENCE"
     ]
   },
   {
@@ -73,6 +89,8 @@
     "url": "https://files.pythonhosted.org/packages/e0/7c/2cabb2174e772636683008f2c5621949b645da7d303c596589e84516a184/tokenizers-0.23.3.tar.gz",
     "bytes": 385286,
     "sha256": "cded33237c77caeef62944d32aa9a7ef42bdce2b3497e18d137e072a8c4be438",
+    "component": "tokenizers 0.23.3 (Rust extension in the dictation runtime)",
+    "license": "Apache-2.0",
     "status": "exact original source for bundled Rust extension; dependency locks in Licenses/RustBuild",
     "architectures": [
       "arm64"
@@ -83,6 +101,8 @@
     "url": "https://files.pythonhosted.org/packages/45/06/f955dbbb1859e3bd23c8ac6141af5106e7ad5fedec4a3a6e3d60f94b7001/safetensors-0.8.0.tar.gz",
     "bytes": 325846,
     "sha256": "fabaf3e0f18a6618d9b36560682562157f77c2b71fcffc7b432be2baed9d753d",
+    "component": "safetensors 0.8.0 (Rust extension in the dictation runtime)",
+    "license": "Apache-2.0",
     "status": "exact original source for bundled Rust extension; dependency locks in Licenses/RustBuild",
     "architectures": [
       "arm64"
@@ -93,6 +113,8 @@
     "url": "https://files.pythonhosted.org/packages/66/62/167a842aa0429d45f5e797354fd4343a96f6043d67d0513c675c7b8d36e6/tiktoken-0.14.0.tar.gz",
     "bytes": 38898,
     "sha256": "231dec90efcdccf1b565a1416107736f1e09b1a08fe736ef9d6363e626d03874",
+    "component": "tiktoken 0.14.0 (Rust extension in the dictation runtime)",
+    "license": "MIT",
     "status": "exact original source of the bundled Rust extension (upstream wheel); reference lock and replacement recipe in Licenses/RustBuild",
     "architectures": [
       "arm64"
