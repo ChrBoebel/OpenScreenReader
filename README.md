@@ -1,55 +1,88 @@
-# Saywing
-
 <p align="center">
-  <img src="docs/brand-identity/assets/saywing-app-icon.png" alt="Saywing app icon" width="160">
+  <img src=".github/assets/saywing-icon-256.png" alt="Saywing app icon" width="128">
 </p>
 
-**Read aloud & dictate on your Mac. Hear text. Write with your voice.**
+<h1 align="center">Saywing</h1>
 
-*Vorlesen & Diktieren für macOS. Text hören. Mit der Stimme schreiben.*
+<p align="center">
+  <b>Read aloud & dictate on your Mac.</b><br>
+  Hear text. Write with your voice.
+</p>
 
-Saywing is an open-source macOS menu bar app for local screen reading and dictation. Press a shortcut, drag over any text on screen, and hear it read aloud by a local neural voice. Or hold a key, speak German or English, and have the text pasted into the field you are typing in. Recognition and speech run on your Mac; nothing you read or say is uploaded.
+<p align="center">
+  <a href="https://github.com/ChrBoebel/saywing/actions/workflows/ci.yml"><img src="https://github.com/ChrBoebel/saywing/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-266D79" alt="License: Apache-2.0"></a>
+  <img src="https://img.shields.io/badge/macOS-14%2B-172B3A" alt="macOS 14 or later">
+  <a href="docs/privacy.md"><img src="https://img.shields.io/badge/processing-on--device-266D79" alt="Processing: on-device"></a>
+</p>
 
-The project was previously called OpenScreenReader, and the repository was renamed from `ChrBoebel/OpenScreenReader` (old links redirect). The Xcode project and scheme, Swift modules, bundle identifier and `Application Support` directory keep that technical name so existing settings and installations stay compatible.
+<!--
+  Hero GIF goes here once recorded: Option-R, drag over a paragraph, the capsule reads it aloud, Escape stops.
+  <p align="center"><img src=".github/assets/read-aloud.gif" width="720" alt="Pressing Option-R, dragging over a paragraph, and Saywing reading it aloud"></p>
+-->
 
-> **Saywing is not a screen reader in the VoiceOver sense** and is not a replacement for VoiceOver. It reads selected regions of the screen aloud; it does not navigate interfaces, announce controls or provide full non-visual operation of macOS.
+Saywing is an open-source menu bar app for macOS. Press a shortcut, drag over any text on your screen, and hear it read aloud by a local neural voice. Or hold Fn, speak English or German, and let go: the text appears in the field you are typing in.
 
-## Status
+- **Hear text you can see.** Drag over a PDF, a slide, a chat or a paused video. Saywing recognizes the text on your Mac and reads it aloud.
+- **Write with your voice.** Hold Fn, speak, release. Whisper Turbo ships with the app, so dictation works offline from the start.
+- **Nothing leaves your Mac.** Text recognition, speech and dictation run locally. No account, no telemetry, no history.
+- **Stop means stop.** Escape ends everything at once: the current sentence, the queue and any prepared audio.
+- **Open and auditable.** Saywing makes only two kinds of network request: update checks you can turn off, and model downloads you confirm.
 
-**Beta.** Saywing is usable day to day by its developers, but it is young software:
+> Saywing is not a screen reader like VoiceOver and does not replace it. It reads regions you select; it does not navigate interfaces or announce controls.
+
+## Install
+
+**There is no signed public release yet.** The first release is waiting on an open license review. Watch [Releases](https://github.com/ChrBoebel/saywing/releases) (Watch → Custom → Releases) to hear when it ships, or [build from source](#building-from-source).
+
+<details>
+<summary><b>Status: beta, with known test gaps</b></summary>
+
+Saywing is young software with known gaps:
 
 - The development target is Apple Silicon. Intel (x86_64) builds exist, but they have only been tested under Rosetta, not on physical Intel hardware.
 - macOS 14 is the minimum deployment target. Physical testing on macOS 14 and 15 is still incomplete; most testing happened on macOS 26.
 - A fresh-Mac permission walkthrough, a full matrix of target apps for dictation, and a live VoiceOver/keyboard review are still open.
-- Building the speech and dictation runtimes from public sources is not yet a single reproducible step (see [Building from source](#building-from-source)).
+- A real MLX transcription with the rebuilt dictation runtime has not been run yet (see [runtime build](docs/runtime-build.md#verification-2026-10-23)).
 
 See the [roadmap](docs/roadmap.md) for open gates and [CHANGELOG.md](CHANGELOG.md) for notable changes.
 
-## Features
+</details>
 
-**Read aloud**
+## Read aloud
 
-- Default shortcut **⌥R** (configurable) starts a region selection on any display. Drag as with ⌘⇧4: hold Space to move, Shift to lock an edge, Option to grow it around the starting point. A single click reads only the paragraph under the pointer.
-- Text is recognized locally with Apple Vision (German and English) and spoken automatically with the local [Supertonic 3](https://huggingface.co/Supertone/supertonic-3) voice M1. There is no cloud or system-voice fallback.
-- Press the shortcut again while speaking to queue another region (up to five texts). A small floating capsule offers Stop, Pause/Resume, speed (0.75× to 2×, pitch-preserving), Next and a queue view. You can dock it at the bottom, left or right edge.
-- **Escape** or any Stop control cancels the whole pipeline immediately, including queued and prepared audio.
+1. Press **⌥R** (configurable) on any display.
+2. Drag over the text you want to hear. A single click reads only the paragraph under the pointer.
+3. Listen. Press **Escape** to stop.
 
-**Dictate**
+- Text is recognized locally with Apple Vision (English and German) and spoken with the local [Supertonic 3](https://huggingface.co/Supertone/supertonic-3) voice. There is no cloud or system-voice fallback.
+- Press the shortcut again while Saywing is speaking to queue another region, up to five texts.
+- A small floating capsule offers Stop, Pause/Resume, speed from 0.75× to 2× and the queue. You can dock it at the bottom, left or right edge of the screen.
 
-- Hold **Fn** to dictate and release to insert. Double-tap Fn or press **Fn + Space** for hands-free recording; **⌥⇧Space** is a toggle for keyboards without Fn. **Escape** discards.
-- Speech is recognized locally with **Whisper large-v3-turbo**, which ships with the app. On Apple Silicon you can install **Qwen3-ASR 0.6B** or **Whisper Large v3** later, but only after you explicitly confirm a download. An optional local vocabulary helps with names and terms.
+<details>
+<summary>Selection tips</summary>
+
+The selection works like ⌘⇧4: hold Space to move the region, Shift to lock an edge, and Option to grow it around the starting point.
+
+</details>
+
+## Dictate
+
+1. Hold **Fn** and speak English or German.
+2. Release Fn. The text is inserted where you are typing.
+3. Press **Escape** to discard instead.
+
+- For longer dictation, double-tap Fn or press **Fn + Space** to record hands-free. On keyboards without Fn, **⌥⇧Space** starts and stops recording.
+- Speech is recognized locally with **Whisper large-v3-turbo**, which ships with the app. On Apple Silicon you can install **Qwen3-ASR 0.6B** or **Whisper Large v3** in Settings, only after you confirm the download. An optional local vocabulary helps with names and terms.
 - Text is inserted with a short clipboard paste. Saywing restores your previous clipboard after 1 s (2 s optional), but only if nothing else has been copied in the meantime. Saywing never pastes into a target that changed during recognition.
 
-**Meeting transcript (macOS 26 or later)**
+## Also included
 
-- An explicitly started, consented live transcript of **Me** (microphone) and **Others** (other apps' audio, captured through a private Core Audio tap that excludes Saywing). It uses Apple's on-device speech recognition with already-installed languages only. No audio is saved, and the transcript leaves memory only through Copy or Save. See [ADR 0006](docs/decisions/0006-local-meeting-transcript.md).
-
-**General**
-
-- Guided setup that explains each macOS permission before requesting it, plus a real reading test.
-- English and German interface, following the macOS language.
-- VoiceOver labels and actions; respects Reduce Motion, Reduce Transparency and Increase Contrast.
-- Signed in-app updates via [Sparkle](https://sparkle-project.org). Automatic update checks can be disabled.
+- **Meeting transcript (macOS 26 or later).** An explicitly started, consented live transcript of **Me** (microphone) and **Others** (other apps' audio). It uses Apple's on-device speech recognition. No audio is saved, and the transcript leaves memory only through Copy or Save. See [ADR 0006](docs/decisions/0006-local-meeting-transcript.md).
+- **Guided setup** that explains each macOS permission before requesting it, followed by a real reading test.
+- **English and German interface**, following your macOS language.
+- **Accessibility:** VoiceOver labels and actions; respects Reduce Motion, Reduce Transparency and Increase Contrast.
+- **Signed in-app updates** via [Sparkle](https://sparkle-project.org). Automatic update checks can be turned off.
 
 ## Privacy
 
@@ -73,14 +106,33 @@ Saywing handles potentially sensitive screen content and speech, so privacy is t
 
 - macOS 14 Sonoma or later. The meeting transcript requires macOS 26.
 - Apple Silicon is recommended. Intel builds use whisper.cpp for dictation and offer only the bundled Whisper Turbo model.
-- For development:
-  - Xcode 26 with the macOS 26 SDK. CI runs on GitHub's `macos-26` image. The Swift package uses swift-tools-version 6.2.
-  - Python 3.11 or later to run the Python tests and scripts. The bundled runtimes themselves use CPython 3.12.
-  - Ruby, which ships with macOS, for some development scripts.
+
+## FAQ
+
+**How is this different from macOS Speak Selection?**
+Speak Selection is built into macOS and reads text you can select, using the system voices. Saywing reads text you can see: it captures the region you drag, recognizes the text locally with Apple Vision, and speaks it with the Supertonic 3 neural voice. That also covers text you cannot select, such as text in images, scanned PDFs or video frames. Saywing recognizes English and German only. If your text is selectable and a system voice suits you, Speak Selection needs no extra app.
+
+**Is Saywing a screen reader?**
+No. Despite the project's former name, Saywing does not navigate interfaces, announce controls or provide non-visual operation of macOS. Use VoiceOver for that.
+
+**Does it work offline?**
+Yes. Reading aloud and dictation with the bundled models run without a network connection. The network is used only for update checks and for model downloads you confirm.
+
+**Which models does Saywing use?**
+Supertonic 3 for speech, and Whisper large-v3-turbo for dictation. Qwen3-ASR 0.6B and Whisper Large v3 are optional downloads on Apple Silicon. The licenses are listed [below](#license).
+
+**Why do some files still say OpenScreenReader?**
+Saywing was previously called OpenScreenReader. The repository was renamed from `ChrBoebel/OpenScreenReader`, and old links redirect. The Xcode project and scheme, Swift modules, bundle identifier and `Application Support` directory keep the old technical name so existing settings and installations stay compatible.
 
 ## Building from source
 
 ### Build and test the app
+
+Requirements for development:
+
+- Xcode 26 with the macOS 26 SDK. CI runs on GitHub's `macos-26` image. The Swift package uses swift-tools-version 6.2.
+- Python 3.11 or later to run the Python tests and scripts. The bundled runtimes themselves use CPython 3.12.
+- Ruby, which ships with macOS, for some development scripts.
 
 ```sh
 git clone https://github.com/ChrBoebel/saywing.git
@@ -103,33 +155,25 @@ This produces a working `Saywing.app` with the menu bar, setup, region selection
 
 ### Speech and dictation runtimes
 
-The runtimes are assembled from pinned, hash-verified inputs:
+The runtimes are assembled from pinned, hash-verified public inputs:
 
 - The **Supertonic 3 model** and its inference helper are pinned with per-file hashes and licenses in [`docs/research/supertonic-comparison-manifest.json`](docs/research/supertonic-comparison-manifest.json).
 - The **dictation models** are pinned in [`Runtime/Dictation/`](Runtime/Dictation) (`*-manifest.json`).
-- **Python environments** (CPython 3.12.15 from python-build-standalone, plus exact wheels) are locked in [`Runtime/Portable/`](Runtime/Portable/README.md).
+- **Python environments** (CPython 3.12.15 from python-build-standalone, plus exact wheels) are locked in [`Runtime/Portable/`](Runtime/Portable/README.md) and the per-runtime `requirements-lock*.txt` files.
 
-The available developer scripts are described in [docs/development-packaging.md](docs/development-packaging.md) and [Runtime/Portable/README.md](Runtime/Portable/README.md):
+`scripts/assemble-release-runtime.py` downloads every input, verifies its size and SHA-256, builds both worker runtimes and assembles the complete runtime resources of a new `Saywing.app` in one command per architecture. Expect about 2 GB of downloads per architecture. Commands, pins and checks are in [docs/runtime-build.md](docs/runtime-build.md); development packaging is in [docs/development-packaging.md](docs/development-packaging.md).
 
-- `scripts/portable_runtime.py` builds the locked Python environments.
-- `scripts/assemble-portable-resources.py` places the runtimes and verified models into an app bundle.
-- `scripts/install-supertonic-runtime.rb` installs a local development speech runtime under `~/Library/Application Support/OpenScreenReader`.
-
-**Not yet reproducible from public sources in one step:** obtaining and staging the Supertonic and Whisper model files, and the full assembly of the dictation runtime, still require manual preparation. A reproducible runtime build is in progress; check [docs/development-packaging.md](docs/development-packaging.md) for its current state. None of these scripts runs inside the app, and none is invoked automatically.
+For a local development speech runtime, `scripts/install-supertonic-runtime.rb` installs one under `~/Library/Application Support/OpenScreenReader`. None of these scripts runs inside the app, and none is invoked automatically.
 
 ## Documentation
 
-- [Product vision](docs/product-vision.md)
-- [UX requirements](docs/ux-requirements.md)
-- [Architecture](docs/architecture.md)
-- [Privacy requirements](docs/privacy.md)
-- [Research summary: market and local TTS](docs/research/market-and-tts-findings.md)
+- [Privacy](docs/privacy.md)
 - [Roadmap](docs/roadmap.md)
+- [Architecture](docs/architecture.md)
 - [Architecture decision records](docs/decisions/README.md)
-- [Development packaging](docs/development-packaging.md) and [release and updates](docs/release-and-updates.md)
-- [Model and runtime provenance](docs/research/)
-- [Brand system](docs/brand-identity/BRAND_SYSTEM.md)
-- [Contributing](CONTRIBUTING.md), [Security policy](SECURITY.md), [Code of conduct](CODE_OF_CONDUCT.md)
+- [Release and updates](docs/release-and-updates.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
 
 ## License
 

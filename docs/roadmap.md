@@ -6,10 +6,10 @@
 - [x] Update native product name, app icon, template menu glyph, UI palette and current brand documentation.
 - [ ] Validate name comprehension with real participants; no results are implied by the naming decision.
 - [ ] Complete trademark similarity review and confirm desired domain with a registrar.
-- [x] Approved Qwen3-ASR dictation integration with clipboard restore (2026-10-13); implemented in the app.
-- [x] Whisper Turbo becomes the default dictation model with an optional local vocabulary (project decision 2026-10-14).
+- [x] Qwen3-ASR dictation with clipboard restore integrated in the app (2026-10-13).
+- [x] Whisper Turbo becomes the default dictation model with an optional local vocabulary (2026-10-14).
 - [ ] Complete dictation target-app matrix, real microphone/Hotkey walkthrough in the integrated bundle, clean-Mac packaging and distribution gates.
-- [x] Local meeting transcript (project decision 2026-10-15, [ADR 0006](decisions/0006-local-meeting-transcript.md)): system audio tap + microphone, on-device `SpeechTranscriber`, echo gate, consent step, RAM-only transcript with explicit copy/save.
+- [x] Local meeting transcript (2026-10-15, [ADR 0006](decisions/0006-local-meeting-transcript.md)): system audio tap + microphone, on-device `SpeechTranscriber`, echo gate, consent step, RAM-only transcript with explicit copy/save.
 - [ ] Meeting transcript gates: real call over speakers and headphones on the signed build, permission prompt, echo duplicates, word errors on real speech, 60-minute CPU/memory, no files written.
 - [ ] Meeting transcript candidates, each needing its own decision: Whisper refinement with the vocabulary, summaries, speaker diarisation, meeting detection, mixed-language meetings, macOS 14–15 support.
 
