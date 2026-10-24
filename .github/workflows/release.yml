@@ -1,55 +1,61 @@
 name: Saywing release
 
+# Manual only. Pushes and pull requests run ci.yml; nothing here starts
+# automatically. Keep this file name: its run number continues the version/build
+# sequence of every previously shipped release.
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
+    inputs:
+      confirm:
+        description: Type "release" to verify, sign, notarize and (when publication is enabled) publish current main
+        required: true
+        type: string
 
 permissions:
   contents: read
 
-# Never cancel an upload to Apple's notary service halfway through.
+# One release at a time. Never cancel an upload to Apple's notary service or a
+# publication halfway through.
 concurrency:
-  group: saywing-release-${{ github.ref }}
+  group: saywing-release
   cancel-in-progress: false
 
+env:
+  # Keep in sync with ci.yml, CONTRIBUTING.md and docs/release-and-updates.md.
+  XCODE_VERSION: '26.6'
+
 jobs:
-  verify:
-    runs-on: macos-26
-    timeout-minutes: 30
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
-        with:
-          python-version: '3.13'
-      - name: Check source and release rules
+      - name: Require main, the repository release flag and explicit confirmation
+        env:
+          REF: ${{ github.ref }}
+          CONFIRM: ${{ inputs.confirm }}
+          RELEASE_ENABLED: ${{ vars.SAYWING_RELEASE_ENABLED }}
         run: |
-          swift test
-          swift run OpenScreenReaderCoreBehaviorChecks
-          python3 -m unittest discover -s Tests/Release -v
-          python3 scripts/check-localization.py
-      - name: Test app
-        run: |
-          xcodebuild -project OpenScreenReader.xcodeproj -scheme OpenScreenReader \
-            -destination 'platform=macOS' -derivedDataPath .build/ci \
-            -clonedSourcePackagesDirPath .build/packages \
-            test -only-testing:OpenScreenReaderAppTests
-      - name: Build both macOS 14 Release architectures
-        run: |
-          for arch in arm64 x86_64; do
-            xcodebuild -project OpenScreenReader.xcodeproj -scheme OpenScreenReader \
-              -configuration Release -derivedDataPath .build/ci \
-              -clonedSourcePackagesDirPath .build/packages build \
-              ARCHS="$arch" MACOSX_DEPLOYMENT_TARGET=14.0 CODE_SIGNING_ALLOWED=NO
-          done
+          if [ "$REF" != "refs/heads/main" ]; then
+            echo "::error::Releases are dispatched from main only."
+            exit 1
+          fi
+          if [ "$RELEASE_ENABLED" != "true" ]; then
+            echo "::error::Repository variable SAYWING_RELEASE_ENABLED is not true."
+            exit 1
+          fi
+          if [ "$CONFIRM" != "release" ]; then
+            echo "::error::Confirmation input must be exactly: release"
+            exit 1
+          fi
+
+  verify:
+    needs: gate
+    uses: ./.github/workflows/ci.yml
 
   package:
     needs: verify
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.SAYWING_RELEASE_ENABLED == 'true'
+    # Repeated here because job conditions are evaluated before environment approval.
+    if: github.ref == 'refs/heads/main' && vars.SAYWING_RELEASE_ENABLED == 'true' && inputs.confirm == 'release'
     runs-on: macos-26
     environment: saywing-release
     strategy:
@@ -64,9 +70,13 @@ jobs:
       SAYWING_S3_ENDPOINT: ${{ vars.SAYWING_S3_ENDPOINT }}
       SAYWING_S3_BUCKET: ${{ vars.SAYWING_S3_BUCKET }}
       SAYWING_S3_REGION: ${{ vars.SAYWING_S3_REGION || 'auto' }}
-      SAYWING_FEED_URL: https://www.christopherboebel.com/downloads/saywing${{ matrix.architecture == 'x86_64' && '/x86_64' || '' }}/appcast.xml
-      SAYWING_DOWNLOAD_URL_PREFIX: https://www.christopherboebel.com/downloads/saywing${{ matrix.architecture == 'x86_64' && '/x86_64' || '' }}
-      SAYWING_PUBLIC_KEY: UkAO/uyBRKSNY0+0gLVrnxa6vaXaVE4cJueFv1JVIT0=
+      # Owner defaults; forks set the repository variables instead of editing scripts.
+      SAYWING_PUBLIC_DOWNLOAD_PREFIX: ${{ vars.SAYWING_PUBLIC_DOWNLOAD_PREFIX || 'https://www.christopherboebel.com/downloads/saywing' }}
+      SAYWING_FEED_URL: ${{ format('{0}{1}/appcast.xml', vars.SAYWING_PUBLIC_DOWNLOAD_PREFIX || 'https://www.christopherboebel.com/downloads/saywing', matrix.architecture == 'x86_64' && '/x86_64' || '') }}
+      SAYWING_DOWNLOAD_URL_PREFIX: ${{ format('{0}{1}', vars.SAYWING_PUBLIC_DOWNLOAD_PREFIX || 'https://www.christopherboebel.com/downloads/saywing', matrix.architecture == 'x86_64' && '/x86_64' || '') }}
+      SAYWING_PUBLIC_KEY: ${{ vars.SAYWING_SPARKLE_PUBLIC_KEY || 'UkAO/uyBRKSNY0+0gLVrnxa6vaXaVE4cJueFv1JVIT0=' }}
+      SAYWING_SIGNING_IDENTITY: ${{ vars.SAYWING_SIGNING_IDENTITY }}
+      SAYWING_TEAM_ID: ${{ vars.SAYWING_TEAM_ID }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -74,10 +84,15 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.13'
-      - name: Install isolated storage tools
+      - name: Select pinned Xcode
+        run: |
+          sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
+          xcodebuild -version
+      - name: Install isolated, hash-locked storage tools
         run: |
           python3 -m venv "$RUNNER_TEMP/saywing-publisher"
-          "$RUNNER_TEMP/saywing-publisher/bin/pip" install -r scripts/release-requirements.txt
+          "$RUNNER_TEMP/saywing-publisher/bin/pip" install --require-hashes --no-deps \
+            -r scripts/release-requirements.txt
       - name: Validate release gates and fetch pinned private runtime
         env:
           SAYWING_S3_ACCESS_KEY_ID: ${{ secrets.SAYWING_S3_ACCESS_KEY_ID }}
@@ -92,6 +107,11 @@ jobs:
           SAYWING_CERTIFICATE_P12: ${{ secrets.SAYWING_CERTIFICATE_P12 }}
           SAYWING_CERTIFICATE_PASSWORD: ${{ secrets.SAYWING_CERTIFICATE_PASSWORD }}
           SAYWING_SPARKLE_PRIVATE_KEY: ${{ secrets.SAYWING_SPARKLE_PRIVATE_KEY }}
+          # Preferred: App Store Connect API key (no secret on any command line).
+          SAYWING_NOTARY_API_KEY: ${{ secrets.SAYWING_NOTARY_API_KEY }}
+          SAYWING_NOTARY_API_KEY_ID: ${{ secrets.SAYWING_NOTARY_API_KEY_ID }}
+          SAYWING_NOTARY_API_ISSUER: ${{ secrets.SAYWING_NOTARY_API_ISSUER }}
+          # Fallback when no API key is configured: Apple ID + app-specific password.
           SAYWING_APPLE_ID: ${{ secrets.SAYWING_APPLE_ID }}
           SAYWING_APPLE_APP_PASSWORD: ${{ secrets.SAYWING_APPLE_APP_PASSWORD }}
         run: python3 scripts/prepare-release-ci.py credentials
@@ -109,7 +129,11 @@ jobs:
             --keychain "$RUNNER_TEMP/saywing-release.keychain-db" \
             --sparkle-key-file "$RUNNER_TEMP/saywing-sparkle.key" \
             --notary-profile Saywing-CI --notarize --public-release
-      - name: Retain complete distribution for the hosting deployment
+      # Artifacts of a public repository are downloadable by any GitHub user.
+      # The DMG is uploaded only as a one-day handoff to the separate publish job;
+      # without publication only checksums and metadata are kept.
+      - name: Hand the distribution to the publish job (one day)
+        if: vars.SAYWING_PUBLISH_ENABLED == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Saywing-${{ github.run_number }}-${{ matrix.architecture }}
@@ -118,14 +142,63 @@ jobs:
             .build/release/release-result.json
           if-no-files-found: error
           compression-level: 0
-          retention-days: 14
-      - name: Publish to the existing Railway website
-        if: vars.SAYWING_PUBLISH_ENABLED == 'true'
+          retention-days: 1
+          overwrite: true
+      - name: Retain release metadata only (no DMG)
+        if: vars.SAYWING_PUBLISH_ENABLED != 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Saywing-${{ github.run_number }}-${{ matrix.architecture }}-metadata
+          path: |
+            .build/release/publish/appcast.xml
+            .build/release/publish/latest.json
+            .build/release/publish/SHA256SUMS
+            .build/release/release-result.json
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
+      - name: Remove temporary signing credentials
+        if: always()
+        run: python3 scripts/prepare-release-ci.py cleanup
+
+  # Runs without any signing secret: only storage credentials and the read-only
+  # job token. Third-party storage code never shares a runner with signing keys.
+  publish:
+    needs: package
+    if: github.ref == 'refs/heads/main' && vars.SAYWING_RELEASE_ENABLED == 'true' && vars.SAYWING_PUBLISH_ENABLED == 'true' && inputs.confirm == 'release'
+    runs-on: ubuntu-24.04
+    environment: saywing-release
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: ${{ fromJSON(vars.SAYWING_INTEL_RELEASE_ENABLED == 'true' && '["arm64","x86_64"]' || '["arm64"]') }}
+    timeout-minutes: 60
+    env:
+      SAYWING_S3_ENDPOINT: ${{ vars.SAYWING_S3_ENDPOINT }}
+      SAYWING_S3_BUCKET: ${{ vars.SAYWING_S3_BUCKET }}
+      SAYWING_S3_REGION: ${{ vars.SAYWING_S3_REGION || 'auto' }}
+      SAYWING_PUBLIC_DOWNLOAD_PREFIX: ${{ vars.SAYWING_PUBLIC_DOWNLOAD_PREFIX || 'https://www.christopherboebel.com/downloads/saywing' }}
+      SAYWING_RELEASE_REPOSITORY: ${{ vars.SAYWING_RELEASE_REPOSITORY }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+      - name: Install isolated, hash-locked storage tools
+        run: |
+          python3 -m venv "$RUNNER_TEMP/saywing-publisher"
+          "$RUNNER_TEMP/saywing-publisher/bin/pip" install --require-hashes --no-deps \
+            -r scripts/release-requirements.txt
+      - name: Receive the notarized distribution from this run
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: Saywing-${{ github.run_number }}-${{ matrix.architecture }}
+          path: ${{ runner.temp }}/saywing-release
+      - name: Publish, verify the public download, then promote the feed
         env:
           GH_TOKEN: ${{ github.token }}
           SAYWING_S3_ACCESS_KEY_ID: ${{ secrets.SAYWING_S3_ACCESS_KEY_ID }}
           SAYWING_S3_SECRET_ACCESS_KEY: ${{ secrets.SAYWING_S3_SECRET_ACCESS_KEY }}
-        run: '"$RUNNER_TEMP/saywing-publisher/bin/python" scripts/publish-release.py --release .build/release'
-      - name: Remove temporary signing credentials
-        if: always()
-        run: python3 scripts/prepare-release-ci.py cleanup
+        run: '"$RUNNER_TEMP/saywing-publisher/bin/python" scripts/publish-release.py --release "$RUNNER_TEMP/saywing-release"'

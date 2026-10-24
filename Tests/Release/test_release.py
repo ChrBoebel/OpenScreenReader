@@ -150,6 +150,44 @@ class ReleaseTests(unittest.TestCase):
             path.write_text(json.dumps(approved))
             with self.assertRaises(ValueError): release.require_release_approval(path, 'x86_64')
 
+    def test_owner_constants_have_overridable_defaults(self):
+        import os
+        from unittest.mock import patch
+        with patch.dict(os.environ):
+            os.environ.pop('SAYWING_PUBLIC_DOWNLOAD_PREFIX', None)
+            self.assertEqual(release.release_target('arm64')['url_prefix'], release.DEFAULT_PUBLIC_DOWNLOAD_PREFIX)
+        with patch.dict(os.environ, {'SAYWING_PUBLIC_DOWNLOAD_PREFIX': 'https://downloads.example.org/app/'}):
+            self.assertEqual(release.release_target('arm64')['url_prefix'], 'https://downloads.example.org/app')
+            self.assertEqual(release.release_target('x86_64')['url_prefix'], 'https://downloads.example.org/app/x86_64')
+            self.assertEqual(release.release_target('x86_64')['storage_prefix'], 'saywing/x86_64')
+        for unsafe in ['http://downloads.example.org/app', 'https://downloads.example.org/app?token=secret']:
+            with patch.dict(os.environ, {'SAYWING_PUBLIC_DOWNLOAD_PREFIX': unsafe}), self.assertRaises(ValueError):
+                release.release_target('arm64')
+        self.assertTrue(release.DEFAULT_SIGNING_IDENTITY.startswith('Developer ID Application:'))
+
+    def test_signing_identity_and_notary_profile_follow_environment(self):
+        import argparse, os
+        from unittest.mock import patch
+        required = ['--runtime-app', '/nonexistent', '--output', '/nonexistent', '--version', '0.1.0', '--build', '1',
+                    '--feed-url', 'https://example.com/appcast.xml', '--download-url-prefix', 'https://example.com',
+                    '--public-key', 'AA==']
+        parsed = []
+        def capture(parser, *_):
+            parsed.append(parser.parse_known_args(required)[0])
+            raise SystemExit(0)  # Stop before any build, signing or network step.
+        env = {'SAYWING_SIGNING_IDENTITY': 'Developer ID Application: Example (TEAM123456)',
+               'SAYWING_NOTARY_PROFILE': 'Example-Notary'}
+        for environment, identity, profile in [
+                (env, env['SAYWING_SIGNING_IDENTITY'], env['SAYWING_NOTARY_PROFILE']),
+                ({}, release.DEFAULT_SIGNING_IDENTITY, release.DEFAULT_NOTARY_PROFILE)]:
+            with patch.dict(os.environ, environment), \
+                 patch.object(argparse.ArgumentParser, 'parse_args', autospec=True, side_effect=capture):
+                for name in env.keys() - environment.keys():
+                    os.environ.pop(name, None)
+                with self.assertRaises(SystemExit):
+                    release.main()
+            self.assertEqual((parsed[-1].identity, parsed[-1].notary_profile), (identity, profile))
+
     def test_version_numbers_are_monotonic_and_path_safe(self):
         release.validate_version('0.1.0', '42')
         for version, build in [('0.1.0', '0'), ('../oops', '3'), ('1.0', 'abc'), ('1.2.3', '1/2')]:
