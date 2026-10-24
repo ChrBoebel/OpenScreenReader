@@ -126,7 +126,6 @@ and verifies size and SHA-256 before anything is built or unpacked:
 | Whisper Turbo GGML q5_0 (x86_64) | `huggingface.co/ggerganov/whisper.cpp` | `Runtime/Portable/whisper-turbo-cpp-manifest.json` |
 | whisper.cpp 1.9.5 source (x86_64) | `codeload.github.com` | `Runtime/Portable/whisper-cpp-source.json` |
 | FLEURS demo clips | `test.tar.gz` archives of `huggingface.co/datasets/google/fleurs`; only the two listed members are read | archives in `Runtime/Portable/release-inputs.json`, clips in `Runtime/Dictation/demo-manifest.json` |
-| Corresponding sources | URLs recorded per file; records with `architectures` only for those | `docs/licenses/native-corresponding-sources.json` |
 
 Then it builds both worker runtimes with `scripts/build-python-runtime.py`, and assembles
 `Contents/Resources` of a new `Saywing.app`:
@@ -137,14 +136,18 @@ Then it builds both worker runtimes with `scripts/build-python-runtime.py`, and 
   hardened-runtime patch, receipt) into a staging bundle; on Intel the dictation runtime,
   the GGML model, the whisper.cpp bridge built by `scripts/build-whisper-cpp.sh` with its
   build provenance, `runtime-backends.json` (`whisper-turbo` only), notices and receipt;
-- `portable-runtime.json`, `LICENSE-Saywing`, `CorrespondingSource/`, and a native audit of
-  every Mach-O file (architecture, macOS 14, no external load paths).
+- `portable-runtime.json`, `LICENSE-Saywing`, and a native audit of every Mach-O file
+  (architecture, macOS 14, no external load paths).
+
+Source archives for the GNU and MPL-2.0 components
+(`docs/licenses/native-corresponding-sources.json`) are not release inputs. The app carries a
+written offer and exact pointers, and the publish job archives the files
+([ADR 0007](decisions/0007-gcc-runtime-libraries.md)).
 
 Inputs come to about 2 GB per architecture, mostly the two models and the FLEURS archives
 (860 MB for two clips of 1.8 MB; the dataset publishes audio only as archives).
 Additional hosts beyond the runtime build: `huggingface.co` (redirecting to its CDN),
-`raw.githubusercontent.com`, `codeload.github.com`, `www.apache.org` and the corresponding-source
-hosts. Intel needs CMake.
+`raw.githubusercontent.com`, `codeload.github.com` and `www.apache.org`. Intel needs CMake.
 
 **CI.** The `package` job of `.github/workflows/release.yml` runs this for each matrix
 architecture (arm64; x86_64 only with `SAYWING_INTEL_RELEASE_ENABLED`) through
