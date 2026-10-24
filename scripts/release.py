@@ -298,9 +298,8 @@ def main():
             '--speech-from', source, '--whisper-model', dictation / 'WhisperTurbo',
             '--public-release' if args.public_release else '--development-only', '--defer-app-signing')
     refresh_project_workers(app)
-    corresponding_source = source / 'Contents/Resources/CorrespondingSource'
-    if corresponding_source.is_dir():
-        shutil.copytree(corresponding_source, app / 'Contents/Resources/CorrespondingSource', symlinks=True)
+    # Source archives are never copied into the app (ADR 0007); bundle_notices writes the
+    # written offer and exact pointers, and the publish job archives the archives themselves.
     # Inspect every native dependency, including legacy input, before signing/notarizing.
     # This rejects the previous MLX minos=26.2 bundle even when its receipt is valid.
     from portable_runtime import audit as audit_native
@@ -309,7 +308,7 @@ def main():
     # Full upstream notice chain accompanies every distribution, including Sparkle.
     shutil.copy2(REPO / 'docs/licenses/Sparkle-2.10.0.txt', app / 'Contents/Resources/LICENSE-Sparkle')
     from bundle_notices import bundle_notices
-    bundle_notices(app / 'Contents/Resources', require_sources=args.public_release)
+    bundle_notices(app / 'Contents/Resources')
     if args.public_release:
         (app / 'Contents/Resources/DEVELOPMENT-PREVIEW.txt').unlink(missing_ok=True)
     else:
@@ -394,6 +393,8 @@ def package_signed_app(app, output, args, tools):
         'version': args.version, 'build': args.build, 'architecture': args.architecture, 'publish_directory': str(publish),
         'source_dirty': bool(run('git', '-C', REPO, 'status', '--porcelain', capture_output=True, text=True).stdout.strip()),
         'source_commit': run('git', '-C', REPO, 'rev-parse', 'HEAD', capture_output=True, text=True).stdout.strip(),
+        # Exactly the source pointers in the signed app; scripts/publish-release.py archives these files.
+        'corresponding_sources': json.loads((app / 'Contents/Resources/CorrespondingSource/sources.json').read_text()),
     }, indent=2) + '\n')
     print('Prepared:', publish, '(not published)')
 

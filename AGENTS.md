@@ -37,7 +37,7 @@ Before changing code or architecture, read:
 - Do not add a network dependency to the runtime path without an explicit project decision by the maintainers.
 - Do not add, download, or redistribute model weights without documenting source, exact version, size, hash when available, and license.
 - Do not copy code from repositories without verifying an explicit compatible license.
-- GPL code requires an explicit project-level licensing decision before integration; architecture inspiration alone is acceptable, code copying is not.
+- GPL code requires an explicit project-level licensing decision before integration; architecture inspiration alone is acceptable, code copying is not. SciPy's GCC runtime libraries are covered by [ADR 0007](docs/decisions/0007-gcc-runtime-libraries.md).
 - Keep secrets and credentials out of the repository.
 - Do not add AI/agent authorship to source headers, commits, changelogs, or project metadata.
 - Do not commit, push, create remotes, or publish releases unless explicitly requested.

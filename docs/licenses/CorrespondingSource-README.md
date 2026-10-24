@@ -1,12 +1,30 @@
-# Included source and local modifications
+# Corresponding source: written offer and exact pointers
 
-The CorrespondingSource folder contains the original archives listed in sources.json.
-Each record gives its source URL, exact size and SHA-256. availability.json reports
-how many are included in this copy; public releases are built only when all are.
-The archives are distributed with the application, so no network connection is
-needed to inspect them. Extract them into a separate working directory, not into
-the installed app. The license texts are in the Licenses folder and in the offline
-license index (THIRD-PARTY-NOTICES.html).
+This folder does not contain source archives. `sources.json` lists every source file that
+belongs to this build: its upstream URL, exact size and SHA-256, the component it builds and
+its license. The license texts are in the Licenses folder and in the offline license index
+(THIRD-PARTY-NOTICES.html), which repeats the offer below.
+
+## Written offer
+
+For at least three years from the date on which the Saywing maintainers distributed the
+Saywing build that contains this file, and for as long as they offer updates or support for
+that build if that is longer, the Saywing maintainers will give any third party, on request,
+a complete machine-readable copy of every source file listed in `sources.json` for that
+build. This covers the complete corresponding source of the GNU libraries described below
+and the source code form of the Mozilla Public License 2.0 components. The copy is free of
+charge as a download or, if you ask for it, on a physical medium for no more than the cost of
+physically performing that distribution.
+
+Ask through the project issue tracker at https://github.com/ChrBoebel/saywing/issues and name
+the Saywing version, build and Mac architecture shown in Settings. If you cannot use the issue
+tracker, use the contact shown on the maintainer profile https://github.com/ChrBoebel. The
+maintainers keep an identical copy of every listed file for each published build.
+
+You can also download each file yourself from its upstream URL in `sources.json`. Check any
+copy before use, for example with `shasum -a 256 FILE` and `stat -f %z FILE`, against the
+recorded SHA-256 and size. Extract archives in a separate working directory, not in the
+installed app.
 
 ## GNU runtime libraries (LGPL-2.1 / GPL-3.0 with the GCC Runtime Library Exception)
 
@@ -22,7 +40,8 @@ at run time through `@loader_path` (libgfortran loads libquadmath and libgcc_s; 
 ODR module loads libgfortran). No Saywing code and no other library links them statically.
 
 SciPy built them with Homebrew's gcc@13 13.4.0 (recorded as the Fortran compiler in
-`scipy/__config__.py`). Their complete corresponding source is:
+`scipy/__config__.py`). Their complete corresponding source consists of these files from
+`sources.json` (obtain them as described above):
 
 - `gcc-13.4.0.tar.xz`: the GNU release archive (libquadmath/, libgfortran/, libgcc/);
 - `homebrew-gcc-13.4.0.diff`: the Darwin and Apple Silicon patch Homebrew applies before
@@ -39,10 +58,11 @@ independently of Saywing's Apache-2.0 license and of Supertonic's model terms.
 
 ### Tested libquadmath replacement (Apple Silicon)
 
-This was tested on 2026-10-24 with Homebrew GCC 16.1.0 as the compiler and the included
-GCC 13.4.0 source plus the Homebrew patch. No Saywing signing key is needed.
+This was tested on 2026-10-24 with Homebrew GCC 16.1.0 as the compiler and the GCC 13.4.0
+source plus the Homebrew patch listed in `sources.json`. No Saywing signing key is needed.
 
-1. Verify `gcc-13.4.0.tar.xz` and `homebrew-gcc-13.4.0.diff` against sources.json, extract
+1. Obtain `gcc-13.4.0.tar.xz` and `homebrew-gcc-13.4.0.diff`, verify them against
+   `sources.json`, extract
    the archive in a working directory and run `patch -p1 < homebrew-gcc-13.4.0.diff` in
    `gcc-13.4.0`.
 2. Build only libquadmath with a GCC that supports `__float128` on your Mac (Apple clang
@@ -89,12 +109,15 @@ Steps 5 to 8 are the receipt and re-seal procedure that was exercised with a com
 copy in October 2026 for an earlier replaceable library. The libquadmath test above ran
 against a copy of the runtime, not against a re-sealed app.
 
-## Other included sources
+## Other listed sources
 
 - `eigen-1d8b82b0740839c0de7f1242a3585e3390ff5f33.zip`: Eigen (MPL-2.0), compiled into
   `libonnxruntime.1.23.2.dylib` of the speech runtime. This is the exact archive that ONNX
-  Runtime 1.23.2 pins in `cmake/deps.txt`.
-- `tqdm-4.70.1.tar.gz`: tqdm, which contains MPL-2.0 files.
+  Runtime 1.23.2 pins in `cmake/deps.txt`. Its source code form is available from that URL
+  and under the written offer above; the MPL-2.0 text is in ONNX Runtime's
+  `ThirdPartyNotices.txt`.
+- `tqdm-4.70.1.tar.gz`: tqdm, which contains MPL-2.0 files (Apple Silicon only). Its source
+  code form is available the same way; the license text is in its `LICENCE` file.
 - `tokenizers-0.23.3.tar.gz`, `safetensors-0.8.0.tar.gz`, `tiktoken-0.14.0.tar.gz`: the
   original sources of the bundled Rust extensions. Their dependency locks, observed crate
   versions and a rebuild recipe are in Licenses/RustBuild. Some lock entries are build-only
