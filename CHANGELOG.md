@@ -2,6 +2,12 @@
 
 Notable changes to Saywing (formerly OpenScreenReader). Dates are when the change was integrated during development. Version numbers will be added with public releases.
 
+## [Unreleased]
+
+- **Repository renamed to `ChrBoebel/saywing`.** Old `ChrBoebel/OpenScreenReader` links redirect. Technical identifiers keep the OpenScreenReader name for compatibility.
+- **README overhaul.** Read aloud and dictation lead, followed by privacy, an honest install status, requirements and an FAQ (including how Saywing differs from Speak Selection). Test gaps moved into a collapsible status section, and the runtime build description now points to the one-command assembly from public sources.
+- **Docs wording.** The privacy requirements and roadmap describe decisions in neutral project language with their dates. The issue chooser links to Discussions for questions and ideas.
+
 ## 2026-10-15
 
 - **Meeting transcript (macOS 26+).** An explicitly started, consented live transcript of the microphone ("Me") and other apps' audio ("Others"). It uses a private Core Audio tap and Apple's on-device `SpeechTranscriber`. Local echo suppression keeps your speakers' playback out of your side. Audio is never saved; the text stays in memory until Copy, Save or Discard. The transcript stops after 2 hours, after 10 silent minutes, on sleep, or on Stop. See [ADR 0006](docs/decisions/0006-local-meeting-transcript.md).
