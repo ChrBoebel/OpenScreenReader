@@ -57,15 +57,15 @@
     },
     {
       "name": "filelock",
-      "version": "4.1.1",
+      "version": "4.2.4",
       "license": "MIT",
       "license_source": "License-Expression",
       "license_files": [
-        "lib/python3.12/site-packages/filelock-4.1.1.dist-info/licenses/LICENSE"
+        "lib/python3.12/site-packages/filelock-4.2.4.dist-info/licenses/LICENSE"
       ],
       "vendored_native_libraries": [],
-      "wheel_sha256": "3f4a557945a7b0f95efeb1f432267affe5d45ac8ddde2aed1b97ebb62382c089",
-      "source": "https://pypi.org/project/filelock/4.1.1/"
+      "wheel_sha256": "301241438c57936ef93f4243a94f2559022268bfcf9b375a9a72eb0f8db8358e",
+      "source": "https://pypi.org/project/filelock/4.2.4/"
     },
     {
       "name": "h11",
