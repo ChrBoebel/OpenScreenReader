@@ -25,9 +25,11 @@ MACHO = {bytes.fromhex(value) for value in (
 DEFAULT_PUBLIC_DOWNLOAD_PREFIX = 'https://www.christopherboebel.com/downloads/saywing'
 DEFAULT_SIGNING_IDENTITY = 'Developer ID Application: Christopher Böbel (S28WSHSSJD)'
 DEFAULT_NOTARY_PROFILE = 'Saywing-Notary-S28WSHSSJD'
-# Visible beside the app in every DMG: the source license, its NOTICE, and the Supertonic 3
-# model terms with the complete unchanged Open RAIL-M text (paragraph 5, Attachment A).
+# Visible beside the app in every DMG: the source license, its NOTICE, a README that scopes
+# Apache-2.0 to the source code, and the Supertonic 3 model terms with the complete unchanged
+# Open RAIL-M text (paragraph 5, Attachment A).
 DMG_LICENSE_FILES = (('LICENSE', 'LICENSE'), ('NOTICE', 'NOTICE'),
+                     ('docs/licenses/DMG-README.txt', 'README.txt'),
                      ('docs/licenses/SUPERTONIC-MODEL-TERMS.md', 'SUPERTONIC-MODEL-TERMS.md'),
                      ('docs/licenses/Supertonic-3-Open-RAIL-M.txt', 'Supertonic-3-Open-RAIL-M.txt'))
 

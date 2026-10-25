@@ -221,8 +221,9 @@ class ReleaseTests(unittest.TestCase):
             repo, image = self.license_repo(root / 'repo'), root / 'image'
             image.mkdir()
             names = release.stage_dmg_licenses(image, self.signed_app(root), repo)
-            self.assertEqual(names, ['LICENSE', 'NOTICE', 'SUPERTONIC-MODEL-TERMS.md', 'Supertonic-3-Open-RAIL-M.txt',
-                                     'THIRD-PARTY-NOTICES.html'])
+            # README.txt states first that Apache-2.0 covers only the source code.
+            self.assertEqual(names, ['LICENSE', 'NOTICE', 'README.txt', 'SUPERTONIC-MODEL-TERMS.md',
+                                     'Supertonic-3-Open-RAIL-M.txt', 'THIRD-PARTY-NOTICES.html'])
             self.assertEqual((image / 'Licenses/SUPERTONIC-MODEL-TERMS.md').read_text(),
                              'text of docs/licenses/SUPERTONIC-MODEL-TERMS.md')
             self.assertFalse(any(path.is_symlink() for path in (image / 'Licenses').iterdir()))
@@ -269,7 +270,7 @@ class ReleaseTests(unittest.TestCase):
                  patch.object(release, 'generate_feed'):
                 release.package_signed_app(app, output, args, Path('/tools'))
             self.assertTrue(seen['app'])
-            self.assertEqual(seen['licenses'], ['LICENSE', 'NOTICE', 'SUPERTONIC-MODEL-TERMS.md',
+            self.assertEqual(seen['licenses'], ['LICENSE', 'NOTICE', 'README.txt', 'SUPERTONIC-MODEL-TERMS.md',
                                                 'Supertonic-3-Open-RAIL-M.txt', 'THIRD-PARTY-NOTICES.html'])
             self.assertFalse((output / 'image').exists())
             # The publish job archives exactly the sources this signed app points to.

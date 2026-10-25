@@ -182,6 +182,7 @@ For a local development speech runtime, `scripts/install-supertonic-runtime.rb` 
 - **Source code:** Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 - **Bundled models have their own licenses:**
   - **Supertonic 3** (speech model and voices) is licensed under the **BigScience OpenRAIL-M** license, which includes use restrictions. See [docs/licenses/SUPERTONIC-MODEL-TERMS.md](docs/licenses/SUPERTONIC-MODEL-TERMS.md).
+    Saywing asks you to accept these model terms before the read-aloud voice is used. Speech you share must be marked as machine-generated, and anyone who passes a Saywing build on must pass the terms and the license on with it.
   - **Whisper** (OpenAI Whisper large-v3-turbo and large-v3) is licensed under MIT.
   - **Qwen3-ASR** is licensed under Apache-2.0.
 - Third-party code, runtimes and libraries keep their own licenses. Their notices are collected in [docs/licenses/](docs/licenses).
