@@ -198,7 +198,7 @@ Setup additionally saves the dictation shortcut, optional Fn setting and the mod
   - Audio exists only in short RAM buffers, for recognition and the echo gate (at most about 2 s per track at 8 kHz), and is continuously discarded.
   - No audio on disk.
   - The transcript stays only in RAM until it is discarded, replaced by a new transcript or the app quits.
-  - Writing only through “Copy” (explicit click) or “Save…” (save dialog, Markdown).
+  - Writing only through “Copy” (explicit click) or “Save…” (save dialog; PDF, Markdown or plain text).
   - No new settings keys.
 - **End:**
   - Stop, the 2-hour limit (notice 5 min before), 10 min of silence on both tracks, system sleep, session switch and app exit end the recording. The transcript is kept until discarded.
@@ -206,3 +206,20 @@ Setup additionally saves the dictation shortcut, optional Fn setting and the mod
   - Late recognition results after the end are discarded.
 - **Indicator:** During recording, the menu bar icon carries a ring, and the menu shows “Meeting Transcript · Running”.
 - **Legal:** Recording other people requires their consent (e.g. Section 201 of the German Criminal Code (StGB), GDPR/DSGVO). Saywing reminds users of this but does not verify it. A legal review remains a release gate.
+
+### Voices and PDF — project decision 2026-10-18
+
+[ADR 0008](decisions/0008-meeting-speakers-and-pdf.md).
+
+- **Telling voices apart:**
+  - Only the "Others" track, live on the device, with the bundled LS-EEND model.
+  - No download, no network connection.
+  - Like the recognizer's input, the audio is discarded continuously. If the analysis falls behind, audio is dropped instead of collected (at most about 5 s in RAM).
+- **No voice profiles:**
+  - Saywing stores no voice characteristics and does not recognize anyone across transcripts.
+  - The model state ends with the transcript.
+  - Only the user assigns names, by hand. Like merges, they live only in RAM with the transcript.
+- **PDF:**
+  - Save offers PDF, Markdown and plain text, still only through the save dialog.
+  - The PDF's document information holds only the title and "Saywing": no author, device or user name.
+- **Legal:** Voices are biometric data (GDPR Art. 9) as soon as they are used to identify someone. Saywing identifies no one and keeps nothing. This belongs in the existing legal review before a public release.

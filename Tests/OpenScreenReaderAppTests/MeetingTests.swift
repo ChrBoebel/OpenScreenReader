@@ -1,7 +1,9 @@
+import Accelerate
 import AppKit
 import SwiftUI
 import AVFoundation
 import Foundation
+import PDFKit
 import Testing
 @testable import OpenScreenReader
 
@@ -92,6 +94,21 @@ struct MeetingTranscriptTests {
         #expect(mine == ["Danke, dann plane ich Freitag."])
     }
 
+    /// From a real call over laptop speakers (2026-10-21): the microphone heard the
+    /// others through the room and the recogniser wrote it down roughly.
+    @Test
+    func roughlyHeardEchoOfTheOthersIsHiddenWhileMyOwnWordsStay() {
+        var transcript = MeetingTranscript()
+        transcript.apply(heard(.me, 4, 8, "Test Test Test. Reli, die dies ist"))
+        transcript.apply(heard(.others, 27, 37, "Auf dem Oktoberfest hab ich auch schon erlebt, dass Leute sagen, Mai, du bist der kleine am ersten Dog Millionär. Wir haben einfach null Ahnung. Nein, er hat die Pommes genommen mit Ständer."))
+        transcript.apply(heard(.me, 27, 33, "Auf demorfest nein, Dorf Millionär. Sender."))
+        transcript.apply(heard(.others, 38, 53, "Wir brauchen. Nein, keine Insel, kein Strand machen Party auf dem Macker. Bot. Neues Gerät schon im Eimer, super. Bei der Wiesen gibt's im Prinzip sechs Kriterien. Lage, Lage, Lage, Wetter, Wetter, Wetter."))
+        transcript.apply(heard(.me, 40, 42, "auf gibt es . Strand"))
+        transcript.apply(heard(.me, 45, 47, "Nein, das Oktoberfest ist mir zu voll"))
+        let mine = transcript.entries.filter { $0.speaker == .me }.map(\.text)
+        #expect(mine == ["Test Test Test. Reli, die dies ist", "Nein, das Oktoberfest ist mir zu voll"])
+    }
+
     @Test
     func echoSpansMergeWhenTheyOverlap() {
         var transcript = MeetingTranscript()
@@ -180,6 +197,20 @@ private func delayed(_ signal: [Float], by seconds: Double, gain: Float, rate: D
     return (0..<signal.count).map { $0 >= shift ? signal[$0 - shift] * gain : 0 }
 }
 
+/// The scores of every analysis while feeding, for calibration.
+private func scores(_ gate: EchoGate, system: [Float], mic: [Float], rate: Double = 8_000) -> [Float] {
+    let chunk = Int(rate / 10)
+    var found: [Float] = []
+    for offset in stride(from: 0, to: min(system.count, mic.count), by: chunk) {
+        let end = min(offset + chunk, system.count, mic.count)
+        let before = gate.lastScore
+        _ = gate.append(Array(system[offset..<end]), at: Double(offset) / rate, track: .others)
+        _ = gate.append(Array(mic[offset..<end]), at: Double(offset) / rate, track: .me)
+        if gate.lastScore != before { found.append(gate.lastScore) }
+    }
+    return found
+}
+
 /// Feeds both tracks in 100 ms chunks, as the audio callbacks would.
 private func feed(_ gate: EchoGate, system: [Float], mic: [Float], from start: TimeInterval = 0,
                   rate: Double = 8_000) -> [ClosedRange<TimeInterval>] {
@@ -246,6 +277,138 @@ struct EchoGateTests {
         let spans = feed(gate, system: burst, mic: delayed(burst, by: 0.08, gain: 0.25), from: 10)
         // The microphone hears the burst 80 ms later.
         #expect(covered(spans, 10.08...10.68) > 0.9)
+    }
+}
+
+/// A small room: the direct sound after `delay`, then reflections whose energy
+/// falls by 60 dB over `reverb` seconds. Deterministic.
+private func roomEcho(_ signal: [Float], delay: Double, gain: Float, reverb: Double, rate: Double = 8_000) -> [Float] {
+    var source = SignalSource(seed: 99)
+    let length = Int(reverb * rate)
+    var response = [Float](repeating: 0, count: Int(delay * rate) + length)
+    response[Int(delay * rate)] = gain
+    for index in 1..<length {
+        let decay = Float(pow(10, -3 * Double(index) / Double(length)))
+        response[Int(delay * rate) + index] = source.noise() * gain * 0.35 * decay
+    }
+    // Laptop speakers carry little bass: a first-order high-pass near 200 Hz.
+    var highPassed = [Float](repeating: 0, count: signal.count)
+    let alpha: Float = 0.86
+    for index in 1..<signal.count {
+        highPassed[index] = alpha * (highPassed[index - 1] + signal[index] - signal[index - 1])
+    }
+    // vDSP.convolve gives y[n] = Σ s[n + L - 1 - k] · h[k]; leading zeros make it causal.
+    return vDSP.convolve([Float](repeating: 0, count: response.count - 1) + highPassed, withKernel: response)
+        .prefix(signal.count).map { $0 }
+}
+
+/// The installed German `say` voice whose name is `name` or starts with "`name` (".
+/// Voice names are localized ("Eddy", "Eddy (German
+/// (Germany))"), and `say` silently falls back to the default voice for an unknown
+/// name, so tests resolve by locale instead of passing a display name.
+private func germanVoice(_ name: String) -> String? {
+    let list = Process()
+    let pipe = Pipe()
+    list.executableURL = URL(fileURLWithPath: "/usr/bin/say")
+    list.arguments = ["-v", "?"]
+    list.standardOutput = pipe
+    list.standardError = FileHandle.nullDevice
+    guard (try? list.run()) != nil else { return nil }
+    let output = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+    list.waitUntilExit()
+    for line in output.split(separator: "\n") {
+        guard let match = line.firstMatch(of: /^(.+?)\s+([a-z]{2,3}_[A-Z0-9]{2,3})\s+#/),
+              match.2 == "de_DE" else { continue }
+        let voice = String(match.1)
+        if voice == name || voice.hasPrefix(name + " (") { return voice }
+    }
+    return nil
+}
+
+/// Real synthetic speech at 8 kHz, as the echo gate sees it; nil where `say` is unavailable.
+private func spoken(_ text: String, voice: String) throws -> [Float]? {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent("echo-\(UUID()).caf")
+    defer { try? FileManager.default.removeItem(at: url) }
+    guard let voice = germanVoice(voice) else { return nil }
+    let say = Process()
+    say.executableURL = URL(fileURLWithPath: "/usr/bin/say")
+    say.arguments = ["-v", voice, "--file-format=caff", "--data-format=LEF32@8000", "-o", url.path, text]
+    say.standardError = FileHandle.nullDevice
+    try say.run()
+    say.waitUntilExit()
+    guard say.terminationStatus == 0 else { return nil }
+    let file = try AVAudioFile(forReading: url)
+    guard file.processingFormat.sampleRate == 8_000,
+          let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length))
+    else { return nil }
+    try file.read(into: buffer)
+    let samples = Array(UnsafeBufferPointer(start: buffer.floatChannelData![0], count: Int(buffer.frameLength)))
+    return samples.count > 8_000 ? samples : nil
+}
+
+@Suite("Meeting echo in a room")
+struct RoomEchoTests {
+    private static let others = "Auf dem Oktoberfest hab ich auch schon erlebt, dass Leute sagen, du bist der kleine Millionär. Bei der Wiesn gibt es im Prinzip sechs Kriterien: Lage, Lage, Lage, Wetter, Wetter, Wetter. Servus, ich bin der Jürgen und betreibe einen Stand auf dem Oktoberfest."
+
+    /// The echo of real speech through laptop speakers and a room must be found.
+    @Test(arguments: [(0.03, Float(0.25), 0.4), (0.15, Float(0.12), 0.6), (0.25, Float(0.08), 0.3), (0.05, Float(0.03), 0.4), (0.05, Float(0.015), 0.4), (0.05, Float(0.01), 0.8)])
+    func roomEchoOfRealSpeechIsFound(delay: Double, gain: Float, reverb: Double) throws {
+        guard let system = try spoken(Self.others, voice: "Anna") else { return }
+        var noise = SignalSource(seed: 11)
+        let mic = zip(roomEcho(system, delay: delay, gain: gain, reverb: reverb), noise.speech(seconds: Double(system.count) / 8_000, level: 0.003))
+            .map { $0 + $1 }
+        let gate = EchoGate()
+        let spans = feed(gate, system: system, mic: mic)
+        let length = Double(system.count) / 8_000
+        let share = covered(spans, 1...length)
+        print("room echo delay \(delay) gain \(gain) reverb \(reverb): covered \(share), lag \(gate.lockedLag.map { String($0) } ?? "none")")
+        #expect(share > 0.7)
+    }
+
+    /// Calibration: real speech of two different people never correlates like an
+    /// echo, even the same text in two voices at the same time.
+    @Test
+    func unrelatedRealSpeechStaysFarBelowEchoScores() throws {
+        guard let others = try spoken(Self.others, voice: "Anna"),
+              let mine = try spoken(Self.others, voice: "Eddy") else { return }
+        let length = min(others.count, mine.count)
+        let unrelated = scores(EchoGate(), system: Array(others.prefix(length)), mic: Array(mine.prefix(length)))
+        let echo = scores(EchoGate(), system: others, mic: roomEcho(others, delay: 0.05, gain: 0.03, reverb: 0.6))
+        let sortedEcho = echo.sorted()
+        print("calibration unrelated max \(unrelated.max() ?? 0), echo median \(sortedEcho[sortedEcho.count / 2]) min \(sortedEcho.first ?? 0)")
+        #expect((unrelated.max() ?? 0) < 0.1)
+    }
+
+    /// A quiet, reverberant echo is still found while I talk over it now and then.
+    @Test
+    func aQuietEchoIsFoundEvenWhileITalkOverIt() throws {
+        guard let system = try spoken(Self.others, voice: "Anna"),
+              let mine = try spoken("Ich finde, wir sollten zuerst über das Budget sprechen und dann über die Termine.", voice: "Eddy")
+        else { return }
+        var mic = roomEcho(system, delay: 0.05, gain: 0.02, reverb: 0.8)
+        let from = 4 * 8_000
+        for index in mine.indices where from + index < mic.count { mic[from + index] += mine[index] * 0.5 }
+        let spans = feed(EchoGate(), system: system, mic: mic)
+        let share = covered(spans, 1...(Double(system.count) / 8_000))
+        print("double talk over quiet echo: covered \(share)")
+        #expect(share > 0.7)
+    }
+
+    /// My own sentence while the others are silent must stay mine, even in the
+    /// same room right after their echo.
+    @Test
+    func myOwnSpeechAfterTheirEchoStaysMine() throws {
+        guard let system = try spoken(Self.others, voice: "Anna"),
+              let mine = try spoken("Das sehe ich anders, wir sollten erst das Budget klären.", voice: "Eddy")
+        else { return }
+        let pause = [Float](repeating: 0, count: 8_000)
+        let systemTrack = system + pause + [Float](repeating: 0, count: mine.count)
+        let micTrack = roomEcho(system, delay: 0.03, gain: 0.25, reverb: 0.4) + pause + mine
+        let spans = feed(EchoGate(), system: systemTrack, mic: micTrack)
+        let mineStart = Double(system.count + pause.count) / 8_000 + 0.6
+        let share = covered(spans, mineStart...(Double(systemTrack.count) / 8_000))
+        print("own speech after echo: covered \(share)")
+        #expect(share < 0.1)
     }
 }
 
@@ -404,7 +567,8 @@ struct AppleMeetingRecognizerTests {
         defer { try? FileManager.default.removeItem(at: url) }
         let say = Process()
         say.executableURL = URL(fileURLWithPath: "/usr/bin/say")
-        say.arguments = ["-v", "Anna", "-o", url.path, "Guten Morgen zusammen. Kurzer Stand zum Projekt."]
+        guard let anna = germanVoice("Anna") else { return }
+        say.arguments = ["-v", anna, "-o", url.path, "Guten Morgen zusammen. Kurzer Stand zum Projekt."]
         try say.run()
         say.waitUntilExit()
         guard say.terminationStatus == 0 else { return }
@@ -439,7 +603,7 @@ struct AppleMeetingRecognizerTests {
         let provider = SystemMeetingRecognizerProvider()
         guard case let .available(locale) = await provider.availability(for: .german) else { return }
         let others = try #require(try speech("Wir haben in dieser Woche die neue Funktion fertiggestellt und alle Tests laufen grün.", voice: "Anna"))
-        let mine = try #require(try speech("Danke, dann plane ich den Prototypen für Freitag.", voice: "Eddy (Deutsch (Deutschland))")
+        let mine = try #require(try speech("Danke, dann plane ich den Prototypen für Freitag.", voice: "Eddy")
             ?? speech("Danke, dann plane ich den Prototypen für Freitag.", voice: "Anna"))
         let rate = 22_050.0
         let gap = [Float](repeating: 0, count: Int(rate))
@@ -477,9 +641,82 @@ struct AppleMeetingRecognizerTests {
         #expect(!me.localizedCaseInsensitiveContains("Tests"))
     }
 
+    /// End to end except the microphone hardware and the voice model: real speech of
+    /// three synthetic voices on the others' track runs through the controller, the
+    /// real recogniser, router and voice tracker. A diarizer that knows who spoke when
+    /// stands in for the model, reporting live as audio arrives. Then a voice is named
+    /// and the transcript is saved as PDF and read back.
+    @Test(.timeLimit(.minutes(2)))
+    @MainActor
+    func threeVoicesReachThePDFWithTheirNames() async throws {
+        guard #available(macOS 26, *) else { return }
+        let provider = SystemMeetingRecognizerProvider()
+        guard case .available = await provider.availability(for: .german) else { return }
+        let lines = [
+            ("Anna", "Guten Morgen zusammen, ich fange mit dem Stand zum Projekt an."),
+            ("Grandpa", "Danke. Haben wir das Budget für die neuen Server schon freigegeben?"),
+            ("Eddy", "Dann schicke ich die Bestellung heute noch raus."),
+        ]
+        let rate = 22_050.0
+        var track: [Float] = []
+        var truth: [MeetingVoiceSpan] = []
+        for (index, (voice, text)) in lines.enumerated() {
+            guard let samples = try speech(text, voice: voice) else { return }
+            let start = Double(track.count) / rate
+            track += samples
+            truth.append(MeetingVoiceSpan(voice: (index + 1) * 10, start: start, end: Double(track.count) / rate))
+            track += [Float](repeating: 0, count: Int(rate * 0.8))
+        }
+        let microphone = SourceFake(), system = SourceFake(), clock = HostClockFake()
+        let saved = SavedFiles()
+        let diarizer = TruthDiarizer(truth)
+        let controller = MeetingController(
+            provider: provider, makeMicrophone: { microphone }, makeSystemAudio: { system },
+            makeVoiceDiarizer: { diarizer }, language: { .german }, hostClock: { clock.ticks },
+            pasteboard: NSPasteboard.withUniqueName(), notifications: NotificationCenter(),
+            save: { export, name in saved.write(export, name) }, presentsWindow: false)
+        await controller.open()
+        controller.confirmConsent()
+        await controller.waitUntilSettled()
+        #expect(controller.phase == .live)
+        #expect(controller.tellsVoicesApart)
+        let start = clock.ticks
+        let step = Int(rate / 10)
+        for offset in stride(from: 0, to: track.count, by: step) {
+            let end = min(offset + step, track.count)
+            let host = start + MeetingHostClock.hostTicks(forSeconds: Double(offset) / rate)
+            system.deliver?(MeetingAudioChunk(samples: Array(track[offset..<end]), sampleRate: rate, hostTime: host))
+            microphone.deliver?(MeetingAudioChunk(samples: [Float](repeating: 0, count: end - offset), sampleRate: rate, hostTime: host))
+        }
+        controller.stop()
+        await controller.waitUntilSettled()
+        #expect(controller.phase == .finished)
+
+        let entries = controller.transcript.entries
+        #expect(entries.map(\.voice) == [10, 20, 30])
+        #expect(entries.map(\.label) == ["Speaker 1", "Speaker 2", "Speaker 3"])
+        #expect(entries[0].text.localizedCaseInsensitiveContains("Morgen"))
+        // The synthetic second voice is recognised loosely; its first word is stable.
+        #expect(entries[1].text.localizedCaseInsensitiveContains("Danke"))
+        #expect(entries[2].text.localizedCaseInsensitiveContains("Bestellung"))
+
+        controller.renameVoice(20, to: "Ben")
+        #expect(controller.save())
+        let url = try #require(saved.urls.first)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let pdf = try #require(PDFDocument(url: url))
+        let text = try #require(pdf.string)
+        for expected in ["Speaker 1", "Ben", "Speaker 3", "Morgen", "Danke", "Bestellung"] {
+            #expect(text.contains(expected), "PDF misses \(expected)")
+        }
+        #expect(text.range(of: "Speaker 1")!.lowerBound < text.range(of: "Ben")!.lowerBound)
+        #expect(!text.contains("Speaker 2"))
+    }
+
     private func speech(_ text: String, voice: String) throws -> [Float]? {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("meeting-\(UUID()).caf")
         defer { try? FileManager.default.removeItem(at: url) }
+        guard let voice = germanVoice(voice) else { return nil }
         let say = Process()
         say.executableURL = URL(fileURLWithPath: "/usr/bin/say")
         say.arguments = ["-v", voice, "--file-format=caff", "--data-format=LEF32@22050", "-o", url.path, text]
@@ -549,19 +786,20 @@ private struct MeetingFixture {
     var saved: [String] { savedBox.items }
     let savedBox = SavedBox()
 
-    init(systemAvailable: Bool = true) {
+    init(systemAvailable: Bool = true, diarizer: DiarizerFake? = nil) {
         let provider = provider, microphone = microphone, system = system, clock = clock, savedBox = savedBox
         let confirmations = confirmations, access = access
         controller = MeetingController(
             provider: provider,
             makeMicrophone: { microphone },
             makeSystemAudio: { systemAvailable ? system : nil },
+            makeVoiceDiarizer: { diarizer },
             language: { .german },
             interfaceSounds: sounds,
             hostClock: { clock.ticks },
             pasteboard: pasteboard,
             notifications: notifications,
-            save: { text, _ in savedBox.items.append(text); return true },
+            save: { export, name in savedBox.items.append(export.markdown); savedBox.names.append(name); return true },
             confirmLosingUnsaved: { reason in confirmations.reasons.append(reason); return confirmations.answer },
             microphoneAccess: { access.requests += 1; return access.granted },
             presentsWindow: false)
@@ -580,7 +818,10 @@ private struct MeetingFixture {
 }
 
 @MainActor
-private final class SavedBox { var items: [String] = [] }
+private final class SavedBox {
+    var items: [String] = []
+    var names: [String] = []
+}
 
 @MainActor
 private final class MicrophoneAccessBox {
@@ -688,6 +929,23 @@ struct MeetingControllerTests {
         fixture.controller.save()
         #expect(fixture.saved.count == 1)
         #expect(fixture.controller.hasUnsavedText == false)
+    }
+
+    @Test
+    func saveHandsTheVisibleTranscriptAndADatedNameWithoutExtension() async throws {
+        let fixture = MeetingFixture()
+        await fixture.start()
+        await fixture.hear(heard(.others, 1, 2, "Guten Morgen."))
+        fixture.clock.seconds += 42
+        fixture.controller.tick()
+        fixture.controller.stop()
+        await fixture.controller.waitUntilSettled()
+        #expect(fixture.controller.export.duration == 42)
+        #expect(fixture.controller.export.turns.map(\.text) == ["Guten Morgen."])
+        fixture.controller.save()
+        let name = try #require(fixture.savedBox.names.first)
+        #expect(name.hasPrefix("Meeting transcript "))
+        #expect(!name.contains("."))
     }
 
     @Test
@@ -880,6 +1138,104 @@ struct MeetingControllerTests {
     }
 }
 
+@Suite("Meeting voices in the transcript", .serialized)
+@MainActor
+struct MeetingVoiceControllerTests {
+    private func othersSecond(_ fixture: MeetingFixture) {
+        fixture.system.deliver?(MeetingAudioChunk(samples: [Float](repeating: 0.1, count: 8_000), sampleRate: 8_000,
+                                                  hostTime: fixture.clock.ticks))
+    }
+
+    @Test
+    func withoutAVoiceModelTheOthersStayOneSpeaker() async {
+        let fixture = MeetingFixture()
+        await fixture.start()
+        #expect(!fixture.controller.tellsVoicesApart)
+        othersSecond(fixture)
+        await fixture.hear(heard(.others, 0.1, 0.9, "Hallo."))
+        #expect(fixture.controller.transcript.entries.map(\.label) == ["Others"])
+    }
+
+    @Test
+    func theOthersAudioReachesTheDiarizerAndNamesTheirTurns() async {
+        let diarizer = DiarizerFake()
+        let fixture = MeetingFixture(diarizer: diarizer)
+        await fixture.start()
+        #expect(fixture.controller.tellsVoicesApart)
+        fixture.microphone.deliver?(MeetingAudioChunk(samples: [Float](repeating: 0.1, count: 8_000), sampleRate: 8_000,
+                                                      hostTime: fixture.clock.ticks))
+        othersSecond(fixture)
+        await fixture.hear(heard(.others, 0.1, 0.9, "Hallo."))
+        await fixture.hear(heard(.me, 1.2, 1.8, "Hi."))
+        #expect(diarizer.fed == 1)
+        #expect(fixture.controller.transcript.entries.map(\.label) == ["Speaker 1", "Me"])
+    }
+
+    @Test
+    func stopFlushesTheLastVoicesAndDiscardIgnoresLateOnes() async {
+        let diarizer = DiarizerFake()
+        diarizer.voice = 4
+        // The look-ahead flush reports a voice after the last chunk.
+        diarizer.finalSpan = MeetingVoiceSpan(voice: 6, start: 1, end: 2)
+        let fixture = MeetingFixture(diarizer: diarizer)
+        await fixture.start()
+        othersSecond(fixture)
+        fixture.provider.recognizer.finalOnFinish = heard(.others, 1.1, 1.9, "Zum Schluss.")
+        await fixture.hear(heard(.others, 0.0, 0.4, "Anfang."))
+        fixture.controller.stop()
+        await fixture.controller.waitUntilSettled()
+        #expect(diarizer.finished)
+        #expect(fixture.controller.transcript.entries.map(\.label) == ["Speaker 1", "Speaker 2"])
+
+        let late = DiarizerFake()
+        let discarded = MeetingFixture(diarizer: late)
+        await discarded.start()
+        othersSecond(discarded)
+        discarded.controller.discard()
+        await discarded.controller.waitUntilSettled()
+        #expect(discarded.controller.transcript.voiceSpans.isEmpty)
+        #expect(!discarded.controller.tellsVoicesApart)
+    }
+
+    @Test
+    func namesAndMergesReachTheExportAndCountAsUnsaved() async {
+        let diarizer = DiarizerFake()
+        let fixture = MeetingFixture(diarizer: diarizer)
+        await fixture.start()
+        othersSecond(fixture)
+        await fixture.controller.waitUntilSettled()
+        diarizer.voice = 1
+        othersSecond(fixture)
+        await fixture.hear(heard(.others, 0.1, 0.9, "Eins."))
+        await fixture.hear(heard(.others, 1.1, 1.9, "Zwei."))
+        fixture.controller.stop()
+        await fixture.controller.waitUntilSettled()
+        fixture.controller.copy()
+        #expect(!fixture.controller.hasUnsavedText)
+        fixture.controller.renameVoice(0, to: "Anna")
+        #expect(fixture.controller.hasUnsavedText)
+        #expect(fixture.controller.export.turns.map(\.speaker) == ["Anna", "Speaker 2"])
+        fixture.controller.mergeVoice(1, into: 0)
+        #expect(fixture.controller.export.turns.map(\.text) == ["Eins. Zwei."])
+        #expect(fixture.controller.transcript.voices.map(\.label) == ["Anna"])
+    }
+
+    @Test
+    func aFailingDiarizerLeavesTheTranscriptRunning() async {
+        let diarizer = DiarizerFake()
+        diarizer.failure = MeetingError("model gone")
+        let fixture = MeetingFixture(diarizer: diarizer)
+        await fixture.start()
+        othersSecond(fixture)
+        await fixture.controller.waitUntilSettled()
+        #expect(fixture.controller.phase == .live)
+        #expect(!fixture.controller.tellsVoicesApart)
+        #expect(fixture.controller.notice?.contains("model gone") == true)
+        await fixture.hear(heard(.others, 0.1, 0.9, "Weiter."))
+        #expect(fixture.controller.transcript.entries.map(\.label) == ["Others"])
+    }
+}
+
 private final class MeetingHotkeyFake: HotkeyManaging {
     var onPress: (() -> Void)?
     func register(_ shortcut: HotkeyShortcut) -> HotkeyRegistration { .registered }
@@ -929,7 +1285,8 @@ struct MeetingPreviewTests {
         guard let path = ProcessInfo.processInfo.environment["OSR_MEETING_PREVIEW_DIR"] else { return }
         let directory = URL(fileURLWithPath: path)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let fixture = MeetingFixture()
+        let diarizer = DiarizerFake()
+        let fixture = MeetingFixture(diarizer: diarizer)
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 560),
                               styleMask: [.titled], backing: .buffered, defer: false)
         let host = NSHostingView(rootView: MeetingView(controller: fixture.controller)
@@ -959,6 +1316,14 @@ struct MeetingPreviewTests {
         try await capture("2-consent")
         fixture.controller.confirmConsent()
         await fixture.controller.waitUntilSettled()
+        // Two voices among the others, the first one second by second until 5 s.
+        let voiceSecond = MeetingAudioChunk(samples: [Float](repeating: 0.05, count: 8_000), sampleRate: 8_000,
+                                            hostTime: fixture.clock.ticks)
+        for second in 0..<11 {
+            diarizer.voice = second < 5 ? 0 : 1
+            fixture.system.deliver?(voiceSecond)
+            await fixture.controller.waitUntilSettled()
+        }
         await fixture.hear(heard(.others, 1, 4, "Guten Morgen zusammen, kurzer Stand zum Projekt."))
         await fixture.hear(heard(.me, 5, 7, "Die Tests laufen alle grün."))
         await fixture.hear(heard(.others, 8, 10, "Dann plane ich den ersten Prototypen", final: false))
@@ -971,8 +1336,12 @@ struct MeetingPreviewTests {
         fixture.controller.stop()
         await fixture.controller.waitUntilSettled()
         try await capture("4-finished")
-        try fixture.controller.transcript.exportText(title: "Meeting transcript")
-            .write(to: directory.appendingPathComponent("5-export.md"), atomically: true, encoding: .utf8)
+        fixture.controller.renameVoice(0, to: "Anna")
+        try await capture("4b-named")
+        for format in MeetingExportFormat.allCases {
+            try fixture.controller.export.data(as: format)
+                .write(to: directory.appendingPathComponent(format.fileName(base: "5-export")))
+        }
         // The four menu bar states side by side, as template images on light and dark bars.
         for (suffix, background) in [("light", NSColor(white: 0.93, alpha: 1)), ("dark", NSColor(white: 0.16, alpha: 1))] {
             let strip = NSImage(size: NSSize(width: 4 * 30 + 10, height: 30), flipped: false) { rect in
@@ -995,5 +1364,36 @@ struct MeetingPreviewTests {
             let png = try #require(rep.representation(using: .png, properties: [:]))
             try png.write(to: directory.appendingPathComponent("6-menubar-\(suffix).png"))
         }
+    }
+}
+
+/// Knows who spoke when and reports it as audio arrives, in its own clock, like a
+/// live diarizer would; it stands in for the model in end-to-end tests.
+private final class TruthDiarizer: MeetingVoiceDiarizing, @unchecked Sendable {
+    private let truth: [MeetingVoiceSpan]
+    private var fed: TimeInterval = 0
+    init(_ truth: [MeetingVoiceSpan]) { self.truth = truth }
+
+    func append(_ samples: [Float], sampleRate: Double) throws -> [MeetingVoiceSpan] {
+        let (from, to) = (fed, fed + Double(samples.count) / sampleRate)
+        fed = to
+        return truth.compactMap { span in
+            let start = max(span.start, from), end = min(span.end, to)
+            return end > start ? MeetingVoiceSpan(voice: span.voice, start: start, end: end) : nil
+        }
+    }
+
+    func finish() throws -> [MeetingVoiceSpan] { [] }
+}
+
+/// Writes saved exports as PDF into the temporary directory, as the panel would.
+@MainActor
+private final class SavedFiles {
+    var urls: [URL] = []
+    func write(_ export: MeetingExport, _ name: String) -> Bool {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(MeetingExportFormat.pdf.fileName(base: "\(name)-\(UUID())"))
+        guard (try? export.data(as: .pdf).write(to: url)) != nil else { return false }
+        urls.append(url)
+        return true
     }
 }

@@ -215,3 +215,21 @@ Reviewed against the Apple design skill and the [Saywing brand system](brand-ide
 - “Me” is shown in petrol, “Others” in the primary color; the label says which is which, and color is never the only distinguishing feature. Warnings color only their symbol (as in setup and Settings).
 - Deliberate deviation from the dictation capsule: the window shows “Recording” with a red recording symbol and the duration. The rule “no text, no timer” applies to the small capsule at the cursor; a transcript of up to two hours that hears other people needs a visible state and the time remaining until the limit.
 - Menu bar: the ring as a fourth shape next to the dot and triangle, with the same size, position and inset.
+
+### Voices and PDF — 2026-10-18
+
+Project decision ([ADR 0008](decisions/0008-meeting-speakers-and-pdf.md)).
+
+- **Voices:**
+  - When Saywing tells the others' voices apart, their turns are labelled "Speaker 1", "Speaker 2" and so on ("Person 1", "Person 2" in German), numbered in the order of their first words.
+  - A calm color mark precedes the label. The color only helps scanning; the label says who is speaking.
+  - Clicking the label opens "Rename…" (a dialog with a name field) and "Same Person As ▸" (merge, when one person was heard as two voices).
+  - Names apply immediately to every turn and to the export. A change counts as unsaved.
+  - Without a model or after an error, the turns stay "Others"; an error during recording is mentioned once in the footer.
+- **Saving:**
+  - The save dialog has a "Format:" menu with PDF (preselected), Markdown and plain text. Switching changes the file extension in the name field.
+  - Nothing is remembered between two saves.
+- **PDF:**
+  - A4, title, duration and participants, the note "Transcribed on this Mac with Saywing", name and time for each turn, page numbers "1 / 3".
+  - Fixed colors (black, gray) regardless of the Mac's appearance.
+  - Tagged for screen readers.

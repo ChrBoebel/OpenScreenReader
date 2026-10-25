@@ -13,8 +13,9 @@ protocol MeetingRecognizing: AnyObject, Sendable {
   func cancel() async
 }
 
-/// Routes chunks from both sources: onto one timeline, into the recogniser, and,
-/// resampled to 8 kHz on its own queue, into the echo gate. It keeps only levels and
+/// Routes chunks from both sources: onto one timeline, into the recogniser, the
+/// others' also into the voice tracker, and, resampled to 8 kHz on its own queue,
+/// into the echo gate. It keeps only levels and
 /// timestamps for the live window; audio is passed on and dropped.
 final class MeetingAudioRouter: @unchecked Sendable {
   struct State: Sendable {
@@ -28,6 +29,7 @@ final class MeetingAudioRouter: @unchecked Sendable {
 
   private let startHostTime: UInt64
   private let recognizer: any MeetingRecognizing
+  private let voices: MeetingVoiceTracker?
   private let onEcho: @Sendable ([ClosedRange<TimeInterval>]) -> Void
   private let lock = NSLock()
   private var timelines: [MeetingSpeaker: MeetingTimeline] = [:]
@@ -39,11 +41,12 @@ final class MeetingAudioRouter: @unchecked Sendable {
   private let gateFormat = AVAudioFormat(standardFormatWithSampleRate: 8_000, channels: 1)!
 
   init(
-    startHostTime: UInt64, recognizer: any MeetingRecognizing,
+    startHostTime: UInt64, recognizer: any MeetingRecognizing, voices: MeetingVoiceTracker? = nil,
     onEcho: @escaping @Sendable ([ClosedRange<TimeInterval>]) -> Void
   ) {
     self.startHostTime = startHostTime
     self.recognizer = recognizer
+    self.voices = voices
     self.onEcho = onEcho
   }
 
@@ -67,6 +70,7 @@ final class MeetingAudioRouter: @unchecked Sendable {
     }
     guard let time else { return }
     recognizer.append(chunk, at: time, speaker: speaker)
+    if speaker == .others { voices?.append(chunk, at: time) }
     gateQueue.async { [self] in
       guard let samples = resample(chunk, for: speaker) else { return }
       let spans = gate.append(samples, at: time, track: speaker)

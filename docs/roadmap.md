@@ -8,7 +8,7 @@
 - Live speed (0.75–2×), a bounded queue fed by repeating the shortcut, pause/resume and on-demand capsule controls.
 - Guided first-use setup with a real reading test.
 - Local dictation: Whisper Turbo by default with an optional vocabulary; Qwen3-ASR selectable.
-- Local meeting transcript with a consent step and a RAM-only transcript.
+- Local meeting transcript with a consent step, a RAM-only transcript and PDF, Markdown or plain-text export.
 
 **Next — open gates before a first public release**
 
@@ -24,7 +24,8 @@
 
 - Repeated capture of the previous region, automatic language switching, sentence or word highlighting and custom pronunciation rules.
 - Additional local providers (if justified by listening tests) and an optional plugin interface for them.
-- Meeting transcript extensions such as Whisper refinement, summaries, speaker diarisation and macOS 14–15 support.
+- Telling the others' voices apart in meeting transcripts, once the diarizer runtime is decided ([ADR 0008](decisions/0008-meeting-speakers-and-pdf.md)).
+- Meeting transcript extensions such as Whisper refinement, summaries and macOS 14–15 support.
 - Homebrew Cask.
 
 ## Brand and product direction — 2026-10-14
@@ -38,7 +39,9 @@
 - [ ] Complete dictation target-app matrix, real microphone/Hotkey walkthrough in the integrated bundle, clean-Mac packaging and distribution gates.
 - [x] Local meeting transcript (2026-10-15, [ADR 0006](decisions/0006-local-meeting-transcript.md)): system audio tap + microphone, on-device `SpeechTranscriber`, echo gate, consent step, RAM-only transcript with explicit copy/save.
 - [ ] Meeting transcript gates: real call over speakers and headphones on the signed build, permission prompt, echo duplicates, word errors on real speech, 60-minute CPU/memory, no files written.
-- [ ] Meeting transcript candidates, each needing its own decision: Whisper refinement with the vocabulary, summaries, speaker diarisation, meeting detection, mixed-language meetings, macOS 14–15 support.
+- [x] Meeting speakers and PDF export (project decision 2026-10-18, [ADR 0008](decisions/0008-meeting-speakers-and-pdf.md)): voices of the others told apart and nameable, tagged PDF/Markdown/text export.
+- [ ] Meeting speakers runtime: FluidAudio `LSEENDDiarizer` adapter after the build decision; variant chosen on recorded calls; gates of ADR 0008.
+- [ ] Meeting transcript candidates, each needing its own decision: Whisper refinement with the vocabulary, summaries, meeting detection, mixed-language meetings, macOS 14–15 support.
 
 ## Current delivery — 2026-09-09
 

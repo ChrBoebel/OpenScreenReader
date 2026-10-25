@@ -209,6 +209,9 @@ private struct MeetingTranscriptView: View {
   /// Follows new text only while the user is at the bottom; scrolling up to
   /// reread stops it, and "Latest" brings it back.
   @State private var following = true
+  /// The voice whose name is being edited, and the name typed so far.
+  @State private var renaming: MeetingVoice?
+  @State private var newName = ""
 
   var body: some View {
     VStack(spacing: 0) {
@@ -225,6 +228,18 @@ private struct MeetingTranscriptView: View {
       footer
     }
     .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 1), value: controller.systemAudioMissing)
+    .alert(
+      "Name This Voice",
+      isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } }),
+      presenting: renaming
+    ) { voice in
+      TextField("Name", text: $newName)
+      Button("Rename") { controller.renameVoice(voice.voice, to: newName) }
+        .keyboardShortcut(.defaultAction)
+      Button("Cancel", role: .cancel) {}
+    } message: { _ in
+      Text("The name is used in every turn of this voice and in the export. It is kept only with this transcript.")
+    }
     .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 1), value: controller.microphoneMissing)
   }
 
@@ -295,7 +310,13 @@ private struct MeetingTranscriptView: View {
               .padding(.top, 48)
           }
           ForEach(controller.transcript.entries) { entry in
-            MeetingTurn(entry: entry)
+            MeetingTurn(
+              entry: entry, voices: controller.transcript.voices,
+              rename: { voice in
+                newName = voice.label
+                renaming = voice
+              },
+              merge: { controller.mergeVoice($0.voice, into: $1.voice) })
               .id(entry.id)
               .transition(reduceMotion ? .identity : .opacity)
           }
@@ -382,15 +403,22 @@ private struct FollowsBottom: ViewModifier {
 
 private struct MeetingTurn: View {
   let entry: MeetingTranscriptEntry
+  let voices: [MeetingVoice]
+  let rename: (MeetingVoice) -> Void
+  let merge: (MeetingVoice, MeetingVoice) -> Void
 
   var body: some View {
     VStack(alignment: .leading, spacing: 4) {
       HStack(spacing: 6) {
-        // "Me" carries the Petrol accent so your own turns stand out while scanning;
-        // the label says it, so colour is never the only cue.
-        Text(entry.speaker.label)
-          .font(.subheadline.weight(.semibold))
-          .foregroundStyle(entry.speaker == .me ? Color("AccentColor") : Color.primary)
+        if let voice = entry.voice {
+          voiceLabel(MeetingVoice(voice: voice, label: entry.label))
+        } else {
+          // "Me" carries the Petrol accent so your own turns stand out while scanning;
+          // the label says it, so colour is never the only cue.
+          Text(entry.label)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(entry.speaker == .me ? Color("AccentColor") : Color.primary)
+        }
         Text(MeetingClock.timestamp(entry.start))
           .font(.caption.monospacedDigit())
           .foregroundStyle(.secondary)
@@ -402,8 +430,54 @@ private struct MeetingTurn: View {
         .fixedSize(horizontal: false, vertical: true)
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .accessibilityElement(children: .combine)
+    .accessibilityElement(children: .contain)
   }
+
+  /// One of the others: a coloured mark for scanning, the name or number for
+  /// meaning, and a menu to name the voice or join it with another.
+  private func voiceLabel(_ voice: MeetingVoice) -> some View {
+    Menu {
+      Button("Rename…") { rename(voice) }
+      let others = voices.filter { $0.voice != voice.voice }
+      if !others.isEmpty {
+        Menu("Same Person As") {
+          ForEach(others) { target in
+            Button(target.label) { merge(voice, target) }
+          }
+        }
+      }
+    } label: {
+      HStack(spacing: 5) {
+        Circle()
+          .fill(MeetingVoicePalette.color(for: voice.voice))
+          .frame(width: 8, height: 8)
+          .accessibilityHidden(true)
+        Text(voice.label)
+          .font(.subheadline.weight(.semibold))
+          .foregroundStyle(Color.primary)
+        Image(systemName: "chevron.down")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .accessibilityHidden(true)
+      }
+      .contentShape(Rectangle())
+    }
+    .menuStyle(.button)
+    .buttonStyle(.plain)
+    .menuIndicator(.hidden)
+    .fixedSize()
+    .help(String(localized: "Name this voice or join it with another"))
+    .accessibilityLabel(voice.label)
+    .accessibilityHint(Text("Name this voice or join it with another"))
+  }
+}
+
+/// Distinct, calm system colours for up to six voices; they repeat after that,
+/// which is fine because the label, not the colour, says who it is.
+enum MeetingVoicePalette {
+  private static let colors: [Color] = [.blue, .orange, .purple, .pink, .teal, .brown]
+
+  static func color(for voice: Int) -> Color { colors[abs(voice) % colors.count] }
 }
 
 /// Five bars in the capsules' geometry (2.5 pt wide, 3 pt apart) per track, in the

@@ -36,6 +36,8 @@ final class MeetingController: ObservableObject {
   /// No non-zero sample from the microphone yet: a muted, wrong or blocked input.
   @Published private(set) var microphoneMissing = false
   @Published private(set) var hasUnsavedText = false
+  /// The others' voices are being told apart in this transcript.
+  @Published private(set) var tellsVoicesApart = false
   private(set) var startedAt: Date?
 
   var isRecording: Bool { phase == .starting || phase == .live || phase == .stopping }
@@ -48,12 +50,13 @@ final class MeetingController: ObservableObject {
   private let provider: any MeetingRecognizerProviding
   private let makeMicrophone: @MainActor () -> any MeetingAudioSource
   private let makeSystemAudio: @MainActor () -> (any MeetingAudioSource)?
+  private let makeVoiceDiarizer: @Sendable () async -> (any MeetingVoiceDiarizing)?
   private let language: @MainActor () -> DictationLanguage
   private let interfaceSounds: (any InterfaceSoundPlaying)?
   private let hostClock: () -> UInt64
   private let limits: Limits
   private let pasteboard: NSPasteboard
-  private let saveText: @MainActor (String, String) -> Bool
+  private let saveExport: @MainActor (MeetingExport, String) -> Bool
   private let confirmLosingUnsaved: @MainActor (LossReason) -> Bool
   private let microphoneAccess: @MainActor () async -> Bool
 
@@ -64,6 +67,7 @@ final class MeetingController: ObservableObject {
   private var generation: UUID?
   private var recognizer: (any MeetingRecognizing)?
   private var router: MeetingAudioRouter?
+  private var voices: MeetingVoiceTracker?
   private var microphone: (any MeetingAudioSource)?
   private var system: (any MeetingAudioSource)?
   private var startHost: UInt64 = 0
@@ -79,6 +83,7 @@ final class MeetingController: ObservableObject {
     makeSystemAudio: @escaping @MainActor () -> (any MeetingAudioSource)? = {
       if #available(macOS 14.2, *) { SystemAudioTapSource() } else { nil }
     },
+    makeVoiceDiarizer: @escaping @Sendable () async -> (any MeetingVoiceDiarizing)? = { nil },
     language: @escaping @MainActor () -> DictationLanguage = {
       DictationLanguage(rawValue: UserDefaults.standard.integer(forKey: "dictationLanguage.v1")) ?? .automatic
     },
@@ -88,7 +93,7 @@ final class MeetingController: ObservableObject {
     pasteboard: NSPasteboard = .general,
     notifications: NotificationCenter = NSWorkspace.shared.notificationCenter,
     appNotifications: NotificationCenter = .default,
-    save: @escaping @MainActor (String, String) -> Bool = MeetingController.saveWithPanel,
+    save: @escaping @MainActor (MeetingExport, String) -> Bool = MeetingController.saveWithPanel,
     confirmLosingUnsaved: @escaping @MainActor (LossReason) -> Bool = MeetingController.confirmWithAlert,
     microphoneAccess: @escaping @MainActor () async -> Bool = MeetingController.requestMicrophoneAccess,
     presentsWindow: Bool = true
@@ -97,12 +102,13 @@ final class MeetingController: ObservableObject {
     self.provider = provider
     self.makeMicrophone = makeMicrophone
     self.makeSystemAudio = makeSystemAudio
+    self.makeVoiceDiarizer = makeVoiceDiarizer
     self.language = language
     self.interfaceSounds = interfaceSounds
     self.hostClock = hostClock
     self.limits = limits
     self.pasteboard = pasteboard
-    self.saveText = save
+    self.saveExport = save
     self.confirmLosingUnsaved = confirmLosingUnsaved
     self.presentsWindow = presentsWindow
     for name in [NSWorkspace.willSleepNotification, NSWorkspace.sessionDidResignActiveNotification] {
@@ -182,8 +188,22 @@ final class MeetingController: ObservableObject {
       await recognizer.cancel()
       return
     }
+    // Loading the voice model may take a moment; it happens off the main thread
+    // and a missing model only means the others stay one speaker.
+    let diarizer = await makeVoiceDiarizer()
+    guard gate.accepts(id), phase == .starting else {
+      await recognizer.cancel()
+      return
+    }
+    if let diarizer {
+      voices = MeetingVoiceTracker(
+        diarizer: diarizer,
+        onVoices: { [weak self] spans in Task { @MainActor in self?.addVoices(spans, id) } },
+        onFailure: { [weak self] message in Task { @MainActor in self?.voicesFailed(message, id) } })
+      tellsVoicesApart = true
+    }
     startHost = hostClock()
-    let router = MeetingAudioRouter(startHostTime: startHost, recognizer: recognizer) { [weak self] spans in
+    let router = MeetingAudioRouter(startHostTime: startHost, recognizer: recognizer, voices: voices) { [weak self] spans in
       Task { @MainActor in self?.addEcho(spans, id) }
     }
     self.router = router
@@ -230,10 +250,12 @@ final class MeetingController: ObservableObject {
     stopSources()
     if wasLive { interfaceSounds?.play(.captured) }
     let recognizer = recognizer
+    let voices = voices
     let previous = lifecycle
     lifecycle = Task { [weak self] in
       await previous?.value
       await recognizer?.finish()
+      if let voices { await Task.detached { voices.finish() }.value }
       self?.router?.drain()
       guard let self, self.gate.accepts(id) else { return }
       self.recognizer = nil
@@ -254,6 +276,7 @@ final class MeetingController: ObservableObject {
     gate.cancel()
     generation = nil
     stopSources()
+    voices?.cancel()
     let recognizer = recognizer
     self.recognizer = nil
     let previous = lifecycle
@@ -271,6 +294,7 @@ final class MeetingController: ObservableObject {
   func shutdown() {
     gate.cancel()
     stopSources()
+    voices?.cancel()
     if let recognizer { Task { await recognizer.cancel() } }
     recognizer = nil
   }
@@ -279,16 +303,28 @@ final class MeetingController: ObservableObject {
   @discardableResult func copy() -> Bool {
     guard !transcript.isEmpty else { return false }
     pasteboard.clearContents()
-    pasteboard.setString(transcript.exportText(title: title), forType: .string)
+    pasteboard.setString(export.markdown, forType: .string)
     hasUnsavedText = false
     return true
   }
 
   /// Returns whether the file was written; a cancelled panel is not a save.
   @discardableResult func save() -> Bool {
-    guard !transcript.isEmpty, saveText(transcript.exportText(title: title), fileName) else { return false }
+    guard !transcript.isEmpty, saveExport(export, fileName) else { return false }
     hasUnsavedText = false
     return true
+  }
+
+  /// Names one of the others' voices; names live only with this transcript.
+  func renameVoice(_ voice: Int, to name: String) {
+    transcript.rename(voice: voice, to: name)
+    if !transcript.isEmpty { hasUnsavedText = true }
+  }
+
+  /// Joins two voices the diarizer split from one person.
+  func mergeVoice(_ voice: Int, into target: Int) {
+    transcript.merge(voice: voice, into: target)
+    if !transcript.isEmpty { hasUnsavedText = true }
   }
 
   /// Copies the chat notice only because the user asked for it.
@@ -300,6 +336,7 @@ final class MeetingController: ObservableObject {
   /// For tests: waits for start/stop work and the main-actor hops of results.
   func waitUntilSettled() async {
     await lifecycle?.value
+    voices?.drain()
     for _ in 0..<20 { await Task.yield() }
     await lifecycle?.value
   }
@@ -337,6 +374,18 @@ final class MeetingController: ObservableObject {
     spans.forEach { transcript.addEcho($0) }
   }
 
+  private func addVoices(_ spans: [MeetingVoiceSpan], _ id: UUID) {
+    guard gate.accepts(id) else { return }
+    spans.forEach { transcript.addVoice($0) }
+  }
+
+  /// The transcript goes on; only telling the others apart stops.
+  private func voicesFailed(_ message: String, _ id: UUID) {
+    guard gate.accepts(id) else { return }
+    tellsVoicesApart = false
+    notice = String(localized: "Voices are no longer told apart: \(message)")
+  }
+
   /// The microphone stopped by itself (an input change it could not follow).
   private func microphoneInterrupted(_ reason: String, _ id: UUID) {
     guard gate.accepts(id), phase == .live || phase == .starting else { return }
@@ -358,6 +407,7 @@ final class MeetingController: ObservableObject {
   private func fail(_ id: UUID, _ message: String) {
     guard gate.accepts(id) else { return }
     stopSources()
+    voices?.cancel()
     let recognizer = recognizer
     self.recognizer = nil
     Task { await recognizer?.cancel() }
@@ -385,6 +435,8 @@ final class MeetingController: ObservableObject {
     microphoneMissing = false
     startedAt = nil
     router = nil
+    voices = nil
+    tellsVoicesApart = false
   }
 
   private var isUnavailable: Bool {
@@ -399,9 +451,13 @@ final class MeetingController: ObservableObject {
     return String(localized: "Meeting transcript, \(date)")
   }
 
+  /// The transcript as Copy and Save hand it on.
+  var export: MeetingExport { MeetingExport(transcript: transcript, title: title, duration: elapsed) }
+
+  /// Without an extension: the save panel adds the one of the chosen format.
   private var fileName: String {
     let date = (startedAt ?? Date()).formatted(.iso8601.year().month().day())
-    return String(localized: "Meeting transcript \(date).md")
+    return String(localized: "Meeting transcript \(date)")
   }
 
   /// Asks only when macOS has not decided yet; the user just started a transcript.
@@ -413,14 +469,17 @@ final class MeetingController: ObservableObject {
     }
   }
 
-  static func saveWithPanel(_ text: String, _ name: String) -> Bool {
+  /// The system save panel with a format menu, PDF first. Nothing is remembered
+  /// between saves: the transcript adds no preference keys.
+  static func saveWithPanel(_ export: MeetingExport, _ name: String) -> Bool {
     let panel = NSSavePanel()
-    panel.nameFieldStringValue = name
-    panel.allowedContentTypes = [.init(filenameExtension: "md") ?? .plainText]
+    let chooser = MeetingFormatChooser(panel: panel, baseName: name)
+    panel.accessoryView = chooser.view
     panel.canCreateDirectories = true
+    panel.isExtensionHidden = false
     guard panel.runModal() == .OK, let url = panel.url else { return false }
     do {
-      try text.write(to: url, atomically: true, encoding: .utf8)
+      try export.data(as: chooser.format).write(to: url, options: .atomic)
       return true
     } catch {
       NSAlert(error: error).runModal()
@@ -463,5 +522,45 @@ final class MeetingController: ObservableObject {
     }
     NSApp.activate(ignoringOtherApps: true)
     window?.makeKeyAndOrderFront(nil)
+  }
+}
+
+/// The "Format" menu below the save panel; switching it changes the file type and
+/// the extension of the name being typed.
+@MainActor
+final class MeetingFormatChooser: NSObject {
+  private weak var panel: NSSavePanel?
+  private let popup = NSPopUpButton(frame: .zero, pullsDown: false)
+  let view: NSView
+  private(set) var format: MeetingExportFormat = .pdf
+
+  init(panel: NSSavePanel, baseName: String) {
+    self.panel = panel
+    let label = NSTextField(labelWithString: String(localized: "Format:"))
+    let stack = NSStackView(views: [label, popup])
+    stack.edgeInsets = NSEdgeInsets(top: 10, left: 20, bottom: 10, right: 20)
+    view = stack
+    super.init()
+    popup.addItems(withTitles: MeetingExportFormat.allCases.map(\.title))
+    popup.target = self
+    popup.action = #selector(changed)
+    popup.setAccessibilityLabel(String(localized: "Format"))
+    panel.allowedContentTypes = [format.contentType]
+    panel.nameFieldStringValue = format.fileName(base: baseName)
+  }
+
+  /// What choosing an entry in the menu does; also used by tests.
+  func select(_ format: MeetingExportFormat) {
+    guard let panel, let index = MeetingExportFormat.allCases.firstIndex(of: format) else { return }
+    popup.selectItem(at: index)
+    self.format = format
+    let base = (panel.nameFieldStringValue as NSString).deletingPathExtension
+    panel.allowedContentTypes = [format.contentType]
+    panel.nameFieldStringValue = format.fileName(base: base)
+  }
+
+  @objc private func changed() {
+    guard MeetingExportFormat.allCases.indices.contains(popup.indexOfSelectedItem) else { return }
+    select(MeetingExportFormat.allCases[popup.indexOfSelectedItem])
   }
 }
