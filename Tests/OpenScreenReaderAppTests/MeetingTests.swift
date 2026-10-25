@@ -366,7 +366,10 @@ struct RoomEchoTests {
     }
 
     /// Calibration: real speech of two different people never correlates like an
-    /// echo, even the same text in two voices at the same time.
+    /// echo, even the same text in two voices at the same time. The bound is the
+    /// gate's own score floor, from both sides: the synthetic voices vary between
+    /// macOS images (CI measured 0.081 and 0.102 for the same text), so a fixed
+    /// margin below the floor made the test flaky without testing the decision.
     @Test
     func unrelatedRealSpeechStaysFarBelowEchoScores() throws {
         guard let others = try spoken(Self.others, voice: "Anna"),
@@ -376,7 +379,9 @@ struct RoomEchoTests {
         let echo = scores(EchoGate(), system: others, mic: roomEcho(others, delay: 0.05, gain: 0.03, reverb: 0.6))
         let sortedEcho = echo.sorted()
         print("calibration unrelated max \(unrelated.max() ?? 0), echo median \(sortedEcho[sortedEcho.count / 2]) min \(sortedEcho.first ?? 0)")
-        #expect((unrelated.max() ?? 0) < 0.1)
+        let floor = EchoGate.Configuration().scoreFloor
+        #expect((unrelated.max() ?? 0) < floor)
+        #expect((sortedEcho.first ?? 0) > floor)
     }
 
     /// A quiet, reverberant echo is still found while I talk over it now and then.
