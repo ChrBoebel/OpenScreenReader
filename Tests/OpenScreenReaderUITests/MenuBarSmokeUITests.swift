@@ -1,4 +1,5 @@
 import AppKit
+import CryptoKit
 import XCTest
 
 final class MenuBarSmokeUITests: XCTestCase {
@@ -579,8 +580,20 @@ final class MenuBarSmokeUITests: XCTestCase {
         // Assertions use the English source strings; the German catalog has its own checks.
         app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         addTeardownBlock { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
+        // Reading needs the accepted Supertonic 3 model terms; these tests exercise reading.
+        UserDefaults(suiteName: suite)?.set(Self.acceptedModelTermsSHA256, forKey: "supertonicTermsAccepted.v1")
         return app
     }
+
+    /// SHA-256 of the terms followed by the license, exactly as the app bundles and hashes them.
+    private static let acceptedModelTermsSHA256: String? = {
+        let licenses = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .appendingPathComponent("../../docs/licenses").standardizedFileURL
+        guard let terms = try? String(contentsOf: licenses.appendingPathComponent("SUPERTONIC-MODEL-TERMS.md"), encoding: .utf8),
+              let license = try? String(contentsOf: licenses.appendingPathComponent("Supertonic-3-Open-RAIL-M.txt"), encoding: .utf8)
+        else { return nil }
+        return SHA256.hash(data: Data((terms + "\n\n" + license).utf8)).map { String(format: "%02x", $0) }.joined()
+    }()
 
     @MainActor
     func testGlobalHotkeyKeepsExistingSelectionAndEscapeCancels() {

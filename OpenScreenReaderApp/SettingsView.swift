@@ -365,6 +365,7 @@ struct SettingsView: View {
                 LabeledContent("Voice", value: String(localized: "Machine-generated voice M1"))
                 LabeledContent("License", value: "BigScience Open RAIL-M")
                 ModelTermsNotice()
+                ModelTermsAcceptanceToggle(model: model)
                 LabeledContent("Runtime", value: LocalSpeechService.installationSummary)
             }
         }
@@ -543,6 +544,13 @@ struct ReadingErrorView: View {
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
                     .accessibilityHint(Text("\(permission.systemName) is not allowed"))
+                case .acceptModelTerms:
+                    Button("Review Model Terms…") {
+                        model.closeErrorHelp()
+                        model.showModelTerms()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
                 case .shortcut:
                     Button("Shortcut Settings…") {
                         model.closeErrorHelp()
@@ -611,6 +619,42 @@ struct ModelTermsNotice: View {
         }
         .sheet(isPresented: Binding(get: { termsDocument != nil }, set: { if !$0 { termsDocument = nil } })) {
             ModelTermsSheet(text: termsDocument ?? "")
+        }
+    }
+}
+
+/// Shared by Setup and Settings: the explicit acceptance that Open RAIL-M §4(a) and §5
+/// require before Supertonic 3 reads aloud. The state is always said in words.
+struct ModelTermsAcceptanceToggle: View {
+    @ObservedObject var model: AppModel
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Toggle("I have read and accept the Supertonic 3 model terms.", isOn: Binding(
+                get: { model.modelTermsState == .accepted }, set: { model.setModelTermsAccepted($0) }))
+                .toggleStyle(.checkbox)
+                .disabled(model.modelTermsState == .unavailable)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("acceptSupertonicModelTerms")
+            Label { Text(note).fixedSize(horizontal: false, vertical: true) } icon: { Image(systemName: symbol) }
+                .font(.callout).foregroundStyle(.secondary)
+                .accessibilityIdentifier("supertonicModelTermsState")
+        }
+    }
+
+    private var note: String {
+        switch model.modelTermsState {
+        case .accepted: String(localized: "Accepted. Reading aloud is available. Uncheck to withdraw your acceptance; reading aloud then stops.")
+        case .notAccepted: String(localized: "Reading aloud starts only after you accept the model terms.")
+        case .changed: String(localized: "The model terms have changed since you accepted them. Read them and accept them again.")
+        case .unavailable: model.modelTermsMessage
+        }
+    }
+
+    private var symbol: String {
+        switch model.modelTermsState {
+        case .accepted: "checkmark.seal"
+        case .notAccepted, .changed: "info.circle"
+        case .unavailable: "exclamationmark.triangle"
         }
     }
 }

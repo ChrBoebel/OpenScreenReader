@@ -131,6 +131,16 @@
         }
       }
     },
+    "Accepted. Reading aloud is available. Uncheck to withdraw your acceptance; reading aloud then stops.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Akzeptiert. Vorlesen ist verfügbar. Entferne das Häkchen, um deine Zustimmung zu widerrufen; das Vorlesen stoppt dann."
+          }
+        }
+      }
+    },
     "Accessibility": {
       "localizations": {
         "de": {
@@ -1287,6 +1297,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Darüberfahren: Pause und Optionen · Ziehen: verschieben · Esc: alles stoppen"
+          }
+        }
+      }
+    },
+    "I have read and accept the Supertonic 3 model terms.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ich habe die Modellbedingungen für Supertonic 3 gelesen und akzeptiere sie."
           }
         }
       }
@@ -2491,6 +2511,16 @@
         }
       }
     },
+    "Reading aloud starts only after you accept the model terms.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorlesen startet erst, wenn du die Modellbedingungen akzeptierst."
+          }
+        }
+      }
+    },
     "Reading aloud. Press Escape to stop.": {
       "localizations": {
         "de": {
@@ -2881,6 +2911,16 @@
         }
       }
     },
+    "Review Model Terms…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modellbedingungen ansehen…"
+          }
+        }
+      }
+    },
     "Right": {
       "localizations": {
         "de": {
@@ -3067,6 +3107,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Saywing darf das Mikrofon nicht verwenden. Erlaube es in den Systemeinstellungen › Datenschutz & Sicherheit › Mikrofon und starte das Transkript dann erneut."
+          }
+        }
+      }
+    },
+    "Saywing reads aloud only after you accept the Supertonic 3 model terms. Nothing was captured.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saywing liest erst vor, wenn du die Modellbedingungen für Supertonic 3 akzeptierst. Es wurde nichts erfasst."
           }
         }
       }
@@ -3831,6 +3881,26 @@
         }
       }
     },
+    "The Supertonic 3 model terms are missing from this copy of Saywing, so reading aloud is unavailable. Reinstall Saywing to restore them.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In dieser Saywing-Installation fehlen die Modellbedingungen für Supertonic 3, deshalb ist Vorlesen nicht verfügbar. Installiere Saywing erneut, um sie wiederherzustellen."
+          }
+        }
+      }
+    },
+    "The Supertonic 3 model terms have changed. Accept them again to read aloud. Nothing was captured.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Modellbedingungen für Supertonic 3 haben sich geändert. Akzeptiere sie erneut, damit Saywing vorlesen kann. Es wurde nichts erfasst."
+          }
+        }
+      }
+    },
     "The additional capture or text recognition timed out.": {
       "localizations": {
         "de": {
@@ -4157,6 +4227,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Modell oder lokale Laufzeit konnte nicht geladen werden."
+          }
+        }
+      }
+    },
+    "The model terms have changed since you accepted them. Read them and accept them again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Modellbedingungen haben sich seit deiner Zustimmung geändert. Lies sie und akzeptiere sie erneut."
           }
         }
       }

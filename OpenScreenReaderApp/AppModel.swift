@@ -130,10 +130,11 @@ final class AppModel: ObservableObject {
 
     /// What the question mark offers after a failure: the reason and a retry in
     /// place, or the setup step when a grant is what is missing.
-    enum ErrorHelp: Equatable { case retry, allow(SaywingPermission), shortcut }
+    enum ErrorHelp: Equatable { case retry, allow(SaywingPermission), acceptModelTerms, shortcut }
     var errorHelp: ErrorHelp {
         if let missing = missingReadingPermission() { return .allow(missing) }
-        return hotkeyRegistration == .registered ? .retry : .shortcut
+        guard hotkeyRegistration == .registered else { return .shortcut }
+        return modelTermsState == .accepted ? .retry : .acceptModelTerms
     }
     /// Settings opens on this tab next time, e.g. Shortcuts from a shortcut conflict.
     @Published var requestedSettingsTab: SettingsTab?
@@ -192,6 +193,7 @@ final class AppModel: ObservableObject {
 
     /// Each opening starts from the live grants, so it lands on what is still missing.
     func showSetup(entry: SetupEntry = .automatic) {
+        if entry == .modelTerms { setupFlow?.showModelTerms() }
         if setupWindow == nil {
             let window = NSWindow(contentRect: NSRect(origin: .zero, size: SetupView.size),
                                   styleMask: [.titled, .closable, .fullSizeContentView], backing: .buffered, defer: false)
@@ -233,6 +235,11 @@ final class AppModel: ObservableObject {
         }
 
     @Published private(set) var status: AppStatus = .ready
+    /// Reading aloud with Supertonic 3 needs this to be `.accepted`; dictation and meetings do not.
+    @Published private(set) var modelTermsState: ModelTermsAcceptance.State
+    private let modelTerms: ModelTermsAcceptance
+    /// The explanation shown when reading was refused for the terms; accepting clears it.
+    private var modelTermsError: String?
     @Published private(set) var hotkeyRegistration: HotkeyRegistration = .inactive
     @Published private(set) var lastSelection: ScreenRegionSelection?
     @Published private(set) var lastCaptureSize: CGSize?
@@ -307,6 +314,7 @@ final class AppModel: ObservableObject {
     }
 
     init(
+        modelTerms: ModelTermsAcceptance = ModelTermsAcceptance(),
         shortcutStore: any ShortcutStoring = UserDefaultsShortcutStore(),
         pipelineCoordinator: PipelineCoordinator = PipelineCoordinator(),
         hotkeyManager: any HotkeyManaging = GlobalHotkeyManager(),
@@ -329,6 +337,8 @@ final class AppModel: ObservableObject {
         appNotifications: NotificationCenter = .default
     ) {
         self.appNotifications = appNotifications
+        self.modelTerms = modelTerms
+        self.modelTermsState = modelTerms.state
         self.dictation = dictation
         self.meeting = meeting
         self.missingReadingPermission = missingReadingPermission
@@ -400,6 +410,52 @@ final class AppModel: ObservableObject {
             && (activeContext == nil || status == .synthesizing || status == .speaking || status == .waiting)
     }
     var canSkipText: Bool { activeContext != nil && queuedTextCount > 0 }
+
+    /// Only an explicit choice in Setup or Settings changes the acceptance. Withdrawing
+    /// it stops reading at once; dictation and meeting transcripts are unaffected.
+    func setModelTermsAccepted(_ accepted: Bool) {
+        modelTermsState = modelTerms.setAccepted(accepted)
+        if modelTermsState == .accepted {
+            if status == .error, let modelTermsError, errorMessage == modelTermsError {
+                status = .ready
+                errorMessage = nil
+            }
+            modelTermsError = nil
+        } else if activeContext != nil {
+            enqueue { model in
+                guard !model.modelTerms.isAccepted, let context = model.activeContext else { return }
+                await model.cancel(context: context)
+            }
+        }
+    }
+
+    /// Opens Setup on the reading voice page, where the terms are shown and accepted.
+    func showModelTerms() { showSetup(entry: .modelTerms) }
+
+    /// The setup page currently shown, if Setup is open.
+    var setupStep: SetupStep? { setupFlow?.step }
+
+    var modelTermsMessage: String {
+        switch modelTermsState {
+        case .unavailable:
+            String(localized: "The Supertonic 3 model terms are missing from this copy of Saywing, so reading aloud is unavailable. Reinstall Saywing to restore them.")
+        case .changed:
+            String(localized: "The Supertonic 3 model terms have changed. Accept them again to read aloud. Nothing was captured.")
+        case .accepted, .notAccepted:
+            String(localized: "Saywing reads aloud only after you accept the Supertonic 3 model terms. Nothing was captured.")
+        }
+    }
+
+    /// Nothing is captured, recognized or spoken: the explanation appears in the menu
+    /// and Setup opens on the terms, as it does for a missing permission.
+    private func requireModelTerms() {
+        modelTermsState = modelTerms.state
+        status = .error
+        errorMessage = modelTermsMessage
+        modelTermsError = errorMessage
+        AccessibilityNotification.Announcement(modelTermsMessage).post()
+        showModelTerms()
+    }
 
     func setPlaybackRate(_ value: Double) {
         playbackRate = SpeechSpeed.validated(value)
@@ -587,6 +643,10 @@ final class AppModel: ObservableObject {
             showSetup()
             return
         }
+        guard modelTerms.isAccepted else {
+            requireModelTerms()
+            return
+        }
         sessionGeneration &+= 1
         queueNotice = nil
         switch await pipelineCoordinator.start() {
@@ -702,6 +762,11 @@ final class AppModel: ObservableObject {
         lastCaptureSize = size
         lastOCRSummary = OCRSummary(characterCount: result.characterCount, lineCount: result.lineCount)
         guard !result.text.isEmpty else { await finishSpeech(context: context); return }
+        // Withdrawn while this region was recognized: stop, as the withdrawal itself does.
+        guard modelTerms.isAccepted else {
+            await cancel(context: context)
+            return
+        }
         guard await pipelineCoordinator.accept(.synthesizing, for: context) else { return }
         status = .synthesizing
         showReadingPanel(.preparing, context: context)

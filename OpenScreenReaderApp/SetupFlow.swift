@@ -40,7 +40,8 @@ extension SetupStep {
     }
 }
 
-enum SetupEntry { case automatic, dictation }
+/// `modelTerms` opens on the reading voice page, where the Supertonic 3 terms are accepted.
+enum SetupEntry { case automatic, dictation, modelTerms }
 
 /// Navigation is reconciled with live grants; model and shortcut choices always remain explicit.
 struct SetupPlan {
@@ -134,7 +135,8 @@ final class SetupFlowController: ObservableObject {
         self.permissions = permissions
         let saved = model.preferences.dictionary(forKey: Self.checkpointKey)
         let restored = (saved?["step"] as? String).flatMap(SetupStep.init(checkpoint:))
-        let candidate = start ?? (entry == .automatic || restored.map(SetupPlan.dictationSteps.contains) == true ? restored : nil)
+        let candidate = start ?? (entry == .modelTerms ? .readingModel
+            : entry == .automatic || restored.map(SetupPlan.dictationSteps.contains) == true ? restored : nil)
         var plan = SetupPlan(dictationAvailable: model.dictation != nil)
         if entry == .dictation || candidate.map(SetupPlan.dictationSteps.contains) == true { plan.wantsDictation = true }
         plan.wantsDictation = plan.wantsDictation || (saved?["wantsDictation"] as? Bool ?? false)
@@ -146,6 +148,8 @@ final class SetupFlowController: ObservableObject {
         if step == .tryReading, let missing = SaywingPermission.reading.first(where: { !permissions.isGranted($0) }) {
             step = .permission(missing)
         } else if step == .tryDictation, !permissions.isGranted(.microphone) { step = .permission(.microphone) }
+        // Reading past the voice page needs the accepted model terms, also after a relaunch.
+        if step == .readingShortcuts || step == .tryReading, model.modelTermsState != .accepted { step = .readingModel }
         if let permission = (saved?["waitingFor"] as? String).flatMap(SaywingPermission.init(rawValue:)),
            step == .permission(permission), !permissions.isGranted(permission) {
             awaiting = permission
@@ -185,7 +189,11 @@ final class SetupFlowController: ObservableObject {
         return needed.filter { !permissions.isGranted($0) }
     }
 
+    /// The reading voice page continues only once the Supertonic 3 terms are accepted.
+    var canContinue: Bool { step != .readingModel || model?.modelTermsState == .accepted }
+
     func advance() {
+        guard canContinue else { return }
         let next = plan.next(after: step, granted: permissions.granted)
         guard next != step else { return }
         history.append(step)
@@ -209,6 +217,13 @@ final class SetupFlowController: ObservableObject {
             go(to: previous, forward: false)
             return
         }
+    }
+
+    /// Reading was refused for the model terms: show them, whatever page is open.
+    func showModelTerms() {
+        guard step != .readingModel else { return }
+        history.append(step)
+        go(to: .readingModel, forward: false)
     }
 
     func showModel() {

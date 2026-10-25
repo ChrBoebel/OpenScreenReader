@@ -37,7 +37,7 @@ struct AppStatusTests {
     @Test
     @MainActor
     func appModelStartsReadyWithAnIdleCoordinator() async {
-        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: RegisteredHotkeyManagerFake())
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(), hotkeyManager: RegisteredHotkeyManagerFake())
         let snapshot = await model.pipelineCoordinator.snapshot()
 
         #expect(model.status == .ready)
@@ -206,7 +206,7 @@ struct PersistentGuidedSetupTests {
     private func fixture() -> (AppModel, UserDefaults, String) {
         let suite = "com.christopherbobel.OpenScreenReader.setup-merge-tests.\(UUID())"
         let defaults = UserDefaults(suiteName: suite)!
-        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: RegisteredHotkeyManagerFake(), preferences: defaults)
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(), hotkeyManager: RegisteredHotkeyManagerFake(), preferences: defaults)
         return (model, defaults, suite)
     }
     @Test func modelAndShortcutStepsSurviveRelaunchWithoutStartingATrial() {
