@@ -113,3 +113,30 @@ Open:
   `license_review` stays `false`.
 - **Upstream maintenance.** Upstream Supertonic maintenance has ended. This is an explicit
   release decision, not a license item, and it is unchanged.
+
+## Update 2026-10-25: license review completed by the maintainer
+
+`license_review` is `true` in both release approvals. The maintainer completed the review
+without external counsel, on the basis of written analyses of the Open RAIL-M terms and of
+the copyleft obligations, and after these changes:
+
+- explicit in-app acceptance of the model terms, bound to the SHA-256 of the bundled text;
+- an equally binding German version of the terms with a translated Attachment A, German law
+  with the consumer proviso, and a liability clause within German law;
+- corresponding source served publicly next to every download, verified before publishing,
+  and LGPL-3.0 for libquadmath ([ADR 0007](0007-gcc-runtime-libraries.md), amendment).
+
+Residual risks the maintainer accepts:
+
+- whether Supertone Inc. can enforce Attachment A directly against end users;
+- whether model weights are protected by copyright, which decides whether the terms are
+  enforced as a license condition or only as a contract;
+- whether the maintainer acts as a business ("Unternehmer") towards consumers;
+- the quality of the German translation of Attachment A;
+- whether the retroactive LGPL-3.0 election cures the 2026-10-15 betas under German law;
+- the unrecorded Homebrew bottle revision behind SciPy's GNU runtime libraries, and
+  Stephen L. Moshier's copyright in some libquadmath files.
+
+Unchanged: `clean_mac` stays `false` (publications remain beta builds under the documented
+exception), and the end of upstream Supertonic maintenance remains an explicit release
+decision.
