@@ -325,35 +325,39 @@ private func germanVoice(_ name: String) -> String? {
     return nil
 }
 
-/// Real synthetic speech at 8 kHz, as the echo gate sees it; nil where `say` is unavailable.
-private func spoken(_ text: String, voice: String) throws -> [Float]? {
-    let url = FileManager.default.temporaryDirectory.appendingPathComponent("echo-\(UUID()).caf")
-    defer { try? FileManager.default.removeItem(at: url) }
-    guard let voice = germanVoice(voice) else { return nil }
-    let say = Process()
-    say.executableURL = URL(fileURLWithPath: "/usr/bin/say")
-    say.arguments = ["-v", voice, "--file-format=caff", "--data-format=LEF32@8000", "-o", url.path, text]
-    say.standardError = FileHandle.nullDevice
-    try say.run()
-    say.waitUntilExit()
-    guard say.terminationStatus == 0 else { return nil }
+/// Anchors `Bundle(for:)` to the test bundle that carries the speech fixtures.
+private final class SpeechFixtures {}
+
+/// Real human speech at 8 kHz, as the echo gate sees it: committed public-domain
+/// LibriVox recordings (see Fixtures/Speech/README.md), so every Mac and CI image
+/// measures the same samples.
+private func recorded(_ name: String) throws -> [Float] {
+    let url = try #require(Bundle(for: SpeechFixtures.self).url(forResource: name, withExtension: "wav"),
+                           "speech fixture \(name).wav is missing from the test bundle")
     let file = try AVAudioFile(forReading: url)
-    guard file.processingFormat.sampleRate == 8_000,
-          let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length))
-    else { return nil }
+    #expect(file.processingFormat.sampleRate == 8_000)
+    #expect(file.processingFormat.channelCount == 1)
+    let buffer = try #require(AVAudioPCMBuffer(pcmFormat: file.processingFormat,
+                                               frameCapacity: AVAudioFrameCount(file.length)))
     try file.read(into: buffer)
-    let samples = Array(UnsafeBufferPointer(start: buffer.floatChannelData![0], count: Int(buffer.frameLength)))
-    return samples.count > 8_000 ? samples : nil
+    let channel = try #require(buffer.floatChannelData)
+    let samples = Array(UnsafeBufferPointer(start: channel[0], count: Int(buffer.frameLength)))
+    try #require(samples.count > 8_000)
+    return samples
 }
 
 @Suite("Meeting echo in a room")
 struct RoomEchoTests {
-    private static let others = "Auf dem Oktoberfest hab ich auch schon erlebt, dass Leute sagen, du bist der kleine Millionär. Bei der Wiesn gibt es im Prinzip sechs Kriterien: Lage, Lage, Lage, Wetter, Wetter, Wetter. Servus, ich bin der Jürgen und betreibe einen Stand auf dem Oktoberfest."
+    /// The others: a woman reading continuously for about 19 seconds.
+    private static let others = "others-elli"
+    /// Me: a man, two different sentences of about four and five seconds.
+    private static let mineOver = "mine-karlsson-1"
+    private static let mineAfter = "mine-karlsson-2"
 
     /// The echo of real speech through laptop speakers and a room must be found.
     @Test(arguments: [(0.03, Float(0.25), 0.4), (0.15, Float(0.12), 0.6), (0.25, Float(0.08), 0.3), (0.05, Float(0.03), 0.4), (0.05, Float(0.015), 0.4), (0.05, Float(0.01), 0.8)])
     func roomEchoOfRealSpeechIsFound(delay: Double, gain: Float, reverb: Double) throws {
-        guard let system = try spoken(Self.others, voice: "Anna") else { return }
+        let system = try recorded(Self.others)
         var noise = SignalSource(seed: 11)
         let mic = zip(roomEcho(system, delay: delay, gain: gain, reverb: reverb), noise.speech(seconds: Double(system.count) / 8_000, level: 0.003))
             .map { $0 + $1 }
@@ -366,14 +370,12 @@ struct RoomEchoTests {
     }
 
     /// Calibration: real speech of two different people never correlates like an
-    /// echo, even the same text in two voices at the same time. The bound is the
-    /// gate's own score floor, from both sides: the synthetic voices vary between
-    /// macOS images (CI measured 0.081 and 0.102 for the same text), so a fixed
-    /// margin below the floor made the test flaky without testing the decision.
+    /// echo. The bound is the gate's own score floor, from both sides; the
+    /// recordings are fixed, so the measured scores are the same on every Mac.
     @Test
     func unrelatedRealSpeechStaysFarBelowEchoScores() throws {
-        guard let others = try spoken(Self.others, voice: "Anna"),
-              let mine = try spoken(Self.others, voice: "Eddy") else { return }
+        let others = try recorded(Self.others)
+        let mine = try recorded(Self.mineOver) + recorded(Self.mineAfter)
         let length = min(others.count, mine.count)
         let unrelated = scores(EchoGate(), system: Array(others.prefix(length)), mic: Array(mine.prefix(length)))
         let echo = scores(EchoGate(), system: others, mic: roomEcho(others, delay: 0.05, gain: 0.03, reverb: 0.6))
@@ -387,9 +389,8 @@ struct RoomEchoTests {
     /// A quiet, reverberant echo is still found while I talk over it now and then.
     @Test
     func aQuietEchoIsFoundEvenWhileITalkOverIt() throws {
-        guard let system = try spoken(Self.others, voice: "Anna"),
-              let mine = try spoken("Ich finde, wir sollten zuerst über das Budget sprechen und dann über die Termine.", voice: "Eddy")
-        else { return }
+        let system = try recorded(Self.others)
+        let mine = try recorded(Self.mineOver)
         var mic = roomEcho(system, delay: 0.05, gain: 0.02, reverb: 0.8)
         let from = 4 * 8_000
         for index in mine.indices where from + index < mic.count { mic[from + index] += mine[index] * 0.5 }
@@ -403,9 +404,8 @@ struct RoomEchoTests {
     /// same room right after their echo.
     @Test
     func myOwnSpeechAfterTheirEchoStaysMine() throws {
-        guard let system = try spoken(Self.others, voice: "Anna"),
-              let mine = try spoken("Das sehe ich anders, wir sollten erst das Budget klären.", voice: "Eddy")
-        else { return }
+        let system = try recorded(Self.others)
+        let mine = try recorded(Self.mineAfter)
         let pause = [Float](repeating: 0, count: 8_000)
         let systemTrack = system + pause + [Float](repeating: 0, count: mine.count)
         let micTrack = roomEcho(system, delay: 0.03, gain: 0.25, reverb: 0.4) + pause + mine

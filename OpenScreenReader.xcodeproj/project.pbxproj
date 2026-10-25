@@ -57,6 +57,9 @@
 		BB2000000000000000000004 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = BB1000000000000000000004 /* InfoPlist.xcstrings */; };
 		EE2000000000000000000001 /* SUPERTONIC-MODEL-TERMS.md in Resources */ = {isa = PBXBuildFile; fileRef = EE1000000000000000000001 /* SUPERTONIC-MODEL-TERMS.md */; };
 		EE2000000000000000000002 /* Supertonic-3-Open-RAIL-M.txt in Resources */ = {isa = PBXBuildFile; fileRef = EE1000000000000000000002 /* Supertonic-3-Open-RAIL-M.txt */; };
+		FE2000000000000000000001 /* others-elli.wav in Resources */ = {isa = PBXBuildFile; fileRef = FE1000000000000000000001 /* others-elli.wav */; };
+		FE2000000000000000000002 /* mine-karlsson-1.wav in Resources */ = {isa = PBXBuildFile; fileRef = FE1000000000000000000002 /* mine-karlsson-1.wav */; };
+		FE2000000000000000000003 /* mine-karlsson-2.wav in Resources */ = {isa = PBXBuildFile; fileRef = FE1000000000000000000003 /* mine-karlsson-2.wav */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -129,6 +132,9 @@
 		BB1000000000000000000004 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		EE1000000000000000000001 /* SUPERTONIC-MODEL-TERMS.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; name = "SUPERTONIC-MODEL-TERMS.md"; path = "docs/licenses/SUPERTONIC-MODEL-TERMS.md"; sourceTree = SOURCE_ROOT; };
 		EE1000000000000000000002 /* Supertonic-3-Open-RAIL-M.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = "Supertonic-3-Open-RAIL-M.txt"; path = "docs/licenses/Supertonic-3-Open-RAIL-M.txt"; sourceTree = SOURCE_ROOT; };
+		FE1000000000000000000001 /* others-elli.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Fixtures/Speech/others-elli.wav; sourceTree = "<group>"; };
+		FE1000000000000000000002 /* mine-karlsson-1.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Fixtures/Speech/mine-karlsson-1.wav; sourceTree = "<group>"; };
+		FE1000000000000000000003 /* mine-karlsson-2.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Fixtures/Speech/mine-karlsson-2.wav; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -244,6 +250,9 @@
 				D00000000000000000000002 /* OCRTests.swift */,
 				A00000000000000000000018 /* InteractionTests.swift */,
 				B00000000000000000000002 /* CaptureTests.swift */,
+				FE1000000000000000000001 /* others-elli.wav */,
+				FE1000000000000000000002 /* mine-karlsson-1.wav */,
+				FE1000000000000000000003 /* mine-karlsson-2.wav */,
 			);
 			name = OpenScreenReaderAppTests;
 			path = Tests/OpenScreenReaderAppTests;
@@ -384,6 +393,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FE2000000000000000000001 /* others-elli.wav in Resources */,
+				FE2000000000000000000002 /* mine-karlsson-1.wav in Resources */,
+				FE2000000000000000000003 /* mine-karlsson-2.wav in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
