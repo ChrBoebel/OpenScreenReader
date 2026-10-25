@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Publish approved releases to a private S3-compatible download bucket.
 
-Corresponding-source archives first (written offer, ADR 0007), immutable release files
-second, full public download verification third, one conditional current.json pointer
-last. Does not create resources or export credentials.
+Corresponding-source archives first, then a check that each of them is publicly downloadable
+from the download host (ADR 0007, amendment 2026-10-25), immutable release files next, full
+public download verification after that, one conditional current.json pointer last. Does not
+create resources or export credentials.
 """
 import argparse
 import hashlib
@@ -14,9 +15,10 @@ import tempfile
 import urllib.request
 
 from bundle_notices import corresponding_sources, fetch_source as fetch_upstream_source
-from release import REPO, digest, https_url, public_download_prefix, require_release_approval, validate_version, release_target
+from release import (REPO, corresponding_source_key, digest, https_url, public_download_prefix, public_source_url,
+                     require_release_approval, validate_version, release_target)
 
-# Override with SAYWING_PUBLIC_DOWNLOAD_PREFIX and SAYWING_RELEASE_REPOSITORY.
+# Override with SAYWING_PUBLIC_DOWNLOAD_PREFIX, SAYWING_PUBLIC_SOURCE_PREFIX and SAYWING_RELEASE_REPOSITORY.
 PUBLIC_PREFIX = public_download_prefix()
 DEFAULT_REPOSITORY = 'ChrBoebel/saywing'
 MAX_SINGLE_UPLOAD = 5 * 1024**3
@@ -67,16 +69,16 @@ def immutable_upload(client, bucket, key, path, content_type):
 
 
 def archive_corresponding_sources(client, bucket, prefix, release, records, fetch_source):
-    """Keep the exact source archives the app points to, so the written offer can be fulfilled.
+    """Keep the exact source archives the app points to.
 
-    Archives are stored once by SHA-256 under a prefix that no public route serves; a
-    per-build manifest records which of them belong to the build. Already archived files
-    are reused without downloading them again.
+    Archives are stored once by SHA-256; the download route serves each of them at the
+    record's `mirror_url`, and a per-build manifest records which of them belong to the
+    build. Already archived files are reused without downloading them again.
     """
     archived = []
     with tempfile.TemporaryDirectory() as work:
         for item in records:
-            key = f"{prefix}/corresponding-source/sha256/{item['sha256']}/{item['file']}"
+            key = f'{prefix}/{corresponding_source_key(item)}'
             if not stored(client, bucket, key, item['bytes'], item['sha256']):
                 path = fetch_source(item, Path(work))
                 if path.stat().st_size != item['bytes'] or digest(path) != item['sha256']:
@@ -90,7 +92,7 @@ def archive_corresponding_sources(client, bucket, prefix, release, records, fetc
                          manifest, 'application/json')
 
 
-def publish(root, client, bucket, main_commit, verify_public, *, fetch_source):
+def publish(root, client, bucket, main_commit, verify_public, *, fetch_source, verify_source):
     result = json.loads((root / 'release-result.json').read_text())
     if result.get('notarized') is not True or result.get('public_release_approved') is not True:
         raise ValueError('Only approved, notarized release outputs may be published')
@@ -124,10 +126,16 @@ def publish(root, client, bucket, main_commit, verify_public, *, fetch_source):
     sources = result.get('corresponding_sources')
     if sources is None or sources != corresponding_sources(architecture):
         raise ValueError('Corresponding-source records of the app differ from the repository')
-    # Archive the sources before anything becomes downloadable, so no published build lacks them.
+    for item in sources:
+        if item.get('mirror_url') != public_source_url(item, architecture):
+            raise ValueError('Source has no public download URL for its archived object: ' + item['file'])
+    # Archive the sources before anything becomes downloadable, so no published build lacks them,
+    # then require that each one is publicly downloadable next to the DMG (GPL-3 §6(d), LGPL).
     archive_corresponding_sources(client, bucket, prefix, {
         'version': version, 'build': build, 'architecture': architecture, 'source_commit': result['source_commit'],
     }, sources, fetch_source)
+    for item in sources:
+        verify_source(item)
     files = [(filename, 'application/x-apple-diskimage'), ('appcast.xml', 'application/xml'),
              ('latest.json', 'application/json'), ('SHA256SUMS', 'text/plain')]
     for name, content_type in files:
@@ -152,21 +160,32 @@ class HTTPSRedirect(urllib.request.HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
-def verify_public_download(metadata):
-    https_url(metadata['url'])
+def verify_public_file(url, expected_bytes, expected_sha256, label='Public download'):
+    """Stream one file through its public URL, as any recipient would: no credentials."""
+    if not isinstance(url, str):
+        raise ValueError(label + ' has no public URL')
+    https_url(url)
     checksum = hashlib.sha256()
     size = 0
     opener = urllib.request.build_opener(HTTPSRedirect())
-    with opener.open(metadata['url'], timeout=120) as response:
+    with opener.open(url, timeout=120) as response:
         if response.status != 200:
-            raise ValueError('Public download is not available')
+            raise ValueError(label + ' is not available')
         for chunk in iter(lambda: response.read(8 * 1024 * 1024), b''):
             size += len(chunk)
-            if size > metadata['bytes']:
-                raise ValueError('Public download exceeds expected size')
+            if size > expected_bytes:
+                raise ValueError(label + ' exceeds expected size')
             checksum.update(chunk)
-    if size != metadata['bytes'] or checksum.hexdigest() != metadata['sha256']:
-        raise ValueError('Public download size or SHA-256 does not match')
+    if size != expected_bytes or checksum.hexdigest() != expected_sha256:
+        raise ValueError(label + ' size or SHA-256 does not match')
+
+
+def verify_public_download(metadata):
+    verify_public_file(metadata['url'], metadata['bytes'], metadata['sha256'])
+
+
+def verify_public_source(item):
+    verify_public_file(item.get('mirror_url'), item['bytes'], item['sha256'], 'Public source ' + item['file'])
 
 
 def current_main():
@@ -197,7 +216,8 @@ def main():
         config=Config(signature_version='s3v4', s3={'addressing_style': 'virtual'}, connect_timeout=30, read_timeout=900,
                       request_checksum_calculation='when_required', response_checksum_validation='when_required'))
     publish(args.release.resolve(strict=True), client, os.environ['SAYWING_S3_BUCKET'],
-            current_main, verify_public_download, fetch_source=fetch_upstream_source)
+            current_main, verify_public_download, fetch_source=fetch_upstream_source,
+            verify_source=verify_public_source)
 
 
 if __name__ == '__main__':

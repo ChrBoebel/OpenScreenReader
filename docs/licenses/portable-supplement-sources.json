@@ -6710,6 +6710,16 @@
     "scope": "GNU LGPL 2.1 governing libquadmath.0.dylib (LGPL-2.1-or-later)"
   },
   {
+    "license_file": "GCC-13.4.0/COPYING3.LIB",
+    "license_sha256": "a853c2ffec17057872340eee242ae4d96cbf2b520ae27d903e1b2fef1a5f9d1c",
+    "component": "GCC runtime libraries vendored by SciPy (libquadmath, libgfortran, libgcc_s)",
+    "version": "13.4.0",
+    "source_archive_url": "https://ftp.gnu.org/gnu/gcc/gcc-13.4.0/gcc-13.4.0.tar.xz",
+    "source_archive_sha256": "9c4ce6dbb040568fdc545588ac03c5cbc95a8dbf0c7aa490170843afb59ca8f5",
+    "source_entry": "gcc-13.4.0/COPYING3.LIB",
+    "scope": "GNU LGPL 3 under which the Saywing maintainers distribute libquadmath.0.dylib (LGPL-2.1-or-later; election of 2026-10-25, ADR 0007); incorporates the GNU GPL 3 in COPYING3"
+  },
+  {
     "license_file": "GCC-13.4.0/COPYING3",
     "license_sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
     "component": "GCC runtime libraries vendored by SciPy (libquadmath, libgfortran, libgcc_s)",

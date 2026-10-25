@@ -14,7 +14,7 @@ import plistlib
 import re
 import shutil
 import subprocess
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 REPO = Path(__file__).resolve().parents[1]
 RELEASE_GATES = ('license_review', 'clean_mac', 'offline_privacy', 'update_roundtrip')
@@ -70,6 +70,31 @@ def release_target(architecture):
 
 def public_download_prefix():
     return https_url(os.environ.get('SAYWING_PUBLIC_DOWNLOAD_PREFIX') or DEFAULT_PUBLIC_DOWNLOAD_PREFIX).rstrip('/')
+
+
+def public_source_prefix():
+    """Public base of the corresponding-source route; it maps to the storage root `saywing`.
+
+    Sources are served from the same place as the DMG (GPL-3 §6(d), LGPL "same place"; ADR 0007,
+    amendment 2026-10-25), so the default is the public download prefix.
+    """
+    return https_url(os.environ.get('SAYWING_PUBLIC_SOURCE_PREFIX') or public_download_prefix()).rstrip('/')
+
+
+def corresponding_source_key(record):
+    """Content-addressed object path below a storage or public architecture prefix."""
+    name, sha256 = record.get('file') or '', record.get('sha256') or ''
+    if Path(name).name != name or name in ('', '.', '..') or not re.fullmatch(r'[0-9a-f]{64}', sha256):
+        raise ValueError('Corresponding source needs a plain file name and SHA-256: ' + repr(name))
+    return f'corresponding-source/sha256/{sha256}/{name}'
+
+
+def public_source_url(record, architecture):
+    """Public, unauthenticated URL of the object publish-release.py archives at
+    `<storage prefix>/<corresponding_source_key>`; the Intel prefix adds /x86_64 to both."""
+    release_target(architecture)
+    suffix = '/x86_64' if architecture == 'x86_64' else ''
+    return https_url(public_source_prefix() + suffix + '/' + quote(corresponding_source_key(record), safe='/@'))
 
 
 def require_release_approval(path, architecture='arm64'):

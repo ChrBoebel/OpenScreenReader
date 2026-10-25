@@ -148,9 +148,10 @@ confirmation input. The jobs then run in this order:
 4. `publish` (environment `saywing-release`, a second approval; only when
    `SAYWING_PUBLISH_ENABLED=true`) runs on a separate Linux runner that never
    receives signing secrets — only storage credentials and the read-only job
-   token. It uploads immutable files, downloads the whole DMG through the public
-   URL and checks size and SHA-256, rechecks that the source commit is still the
-   head of `main`, then promotes the release pointer.
+   token. It archives the corresponding sources and downloads each of them through
+   its public URL (size and SHA-256), uploads immutable files, downloads the whole
+   DMG through the public URL and checks size and SHA-256, rechecks that the source
+   commit is still the head of `main`, then promotes the release pointer.
 
 Version and build numbers derive from the workflow run number
 (`0.1.<run>` / build `<run + 100>`). Keep the workflow file name `release.yml`
@@ -192,6 +193,7 @@ conditions are evaluated before environment variables become available):
 | `SAYWING_S3_BUCKET` | Bucket name (publish job only) |
 | `SAYWING_S3_REGION` | Bucket region; defaults to `auto` (publish job only) |
 | `SAYWING_PUBLIC_DOWNLOAD_PREFIX` | Public HTTPS download base (project default in `scripts/release.py`) |
+| `SAYWING_PUBLIC_SOURCE_PREFIX` | Public HTTPS base of the corresponding-source route; empty means `SAYWING_PUBLIC_DOWNLOAD_PREFIX`. Package and publish jobs must use the same value |
 | `SAYWING_SPARKLE_PUBLIC_KEY` | Sparkle Ed25519 public key (project default above) |
 | `SAYWING_SIGNING_IDENTITY` | Developer ID Application identity (project default above) |
 | `SAYWING_TEAM_ID` | Apple team ID for Apple-ID notarization (project default above) |
@@ -267,8 +269,11 @@ use their own `/x86_64` URL and storage namespace and never touch the ARM pointe
 
 Before any release file is uploaded, the same script archives the corresponding
 sources the signed app points to (see below) under `corresponding-source/` in the
-release's storage namespace. No public route serves that prefix. Keep it out of any
-lifecycle or expiry rule.
+release's storage namespace, then downloads each of them through its public URL. The
+website route serves the content-addressed objects
+`corresponding-source/sha256/<sha256>/<file>` publicly, like the DMG; it does not serve
+the per-build manifests or a listing. Keep the prefix out of any lifecycle or expiry
+rule.
 
 Release runtimes are not stored anywhere: every release builds them from the
 pinned public inputs described in [docs/runtime-build.md](runtime-build.md). No
@@ -281,14 +286,28 @@ legal permission; the license review stays a release gate.
 
 - It copies the reviewed notices into `Contents/Resources/Licenses`.
 - It writes the offline index `THIRD-PARTY-NOTICES.html`.
-- It writes a written source offer and exact source pointers into
-  `Contents/Resources/CorrespondingSource`:
+- It writes exact source pointers, the directions to the public copies and a written
+  source offer into `Contents/Resources/CorrespondingSource`:
   - `sources.json` holds the records of `docs/licenses/native-corresponding-sources.json` for
-    the architecture;
+    the architecture. Each record also has `mirror_url`, its public copy on the download
+    host, next to the upstream `url`;
   - `README.md` is `docs/licenses/CorrespondingSource-README.md`.
 
-The source archives themselves are not shipped. This was decided on 2026-10-24
-([ADR 0007](decisions/0007-gcc-runtime-libraries.md)).
+The source archives themselves are not shipped in the app. This was decided on 2026-10-24;
+since 2026-10-25 they are served publicly from the download host instead of only being
+offered ([ADR 0007](decisions/0007-gcc-runtime-libraries.md) and its amendment).
+
+**Public source URL.** For every record:
+
+```text
+<public source prefix>[/x86_64]/corresponding-source/sha256/<sha256>/<file>
+```
+
+The public source prefix is `SAYWING_PUBLIC_SOURCE_PREFIX`, by default the public download
+prefix (`https://www.christopherboebel.com/downloads/saywing`). Intel builds add `/x86_64`,
+like their DMG URL. The address maps one to one to the archived object
+`<storage prefix>/corresponding-source/sha256/<sha256>/<file>` (storage prefix `saywing` or
+`saywing/x86_64`).
 
 The step fails in these cases:
 
@@ -297,13 +316,20 @@ The step fails in these cases:
   (GPL-3.0 with the GCC Runtime Library Exception). The LGPL requires that users can replace
   them.
 - a source record lacks an HTTPS URL, size, SHA-256 or license;
+- a copyleft record has no public URL (`mirror_url`) for its archived object;
 - a copyleft record's license text is not shipped as a notice;
 - any listed source archive, or any other file besides `README.md` and `sources.json`, is in
   `CorrespondingSource/`.
 
 The tested replacement procedure is in `docs/licenses/CorrespondingSource-README.md`.
 
-**Written offer.** The offer is in `CorrespondingSource/README.md` and in the notice index:
+**libquadmath under LGPL-3.0.** libquadmath is licensed under the GNU LGPL version 2.1 or
+(at your option) any later version; the Saywing maintainers distribute it under the GNU LGPL
+version 3 (which incorporates the GNU GPL version 3), effective for all Saywing builds
+including 0.1.17. `Licenses/GCC-13.4.0/COPYING3.LIB` ships next to the LGPL-2.1 text.
+
+**Written offer.** In addition to the public copies, the offer is in
+`CorrespondingSource/README.md` and in the notice index:
 
 - It is valid for at least three years from the date the maintainers distributed the
   respective build, or longer while they support that build.
@@ -315,9 +341,9 @@ The tested replacement procedure is in `docs/licenses/CorrespondingSource-README
 Forks that distribute their own builds must replace this offer and its contact with their
 own.
 
-**Fulfilling the offer.** `scripts/release.py` copies the app's `sources.json` into
-`release-result.json`. The `publish` job then archives the sources before it uploads the DMG,
-appcast or metadata:
+**Archiving and serving the sources.** `scripts/release.py` copies the app's `sources.json`
+into `release-result.json`. The `publish` job then archives the sources before it uploads the
+DMG, appcast or metadata:
 
 1. It checks that list against the repository.
 2. For each file, it either reuses an archived copy or downloads the file over HTTPS only and
@@ -326,10 +352,15 @@ appcast or metadata:
    - files: `<storage prefix>/corresponding-source/sha256/<sha256>/<file>`;
    - per-build manifest: `<storage prefix>/corresponding-source/builds/<build>.json`.
 
-The storage prefix is `saywing` or `saywing/x86_64`. If a source cannot be verified, nothing
-is published.
+4. It downloads every source through its `mirror_url` without credentials, HTTPS only, and
+   checks status 200, size and SHA-256 (streamed).
 
-To answer a request:
+The storage prefix is `saywing` or `saywing/x86_64`. If a source cannot be archived or is not
+publicly downloadable with the expected bytes, nothing of the release is uploaded and
+`current.json` stays unchanged. Only the release scripts use the network for this; the app
+never does.
+
+To answer a request under the written offer:
 
 1. Read the build's manifest.
 2. Download the listed objects with the storage credentials.
@@ -373,8 +404,9 @@ Done:
 
 - the Supertonic model terms in the DMG;
 - notices for the rebuilt minimal runtimes;
-- the GCC runtime library decision with the written source offer and per-build source
-  archive ([ADR 0007](decisions/0007-gcc-runtime-libraries.md));
+- the GCC runtime library decision with the per-build source archive, public source copies
+  verified by the publish job, the written offer and the LGPL-3.0 election for libquadmath
+  ([ADR 0007](decisions/0007-gcc-runtime-libraries.md) and its 2026-10-25 amendment);
 - the interpreter provenance record (`Runtime/Portable/python-provenance.json`,
   [Interpreter provenance](research/interpreter-provenance.md)). It covers the
   python-build-standalone commit, the build recipe, the CPython patch set and the
@@ -383,12 +415,21 @@ Done:
 
 Still open:
 
-- the maintainer's legal review of the model-terms wording. The terms now name the
-  distributor, require explicit in-app acceptance, end on breach of Attachment A and cover
-  shared audio and redistribution channels; the review decides whether that satisfies
-  Open RAIL-M paragraph 4(a) and which governing law applies;
-- the source obligations of the 2026-10-15 beta builds (0.1.17, build 117, arm64 and
-  x86_64); see the addendum in [ADR 0007](decisions/0007-gcc-runtime-libraries.md).
+- the maintainer's legal review of the model terms. They now name the distributor, require
+  explicit in-app acceptance, end on breach of Attachment A, cover shared audio and
+  redistribution channels, have an equally binding German version with a translated
+  Attachment A, choose German law with the consumer proviso and limit the distributor's
+  liability as German law allows. Open: whether Supertone can enforce against end users,
+  whether model weights are protected by copyright, whether the maintainer acts as a
+  business ("Unternehmer"), and the quality of the Attachment A translation;
+- the website route that serves `corresponding-source/sha256/...` from the download host.
+  It lives outside this repository. Until it is live, the four source files of the
+  2026-10-15 betas (0.1.17, build 117, arm64 and x86_64) are not public there, and the
+  publish job stops by design. The betas stay online by maintainer decision; record when
+  the route went live ([ADR 0007](decisions/0007-gcc-runtime-libraries.md), amendment);
+- the legal review of the remaining copyleft questions in the ADR 0007 amendment: the
+  retroactive LGPL-3.0 election for the betas under German law, the unrecorded Homebrew
+  bottle revision, and Stephen L. Moshier's copyright in some libquadmath files.
 
 The 2026-10-15 review covered the earlier runtime. No public release can be built until the
 maintainer closes this gate; the beta exception covers only `clean_mac`.

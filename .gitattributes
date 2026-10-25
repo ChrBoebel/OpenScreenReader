@@ -1,0 +1,3 @@
+# Upstream license texts are kept byte for byte (their SHA-256 is pinned in
+# docs/licenses/portable-supplement-sources.json), including trailing whitespace.
+docs/licenses/GCC-13.4.0/** -whitespace
