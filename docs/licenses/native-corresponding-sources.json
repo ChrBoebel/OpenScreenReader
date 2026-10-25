@@ -5,7 +5,7 @@
     "bytes": 88530720,
     "sha256": "9c4ce6dbb040568fdc545588ac03c5cbc95a8dbf0c7aa490170843afb59ca8f5",
     "component": "GCC 13.4.0 runtime libraries (libquadmath, libgfortran, libgcc_s)",
-    "license": "LGPL-2.1-or-later (libquadmath); GPL-3.0-or-later WITH GCC-exception-3.1 (libgfortran, libgcc_s)",
+    "license": "LGPL-2.1-or-later, distributed under LGPL-3.0 (libquadmath); GPL-3.0-or-later WITH GCC-exception-3.1 (libgfortran, libgcc_s)",
     "dynamic_libraries": [
       "libquadmath.0.dylib",
       "libgfortran.5.dylib",
@@ -20,7 +20,8 @@
     "license_texts": [
       "Licenses/GCC-13.4.0/COPYING3",
       "Licenses/GCC-13.4.0/COPYING.RUNTIME",
-      "Licenses/GCC-13.4.0/libquadmath/COPYING.LIB"
+      "Licenses/GCC-13.4.0/libquadmath/COPYING.LIB",
+      "Licenses/GCC-13.4.0/COPYING3.LIB"
     ]
   },
   {

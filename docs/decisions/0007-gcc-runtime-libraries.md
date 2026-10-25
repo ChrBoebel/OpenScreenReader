@@ -1,6 +1,6 @@
 # ADR 0007: GCC runtime libraries and the written source offer
 
-- Status: accepted
+- Status: accepted; amended 2026-10-25 (public source next to every download)
 - Date: 2026-10-24
 - Decision: project maintainer.
 
@@ -137,7 +137,97 @@ Decision: this offer is extended to those builds.
 Open for the legal review: whether a retroactive offer is sufficient for LGPL-2.1, whose
 paragraph 8 ends rights without a cure period, and whether GPL-3.0 paragraph 6(d)
 (equivalent access from the same place) rather than an offer alone applies to downloads.
-Both questions also apply to the offer for future builds above.
+Both questions also apply to the offer for future builds above. The amendment below
+answers the second question.
+
+## Amendment 2026-10-25: public source next to every download
+
+- Status: accepted
+- Date: 2026-10-25
+- Decision: project maintainer. It supersedes the "offer only" approach of decision 2 and
+  the "no public route" sentence of decision 3 above.
+
+### Why an offer alone is not enough
+
+Saywing is distributed as a download (DMG and Sparkle update), not on a physical medium.
+
+- GPL-3.0 §6(b), the written offer, covers object code "in, or embodied in, a physical
+  product". §6(c) covers only occasional, noncommercial passing on of a received offer.
+- For downloads, GPL-3.0 §6(d) applies: "equivalent access to the Corresponding Source in
+  the same way through the same place at no further charge", with "clear directions next to
+  the object code". The source may be on another server, but the distributor remains
+  obliged to keep it available for as long as the object code is offered.
+- LGPL-2.1 §4 (the library itself in object form) allows no offer at all: the object code
+  must be accompanied by the source, or "equivalent access to copy the source code from the
+  same place" must be offered. §6(d) for the combined work says the same.
+- LGPL-3.0 incorporates GPL-3.0, so §6(d) applies to it as well.
+
+### Decision
+
+1. **Public source from the download host.** Every source file of a build is served
+   publicly, without credentials, from the same host and route as its DMG:
+
+   ```text
+   <public download prefix>[/x86_64]/corresponding-source/sha256/<sha256>/<file>
+   ```
+
+   This is exactly the object the publish job archives at
+   `<storage prefix>/corresponding-source/sha256/<sha256>/<file>`; the storage prefix is
+   `saywing` or `saywing/x86_64`, the public prefix maps to `saywing`. The base is
+   `SAYWING_PUBLIC_SOURCE_PREFIX`, by default the public download prefix. The archive stays
+   private storage; the website route serves only these named objects.
+2. **Directions next to the object code.** `bundle_notices.py` writes this address as
+   `mirror_url` into every record of `CorrespondingSource/sources.json`, next to the
+   upstream `url`. `THIRD-PARTY-NOTICES.html` and `CorrespondingSource/README.md` name it
+   first. The build fails if a copyleft record has no public address for its archived
+   object.
+3. **Publish verifies it.** After archiving, `publish-release.py` downloads every source of
+   the build through its `mirror_url`, like any recipient: HTTPS only, no credentials,
+   status 200, exact size and SHA-256 (streamed). If any check fails, nothing of the release
+   is uploaded and `current.json` is not changed. Only the release scripts use the network;
+   the app never does.
+4. **The written offer stays** as an additional route, with the same terms as before.
+5. **LGPL-3.0 for libquadmath.** libquadmath is licensed under the GNU LGPL version 2.1 or
+   (at your option) any later version; the Saywing maintainers distribute it under the GNU
+   LGPL version 3 (which incorporates the GNU GPL version 3), effective for all Saywing
+   builds including 0.1.17. Its text, `COPYING3.LIB` from the GCC 13.4.0 source archive
+   (SHA-256 `a853c2ffec17057872340eee242ae4d96cbf2b520ae27d903e1b2fef1a5f9d1c`, equal to the
+   file at the `releases/gcc-13.4.0` tag), ships in `Licenses/GCC-13.4.0/COPYING3.LIB`; the
+   LGPL-2.1 text stays. Some libquadmath files carry the "GNU Library General Public License
+   version 2 or later" notice; LGPL-2.1 is its successor, so the same choice applies.
+6. **The 0.1.17 betas stay online** by maintainer decision. Their four source files are
+   public at the addresses in
+   [`docs/licenses/beta-0.1.17-corresponding-source.md`](../licenses/beta-0.1.17-corresponding-source.md)
+   from the time the website route is live. The maintainer records that time (the first
+   successful unauthenticated download with matching size and SHA-256), because it marks
+   when the missing access ended (GPL-3.0 §8, MPL-2.0 §5.1).
+
+The reason not to put the archives into the app (about 94 MB per download) still holds:
+§6(d) allows the source to be served separately.
+
+### Consequences
+
+- The website route must serve `corresponding-source/sha256/...` for both architecture
+  prefixes before the next publication; otherwise publishing stops by design.
+- The archived objects must stay public for as long as the build is offered, and the
+  objects must stay stored for at least three years after its last distribution. No
+  lifecycle rule may expire them.
+- Forks that distribute builds must serve their own copies and set
+  `SAYWING_PUBLIC_SOURCE_PREFIX` or `SAYWING_PUBLIC_DOWNLOAD_PREFIX`.
+
+### Still open for the legal review
+
+- Whether the retroactive election of LGPL-3.0 works for the betas under German law: under
+  LGPL-2.1 §8 rights end on a breach without a cure period; GPL-3.0 §8 allows
+  reinstatement, but it is not settled whether an election made after the breach brings
+  that cure into play.
+- The exact Homebrew bottle revision SciPy's build machine used is not recorded in the
+  wheels, so the correspondence of the listed patch and formulae to the shipped binaries is
+  plausible, not proven.
+- Several libquadmath files are "Copyright 2001 by Stephen L. Moshier", not by the FSF. The
+  FSF's enforcement principles do not bind him.
+
+This amendment is not legal advice.
 
 ## References
 

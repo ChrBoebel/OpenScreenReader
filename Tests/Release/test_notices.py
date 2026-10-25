@@ -64,11 +64,13 @@ def macho(filetype):
     return b'\xcf\xfa\xed\xfe' + (0x0100000c).to_bytes(4, 'little') + b'\0' * 4 + filetype.to_bytes(4, 'little') + b'\0' * 16
 
 
+MIRROR = 'https://downloads.example.org/saywing/corresponding-source/sha256/'
 GCC_RECORD = {'file': 'gcc.tar.xz', 'url': 'https://example.org/gcc.tar.xz', 'bytes': 1, 'sha256': '0' * 64,
               'component': 'GCC runtime', 'license': 'LGPL-2.1-or-later', 'dynamic_libraries': ['libquadmath.0.dylib'],
-              'license_texts': ['Licenses/GCC/COPYING.LIB']}
+              'license_texts': ['Licenses/GCC/COPYING.LIB'], 'mirror_url': MIRROR + '0' * 64 + '/gcc.tar.xz'}
 MPL_RECORD = {'file': 'eigen.zip', 'url': 'https://example.org/eigen.zip', 'bytes': 2, 'sha256': '1' * 64,
-              'component': 'Eigen', 'license': 'MPL-2.0', 'license_texts': ['Speech/ThirdPartyNotices.txt']}
+              'component': 'Eigen', 'license': 'MPL-2.0', 'license_texts': ['Speech/ThirdPartyNotices.txt'],
+              'mirror_url': MIRROR + '1' * 64 + '/eigen.zip'}
 
 
 class CopyleftLibraryTests(unittest.TestCase):
@@ -120,8 +122,14 @@ class CopyleftLibraryTests(unittest.TestCase):
                      # Written offer: duration from distribution, any third party, cost cap, contact without e-mail.
                      'at least three years from the date', 'any third party', 'no more than the cost',
                      notices.SOURCE_REQUESTS, 'Mozilla Public License 2.0', 'Eigen', 'https://example.org/eigen.zip',
-                     '1' * 64, 'not included in this app']:
+                     '1' * 64, 'not included in this app',
+                     # Equivalent access from the same place as the app download, next to the object code.
+                     GCC_RECORD['mirror_url'], MPL_RECORD['mirror_url'], 'Saywing download server',
+                     'GNU Lesser General Public License version 3']:
             self.assertIn(text, section)
+        # The public copy is named before the upstream address for every listed file.
+        for record in (GCC_RECORD, MPL_RECORD):
+            self.assertLess(section.index(record['mirror_url']), section.index(record['url']))
         self.assertNotIn('CorrespondingSource/gcc.tar.xz', section)
         self.assertNotIn('@', section)  # No personal e-mail address in the offer.
         self.assertEqual(notices.source_section([], {}), '')
@@ -150,11 +158,34 @@ class SourcePointerTests(unittest.TestCase):
     def test_records_need_exact_pointers_and_copyleft_license_texts(self):
         notices.validate_source_records([GCC_RECORD, MPL_RECORD])
         for change in [{'url': 'http://example.org/gcc.tar.xz'}, {'sha256': 'abc'}, {'bytes': 0},
-                       {'file': '../gcc.tar.xz'}, {'license': ''}, {'license_texts': []}]:
+                       {'file': '../gcc.tar.xz'}, {'license': ''}, {'license_texts': []},
+                       # Copyleft sources need their public copy on the download host, at the archived object.
+                       {'mirror_url': None}, {'mirror_url': 'http://downloads.example.org/saywing/corresponding-source/sha256/'
+                                                            + '0' * 64 + '/gcc.tar.xz'},
+                       {'mirror_url': MIRROR + '0' * 64 + '/gcc.tar.xz?token=secret'},
+                       {'mirror_url': MIRROR + '1' * 64 + '/gcc.tar.xz'}, {'mirror_url': MIRROR + '0' * 64 + '/other.tar.xz'},
+                       {'mirror_url': 'https://example.org/gcc.tar.xz'}]:
             with self.subTest(change=change), self.assertRaises(ValueError):
                 notices.validate_source_records([{**GCC_RECORD, **change}])
-        mit = {key: value for key, value in MPL_RECORD.items() if key != 'license_texts'}
+        mit = {key: value for key, value in MPL_RECORD.items() if key not in ('license_texts', 'mirror_url')}
         notices.validate_source_records([{**mit, 'license': 'MIT'}])  # Only copyleft records must point to texts.
+        unarchived = {key: value for key, value in MPL_RECORD.items() if key != 'mirror_url'}
+        with self.assertRaisesRegex(ValueError, 'public'):
+            notices.validate_source_records([unarchived])
+
+    def test_every_record_gets_its_public_copy_for_the_architecture(self):
+        import os
+        from unittest.mock import patch
+        with patch.dict(os.environ):
+            for name in ('SAYWING_PUBLIC_DOWNLOAD_PREFIX', 'SAYWING_PUBLIC_SOURCE_PREFIX'):
+                os.environ.pop(name, None)
+            for architecture, base in [('arm64', 'https://www.christopherboebel.com/downloads/saywing'),
+                                       ('x86_64', 'https://www.christopherboebel.com/downloads/saywing/x86_64')]:
+                records = notices.corresponding_sources(architecture)
+                self.assertTrue(records)
+                for item in records:
+                    self.assertEqual(item['mirror_url'], base + '/corresponding-source/sha256/' + item['sha256'] + '/' + item['file'])
+                notices.validate_source_records(records)
 
     def test_copyleft_license_texts_must_ship_as_notices(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -186,10 +217,15 @@ class SourcePointerTests(unittest.TestCase):
             for name in [record['file'] for record in records]:
                 self.assertFalse(list(root.rglob(name)), name)
             index = (root / 'THIRD-PARTY-NOTICES.html').read_text()
+            gcc = next(record for record in records if record['file'] == 'gcc-13.4.0.tar.xz')
             for text in ['at least three years', 'gcc-13.4.0.tar.xz', 'https://ftp.gnu.org/gnu/gcc/gcc-13.4.0/gcc-13.4.0.tar.xz',
-                         'GCC RUNTIME LIBRARY EXCEPTION', 'GNU LESSER GENERAL PUBLIC LICENSE', 'Mozilla Public License']:
+                         gcc['mirror_url'], 'GCC RUNTIME LIBRARY EXCEPTION', 'GNU LESSER GENERAL PUBLIC LICENSE',
+                         'Licenses/GCC-13.4.0/COPYING3.LIB', 'Mozilla Public License']:
                 self.assertIn(text, index)
+            self.assertIn('/x86_64/corresponding-source/sha256/', gcc['mirror_url'])
             self.assertTrue((root / 'Licenses/GCC-13.4.0/COPYING.RUNTIME').is_file())
+            self.assertIn('Version 3, 29 June 2007', (root / 'Licenses/GCC-13.4.0/COPYING3.LIB').read_text())
+            self.assertIn('mirror_url', (root / 'CorrespondingSource/README.md').read_text())
             # A stale archive from an older runtime input fails the release instead of shipping.
             (root / 'CorrespondingSource/gcc-13.4.0.tar.xz').write_bytes(b'archive')
             with self.assertRaisesRegex(ValueError, 'must not be bundled'):
@@ -216,7 +252,8 @@ class CommittedLicenseRecordTests(unittest.TestCase):
             self.assertTrue(item['url'].startswith('https://'), item['file'])
             self.assertGreater(item['bytes'], 0)
             self.assertRegex(item['sha256'], '^[0-9a-f]{64}$')
-        notices.validate_source_records(records)
+        for architecture in ('arm64', 'x86_64'):
+            notices.validate_source_records(notices.corresponding_sources(architecture))
         for item in records:
             for text in item.get('license_texts', []):
                 if text.startswith('Licenses/'):
@@ -224,8 +261,28 @@ class CommittedLicenseRecordTests(unittest.TestCase):
         libraries = {name for item in records for name in item.get('dynamic_libraries', [])}
         self.assertEqual(libraries, {'libquadmath.0.dylib', 'libgfortran.5.dylib', 'libgcc_s.1.1.dylib'})
         self.assertIn('gcc-13.4.0.tar.xz', names)
+        # Maintainer decision 2026-10-25: libquadmath (LGPL-2.1-or-later) is distributed under LGPL-3.0.
+        gcc = next(item for item in records if item['file'] == 'gcc-13.4.0.tar.xz')
+        self.assertIn('distributed under LGPL-3.0 (libquadmath)', gcc['license'])
+        self.assertIn('Licenses/GCC-13.4.0/COPYING3.LIB', gcc['license_texts'])
+        self.assertFalse([item for item in records if 'mirror_url' in item])  # Derived per build, never committed.
         for removed in ['libsndfile', 'autocommand', 'certifi', 'hf_xet', 'libogg', 'flac', 'lame', 'mpg123', 'opus', 'vorbis']:
             self.assertFalse([name for name in names if removed in name], removed)
+
+    def test_beta_notice_names_the_public_copy_of_each_source(self):
+        import json, os
+        from unittest.mock import patch
+        notice = (self.licenses / 'beta-0.1.17-corresponding-source.md').read_text()
+        records = {item['file']: item for item in json.loads((self.licenses / 'native-corresponding-sources.json').read_text())}
+        with patch.dict(os.environ):
+            for name in ('SAYWING_PUBLIC_DOWNLOAD_PREFIX', 'SAYWING_PUBLIC_SOURCE_PREFIX'):
+                os.environ.pop(name, None)
+            for name in ['gcc-13.4.0.tar.xz', 'homebrew-gcc-13.4.0.diff', 'homebrew-gcc@13-97eefa4d.rb',
+                         'eigen-1d8b82b0740839c0de7f1242a3585e3390ff5f33.zip']:
+                item = records[name]
+                for text in [notices.public_source_url(item, 'arm64'), item['url'], item['sha256'], f"{item['bytes']:,}"]:
+                    self.assertIn(text, notice, name)
+        self.assertIn('the Saywing maintainers distribute it under the GNU LGPL version 3', ' '.join(notice.split()))
 
     def test_license_supplements_match_their_recorded_hashes(self):
         import json
@@ -233,6 +290,9 @@ class CommittedLicenseRecordTests(unittest.TestCase):
         notices.verify_supplements(self.licenses, records)
         files = {item['license_file'] for item in records}
         self.assertIn('GCC-13.4.0/libquadmath/COPYING.LIB', files)
+        self.assertIn('GCC-13.4.0/COPYING3.LIB', files)
+        self.assertIn('GNU LESSER GENERAL PUBLIC LICENSE\n                       Version 3, 29 June 2007',
+                      (self.licenses / 'GCC-13.4.0/COPYING3.LIB').read_text())
         self.assertIn('GNU LESSER GENERAL PUBLIC LICENSE', (self.licenses / 'GCC-13.4.0/libquadmath/COPYING.LIB').read_text())
         self.assertFalse([path for path in files if 'hf-xet' in path or path.startswith('Native-codecs/')])
 

@@ -32,7 +32,9 @@ Saywing asks you to accept these terms before its read-aloud voice is used. **Yo
 may use the read-aloud voice only if you accept them.** If you do not accept
 them, do not use Saywing's read-aloud feature; dictation and other features that
 do not use the model remain available. If you breach the restrictions in
-Attachment A, your right to use the model under these terms ends.
+Attachment A, your right to use the model under these terms ends automatically.
+This does not affect people who received Saywing from you, as long as they
+comply with these terms.
 
 ## Binding terms for users of the model
 
@@ -62,6 +64,40 @@ and its derivatives:
    (Attachment A(g)).
 
 Saywing is not affiliated with or endorsed by Supertone Inc.
+
+## Governing law
+
+These terms are governed by the laws of the Federal Republic of Germany. If you
+are a consumer, this choice of law does not deprive you of the protection of the
+mandatory provisions of the law of the country in which you have your habitual
+residence.
+
+## Warranty and liability
+
+The Distributor provides the model free of charge. The Distributor is liable
+without limitation for intent and gross negligence, for injury to life, body or
+health, for fraudulently concealed defects and under mandatory product liability
+law. Otherwise the Distributor is not liable. Mandatory statutory rights remain
+unaffected. Paragraphs 9 and 10 of the license govern the liability of
+Supertone Inc. and the other contributors.
+
+## Language
+
+The English and German versions of these terms, including the German
+translation of Attachment A, are equally binding. The BigScience Open RAIL-M
+License itself is available in English only; the English original governs the
+license granted by Supertone Inc.
+
+### Note on ordinary read-aloud use (not part of the license)
+
+In the Distributor's understanding, having text read aloud to yourself, for
+example your own medical documents, is not "medical advice and medical results
+interpretation" under Attachment A(l), because the model only voices existing
+text and adds no assessment. Using the voice as an accessibility aid to listen
+to documents at work, including at courts, police, immigration or asylum
+authorities, is not in itself generating or disseminating information "for the
+purpose to be used for" those processes under Attachment A(m). This note does
+not narrow Attachment A and does not bind Supertone Inc.
 
 ### Paragraph 4 of the license (verbatim)
 
@@ -136,21 +172,132 @@ Saywing is not affiliated with or endorsed by Supertone Inc.
     relationships between assertions made in documents, indiscriminate and
     arbitrarily-targeted use).
 
-## Deutsche Fassung der Nutzungsbedingungen (zur Information)
 
-Maßgeblich sind die englischen Bedingungen oben und der unveränderte englische
-Lizenztext. Saywing-Versionen werden von Christopher Böbel als Betreuer von
-Saywing verteilt; Lizenzgeber von Supertonic 3 ist Supertone Inc. Bevor die
-Vorlesestimme genutzt wird, fragt Saywing nach Ihrer Zustimmung; ohne Zustimmung
-dürfen Sie die Vorlesefunktion nicht nutzen, Diktieren bleibt verfügbar. Mit der
-Zustimmung gilt für das Modell, seine Stimmen und Ableitungen die BigScience
-Open RAIL-M-Lizenz. Sie dürfen das Modell und seine Ableitungen nicht für die in
-Anhang A (Attachment A) genannten Zwecke verwenden; ein Verstoß beendet Ihr
-Nutzungsrecht nach diesen Bedingungen. Wenn Sie erzeugte Sprache aufnehmen oder
-weitergeben, kennzeichnen Sie sie deutlich als maschinell erzeugt, und geben Sie
-sich damit nicht ohne Einwilligung als eine andere Person aus. Wer das Modell
-oder Ableitungen weitergibt, auch über Spiegelserver, Paketmanager wie Homebrew
-oder Builds eines Forks, muss diese Nutzungsbeschränkungen als durchsetzbare
-Bestimmung weitergeben und den Empfängern eine Kopie der Lizenz mitgeben. Diese
-Bedingungen gelten nicht für den Saywing-Quellcode oder andere Komponenten.
-Saywing steht in keiner Verbindung zu Supertone Inc.
+## Deutsche Fassung der Nutzungsbedingungen
+
+Die englische und die deutsche Fassung dieser Bedingungen, einschließlich der
+deutschen Übersetzung von Anhang A, sind gleichermaßen verbindlich. Die
+BigScience Open RAIL-M-Lizenz liegt nur auf Englisch vor; für die von
+Supertone Inc. eingeräumte Lizenz ist das englische Original maßgeblich.
+
+### Wer diese Bedingungen anbietet
+
+Saywing-Versionen werden von Christopher Böbel als Betreuer von Saywing
+verteilt („Distributor“). Lizenzgeber von Supertonic 3 ist Supertone Inc. Der
+Distributor gibt das Supertonic-3-Modell und seine Stimmen unverändert unter
+der BigScience Open RAIL-M-Lizenz an Sie weiter. Diese Bedingungen sind eine
+Vereinbarung zwischen Ihnen und dem Distributor, die nur das Modell betrifft;
+sie ändern nicht die Lizenz des Saywing-Quellcodes.
+
+Saywing fragt nach Ihrer Zustimmung zu diesen Bedingungen, bevor die
+Vorlesestimme genutzt wird. **Sie dürfen die Vorlesestimme nur nutzen, wenn Sie
+zustimmen.** Wenn Sie nicht zustimmen, nutzen Sie die Vorlesefunktion von
+Saywing nicht; Diktieren und andere Funktionen, die das Modell nicht verwenden,
+bleiben verfügbar. Verstoßen Sie gegen die Beschränkungen in Anhang A, endet
+Ihr Nutzungsrecht am Modell nach diesen Bedingungen automatisch. Personen, die
+Saywing von Ihnen erhalten haben, sind davon nicht betroffen, solange sie diese
+Bedingungen einhalten.
+
+### Verbindliche Bedingungen für die Nutzung des Modells
+
+Mit Ihrer Zustimmung in Saywing vereinbaren Sie für das Modell und seine
+Ableitungen Folgendes:
+
+1. Für Ihre Nutzung des Supertonic-3-Modells, seiner Stimmen und etwaiger
+   Ableitungen gilt die BigScience Open RAIL-M-Lizenz. Sie erhalten mit Saywing
+   eine Kopie dieser Lizenz.
+2. Sie dürfen das Modell und Ableitungen des Modells nicht für die in Anhang A
+   der Lizenz genannten Zwecke verwenden; Anhang A ist unten unverändert und in
+   deutscher Übersetzung wiedergegeben. Dies ist eine durchsetzbare Bedingung
+   Ihrer Nutzung (Ziffer 5 und Anhang A der Lizenz).
+3. Wenn Sie das Modell oder Ableitungen des Modells weitergeben, etwa indem Sie
+   eine Saywing-Version mit dem Modell weitergeben, auch über einen
+   Spiegelserver, einen Paketmanager (zum Beispiel Homebrew) oder den Build
+   eines Forks, müssen Sie diese Nutzungsbeschränkungen als durchsetzbare
+   Bestimmung in die Vereinbarung aufnehmen, die diese Nutzung oder Weitergabe
+   regelt, den Empfängern eine Kopie der Lizenz geben und Ihre Nutzer zur
+   Einhaltung von Ziffer 5 verpflichten (Ziffern 4 und 5 der Lizenz).
+4. Diese Bedingungen gelten nur für das Supertonic-3-Modell, seine Stimmen und
+   deren Ableitungen. Sie ändern nicht die Lizenz des Saywing-Quellcodes oder
+   anderer Komponenten.
+5. **Sprache, die Sie weitergeben.** Wenn Sie mit der Supertonic-3-Stimme
+   erzeugte Sprache aufnehmen, veröffentlichen oder anderweitig weitergeben,
+   kennzeichnen Sie sie deutlich als maschinell erzeugt (Anhang A(e)). Geben Sie
+   sich damit nicht ohne deren Einwilligung als eine andere Person aus
+   (Anhang A(g)).
+
+Saywing steht in keiner Verbindung zu Supertone Inc. und wird von Supertone Inc.
+nicht unterstützt.
+
+### Anwendbares Recht
+
+Für diese Bedingungen gilt das Recht der Bundesrepublik Deutschland. Sind Sie
+Verbraucher, entzieht Ihnen diese Rechtswahl nicht den Schutz der zwingenden
+Bestimmungen des Rechts des Staates, in dem Sie Ihren gewöhnlichen Aufenthalt
+haben.
+
+### Gewährleistung und Haftung
+
+Der Distributor stellt das Modell unentgeltlich bereit. Er haftet unbeschränkt
+bei Vorsatz und grober Fahrlässigkeit, bei Verletzung des Lebens, des Körpers
+oder der Gesundheit, bei arglistig verschwiegenen Mängeln und nach zwingendem
+Produkthaftungsrecht. Im Übrigen ist die Haftung ausgeschlossen. Zwingende
+gesetzliche Rechte bleiben unberührt. Für die Haftung von Supertone Inc. und
+weiteren Mitwirkenden gelten Ziffern 9 und 10 der Lizenz.
+
+### Hinweis zum gewöhnlichen Vorlesen (nicht Teil der Lizenz)
+
+Nach Verständnis des Distributors ist das Vorlesenlassen von Text für sich
+selbst, etwa eigener medizinischer Unterlagen, keine „medizinische Beratung und
+Befundinterpretation“ im Sinne von Anhang A(l), weil das Modell nur vorhandenen
+Text vertont und nichts bewertet. Die Nutzung als Barrierefreiheitshilfe, um
+Unterlagen bei der Arbeit anzuhören, auch bei Gerichten, Polizei-, Ausländer-
+oder Asylbehörden, ist für sich kein Erzeugen oder Verbreiten von Informationen
+„zur Verwendung“ in diesen Verfahren im Sinne von Anhang A(m). Dieser Hinweis
+schränkt Anhang A nicht ein und bindet Supertone Inc. nicht.
+
+### Anhang A der Lizenz (deutsche Übersetzung)
+
+Nutzungsbeschränkungen
+
+Sie verpflichten sich, das Modell und Ableitungen des Modells nicht zu
+verwenden:
+
+(a) auf eine Weise, die gegen geltendes nationales, bundesstaatliches,
+    einzelstaatliches, lokales oder internationales Recht oder geltende
+    Vorschriften verstößt;
+(b) zu dem Zweck, Minderjährige in irgendeiner Weise auszubeuten oder ihnen zu
+    schaden oder dies zu versuchen;
+(c) um nachweislich falsche Informationen und/oder Inhalte zu erzeugen oder zu
+    verbreiten, mit dem Zweck, anderen zu schaden;
+(d) um personenbezogene Daten zu erzeugen oder zu verbreiten, die verwendet
+    werden können, um einer Person zu schaden;
+(e) um Informationen und/oder Inhalte (z. B. Bilder, Code, Beiträge, Artikel) zu
+    erzeugen oder zu verbreiten und diese Informationen und/oder Inhalte in
+    irgendeinen Zusammenhang zu stellen (z. B. ein Bot, der Tweets erzeugt),
+    ohne ausdrücklich und verständlich darauf hinzuweisen, dass die
+    Informationen und/oder Inhalte maschinell erzeugt sind;
+(f) um andere zu diffamieren, herabzusetzen oder anderweitig zu belästigen;
+(g) um sich ohne deren Einwilligung als andere Personen auszugeben oder dies zu
+    versuchen (z. B. Deepfakes);
+(h) für vollautomatisierte Entscheidungen, die die Rechte einer Person
+    beeinträchtigen oder auf andere Weise eine bindende, durchsetzbare
+    Verpflichtung begründen oder ändern;
+(i) für eine Verwendung, die darauf abzielt oder bewirkt, Personen oder Gruppen
+    aufgrund ihres Online- oder Offline-Sozialverhaltens oder bekannter oder
+    vorhergesagter persönlicher Eigenschaften oder Persönlichkeitsmerkmale zu
+    diskriminieren oder ihnen zu schaden;
+(j) um Schwachstellen einer bestimmten Personengruppe aufgrund ihres Alters
+    oder ihrer sozialen, körperlichen oder geistigen Merkmale auszunutzen, um
+    das Verhalten einer zu dieser Gruppe gehörenden Person in einer Weise
+    wesentlich zu beeinflussen, die dieser oder einer anderen Person einen
+    körperlichen oder psychischen Schaden zufügt oder wahrscheinlich zufügt;
+(k) für eine Verwendung, die darauf abzielt oder bewirkt, Personen oder Gruppen
+    aufgrund gesetzlich geschützter Merkmale oder Kategorien zu diskriminieren;
+(l) um medizinische Beratung und Befundinterpretation zu erbringen;
+(m) um Informationen zu erzeugen oder zu verbreiten, die in der Rechtspflege,
+    der Strafverfolgung oder in Einwanderungs- oder Asylverfahren verwendet
+    werden sollen, etwa um vorherzusagen, dass eine Person Betrug oder eine
+    Straftat begehen wird (z. B. durch Textprofiling, das Herstellen kausaler
+    Zusammenhänge zwischen Aussagen in Dokumenten, wahllose und willkürlich
+    gezielte Verwendung).

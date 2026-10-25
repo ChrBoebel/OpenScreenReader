@@ -1,13 +1,32 @@
-# Corresponding source: written offer and exact pointers
+# Corresponding source: download, written offer and exact pointers
 
 This folder does not contain source archives. `sources.json` lists every source file that
-belongs to this build: its upstream URL, exact size and SHA-256, the component it builds and
-its license. The license texts are in the Licenses folder and in the offline license index
-(THIRD-PARTY-NOTICES.html), which repeats the offer below.
+belongs to this build: its download address on the Saywing download server (`mirror_url`),
+its upstream URL, exact size and SHA-256, the component it builds and its license. The
+license texts are in the Licenses folder and in the offline license index
+(THIRD-PARTY-NOTICES.html), which repeats the directions below.
+
+## Download
+
+Every file listed in `sources.json` is publicly available from the Saywing download server,
+the same place that serves the Saywing download, without an account and free of charge. Its
+address is the `mirror_url` of each record:
+
+```text
+<download address>/corresponding-source/sha256/<SHA-256>/<file>
+```
+
+For the Saywing download from https://www.christopherboebel.com/downloads/saywing, the
+download address is that URL for Apple Silicon and the same URL followed by `/x86_64` for
+Intel. The upstream URL (`url`) is a second source for the same bytes.
+
+Check any copy before use, for example with `shasum -a 256 FILE` and `stat -f %z FILE`,
+against the recorded SHA-256 and size. Extract archives in a separate working directory, not
+in the installed app.
 
 ## Written offer
 
-For at least three years from the date on which the Saywing maintainers distributed the
+In addition, for at least three years from the date on which the Saywing maintainers distributed the
 Saywing build that contains this file, and for as long as they offer updates or support for
 that build if that is longer, the Saywing maintainers will give any third party, on request,
 a complete machine-readable copy of every source file listed in `sources.json` for that
@@ -21,19 +40,23 @@ the Saywing version, build and Mac architecture shown in Settings. If you cannot
 tracker, use the contact shown on the maintainer profile https://github.com/ChrBoebel. The
 maintainers keep an identical copy of every listed file for each published build.
 
-You can also download each file yourself from its upstream URL in `sources.json`. Check any
-copy before use, for example with `shasum -a 256 FILE` and `stat -f %z FILE`, against the
-recorded SHA-256 and size. Extract archives in a separate working directory, not in the
-installed app.
-
 ## GNU runtime libraries (LGPL-2.1 / GPL-3.0 with the GCC Runtime Library Exception)
 
 SciPy ships three GCC 13.4.0 runtime libraries as separate dynamic libraries, unmodified
 from its published wheels:
 
-- `libquadmath.0.dylib`: GNU LGPL 2.1 or later (Licenses/GCC-13.4.0/libquadmath/COPYING.LIB);
+- `libquadmath.0.dylib`: GNU LGPL 2.1 or later (Licenses/GCC-13.4.0/libquadmath/COPYING.LIB),
+  distributed by the Saywing maintainers under the GNU LGPL 3 (see below);
 - `libgfortran.5.dylib` and `libgcc_s.1.1.dylib`: GNU GPL 3 or later with the GCC Runtime
   Library Exception 3.1 (Licenses/GCC-13.4.0/COPYING3 and COPYING.RUNTIME).
+
+libquadmath is licensed under the GNU LGPL version 2.1 or (at your option) any later version;
+the Saywing maintainers distribute it under the GNU LGPL version 3 (which incorporates the GNU
+GPL version 3), effective for all Saywing builds including 0.1.17. Its text is
+Licenses/GCC-13.4.0/COPYING3.LIB, taken unchanged from the GCC 13.4.0 source archive, and the
+GPL 3 it incorporates is Licenses/GCC-13.4.0/COPYING3. Some libquadmath files carry the older
+"GNU Library General Public License version 2 or later" notice; LGPL 2.1 is its successor, so
+the same choice applies to them.
 
 They are in `Dictation/Python/lib/python3.12/site-packages/scipy/.dylibs/` and are loaded
 at run time through `@loader_path` (libgfortran loads libquadmath and libgcc_s; SciPy's
@@ -41,7 +64,7 @@ ODR module loads libgfortran). No Saywing code and no other library links them s
 
 SciPy built them with Homebrew's gcc@13 13.4.0 (recorded as the Fortran compiler in
 `scipy/__config__.py`). Their complete corresponding source consists of these files from
-`sources.json` (obtain them as described above):
+`sources.json` (download them as described above):
 
 - `gcc-13.4.0.tar.xz`: the GNU release archive (libquadmath/, libgfortran/, libgcc/);
 - `homebrew-gcc-13.4.0.diff`: the Darwin and Apple Silicon patch Homebrew applies before
@@ -61,7 +84,7 @@ independently of Saywing's Apache-2.0 license and of Supertonic's model terms.
 This was tested on 2026-10-24 with Homebrew GCC 16.1.0 as the compiler and the GCC 13.4.0
 source plus the Homebrew patch listed in `sources.json`. No Saywing signing key is needed.
 
-1. Obtain `gcc-13.4.0.tar.xz` and `homebrew-gcc-13.4.0.diff`, verify them against
+1. Download `gcc-13.4.0.tar.xz` and `homebrew-gcc-13.4.0.diff`, verify them against
    `sources.json`, extract
    the archive in a working directory and run `patch -p1 < homebrew-gcc-13.4.0.diff` in
    `gcc-13.4.0`.
@@ -113,8 +136,9 @@ against a copy of the runtime, not against a re-sealed app.
 
 - `eigen-1d8b82b0740839c0de7f1242a3585e3390ff5f33.zip`: Eigen (MPL-2.0), compiled into
   `libonnxruntime.1.23.2.dylib` of the speech runtime. This is the exact archive that ONNX
-  Runtime 1.23.2 pins in `cmake/deps.txt`. Its source code form is available from that URL
-  and under the written offer above; the MPL-2.0 text is in ONNX Runtime's
+  Runtime 1.23.2 pins in `cmake/deps.txt`. Its source code form is available from the
+  Saywing download server and its upstream URL, and under the written offer above; the
+  MPL-2.0 text is in ONNX Runtime's
   `ThirdPartyNotices.txt`.
 - `tqdm-4.70.1.tar.gz`: tqdm, which contains MPL-2.0 files (Apple Silicon only). Its source
   code form is available the same way; the license text is in its `LICENCE` file.

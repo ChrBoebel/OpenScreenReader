@@ -8,14 +8,20 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
+from urllib.parse import quote, urlsplit
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from release import corresponding_source_key, https_url, public_source_url  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[1]
 SOURCE_RECORDS = REPO / 'docs/licenses/native-corresponding-sources.json'
 # Maintainer download cache for --fetch-sources; never bundled into the app.
 SOURCE_CACHE = REPO / '.build/license-corresponding-source'
-# ADR 0007: the app ships a written offer and exact pointers, never the source archives.
-# The publish job archives the exact files for every published build (scripts/publish-release.py).
+# ADR 0007: the app ships exact pointers and a written offer, never the source archives.
+# The publish job archives the exact files for every published build and verifies that each
+# one is publicly downloadable at its `mirror_url` on the download host (amendment 2026-10-25).
 SOURCE_DOCUMENTS = ('README.md', 'sources.json')
 SOURCE_REQUESTS = 'https://github.com/ChrBoebel/saywing/issues'
 MAINTAINER_PROFILE = 'https://github.com/ChrBoebel'
@@ -126,7 +132,14 @@ def verify_copyleft_libraries(resources, records):
 
 
 def written_offer():
-    return ('<p><strong>Written offer.</strong> For at least three years from the date on which the Saywing '
+    return ('<p><strong>Download.</strong> The source archives are not included in this app. Every file listed '
+            'below is publicly available, without an account and free of charge, from the Saywing download server, '
+            'the same place that serves the Saywing download; its address there is given first for each file. The '
+            'upstream address follows as a second source. Check any copy against the listed size and SHA-256. '
+            'CorrespondingSource/sources.json in this app lists the same records in machine-readable form (the '
+            'Saywing download server address is the field mirror_url), and CorrespondingSource/README.md explains '
+            'how to rebuild and replace the GNU libraries.</p>'
+            '<p><strong>Written offer.</strong> In addition, for at least three years from the date on which the Saywing '
             'maintainers distributed the Saywing build that contains this notice, and for as long as they offer '
             'updates or support for that build if that is longer, the Saywing maintainers will give any third party, '
             'on request, a complete machine-readable copy of every source file listed below for that build: the '
@@ -136,17 +149,20 @@ def written_offer():
             'project issue tracker at <a href="' + SOURCE_REQUESTS + '">' + SOURCE_REQUESTS + '</a> and name the '
             'Saywing version, build and Mac architecture shown in Settings; if you cannot use the issue tracker, use '
             'the contact shown on the maintainer profile <a href="' + MAINTAINER_PROFILE + '">' + MAINTAINER_PROFILE
-            + '</a>. The maintainers keep an identical copy of every listed file for each published build.</p>'
-            '<p>The source archives are not included in this app. Each one is also published at the upstream address '
-            'below; check any copy against the listed size and SHA-256. CorrespondingSource/sources.json in this app '
-            'lists the same records in machine-readable form, and CorrespondingSource/README.md explains how to '
-            'rebuild and replace the GNU libraries.</p>')
+            + '</a>. The maintainers keep an identical copy of every listed file for each published build.</p>')
+
+
+def link(url):
+    return '<a href="' + escape(url) + '">' + escape(url) + '</a>'
+
+
+def addresses(record):
+    return 'download from the Saywing download server at ' + link(record['mirror_url']) + '; upstream: ' + link(record['url'])
 
 
 def pointer(record):
     return ('<li><code>' + escape(record['file']) + '</code>, ' + str(record['bytes']) + ' bytes, SHA-256 <code>'
-            + escape(record['sha256']) + '</code>, from <a href="' + escape(record['url']) + '">'
-            + escape(record['url']) + '</a></li>')
+            + escape(record['sha256']) + '</code>: ' + addresses(record) + '</li>')
 
 
 def source_section(records, found):
@@ -163,14 +179,18 @@ def source_section(records, found):
                    '<p>Separate dynamic libraries in this app, unmodified from their upstream package:</p><ul>'
                    + ''.join('<li><code>' + escape(path) + '</code></li>' for path in paths) + '</ul><p>'
                    + escape(item.get('binary_origin', '')) + '</p><p>Complete corresponding source '
-                   '(not included in this app; see the written offer above):</p><ul>'
+                   '(not included in this app; download it from the addresses below):</p><ul>'
                    + ''.join(pointer(record) for record in sources) + '</ul>')
     mpl = [item for item in records if 'MPL' in item.get('license', '')]
-    html = '<h2>Source code offer</h2>' + written_offer()
+    html = '<h2>Corresponding source</h2>' + written_offer()
     if gnu:
         html += ('<h2>GNU libraries: license, replacement and source</h2>'
                  '<p>The libraries below are licensed under the GNU Lesser General Public License version 2.1 or later, '
                  'or the GNU General Public License version 3 or later with the GCC Runtime Library Exception 3.1. '
+                 'libquadmath is licensed under the GNU Lesser General Public License version 2.1 or (at your option) '
+                 'any later version; the Saywing maintainers distribute it under the GNU Lesser General Public License '
+                 'version 3, which incorporates the GNU General Public License version 3 '
+                 '(Licenses/GCC-13.4.0/COPYING3.LIB and COPYING3). '
                  'Their complete license texts are under Licenses/GCC-13.4.0 below. They are loaded at run time as '
                  'separate files, so you may replace them with a modified or compatible version as described in '
                  'CorrespondingSource/README.md. Saywing imposes no additional restriction on modifying them for your '
@@ -178,12 +198,12 @@ def source_section(records, found):
     if mpl:
         html += ('<h2>Mozilla Public License 2.0 components</h2>'
                  '<p>The following components are covered by the Mozilla Public License 2.0, whose complete text is '
-                 'included below. Their source code form is available from the address given, and from the Saywing '
+                 'included below. Their source code form is available from the addresses given, and from the Saywing '
                  'maintainers under the written offer above.</p><ul>'
                  + ''.join('<li>' + escape(item.get('component', item['file'])) + ' (' + escape(item['license'])
                            + '): <code>' + escape(item['file']) + '</code>, ' + str(item['bytes'])
-                           + ' bytes, SHA-256 <code>' + escape(item['sha256']) + '</code>, from <a href="'
-                           + escape(item['url']) + '">' + escape(item['url']) + '</a>; license text: '
+                           + ' bytes, SHA-256 <code>' + escape(item['sha256']) + '</code>: ' + addresses(item)
+                           + '; license text: '
                            + ', '.join('<code>' + escape(text) + '</code>' for text in item['license_texts']) + '</li>'
                            for item in mpl) + '</ul>')
     return html + '<h2>All source archives for this build</h2><ul>' + ''.join(pointer(record) for record in records) + '</ul>'
@@ -230,8 +250,13 @@ def render_index(resources, sources=''):
 
 
 def corresponding_sources(architecture):
-    """Source records for one architecture; records without `architectures` apply to both."""
-    return for_architecture(json.loads(SOURCE_RECORDS.read_text()), architecture)
+    """Source records for one architecture; records without `architectures` apply to both.
+
+    Each record gains `mirror_url`: its public copy on the download host, which is exactly the
+    object scripts/publish-release.py archives and verifies for this architecture.
+    """
+    return [{**item, 'mirror_url': public_source_url(item, architecture)}
+            for item in for_architecture(json.loads(SOURCE_RECORDS.read_text()), architecture)]
 
 
 def validate_source_records(records):
@@ -247,6 +272,20 @@ def validate_source_records(records):
             raise ValueError('Corresponding source needs its license: ' + name)
         if COPYLEFT.search(item['license']) and not item.get('license_texts'):
             raise ValueError('Copyleft corresponding source needs its shipped license texts: ' + name)
+        if COPYLEFT.search(item['license']) or 'mirror_url' in item:
+            validate_mirror_url(item)
+
+
+def validate_mirror_url(item):
+    """The public copy must be an unauthenticated HTTPS URL of exactly the archived object."""
+    name = item['file']
+    try:
+        url = https_url(str(item.get('mirror_url') or ''))
+        expected = '/' + quote(corresponding_source_key(item), safe='/@')
+    except ValueError as error:
+        raise ValueError('Copyleft corresponding source needs its public download URL: ' + name) from error
+    if not urlsplit(url).path.endswith(expected):
+        raise ValueError('Public download URL does not point to the archived source: ' + name)
 
 
 def reject_bundled_sources(resources, records):

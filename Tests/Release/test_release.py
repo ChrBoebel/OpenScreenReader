@@ -165,6 +165,38 @@ class ReleaseTests(unittest.TestCase):
                 release.release_target('arm64')
         self.assertTrue(release.DEFAULT_SIGNING_IDENTITY.startswith('Developer ID Application:'))
 
+    def test_public_source_url_is_the_archived_object_on_the_download_host(self):
+        import os
+        from unittest.mock import patch
+        record = {'file': 'homebrew-gcc@13-97eefa4d.rb', 'sha256': 'a' * 64}
+        key = 'corresponding-source/sha256/' + 'a' * 64 + '/homebrew-gcc@13-97eefa4d.rb'
+        self.assertEqual(release.corresponding_source_key(record), key)
+        with patch.dict(os.environ):
+            for name in ('SAYWING_PUBLIC_DOWNLOAD_PREFIX', 'SAYWING_PUBLIC_SOURCE_PREFIX'):
+                os.environ.pop(name, None)
+            # Same host and route as the DMG; Intel shares the /x86_64 namespace with its storage prefix.
+            for architecture in ('arm64', 'x86_64'):
+                target = release.release_target(architecture)
+                self.assertEqual(release.public_source_url(record, architecture), target['url_prefix'] + '/' + key)
+                self.assertEqual(target['storage_prefix'] + '/' + key,
+                                 ('saywing/x86_64/' if architecture == 'x86_64' else 'saywing/') + key)
+            self.assertEqual(release.public_source_url(record, 'arm64'),
+                             release.DEFAULT_PUBLIC_DOWNLOAD_PREFIX + '/' + key)
+        with patch.dict(os.environ, {'SAYWING_PUBLIC_DOWNLOAD_PREFIX': 'https://downloads.example.org/app/'}):
+            os.environ.pop('SAYWING_PUBLIC_SOURCE_PREFIX', None)
+            self.assertEqual(release.public_source_url(record, 'x86_64'), 'https://downloads.example.org/app/x86_64/' + key)
+            os.environ['SAYWING_PUBLIC_SOURCE_PREFIX'] = 'https://sources.example.org/saywing/'
+            self.assertEqual(release.public_source_url(record, 'arm64'), 'https://sources.example.org/saywing/' + key)
+            self.assertEqual(release.public_source_url(record, 'x86_64'), 'https://sources.example.org/saywing/x86_64/' + key)
+        for unsafe in ['http://sources.example.org/saywing', 'https://sources.example.org/saywing?token=secret']:
+            with patch.dict(os.environ, {'SAYWING_PUBLIC_SOURCE_PREFIX': unsafe}), self.assertRaises(ValueError):
+                release.public_source_url(record, 'arm64')
+        for name in ['../gcc.tar.xz', 'dir/gcc.tar.xz', '']:
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                release.public_source_url({**record, 'file': name}, 'arm64')
+        with self.assertRaises(ValueError):
+            release.public_source_url({**record, 'sha256': 'abc'}, 'arm64')
+
     def test_signing_identity_and_notary_profile_follow_environment(self):
         import argparse, os
         from unittest.mock import patch

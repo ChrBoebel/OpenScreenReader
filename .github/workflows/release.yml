@@ -68,6 +68,8 @@ jobs:
       SAYWING_ARCHITECTURE: ${{ matrix.architecture }}
       # Owner defaults; forks set the repository variables instead of editing scripts.
       SAYWING_PUBLIC_DOWNLOAD_PREFIX: ${{ vars.SAYWING_PUBLIC_DOWNLOAD_PREFIX || 'https://www.christopherboebel.com/downloads/saywing' }}
+      # Empty means the download prefix; package and publish must agree (sources.json mirror_url).
+      SAYWING_PUBLIC_SOURCE_PREFIX: ${{ vars.SAYWING_PUBLIC_SOURCE_PREFIX }}
       SAYWING_FEED_URL: ${{ format('{0}{1}/appcast.xml', vars.SAYWING_PUBLIC_DOWNLOAD_PREFIX || 'https://www.christopherboebel.com/downloads/saywing', matrix.architecture == 'x86_64' && '/x86_64' || '') }}
       SAYWING_DOWNLOAD_URL_PREFIX: ${{ format('{0}{1}', vars.SAYWING_PUBLIC_DOWNLOAD_PREFIX || 'https://www.christopherboebel.com/downloads/saywing', matrix.architecture == 'x86_64' && '/x86_64' || '') }}
       SAYWING_PUBLIC_KEY: ${{ vars.SAYWING_SPARKLE_PUBLIC_KEY || 'UkAO/uyBRKSNY0+0gLVrnxa6vaXaVE4cJueFv1JVIT0=' }}
@@ -176,6 +178,7 @@ jobs:
       SAYWING_S3_BUCKET: ${{ vars.SAYWING_S3_BUCKET }}
       SAYWING_S3_REGION: ${{ vars.SAYWING_S3_REGION || 'auto' }}
       SAYWING_PUBLIC_DOWNLOAD_PREFIX: ${{ vars.SAYWING_PUBLIC_DOWNLOAD_PREFIX || 'https://www.christopherboebel.com/downloads/saywing' }}
+      SAYWING_PUBLIC_SOURCE_PREFIX: ${{ vars.SAYWING_PUBLIC_SOURCE_PREFIX }}
       SAYWING_RELEASE_REPOSITORY: ${{ vars.SAYWING_RELEASE_REPOSITORY }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -194,7 +197,7 @@ jobs:
         with:
           name: Saywing-${{ github.run_number }}-${{ matrix.architecture }}
           path: ${{ runner.temp }}/saywing-release
-      - name: Publish, verify the public download, then promote the feed
+      - name: Publish, verify the public sources and download, then promote the feed
         env:
           GH_TOKEN: ${{ github.token }}
           SAYWING_S3_ACCESS_KEY_ID: ${{ secrets.SAYWING_S3_ACCESS_KEY_ID }}

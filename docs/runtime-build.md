@@ -145,8 +145,9 @@ Then it builds both worker runtimes with `scripts/build-python-runtime.py`, and 
   (architecture, macOS 14, no external load paths).
 
 Source archives for the GNU and MPL-2.0 components
-(`docs/licenses/native-corresponding-sources.json`) are not release inputs. The app carries a
-written offer and exact pointers, and the publish job archives the files
+(`docs/licenses/native-corresponding-sources.json`) are not release inputs. The app carries
+exact pointers, including the public copy on the download host, and a written offer; the
+publish job archives the files and verifies that they are publicly downloadable
 ([ADR 0007](decisions/0007-gcc-runtime-libraries.md)).
 
 Inputs come to about 2 GB per architecture, mostly the two models and the FLEURS archives
