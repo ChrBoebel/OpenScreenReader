@@ -39,7 +39,10 @@ Not shipped any more: torch, numba/llvmlite (only used for word timestamps, whic
 disables), fsspec, hf-xet, requests, soundfile/libsndfile, sounddevice, miniaudio, pip,
 setuptools, the unrelated document/image tool chain that came with a copied prototype
 environment (including the non-redistributable `artifact_tool_v2` with `node_modules/@oai`),
-and duplicate NumPy installs.
+and duplicate NumPy installs. That prototype environment was only in private builds 1–5; the
+published 0.1.17 betas used the later portable runtime and do not contain it (checked on the
+served DMGs, see the addendum in
+[ADR 0007](decisions/0007-gcc-runtime-libraries.md#addendum-2026-10-25-the-2026-10-15-beta-builds)).
 
 ## Build
 

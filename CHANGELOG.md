@@ -4,6 +4,8 @@ Notable changes to Saywing (formerly OpenScreenReader). Dates are when the chang
 
 ## [Unreleased]
 
+- **Supertonic 3 model terms need explicit acceptance.** Saywing asks you to accept the model terms before the read-aloud voice is used; the terms now name the distributor, end on a breach of Attachment A, ask you to mark shared speech as machine-generated and cover redistribution through mirrors, package managers and forks. The DMG `Licenses` folder starts with a README that limits Apache-2.0 to the source code. Existing installations, including the 0.1.17 betas after an update, ask for acceptance once before reading aloud again.
+- **Source offer for the 0.1.17 betas.** The served beta DMGs were checked: they do not contain the prototype runtime of private builds 1–5. A written offer with exact source pointers now covers their GNU runtime libraries and Eigen ([notice](docs/licenses/beta-0.1.17-corresponding-source.md), [ADR 0007](docs/decisions/0007-gcc-runtime-libraries.md)).
 - **Repository renamed to `ChrBoebel/saywing`.** Old `ChrBoebel/OpenScreenReader` links redirect. Technical identifiers keep the OpenScreenReader name for compatibility.
 - **README overhaul.** Read aloud and dictation lead, followed by privacy, an honest install status, requirements and an FAQ (including how Saywing differs from Speak Selection). Test gaps moved into a collapsible status section, and the runtime build description now points to the one-command assembly from public sources.
 - **Docs wording.** The privacy requirements and roadmap describe decisions in neutral project language with their dates. The issue chooser links to Discussions for questions and ideas.

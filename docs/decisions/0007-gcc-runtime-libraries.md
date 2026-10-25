@@ -90,10 +90,54 @@ full Sparkle update carried those archives.
 - The first publication after a source pin changes needs the upstream hosts to be
   reachable. If they are not, publication stops before anything is uploaded.
 - Builds published before this decision (the 2026-10-15 betas) were made with an earlier
-  runtime. This archive does not cover them. Any copyleft libraries they contained need a
-  separate check.
+  runtime. This archive does not cover them; see the addendum below.
 - This ADR is not legal advice, and it does not close the license review. That review stays
   open in the release approvals (see [ADR 0003](0003-bundled-default-model.md)).
+
+## Addendum 2026-10-25: the 2026-10-15 beta builds
+
+The betas 0.1.17 (build 117) for Apple Silicon and Intel were published on 2026-10-15,
+before this decision. The served DMGs were checked on 2026-10-25:
+
+- Apple Silicon: `Saywing-0.1.17-117.dmg`, 1,407,098,966 bytes, SHA-256
+  `7da384ef685368a86430459988ff430ce142179af8d944d44a806ef193dbe743` (equal to the served
+  `latest.json`); code seal valid. It contains SciPy 1.17.1 with `libquadmath.0`,
+  `libgfortran.5` and `libgcc_s.1.1` in `scipy/.dylibs/`, ONNX Runtime 1.23.2, and 20 source
+  records in `CorrespondingSource/`. No file name or text file contains `artifact_tool` or
+  `@oai/`, and there is no `node_modules`: the prototype runtime of the private builds 1–5
+  is not in this beta.
+- Intel: `x86_64/Saywing-0.1.17-117.dmg`, 1,125,227,296 bytes, SHA-256
+  `d23157c58825da6ca6db0acc8586da5ddd5e6f57ec468fc8e4781eeb274e99e2` (equal to the served
+  `latest.json`); code seal valid. Same findings: SciPy 1.17.1 with the same three GNU
+  libraries, ONNX Runtime 1.23.2, 20 source records, no `artifact_tool`, `@oai` or
+  `node_modules`.
+- Neither DMG has the `Licenses` folder or `SUPERTONIC-MODEL-TERMS.md`; inside the app they
+  carry only the Open RAIL-M license text. That gap belongs to the model-terms review
+  ([ADR 0003](0003-bundled-default-model.md)).
+
+What they lacked: a source, offer or pointer for SciPy 1.17.1's GNU runtime libraries
+(`libquadmath`, `libgfortran`, `libgcc_s`) and for Eigen, which is compiled into ONNX
+Runtime 1.23.2. Their license texts were shipped. The sources of the other copyleft
+components (libsndfile and its codecs, autocommand, certifi, tqdm and the listed Rust
+crates) were inside the app.
+
+Decision: this offer is extended to those builds.
+
+- [`docs/licenses/beta-0.1.17-corresponding-source.md`](../licenses/beta-0.1.17-corresponding-source.md)
+  lists the four source files with upstream URL, size and SHA-256 (all re-verified on
+  2026-10-25) and the written offer for at least three years after the betas were last
+  distributed.
+- The maintainer archives these four files under
+  `<storage prefix>/corresponding-source/builds/117.json` like any published build, and
+  links the notice from the website download page while the betas stay online. Both steps
+  happen outside the repository.
+- The betas are replaced by a clean build from the current pipeline once the license review
+  closes.
+
+Open for the legal review: whether a retroactive offer is sufficient for LGPL-2.1, whose
+paragraph 8 ends rights without a cure period, and whether GPL-3.0 paragraph 6(d)
+(equivalent access from the same place) rather than an offer alone applies to downloads.
+Both questions also apply to the offer for future builds above.
 
 ## References
 
