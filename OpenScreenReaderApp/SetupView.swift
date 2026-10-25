@@ -74,6 +74,7 @@ struct SetupView: View {
                         .font(.callout).foregroundStyle(.secondary)
                     Text(LocalSpeechService.installationSummary).font(.callout).foregroundStyle(.secondary)
                     ModelTermsNotice()
+                    ModelTermsAcceptanceToggle(model: model)
                 }
             }.frame(maxWidth: .infinity, alignment: .leading).padding(24).padding(.top, 24)
         }
@@ -265,6 +266,7 @@ struct SetupView: View {
         switch flow.step {
         case .readingModel, .dictationModel, .readingShortcuts, .dictationShortcuts:
             primary(String(localized: "Continue")) { flow.advance() }
+                .disabled(!flow.canContinue)
                 .accessibilityIdentifier("setupContinue")
         case .welcome:
             primary(String(localized: "Continue")) { flow.advance() }

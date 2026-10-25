@@ -17,7 +17,11 @@ struct MenuBarContent: View {
         }
         if let errorMessage = model.errorMessage {
             Text(errorMessage)
-            Button("Open Setup…") { model.showSetup() }
+            if model.errorHelp == .acceptModelTerms {
+                Button("Review Model Terms…") { model.showModelTerms() }
+            } else {
+                Button("Open Setup…") { model.showSetup() }
+            }
         }
 
         Divider()

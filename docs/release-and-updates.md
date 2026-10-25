@@ -342,10 +342,26 @@ The exact files can also be fetched and verified locally (build-time network onl
 python3 scripts/bundle_notices.py --fetch-sources
 ```
 
-Every DMG has a `Licenses` folder beside `Saywing.app` with `LICENSE`, `NOTICE`,
+Every DMG has a `Licenses` folder beside `Saywing.app` with `LICENSE`, `NOTICE`, a
+`README.txt` (`docs/licenses/DMG-README.txt`) that limits Apache-2.0 to the source code,
 `SUPERTONIC-MODEL-TERMS.md`, the complete `Supertonic-3-Open-RAIL-M.txt` and the app's
 `THIRD-PARTY-NOTICES.html`. `release.py` stops before building if one of these documents is
 missing.
+
+The app asks for explicit acceptance of the Supertonic 3 model terms before the read-aloud
+voice is used (setup, and Settings › Read Aloud › Voice). The acceptance is stored locally
+with the SHA-256 of the bundled terms, so a changed terms text is asked again.
+
+Before every public release, check that the pinned Supertonic 3 revision is still the latest
+upstream revision (Open RAIL-M paragraph 7: reasonable efforts to use the latest version), or
+record why not:
+
+```sh
+curl -s https://huggingface.co/api/models/Supertone/supertonic-3 | python3 -c \
+  'import json,sys; print(json.load(sys.stdin)["sha"])'
+```
+
+The result must equal the pinned revision in `docs/licenses/SUPERTONIC-MODEL-TERMS.md`.
 
 ## Remaining public-release gates
 
@@ -367,7 +383,12 @@ Done:
 
 Still open:
 
-- the maintainer's legal review of the model-terms wording.
+- the maintainer's legal review of the model-terms wording. The terms now name the
+  distributor, require explicit in-app acceptance, end on breach of Attachment A and cover
+  shared audio and redistribution channels; the review decides whether that satisfies
+  Open RAIL-M paragraph 4(a) and which governing law applies;
+- the source obligations of the 2026-10-15 beta builds (0.1.17, build 117, arm64 and
+  x86_64); see the addendum in [ADR 0007](decisions/0007-gcc-runtime-libraries.md).
 
 The 2026-10-15 review covered the earlier runtime. No public release can be built until the
 maintainer closes this gate; the beta exception covers only `clean_mac`.

@@ -450,7 +450,7 @@ struct InteractionTests {
     func quittingStopsTheSpeechWorker() async {
         let center = NotificationCenter()
         let speech = SpeechFake()
-        let model = AppModel(shortcutStore: MemoryShortcutStore(),
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(),
             hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             speechService: speech, appNotifications: center)
         #expect(!speech.stopped)
@@ -466,12 +466,12 @@ struct InteractionTests {
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let speech = QueueSpeechFake()
-        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             speechService: speech, preferences: defaults)
         #expect(model.playbackRate == 1)
         model.setPlaybackRate(1.75)
         #expect(speech.playbackRate == 1.75)
-        let next = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+        let next = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             speechService: QueueSpeechFake(), preferences: defaults)
         #expect(next.playbackRate == 1.75)
     }
@@ -480,7 +480,7 @@ struct InteractionTests {
     func queueShortcutCannotReplaceStopAndFailedRegistrationKeepsPrevious() async {
         let queueHotkey = HotkeyManagerFake(registrationResult: .registered)
         let store = MemoryShortcutStore()
-        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             queueHotkeyManager: queueHotkey, queueShortcutStore: store)
         model.enqueueQueueShortcutChange(.default)
         await model.waitForInteractionToSettle()
@@ -689,7 +689,7 @@ struct InteractionTests {
         let speech = SpeechFake()
         let escape = EscapeFake()
         let panel = ReadingPanelFake()
-        let model = AppModel(shortcutStore: MemoryShortcutStore(),
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(),
             hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             selectionController: selection, captureService: capture, escapeMonitor: escape,
             ocrService: ocr, speechService: speech, readingPanel: panel)
@@ -716,7 +716,7 @@ struct InteractionTests {
         ocr.suspend = true
         let panel = ReadingPanelFake()
         let sounds = InterfaceSoundsFake()
-        let model = AppModel(shortcutStore: MemoryShortcutStore(),
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(),
             hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             selectionController: selection, captureService: capture, escapeMonitor: EscapeFake(),
             ocrService: ocr, readingPanel: panel, interfaceSounds: sounds)
@@ -758,7 +758,7 @@ struct InteractionTests {
         speech.emitPlayback = playing
         let panel = ReadingPanelFake()
         let sounds = InterfaceSoundsFake()
-        let model = AppModel(shortcutStore: MemoryShortcutStore(),
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(),
             hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             selectionController: selection, captureService: CaptureFake(), escapeMonitor: EscapeFake(),
             ocrService: OCRFake(), speechService: speech, readingPanel: panel, interfaceSounds: sounds)
@@ -796,7 +796,7 @@ struct InteractionTests {
         speech.shouldFail = outcome == "failure"
         let panel = ReadingPanelFake()
         let sounds = InterfaceSoundsFake()
-        let model = AppModel(shortcutStore: MemoryShortcutStore(),
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(),
             hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             selectionController: selection, captureService: CaptureFake(), escapeMonitor: EscapeFake(),
             ocrService: ocr, speechService: speech, readingPanel: panel, interfaceSounds: sounds)
@@ -815,7 +815,7 @@ struct InteractionTests {
     func customShortcutPersistsAndConflictKeepsPreviousBinding() async {
         let store = MemoryShortcutStore()
         let hotkey = HotkeyManagerFake(registrationResult: .registered)
-        let model = AppModel(shortcutStore: store, hotkeyManager: hotkey)
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: store, hotkeyManager: hotkey)
         let custom = ShortcutConfiguration(key: "J", modifiers: UInt32(cmdKey | shiftKey))
         model.enqueueShortcutChange(custom)
         await model.waitForInteractionToSettle()
@@ -830,7 +830,7 @@ struct InteractionTests {
         #expect(model.hotkeyRegistration == .registered)
         #expect(store.saved == custom)
         #expect(model.shortcutNotice?.contains("already in use") == true)
-        let restored = AppModel(shortcutStore: store,
+        let restored = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: store,
             hotkeyManager: HotkeyManagerFake(registrationResult: .registered))
         #expect(restored.shortcutConfiguration == custom)
         hotkey.registrationResult = .registered
@@ -857,7 +857,7 @@ struct InteractionTests {
     func recordingAShortcutSuspendsBothGlobalShortcuts() async {
         let hotkey = HotkeyManagerFake(registrationResult: .registered)
         let queue = HotkeyManagerFake(registrationResult: .registered)
-        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: hotkey,
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(), hotkeyManager: hotkey,
                              queueHotkeyManager: queue, queueShortcutStore: MemoryShortcutStore())
         #expect(hotkey.registeredShortcut == ShortcutConfiguration.default.resolvedShortcut())
         model.setRecordingShortcut(true)
@@ -877,7 +877,7 @@ struct InteractionTests {
     @Test
     func shortcutCannotChangeDuringSelectionAndInvalidSettingsAreRejected() async {
         let store = MemoryShortcutStore()
-        let model = AppModel(shortcutStore: store,
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: store,
             hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             selectionController: RegionSelectionControllerFake())
         model.enqueueShortcutChange(ShortcutConfiguration(key: "Y", modifiers: 0))
@@ -942,7 +942,7 @@ struct InteractionTests {
         #expect(competitor.register(configuration.resolvedShortcut()) == .registered)
         let store = MemoryShortcutStore()
         store.saved = configuration
-        let model = AppModel(shortcutStore: store, hotkeyManager: manager)
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: store, hotkeyManager: manager)
         #expect(model.hotkeyRegistration == .conflict)
         #expect(model.status == .error)
         #expect(model.errorMessage?.contains("Saywing or OpenScreenReader") == true)
@@ -961,7 +961,7 @@ struct InteractionTests {
     @Test
     func changingShortcutRecoversFromStartupConflict() async {
         let hotkey = HotkeyManagerFake(registrationResult: .conflict)
-        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: hotkey)
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(), hotkeyManager: hotkey)
         #expect(model.status == .error)
         hotkey.registrationResult = .registered
         model.enqueueShortcutChange(ShortcutConfiguration(key: "J", modifiers: UInt32(cmdKey | shiftKey)))
@@ -976,7 +976,7 @@ struct InteractionTests {
         let ocr = OCRFake()
         let escape = EscapeFake()
         let speech = SpeechFake()
-        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             selectionController: selection, captureService: CaptureFake(), escapeMonitor: escape,
             ocrService: ocr, speechService: speech)
         await model.handleReadRequest()
@@ -997,7 +997,7 @@ struct InteractionTests {
 
     @Test
     func menuShowsFeedbackOnlyWhenItAddsInformation() async {
-        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
                              selectionController: RegionSelectionControllerFake())
         #expect(model.captureFeedback == nil, "The idle menu needs no instructions.")
         #expect(!model.isReadingActive)
@@ -1017,7 +1017,7 @@ struct InteractionTests {
         let ocr = OCRFake()
         let speech = SpeechFake()
         ocr.result = OCRResult(lines: [])
-        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             selectionController: selection, captureService: CaptureFake(), escapeMonitor: EscapeFake(),
             ocrService: ocr, speechService: speech)
         await model.handleReadRequest()
@@ -1036,7 +1036,7 @@ struct InteractionTests {
         let escape = EscapeFake()
         let speech = SpeechFake()
         speech.suspend = true
-        let model = AppModel(shortcutStore: MemoryShortcutStore(),
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(),
             hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             selectionController: selection, captureService: CaptureFake(), escapeMonitor: escape,
             ocrService: OCRFake(), speechService: speech)
@@ -1067,7 +1067,7 @@ struct InteractionTests {
         let selection = RegionSelectionControllerFake()
         let speech = SpeechFake()
         speech.shouldFail = true
-        let model = AppModel(shortcutStore: MemoryShortcutStore(),
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(),
             hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             selectionController: selection, captureService: CaptureFake(), escapeMonitor: EscapeFake(),
             ocrService: OCRFake(), speechService: speech)
@@ -1087,7 +1087,7 @@ struct InteractionTests {
         let speech = SpeechFake()
         speech.suspend = true
         speech.emitPlayback = false
-        let model = AppModel(shortcutStore: MemoryShortcutStore(),
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(),
             hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             selectionController: selection, captureService: CaptureFake(), escapeMonitor: EscapeFake(),
             ocrService: OCRFake(), speechService: speech,
@@ -1113,7 +1113,7 @@ struct InteractionTests {
         let ocr = OCRFake()
         ocr.suspend = true
         let escape = EscapeFake()
-        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             selectionController: selection, captureService: CaptureFake(), escapeMonitor: escape,
             ocrService: ocr)
         await model.handleReadRequest()
@@ -1144,7 +1144,7 @@ struct InteractionTests {
         let ocr = OCRFake()
         ocr.shouldFail = true
         let escape = EscapeFake()
-        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             selectionController: selection, captureService: CaptureFake(), escapeMonitor: escape,
             ocrService: ocr)
         await model.handleReadRequest()
@@ -1169,7 +1169,7 @@ struct InteractionTests {
         let ocr = OCRFake()
         ocr.suspend = true
         let escape = EscapeFake()
-        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             selectionController: selection, captureService: CaptureFake(), escapeMonitor: escape,
             ocrService: ocr, operationTimeout: timeout ? .milliseconds(100) : .seconds(15))
         await model.handleReadRequest()
@@ -1222,7 +1222,7 @@ struct InteractionTests {
     func appRegistersTheHotkeyAndStartsSelection() async {
         let hotkey = HotkeyManagerFake(registrationResult: .registered)
         let selection = RegionSelectionControllerFake()
-        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: hotkey, selectionController: selection,
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(), hotkeyManager: hotkey, selectionController: selection,
                              captureService: CaptureFake(), escapeMonitor: EscapeFake())
 
         #expect(hotkey.registeredShortcut == .readScreenRegion)
@@ -1239,7 +1239,7 @@ struct InteractionTests {
     func repeatedReadRequestCancelsTheActiveSelection() async {
         let hotkey = HotkeyManagerFake(registrationResult: .registered)
         let selection = RegionSelectionControllerFake()
-        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: hotkey, selectionController: selection,
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(), hotkeyManager: hotkey, selectionController: selection,
                              captureService: CaptureFake(), escapeMonitor: EscapeFake())
 
         await model.handleReadRequest()
@@ -1255,7 +1255,7 @@ struct InteractionTests {
     @Test
     func completedSelectionIsPublishedWithoutPersistingPixels() async {
         let selection = RegionSelectionControllerFake()
-        let model = AppModel(
+        let model = AppModel(modelTerms: .acceptedForTesting(),
             shortcutStore: MemoryShortcutStore(),
             hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             selectionController: selection, captureService: CaptureFake(), escapeMonitor: EscapeFake()
@@ -1283,7 +1283,7 @@ struct InteractionTests {
     func registrationConflictIsVisibleAndPreventsSelection() async {
         let hotkey = HotkeyManagerFake(registrationResult: .conflict)
         let selection = RegionSelectionControllerFake()
-        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: hotkey, selectionController: selection)
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(), hotkeyManager: hotkey, selectionController: selection)
 
         await model.handleReadRequest()
 
@@ -1299,7 +1299,7 @@ struct InteractionTests {
         let capture = CaptureFake()
         capture.suspend = true
         let escape = EscapeFake()
-        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
                              selectionController: selection, captureService: capture, escapeMonitor: escape)
         await model.handleReadRequest()
         let region = ScreenRegionSelection(displayID: 1,
@@ -1326,7 +1326,7 @@ struct InteractionTests {
         let capture = CaptureFake()
         let escape = EscapeFake()
         escape.shouldFail = true
-        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
                              selectionController: selection, captureService: capture, escapeMonitor: escape)
         await model.handleReadRequest()
         selection.complete(ScreenRegionSelection(displayID: 1,
@@ -1341,7 +1341,7 @@ struct InteractionTests {
 
     @Test
     func rapidReadRequestsAreProcessedInOrder() async {
-        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
                              selectionController: RegionSelectionControllerFake(),
                              captureService: CaptureFake(), escapeMonitor: EscapeFake())
         for _ in 0..<100 { model.enqueueReadRequest() }
@@ -1465,7 +1465,7 @@ struct InteractionTests {
         let selection = RegionSelectionControllerFake()
         final class Grants { var missing: SaywingPermission? = .screenRecording }
         let grants = Grants()
-        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
                              selectionController: selection, captureService: CaptureFake(), escapeMonitor: EscapeFake(),
                              ocrService: OCRFake(), speechService: SpeechFake(), preferences: preferences,
                              missingReadingPermission: { grants.missing })
@@ -1495,7 +1495,7 @@ struct FeedbackAtSourceTests {
         let suite = "com.christopherbobel.OpenScreenReader.error-help-tests.\(UUID())"
         let preferences = try #require(UserDefaults(suiteName: suite))
         defer { preferences.removePersistentDomain(forName: suite) }
-        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .conflict),
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .conflict),
                              preferences: preferences, missingReadingPermission: { grants.missing })
         defer { model.closeSetup(); model.closeErrorHelp() }
         #expect(model.status == .error)
@@ -1511,7 +1511,7 @@ struct FeedbackAtSourceTests {
         #expect(!model.isSetupOpen)
         grants.missing = .inputMonitoring
         #expect(model.errorHelp == .allow(.inputMonitoring))
-        let working = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+        let working = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
                                preferences: preferences)
         #expect(working.errorHelp == .retry)
     }
@@ -1811,7 +1811,7 @@ struct FeedbackAtSourceTests {
         }
         #expect(Set(pngs).count == 4)
         #expect(MenuBarIcon.image(for: .reading) === reading, "Images are cached, not redrawn per update")
-        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .conflict))
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .conflict))
         #expect(model.menuBarIndicator == .attention)
     }
 }
@@ -2697,7 +2697,7 @@ private struct QueueFixture {
     let model: AppModel
     init(operationTimeout: Duration = .seconds(15),
          waitForQueueTimeout: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
-        model = AppModel(shortcutStore: MemoryShortcutStore(),
+        model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(),
             hotkeyManager: hotkey,
             selectionController: selection, captureService: capture, escapeMonitor: escape,
             ocrService: ocr, speechService: speech, operationTimeout: operationTimeout,
@@ -3156,7 +3156,7 @@ struct DictationIntegrationTests {
     @Test func readingCancelsDictationAndStopsItsModelBeforeSelection() async throws {
         let (controller, worker, _) = fixture()
         let selection = RegionSelectionControllerFake()
-        let model = AppModel(shortcutStore: MemoryShortcutStore(),
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(),
             hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             selectionController: selection, escapeMonitor: EscapeFake(), dictation: controller)
         defer { controller.shutdown() }
@@ -3175,7 +3175,7 @@ struct DictationIntegrationTests {
     @Test func dictationStopsReadingBeforeItsActivationCallback() async {
         let (controller, _, _) = fixture()
         let selection = RegionSelectionControllerFake(), speech = SpeechFake()
-        let model = AppModel(shortcutStore: MemoryShortcutStore(),
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(),
             hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             selectionController: selection, escapeMonitor: EscapeFake(), speechService: speech, dictation: controller)
         defer { controller.shutdown() }
@@ -3229,7 +3229,7 @@ struct DictationIntegrationTests {
 
     @Test func dictationShortcutCannotBeReassignedToReading() async {
         let store = MemoryShortcutStore()
-        let model = AppModel(shortcutStore: store,
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: store,
             hotkeyManager: HotkeyManagerFake(registrationResult: .registered))
         model.enqueueShortcutChange(.dictationDefault)
         await model.waitForInteractionToSettle()
@@ -3568,12 +3568,12 @@ struct FnDictationGestureTests {
         #expect(ShortcutConfiguration.default == ShortcutConfiguration(key: "R", modifiers: UInt32(optionKey)))
         let store = MemoryShortcutStore()
         store.save(ShortcutConfiguration(key: "Y", modifiers: UInt32(cmdKey | shiftKey)))
-        let model = AppModel(shortcutStore: store, hotkeyManager: HotkeyManagerFake(registrationResult: .registered))
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: store, hotkeyManager: HotkeyManagerFake(registrationResult: .registered))
         #expect(model.shortcutConfiguration == .previousDefault)
         #expect(store.saved == .previousDefault)
         let custom = ShortcutConfiguration(key: "K", modifiers: UInt32(controlKey | shiftKey))
         store.save(custom)
-        let customModel = AppModel(shortcutStore: store, hotkeyManager: HotkeyManagerFake(registrationResult: .registered))
+        let customModel = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: store, hotkeyManager: HotkeyManagerFake(registrationResult: .registered))
         #expect(customModel.shortcutConfiguration == custom)
     }
 }
@@ -3826,7 +3826,7 @@ struct WindowPreviewTests {
             worker: DictationWorkerFake(), shortcut: HotkeyManagerFake(registrationResult: .registered),
             escape: HotkeyManagerFake(registrationResult: .registered), preferences: preferences, registerHotkey: false)
         defer { dictation.shutdown() }
-        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
                              preferences: preferences, dictation: dictation)
         func write(_ view: NSView, _ name: String) throws {
             view.layoutSubtreeIfNeeded()
@@ -3848,16 +3848,23 @@ struct WindowPreviewTests {
         for tab in [SettingsTab.general, .reading, .dictation, .shortcuts, .privacy] {
             try render(SettingsView(model: model, initialTab: tab), "settings-\(tab)")
         }
-        for step in [SetupStep.welcome, .permission(.screenRecording), .permission(.inputMonitoring), .tryReading,
+        for step in [SetupStep.welcome, .permission(.screenRecording), .permission(.inputMonitoring), .readingModel, .tryReading,
                      .dictationOffer, .permission(.microphone), .permission(.accessibility), .tryDictation, .done] {
             try render(SetupView(model: model, flow: SetupFlowController(model: model, permissions: PermissionStatus { _ in false }, start: step)),
                        "setup-\(step.previewName)")
         }
         try render(SetupView(model: model, flow: SetupFlowController(model: model, permissions: PermissionStatus { $0 == .screenRecording },
                                                                     start: .permission(.screenRecording))), "setup-screenRecording-granted")
+        let termsRequired = AppModel(modelTerms: ModelTermsAcceptance(bundle: .main, store: MemoryModelTermsStore()),
+                                     shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+                                     preferences: preferences)
+        try render(SetupView(model: termsRequired, flow: SetupFlowController(model: termsRequired, permissions: PermissionStatus { _ in true },
+                                                                            start: .readingModel)), "setup-readingModel-terms-required")
+        try render(SettingsView(model: termsRequired, initialTab: .reading), "settings-reading-terms-required")
+        try render(ReadingErrorView(model: termsRequired).background(Color(nsColor: .windowBackgroundColor)), "reading-error-terms")
         try render(PlaybackControlsView(model: model).background(Color(nsColor: .windowBackgroundColor)), "playback-controls")
         try render(SystemSettingsGuideView(permission: .accessibility, onClose: {}), "setup-guide")
-        let failing = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .conflict),
+        let failing = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .conflict),
                                preferences: preferences)
         // Popovers bring their own material; offscreen they need a background to be legible.
         try render(ReadingErrorView(model: failing).background(Color(nsColor: .windowBackgroundColor)), "reading-error-help")
@@ -3919,7 +3926,7 @@ struct SetupConfigurationTests {
     @Test func recordingAKeySuspendsDictationAndRejectsLateActivation() throws {
         let (controller, hotkey, _, root) = try fixture()
         defer { controller.shutdown(); try? FileManager.default.removeItem(at: root) }
-        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered), dictation: controller)
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered), dictation: controller)
         let activation = hotkey.onPress
         model.setRecordingShortcut(true)
         #expect(controller.shortcutsSuspended)
@@ -3934,7 +3941,7 @@ struct SetupConfigurationTests {
     @Test func allThreeShortcutsHaveDistinctAssignments() async throws {
         let (controller, _, _, root) = try fixture()
         defer { controller.shutdown(); try? FileManager.default.removeItem(at: root) }
-        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
             queueHotkeyManager: HotkeyManagerFake(registrationResult: .registered), queueShortcutStore: MemoryShortcutStore(), dictation: controller)
         model.enqueueDictationShortcutChange(model.shortcutConfiguration)
         await model.waitForInteractionToSettle()
@@ -4147,5 +4154,215 @@ struct WorkerSandboxTests {
         #expect(secret.0 != 0 && !secret.1.contains("private"), "Files outside the runtime and model stay unreadable.")
         let other = try run(URL(fileURLWithPath: "/bin/echo"), ["escaped"])
         #expect(other.0 != 0 && !other.1.contains("escaped"), "Only the interpreter may be executed.")
+    }
+}
+
+/// Holds the accepted hash in memory; tests never touch the user's real preferences.
+final class MemoryModelTermsStore: ModelTermsAcceptanceStoring {
+    var acceptedTermsSHA256: String?
+}
+
+extension ModelTermsAcceptance {
+    /// Tests of unrelated behaviour read with accepted terms; the gate has its own suite.
+    static func acceptedForTesting() -> ModelTermsAcceptance {
+        let terms = ModelTermsAcceptance(document: "Synthetic model terms", store: MemoryModelTermsStore())
+        terms.setAccepted(true)
+        return terms
+    }
+}
+
+/// Open RAIL-M §4(a)/§5: reading aloud with Supertonic 3 needs an explicit, local
+/// acceptance of exactly the terms bundled with this build.
+@Suite("Supertonic model terms acceptance", .serialized)
+@MainActor
+struct ModelTermsAcceptanceTests {
+    @Test func acceptanceStoresOnlyTheHashOfTheBundledTermsLocally() throws {
+        let suite = "com.christopherbobel.OpenScreenReader.model-terms-tests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let terms = ModelTermsAcceptance(document: "Terms v1", store: UserDefaultsModelTermsStore(defaults: defaults))
+        #expect(terms.state == .notAccepted)
+        #expect(!terms.isAccepted)
+        #expect(terms.setAccepted(true) == .accepted)
+        let hash = SHA256Digest.hex(of: Data("Terms v1".utf8))
+        #expect(defaults.string(forKey: "supertonicTermsAccepted.v1") == hash)
+        #expect(UserDefaultsModelTermsStore.preferenceKey == "supertonicTermsAccepted.v1")
+        #expect(defaults.persistentDomain(forName: suite)?.keys.sorted() == ["supertonicTermsAccepted.v1"], "Nothing else is stored.")
+        #expect(ModelTermsAcceptance(document: "Terms v1", store: UserDefaultsModelTermsStore(defaults: defaults)).isAccepted,
+                "Acceptance survives a relaunch.")
+        #expect(terms.setAccepted(false) == .notAccepted)
+        #expect(defaults.object(forKey: "supertonicTermsAccepted.v1") == nil, "Unchecking withdraws the acceptance.")
+    }
+
+    @Test func changedOrMissingTermsAreNeverAccepted() {
+        let store = MemoryModelTermsStore()
+        ModelTermsAcceptance(document: "Terms v1", store: store).setAccepted(true)
+        let changed = ModelTermsAcceptance(document: "Terms v2", store: store)
+        #expect(changed.state == .changed)
+        #expect(!changed.isAccepted)
+        let missing = ModelTermsAcceptance(document: nil, store: store)
+        #expect(missing.state == .unavailable)
+        #expect(missing.setAccepted(true) == .unavailable)
+        #expect(store.acceptedTermsSHA256 == SHA256Digest.hex(of: Data("Terms v1".utf8)), "Missing terms cannot be accepted.")
+        let empty = MemoryModelTermsStore()
+        #expect(ModelTermsAcceptance(document: nil, store: empty).setAccepted(true) == .unavailable)
+        #expect(empty.acceptedTermsSHA256 == nil)
+    }
+
+    @Test func bundledTermsAndLicenseAreWhatTheHashCovers() throws {
+        let document = try #require(ModelTerms.document(in: .main))
+        let terms = ModelTermsAcceptance(bundle: .main, store: MemoryModelTermsStore())
+        #expect(terms.documentSHA256 == SHA256Digest.hex(of: Data(document.utf8)))
+        #expect(terms.state == .notAccepted)
+    }
+
+    @Test(arguments: [false, true])
+    func readingWithoutAcceptanceCapturesNothingAndOpensTheTerms(fromMenu: Bool) async throws {
+        let suite = "com.christopherbobel.OpenScreenReader.model-terms-gate.\(UUID())"
+        let preferences = try #require(UserDefaults(suiteName: suite))
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let selection = RegionSelectionControllerFake(), capture = CaptureFake(), ocr = OCRFake(), speech = SpeechFake()
+        let escape = EscapeFake()
+        let terms = ModelTermsAcceptance(document: "Terms v1", store: MemoryModelTermsStore())
+        let model = AppModel(modelTerms: terms, shortcutStore: MemoryShortcutStore(),
+                             hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+                             selectionController: selection, captureService: capture, escapeMonitor: escape,
+                             ocrService: ocr, speechService: speech, preferences: preferences)
+        defer { model.closeSetup() }
+        #expect(model.errorHelp == .acceptModelTerms)
+        // Setup is a real, focused window; record what the gate published rather than
+        // relying on nothing else touching it before the expectations run.
+        var statuses: [AppStatus] = [], messages: [String] = []
+        let watchers = [model.$status.sink { statuses.append($0) },
+                        model.$errorMessage.sink { if let message = $0 { messages.append(message) } }]
+        defer { watchers.forEach { $0.cancel() } }
+        if fromMenu { model.enqueueReadRequest() } else { model.enqueuePrimaryShortcut() }
+        await model.waitForInteractionToSettle()
+        #expect(selection.startCount == 0)
+        #expect(capture.calls == 0 && ocr.calls == 0)
+        #expect(speech.receivedText == nil)
+        #expect(!escape.isActive)
+        #expect(!model.isReadingActive)
+        #expect(await model.pipelineCoordinator.snapshot().activeContext == nil)
+        #expect(Array(statuses.prefix(2)) == [.ready, .error])
+        #expect(Array(messages.prefix(1)) == [String(localized: "Saywing reads aloud only after you accept the Supertonic 3 model terms. Nothing was captured.")])
+        #expect(model.isSetupOpen)
+        #expect(model.setupStep == .readingModel)
+        #expect(!preferences.bool(forKey: "setupDismissed.v1"))
+        model.setModelTermsAccepted(true)
+        #expect(model.status == .ready)
+        #expect(model.errorMessage == nil)
+        model.enqueueReadRequest()
+        await model.waitForInteractionToSettle()
+        #expect(selection.startCount == 1)
+        model.enqueueStopRequest()
+        await model.waitForInteractionToSettle()
+    }
+
+    @Test func termsMissingFromTheBuildSayReadingIsUnavailable() async throws {
+        let suite = "com.christopherbobel.OpenScreenReader.model-terms-missing.\(UUID())"
+        let preferences = try #require(UserDefaults(suiteName: suite))
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let selection = RegionSelectionControllerFake()
+        let model = AppModel(modelTerms: ModelTermsAcceptance(document: nil, store: MemoryModelTermsStore()),
+                             shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+                             selectionController: selection, preferences: preferences)
+        defer { model.closeSetup() }
+        #expect(model.modelTermsState == .unavailable)
+        model.setModelTermsAccepted(true)
+        #expect(model.modelTermsState == .unavailable)
+        model.enqueueReadRequest()
+        await model.waitForInteractionToSettle()
+        #expect(selection.startCount == 0)
+        #expect(model.status == .error)
+        #expect(model.errorMessage?.contains("missing") == true)
+    }
+
+    @Test func acceptedTermsReadAsBefore() async {
+        let selection = RegionSelectionControllerFake(), ocr = OCRFake(), speech = SpeechFake()
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(),
+                             hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+                             selectionController: selection, captureService: CaptureFake(), escapeMonitor: EscapeFake(),
+                             ocrService: ocr, speechService: speech)
+        await model.handleReadRequest()
+        selection.complete(ScreenRegionSelection(displayID: 1,
+            rectInScreenPoints: CGRect(x: 0, y: 0, width: 20, height: 20),
+            rectInBackingPixels: CGRect(x: 0, y: 0, width: 20, height: 20), backingScaleFactor: 1))
+        await model.waitForInteractionToSettle()
+        await model.waitForCaptureToSettle()
+        await model.waitForSpeechToSettle()
+        #expect(speech.receivedText == "Hello world")
+        #expect(model.status == .ready)
+        #expect(!model.isSetupOpen)
+    }
+
+    @Test func withdrawingAcceptanceStopsTheActiveReading() async {
+        let selection = RegionSelectionControllerFake(), speech = SpeechFake()
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(),
+                             hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+                             selectionController: selection, escapeMonitor: EscapeFake(), speechService: speech)
+        await model.handleReadRequest()
+        #expect(model.status == .selecting)
+        model.setModelTermsAccepted(false)
+        await model.waitForInteractionToSettle()
+        #expect(model.status == .stopped)
+        #expect(!model.isReadingActive)
+        #expect(speech.stopped)
+        #expect(selection.cancelCount > 0)
+    }
+
+    @Test func setupCannotLeaveTheReadingVoiceStepWithoutAcceptance() throws {
+        let suite = "com.christopherbobel.OpenScreenReader.model-terms-setup.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let model = AppModel(modelTerms: ModelTermsAcceptance(document: "Terms v1", store: MemoryModelTermsStore()),
+                             shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+                             preferences: defaults)
+        let granted = PermissionStatus { _ in true }
+        let flow = SetupFlowController(model: model, permissions: granted, start: .readingModel)
+        #expect(!flow.canContinue)
+        flow.advance()
+        #expect(flow.step == .readingModel)
+        model.setModelTermsAccepted(true)
+        #expect(flow.canContinue)
+        flow.advance()
+        #expect(flow.step == .readingShortcuts)
+        flow.stop()
+        // A saved checkpoint past the voice step returns to it while the terms are not accepted.
+        model.setModelTermsAccepted(false)
+        for checkpoint in ["readingShortcuts", "try-reading"] {
+            defaults.set(["step": checkpoint, "resume": true], forKey: SetupFlowController.checkpointKey)
+            let restored = SetupFlowController(model: model, permissions: granted)
+            #expect(restored.step == .readingModel)
+            restored.stop()
+        }
+        let terms = SetupFlowController(model: model, permissions: granted, entry: .modelTerms)
+        #expect(terms.step == .readingModel)
+        terms.stop()
+    }
+}
+
+extension DictationIntegrationTests {
+    /// Dictation and the meeting transcript do not use Supertonic; the terms never gate them.
+    @Test func dictationStartsWithoutModelTermsAcceptance() async throws {
+        let (controller, worker, _) = fixture()
+        defer { controller.shutdown() }
+        let selection = RegionSelectionControllerFake()
+        let model = AppModel(modelTerms: ModelTermsAcceptance(document: "Terms v1", store: MemoryModelTermsStore()),
+            shortcutStore: MemoryShortcutStore(), hotkeyManager: HotkeyManagerFake(registrationResult: .registered),
+            selectionController: selection, escapeMonitor: EscapeFake(), dictation: controller)
+        defer { model.closeSetup() }
+        var started = false
+        controller.onActivation? { started = true }
+        await model.waitForInteractionToSettle()
+        #expect(started)
+        worker.ready = true
+        try controller.begin(target: InsertionTarget(local: controller.scratch))
+        #expect(controller.isActive)
+        #expect(model.status == .ready)
+        #expect(model.errorMessage == nil)
+        #expect(!model.isSetupOpen)
+        #expect(selection.startCount == 0)
+        controller.cancel(restart: false)
     }
 }

@@ -1248,7 +1248,7 @@ struct MeetingAppTests {
     @Test
     func aRunningTranscriptShowsItsOwnMenuBarShapeAndHoldsUpdates() async {
         let fixture = MeetingFixture()
-        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: MeetingHotkeyFake(),
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(), hotkeyManager: MeetingHotkeyFake(),
                              meeting: fixture.controller)
         #expect(model.menuBarIndicator == .idle)
         #expect(model.canChangeShortcut)
@@ -1264,7 +1264,7 @@ struct MeetingAppTests {
     @Test
     func readingAndDictationLeaveARunningTranscriptAlone() async {
         let fixture = MeetingFixture()
-        let model = AppModel(shortcutStore: MemoryShortcutStore(), hotkeyManager: MeetingHotkeyFake(),
+        let model = AppModel(modelTerms: .acceptedForTesting(), shortcutStore: MemoryShortcutStore(), hotkeyManager: MeetingHotkeyFake(),
                              meeting: fixture.controller)
         await fixture.start()
         model.enqueueStopRequest()

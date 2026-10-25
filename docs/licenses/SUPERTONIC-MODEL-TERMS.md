@@ -19,10 +19,25 @@ source code.
   `0d944a9110fed9a9602d60e0423a272903e7bd21ab060490774efc77c2275e9f`, Git blob
   `1e2cbe6cef94c8cdf3ed1fcebc0f5317ca7ad5a1` (matches the pinned revision)
 
+## Who offers these terms
+
+Saywing builds are distributed by Christopher Böbel, the maintainer of Saywing
+("Distributor"). Supertone Inc. is the licensor of Supertonic 3. The Distributor
+passes the Supertonic 3 model and its voice styles on to you unchanged, under the
+BigScience Open RAIL-M License. These terms are an agreement between you and the
+Distributor that covers only the model; they do not change the license of the
+Saywing source code.
+
+Saywing asks you to accept these terms before its read-aloud voice is used. **You
+may use the read-aloud voice only if you accept them.** If you do not accept
+them, do not use Saywing's read-aloud feature; dictation and other features that
+do not use the model remain available. If you breach the restrictions in
+Attachment A, your right to use the model under these terms ends.
+
 ## Binding terms for users of the model
 
-By using a Saywing build that includes the Supertonic 3 model, you agree to the
-following terms for the model and its derivatives:
+By accepting these terms in Saywing, you agree to the following for the model
+and its derivatives:
 
 1. Your use of the Supertonic 3 model, its voice styles and any derivatives is
    governed by the BigScience Open RAIL-M License. You receive a copy of that
@@ -30,9 +45,10 @@ following terms for the model and its derivatives:
 2. You must not use the model or derivatives of the model for any of the
    restricted uses listed in Attachment A of that license, reproduced
    unchanged below. This is an enforceable condition of your use
-   (paragraphs 4(a) and 5 of the license).
+   (paragraph 5 and Attachment A of the license).
 3. If you distribute the model or derivatives of the model, for example by
-   passing on a Saywing build that includes it, you must include these
+   passing on a Saywing build that includes it, including through a mirror, a
+   package manager (for example Homebrew) or a build of a fork, you must include these
    use-based restrictions as an enforceable provision in the agreement that
    governs that use or distribution, give the recipients a copy of the license,
    and require your users to comply with paragraph 5 (paragraphs 4 and 5 of the
@@ -40,6 +56,12 @@ following terms for the model and its derivatives:
 4. These terms apply only to the Supertonic 3 model, its voice styles and their
    derivatives. They do not change the license of the Saywing source code or of
    any other component.
+5. **Audio you share.** If you record, publish or otherwise share speech produced
+   by the Supertonic 3 voice, state clearly that it is machine-generated
+   (Attachment A(e)). Do not use it to impersonate anyone without their consent
+   (Attachment A(g)).
+
+Saywing is not affiliated with or endorsed by Supertone Inc.
 
 ### Paragraph 4 of the license (verbatim)
 
@@ -117,10 +139,18 @@ following terms for the model and its derivatives:
 ## Deutsche Fassung der Nutzungsbedingungen (zur Information)
 
 Maßgeblich sind die englischen Bedingungen oben und der unveränderte englische
-Lizenztext. Wenn Sie eine Saywing-Version mit dem Supertonic-3-Modell nutzen,
-gilt für das Modell, seine Stimmen und Ableitungen die BigScience Open
-RAIL-M-Lizenz. Sie dürfen das Modell und seine Ableitungen nicht für die in
-Anhang A (Attachment A) genannten Zwecke verwenden. Wer das Modell oder
-Ableitungen weitergibt, muss diese Nutzungsbeschränkungen als durchsetzbare
+Lizenztext. Saywing-Versionen werden von Christopher Böbel als Betreuer von
+Saywing verteilt; Lizenzgeber von Supertonic 3 ist Supertone Inc. Bevor die
+Vorlesestimme genutzt wird, fragt Saywing nach Ihrer Zustimmung; ohne Zustimmung
+dürfen Sie die Vorlesefunktion nicht nutzen, Diktieren bleibt verfügbar. Mit der
+Zustimmung gilt für das Modell, seine Stimmen und Ableitungen die BigScience
+Open RAIL-M-Lizenz. Sie dürfen das Modell und seine Ableitungen nicht für die in
+Anhang A (Attachment A) genannten Zwecke verwenden; ein Verstoß beendet Ihr
+Nutzungsrecht nach diesen Bedingungen. Wenn Sie erzeugte Sprache aufnehmen oder
+weitergeben, kennzeichnen Sie sie deutlich als maschinell erzeugt, und geben Sie
+sich damit nicht ohne Einwilligung als eine andere Person aus. Wer das Modell
+oder Ableitungen weitergibt, auch über Spiegelserver, Paketmanager wie Homebrew
+oder Builds eines Forks, muss diese Nutzungsbeschränkungen als durchsetzbare
 Bestimmung weitergeben und den Empfängern eine Kopie der Lizenz mitgeben. Diese
 Bedingungen gelten nicht für den Saywing-Quellcode oder andere Komponenten.
+Saywing steht in keiner Verbindung zu Supertone Inc.

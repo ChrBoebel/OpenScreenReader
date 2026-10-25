@@ -6,6 +6,7 @@ This folder holds the original license texts and notices for third-party softwar
 
 - [`SUPERTONIC-MODEL-TERMS.md`](SUPERTONIC-MODEL-TERMS.md) — use-based terms that apply to every build including the Supertonic 3 speech model.
 - [`Supertonic-3-Open-RAIL-M.txt`](Supertonic-3-Open-RAIL-M.txt) — the unchanged BigScience Open RAIL-M license of the Supertonic 3 model and voice styles.
+- [`DMG-README.txt`](DMG-README.txt) — the `README.txt` in every DMG's `Licenses` folder; it limits Apache-2.0 to the source code and points to the model terms.
 
 ## Application and runtime components
 
@@ -27,6 +28,7 @@ This folder holds the original license texts and notices for third-party softwar
 
 - [`CorrespondingSource-README.md`](CorrespondingSource-README.md) — explanation of the source archives shipped with the app and any local modifications.
 - [`native-corresponding-sources.json`](native-corresponding-sources.json) — pinned source archives (URL, size, SHA-256) for native libraries such as the GCC runtime.
+- [`beta-0.1.17-corresponding-source.md`](beta-0.1.17-corresponding-source.md) — source pointers and written offer for the 0.1.17 betas of 2026-10-15, which predate the offer in the app.
 - [`portable-supplement-sources.json`](portable-supplement-sources.json) — source and license records for supplemental runtime packages such as tokenizers and for CPython's bundled dependencies.
 
 Inside the app, these texts are available offline under Settings and in `THIRD-PARTY-NOTICES.html`; see [`../../NOTICE`](../../NOTICE).
