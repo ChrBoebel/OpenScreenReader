@@ -396,43 +396,33 @@ The result must equal the pinned revision in `docs/licenses/SUPERTONIC-MODEL-TER
 
 ## Remaining public-release gates
 
-`license_review` is `false` in both approval records (project decisions 2026-10-24; see
-`license_review_note` and the 2026-10-24 status in
-[ADR 0003](decisions/0003-bundled-default-model.md)).
+`license_review` is `true` in both approval records since 2026-10-25. The maintainer
+completed the license review, deliberately without external counsel, and accepted the
+residual risks listed in `license_review_note` and in
+[ADR 0003](decisions/0003-bundled-default-model.md).
 
-Done:
+Covered by the review:
 
-- the Supertonic model terms in the DMG;
+- the Supertonic 3 model terms: explicit, hash-bound in-app acceptance, an equally binding
+  German version with a translated Attachment A, German law with the consumer proviso, a
+  liability clause within German law, the terms and the license in every DMG;
 - notices for the rebuilt minimal runtimes;
 - the GCC runtime library decision with the per-build source archive, public source copies
   verified by the publish job, the written offer and the LGPL-3.0 election for libquadmath
   ([ADR 0007](decisions/0007-gcc-runtime-libraries.md) and its 2026-10-25 amendment);
 - the interpreter provenance record (`Runtime/Portable/python-provenance.json`,
-  [Interpreter provenance](research/interpreter-provenance.md)). It covers the
-  python-build-standalone commit, the build recipe, the CPython patch set and the
-  dependency sources. It also records the check that each pinned stripped archive and the
-  full archive whose licenses are shipped come from the same build.
+  [Interpreter provenance](research/interpreter-provenance.md)).
 
-Still open:
+Still required before a publication:
 
-- the maintainer's legal review of the model terms. They now name the distributor, require
-  explicit in-app acceptance, end on breach of Attachment A, cover shared audio and
-  redistribution channels, have an equally binding German version with a translated
-  Attachment A, choose German law with the consumer proviso and limit the distributor's
-  liability as German law allows. Open: whether Supertone can enforce against end users,
-  whether model weights are protected by copyright, whether the maintainer acts as a
-  business ("Unternehmer"), and the quality of the Attachment A translation;
-- the website route that serves `corresponding-source/sha256/...` from the download host.
-  It lives outside this repository. Until it is live, the four source files of the
-  2026-10-15 betas (0.1.17, build 117, arm64 and x86_64) are not public there, and the
-  publish job stops by design. The betas stay online by maintainer decision; record when
-  the route went live ([ADR 0007](decisions/0007-gcc-runtime-libraries.md), amendment);
-- the legal review of the remaining copyleft questions in the ADR 0007 amendment: the
-  retroactive LGPL-3.0 election for the betas under German law, the unrecorded Homebrew
-  bottle revision, and Stephen L. Moshier's copyright in some libquadmath files.
-
-The 2026-10-15 review covered the earlier runtime. No public release can be built until the
-maintainer closes this gate; the beta exception covers only `clean_mac`.
+- the website route that serves `corresponding-source/sha256/...` from the download host. It
+  lives outside this repository; until it is live the publish job stops by design. Record
+  when it went live, because that ends the missing source access of the 2026-10-15 betas
+  ([ADR 0007](decisions/0007-gcc-runtime-libraries.md), amendment);
+- `clean_mac` stays `false`; the documented beta exception covers only that gate, so
+  publications remain beta builds until a fresh-device test passes;
+- upstream Supertonic maintenance has ended; that remains an explicit release decision, not
+  a license item.
 
 `release-approval.json` also records the ARM beta privacy and production HTTPS update
 evidence, plus the approved exception for incomplete fresh-device testing. Intel has
