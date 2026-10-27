@@ -31,6 +31,8 @@ models/
 *.onnx
 *.wav
 *.m4a
+# Committed public-domain test speech; provenance in its README.md.
+!Tests/OpenScreenReaderAppTests/Fixtures/Speech/*.wav
 
 # Distribution artifacts
 *.dmg
