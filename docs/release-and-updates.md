@@ -219,12 +219,27 @@ Never commit P12 files, private keys or passwords.
 **Secrets on command lines (residual risk).** On the disposable runner, the
 temporary keychain password (random, masked) and the P12 password are passed to
 `security` with `-p`/`-P`; `security import` offers no stdin or environment
-alternative. The App Store Connect API key path writes the `.p8` key to a
-mode-0600 file that is deleted right after `notarytool store-credentials`, so no
+alternative. The App Store Connect API key path writes the `.p8` key to an
+exclusively created, mode-0600 file that is deleted right after
+`notarytool store-credentials`, including on failure, so no
 notarization secret appears on a command line. The Apple-ID fallback passes the
 app-specific password with `--password` because notarytool's alternative is an
 interactive prompt. These arguments are visible only to processes in the same
 ephemeral job; prefer the API key.
+
+**CodeQL credential findings.** The `::add-mask::` workflow command registers the
+generated keychain password for redaction; GitHub consumes the command without
+logging the secret. It must remain before tools can report their command lines
+on failure. The `.p8` file is a different case: `notarytool` needs a real private-key
+file. A local check with notarytool 1.1.0 (39) rejected both `/dev/stdin` and a
+mode-0600 named pipe. The supported file path therefore has a documented residual
+risk: a temporary plaintext key exists on the disposable runner, protected by
+owner-only permissions from creation and removed immediately after import into
+the encrypted temporary keychain. Project decision (2026-10-27): the maintainer
+accepts this bounded residual risk and approves closing storage alert #1 as
+`mitigated`, with the atomic mode-0600 hardening and regression tests recorded in
+the associated pull request. This does not eliminate the temporary plaintext
+storage. Logging alert #2 is a false positive; the masking command stays in place.
 
 ### GitHub settings the maintainer must configure
 

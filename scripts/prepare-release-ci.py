@@ -76,7 +76,9 @@ def main():
         sparkle_key = required('SAYWING_SPARKLE_PRIVATE_KEY')
         notary_options, notary_key = notary_credentials(temp)
         password = secrets.token_urlsafe(32)
-        # Mask the temporary keychain password before invoking tools.
+        # GitHub consumes this masking command without logging its payload. Keep
+        # it before tool calls: a tool failure can include the password in argv.
+        # CodeQL alert #2 mistakes this secret registration for a log message.
         print('::add-mask::' + password, flush=True)
         original = run('security', 'list-keychains', '-d', 'user', capture_output=True, text=True).stdout
         (temp / 'saywing-keychain-search-list.json').write_text(json.dumps([line.strip().strip('"') for line in original.splitlines()]))
@@ -105,8 +107,11 @@ def main():
             run('security', 'default-keychain', '-d', 'user', '-s', keychain)
             run(sparkle_tools(REPO / '.build/packages') / 'generate_keys', '--account', 'saywing', '-f', key_file)
             if notary_key is not None:
-                with notary_key_file.open('x') as stream:
-                    os.chmod(notary_key_file, 0o600)
+                # notarytool requires a regular file (stdin/FIFOs are rejected).
+                # Create it owner-only atomically, independent of the runner umask;
+                # never follow or overwrite an existing path. The finally block
+                # removes it on both successful and failed keychain imports.
+                with os.fdopen(os.open(notary_key_file, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as stream:
                     stream.write(notary_key)
             # The stored profile keeps its credentials inside the temporary keychain.
             run('xcrun', 'notarytool', 'store-credentials', NOTARY_PROFILE, '--keychain', keychain, *notary_options)
