@@ -33,7 +33,13 @@ Saywing is an open-source menu bar app for macOS. Press a shortcut, drag over an
 
 ## Install
 
-**There is no signed public release yet.** The first release is waiting on an open license review. Watch [Releases](https://github.com/ChrBoebel/saywing/releases) (Watch → Custom → Releases) to hear when it ships, or [build from source](#building-from-source).
+Download the signed and notarized **beta** for your Mac (macOS 14 or later):
+
+- **[Apple Silicon](https://www.christopherboebel.com/downloads/saywing/latest.dmg)** · **[Intel](https://www.christopherboebel.com/downloads/saywing/x86_64/latest.dmg)** · [download page with checksums](https://www.christopherboebel.com/en/saywing)
+
+Open the DMG and drag Saywing to Applications. On first use, setup explains each permission before asking for it and asks you to accept the Supertonic 3 model terms before the reading voice is used. Saywing updates itself through Sparkle; you can turn automatic checks off in Settings.
+
+It is a beta: Intel builds are tested under Rosetta only, and a fresh-Mac walkthrough is still open (see the status below). Watch [Releases](https://github.com/ChrBoebel/saywing/releases) (Watch → Custom → Releases) to hear about new versions, or [build from source](#building-from-source).
 
 <details>
 <summary><b>Status: beta, with known test gaps</b></summary>
@@ -122,7 +128,7 @@ Yes. Reading aloud and dictation with the bundled models run without a network c
 Supertonic 3 for speech, and Whisper large-v3-turbo for dictation. Qwen3-ASR 0.6B and Whisper Large v3 are optional downloads on Apple Silicon. The licenses are listed [below](#license).
 
 **Why do some files still say OpenScreenReader?**
-Saywing was previously called OpenScreenReader. The repository was renamed from `ChrBoebel/OpenScreenReader`, and old links redirect. The Xcode project and scheme, Swift modules, bundle identifier and `Application Support` directory keep the old technical name so existing settings and installations stay compatible.
+Saywing was previously called OpenScreenReader. The repository was renamed from `ChrBoebel/OpenScreenReader`, and old links redirect. The Xcode project and scheme, Swift modules and bundle identifier keep the old technical name so existing settings stay compatible. Release builds keep their data in `~/Library/Application Support/Saywing`; only the local development runtime still uses `~/Library/Application Support/OpenScreenReader`.
 
 ## Building from source
 
