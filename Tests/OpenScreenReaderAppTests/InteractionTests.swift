@@ -2496,7 +2496,12 @@ struct ReadingPanelTests {
         #expect(controller.state == .preparing)
         #expect(panel.isVisible)
         controller.show(.finished, displayID: number.uint32Value, onStop: nil)
-        try await Task.sleep(for: .milliseconds(350))
+        // The dismissal is a main-actor task after `terminalDuration`; a busy CI runner can
+        // run it later than a fixed sleep allows, so wait for it with a generous limit.
+        let deadline = ContinuousClock.now + .seconds(3)
+        while controller.state != nil, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
         #expect(controller.state == nil)
         #expect(!panel.isVisible)
         controller.show(.noText, displayID: number.uint32Value, onStop: nil)
