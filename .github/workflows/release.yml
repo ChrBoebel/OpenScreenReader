@@ -203,3 +203,41 @@ jobs:
           SAYWING_S3_ACCESS_KEY_ID: ${{ secrets.SAYWING_S3_ACCESS_KEY_ID }}
           SAYWING_S3_SECRET_ACCESS_KEY: ${{ secrets.SAYWING_S3_SECRET_ACCESS_KEY }}
         run: '"$RUNNER_TEMP/saywing-publisher/bin/python" scripts/publish-release.py --release "$RUNNER_TEMP/saywing-release"'
+
+  # Mirrors the release to GitHub Releases only after every publish leg succeeded, so both
+  # architectures are already public on the download host. The only job with write access:
+  # no secrets, no environment, no third-party code; only the preinstalled python3 and gh.
+  # It creates one tag on the built commit and one release, and never moves or replaces either.
+  github-release:
+    needs: publish
+    if: github.ref == 'refs/heads/main' && vars.SAYWING_RELEASE_ENABLED == 'true' && vars.SAYWING_PUBLISH_ENABLED == 'true' && vars.SAYWING_INTEL_RELEASE_ENABLED == 'true' && inputs.confirm == 'release'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    env:
+      SAYWING_PUBLIC_DOWNLOAD_PREFIX: ${{ vars.SAYWING_PUBLIC_DOWNLOAD_PREFIX || 'https://www.christopherboebel.com/downloads/saywing' }}
+      SAYWING_RELEASE_REPOSITORY: ${{ vars.SAYWING_RELEASE_REPOSITORY }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Receive the published Apple Silicon distribution
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: Saywing-${{ github.run_number }}-arm64
+          path: ${{ runner.temp }}/saywing-release/arm64
+      - name: Receive the published Intel distribution
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: Saywing-${{ github.run_number }}-x86_64
+          path: ${{ runner.temp }}/saywing-release/x86_64
+      - name: Verify against latest.json, then create or verify the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          python3 scripts/github-release.py \
+            --arm64 "$RUNNER_TEMP/saywing-release/arm64" \
+            --x86_64 "$RUNNER_TEMP/saywing-release/x86_64" \
+            --output "$RUNNER_TEMP/saywing-github-release"

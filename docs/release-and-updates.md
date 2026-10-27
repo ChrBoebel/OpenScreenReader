@@ -152,6 +152,11 @@ confirmation input. The jobs then run in this order:
    its public URL (size and SHA-256), uploads immutable files, downloads the whole
    DMG through the public URL and checks size and SHA-256, rechecks that the source
    commit is still the head of `main`, then promotes the release pointer.
+5. `github-release` (no environment, no secrets) mirrors the release to
+   [GitHub Releases](https://github.com/ChrBoebel/saywing/releases) so watchers
+   are notified. It needs the whole `publish` matrix, so it runs only after both
+   architectures are public; it is skipped while `SAYWING_INTEL_RELEASE_ENABLED`
+   is not `true`. See [GitHub release mirror](#github-release-mirror).
 
 Version and build numbers derive from the workflow run number
 (`0.1.<run>` / build `<run + 100>`). Keep the workflow file name `release.yml`
@@ -174,10 +179,48 @@ with `scripts/release.py` instead.
 job, from `scripts/release-requirements.txt` with
 `pip install --require-hashes --no-deps` into an isolated virtual environment.
 Runtime wheels are installed with `--require-hashes` from the committed locks; the
-`package` job's download cache is re-verified on every use. Workflows grant only `contents: read`,
+`package` job's download cache is re-verified on every use. Workflows grant only `contents: read`
+(the single exception is the `github-release` job's `contents: write`, below),
 check out without persisted credentials, and never interpolate `${{ }}`
 expressions into shell scripts; values reach scripts only through environment
 variables.
+
+### GitHub release mirror
+
+`scripts/github-release.py` runs in the final `github-release` job on
+`ubuntu-24.04`. It is the only job with `permissions: contents: write`; it uses the
+job token through the preinstalled `gh` and `python3` only, no third-party action
+and no secret. It receives the same one-day artifacts as `publish`
+(`Saywing-<run>-arm64` and `Saywing-<run>-x86_64`) and:
+
+1. re-checks each architecture as the publisher does (notarized, approved, built
+   from `github.sha`, official download URL) and aborts unless the SHA-256 and size
+   of each DMG equal its architecture's `latest.json`, or a DMG is 2 GiB or larger
+   (GitHub's per-asset limit);
+2. attaches `Saywing-<version>-<build>-arm64.dmg`,
+   `Saywing-<version>-<build>-x86_64.dmg`, a combined `SHA256SUMS` for both, and
+   `latest-arm64.json` / `latest-x86_64.json` (the published metadata, unchanged);
+3. writes the notes from the `CHANGELOG.md` section for the version, otherwise
+   `[Unreleased]` (relative links pinned to the commit), with the official download
+   links, the note that Saywing updates itself via Sparkle from the maintainer's
+   site, the SHA-256 lines, the corresponding-source notice and ADR 0007, and
+   "Unsigned builds from forks are not official.";
+4. creates tag `v<version>-build<build>` (for example `v0.1.30-build130`) on
+   `github.sha` and the release "Saywing <version> (beta)".
+
+It is a **pre-release**, never marked latest, while any release-approval record
+relies on the `clean_mac` beta exception (`clean_mac` not `true`) or a
+`latest.json` channel is not `stable`; the job checks afterwards that GitHub did
+not mark it latest. Once every record closes `clean_mac`, the title drops
+"(beta)" and GitHub chooses "latest" as usual.
+
+Re-running the job is safe. An existing tag must already point to the built
+commit; tags are never moved. An existing release must hold exactly the expected
+assets with matching size and SHA-256 (GitHub's asset digest, or a download when
+none is reported); missing assets of an interrupted upload, including a leftover
+draft for the same commit, are uploaded without `--clobber` and the draft is
+published. Any other difference fails the job and needs a maintainer decision.
+A failure here leaves the website release and update feed untouched.
 
 ### Variables and secrets
 
@@ -188,7 +231,7 @@ conditions are evaluated before environment variables become available):
 | --- | --- |
 | `SAYWING_RELEASE_ENABLED` | `true` allows the release workflow to package |
 | `SAYWING_PUBLISH_ENABLED` | `true` enables the publish job; only after the download routes and bucket passed a live smoke test |
-| `SAYWING_INTEL_RELEASE_ENABLED` | Opt-in for the Intel matrix leg; leave unset/false until separately approved |
+| `SAYWING_INTEL_RELEASE_ENABLED` | Opt-in for the Intel matrix leg; leave unset/false until separately approved. The GitHub release mirror needs both architectures and is skipped without it |
 | `SAYWING_S3_ENDPOINT` | HTTPS endpoint of the S3-compatible bucket (publish job only) |
 | `SAYWING_S3_BUCKET` | Bucket name (publish job only) |
 | `SAYWING_S3_REGION` | Bucket region; defaults to `auto` (publish job only) |
@@ -197,7 +240,7 @@ conditions are evaluated before environment variables become available):
 | `SAYWING_SPARKLE_PUBLIC_KEY` | Sparkle Ed25519 public key (project default above) |
 | `SAYWING_SIGNING_IDENTITY` | Developer ID Application identity (project default above) |
 | `SAYWING_TEAM_ID` | Apple team ID for Apple-ID notarization (project default above) |
-| `SAYWING_RELEASE_REPOSITORY` | `owner/repo` allowed to publish (default `ChrBoebel/saywing`) |
+| `SAYWING_RELEASE_REPOSITORY` | `owner/repo` allowed to publish and to create GitHub releases (default `ChrBoebel/saywing`) |
 
 Secrets in the `saywing-release` environment:
 
@@ -261,6 +304,9 @@ These settings cannot be expressed in the repository and must be set manually:
   collaborators" is safer); keep the default `GITHUB_TOKEN` permission read-only;
   do not allow Actions to create or approve pull requests; allow only
   GitHub-owned actions and require them to be pinned by full commit SHA.
+- **Tags and releases**: a tag ruleset covering `v*` must still let the release
+  workflow's `GITHUB_TOKEN` create tags (but not update or delete them), or the
+  `github-release` job fails after publication.
 
 ## Download hosting
 
