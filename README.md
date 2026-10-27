@@ -33,7 +33,7 @@ Saywing is an open-source menu bar app for macOS. Press a shortcut, drag over an
 
 ## Install
 
-**There is no signed public release yet.** The first release is waiting on an open license review. Watch [Releases](https://github.com/ChrBoebel/saywing/releases) (Watch → Custom → Releases) to hear when it ships, or [build from source](#building-from-source).
+**There is no signed public release yet.** The license review is complete and the first signed beta is being prepared. Watch [Releases](https://github.com/ChrBoebel/saywing/releases) (Watch → Custom → Releases) to hear when it ships, or [build from source](#building-from-source).
 
 <details>
 <summary><b>Status: beta, with known test gaps</b></summary>
